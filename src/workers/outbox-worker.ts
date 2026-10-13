@@ -1,3 +1,6 @@
+import { sweepDocumentJobs } from "../lib/school-ai/document-jobs-service";
+import { sweepExamProctorRecordings } from "../lib/school-ai/exam-proctor-sweep";
+import { sweepSchoolRuns } from "../lib/school-ai/run-service";
 import { processingWorkflow } from "../lib/jobs/processing";
 import { reportDeliveryWorkflow } from "../lib/queue/report-delivery";
 import { announcementDeliveryWorkflow } from "../lib/queue/announcement-delivery";
@@ -21,6 +24,11 @@ worker.on("error", () => console.error(JSON.stringify({ component: "workflow-wor
 let closing = false;
 let nextSupportExpirySweep = 0;
 let nextExamExpirySweep = 0;
+let nextSchoolRunSweep = 0;
+let documentSweep: Promise<unknown> | null = null;
+let proctorSweep: Promise<unknown> | null = null;
+let proctorCursor: string | null = null;
+let nextProctorSweep = 0;
 let examExpiryCursor: ExamExpiryCursor | null = null;
 async function pump() {
   while (!closing) {
@@ -29,10 +37,24 @@ async function pump() {
     } catch {
       console.error(JSON.stringify({ component: "outbox-dispatcher", reason: "DISPATCH_UNAVAILABLE" }));
     }
+    if (Date.now() >= nextSchoolRunSweep) {
+      nextSchoolRunSweep = Date.now() + 5000;
+      if (!documentSweep) documentSweep = sweepDocumentJobs(db).catch(() => console.error(JSON.stringify({ component: "school-ai-documents", reason: "DOCUMENT_SWEEP_UNAVAILABLE" }))).finally(() => { documentSweep = null; });
+      try { await sweepSchoolRuns(db); }
+      catch { console.error(JSON.stringify({ component: "school-ai-runs", reason: "RUN_SWEEP_UNAVAILABLE" })); }
+    }
     if (Date.now() >= nextSupportExpirySweep) {
       nextSupportExpirySweep = Date.now() + 15_000;
       try { await expireSupportGrants(db); }
       catch { console.error(JSON.stringify({ component: "support-expiry", reason: "EXPIRY_SWEEP_UNAVAILABLE" })); }
+    }
+    if (!proctorSweep && Date.now() >= nextProctorSweep) {
+      nextProctorSweep = Date.now() + 15000;
+      proctorSweep = sweepExamProctorRecordings(db, proctorCursor).then(result => {
+        proctorCursor = result.cursor;
+        if (result.cursor) nextProctorSweep = Date.now() + 1000;
+        if (result.failed) console.error(JSON.stringify({ component: "exam-proctor-retention", reason: "DELETION_RETRY_REQUIRED", count: result.failed }));
+      }).catch(() => console.error(JSON.stringify({ component: "exam-proctor-retention", reason: "RETENTION_SWEEP_UNAVAILABLE" }))).finally(() => { proctorSweep = null; });
     }
     if (Date.now() >= nextExamExpirySweep) {
       nextExamExpirySweep = Date.now() + 15_000;
@@ -53,6 +75,8 @@ const running = pump();
 async function shutdown() {
   closing = true;
   await running;
+  await documentSweep;
+  await proctorSweep;
   await worker.close();
   await queue.close();
   await connection.quit();

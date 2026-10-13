@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateDocument, validateAudio, extractionSchema, parseModelJson, safeOriginalFileName, MAX_DOCUMENT_BYTES } from "../../src/lib/school-ai/intake";
+import { validateDocument, validateAudio, extractionSchema, parseModelJson, safeOriginalFileName, MAX_DOCUMENT_BYTES,unreviewedExtraction,sourceStructureApprovalIssues } from "../../src/lib/school-ai/intake";
 import { moduleWorkspaceHref } from "../../src/lib/school-ai/navigation";
 
 test("document intake checks actual signatures, size and supported extensions", () => {
@@ -53,3 +53,5 @@ test("module handoffs only use verified role destinations", () => {
   assert.equal(moduleWorkspaceHref("PRINCIPAL", "staff"), "/principal");
   assert.equal(moduleWorkspaceHref("TEACHER", "curriculum"), "/ai");
 });
+test("typed visual extraction keeps tables and math bounded and never treats provider claims as reviewed evidence",()=>{const region={id:"math-1",kind:"MATH",box:{x:0.1,y:0.2,width:0.4,height:0.2},text:"2 + 2 = 4",confidence:0.7,needsReview:false,reviewed:true,issue:"Check symbols",math:{latex:"2+2=4",plainText:"Two plus two equals four"}};const raw={text:"2 + 2 = 4",pages:[{page:1,text:"2 + 2 = 4",reviewed:true,regions:[region]}],uncertainties:[],expectedPageCount:1,missingPages:[],structureReviewed:true};const result=unreviewedExtraction(raw);assert.equal(result.structureReviewed,false);assert.equal(result.pages[0].reviewed,false);assert.equal(result.pages[0].regions?.[0].needsReview,true);assert.equal(result.pages[0].regions?.[0].reviewed,false);assert.equal(extractionSchema.safeParse({...raw,pages:[{...raw.pages[0],regions:[{...region,box:{x:0.9,y:0,width:0.5,height:1}}]}]}).success,false);assert.equal(extractionSchema.safeParse({...raw,pages:[{...raw.pages[0],regions:[{...region,kind:"TABLE"}]}]}).success,false);assert.equal(extractionSchema.safeParse({...raw,missingPages:[1]}).success,false);});
+test("source approval requires complete reviewed structured pages while legacy text remains supported",()=>{assert.deepEqual(sourceStructureApprovalIssues({sourcePages:[{page:1,text:"Legacy"}]}),[]);const data={sourcePages:[{page:1,text:"One",reviewed:true},{page:2,text:"Two",reviewed:true}],expectedPageCount:2,missingPages:[],structureReviewed:true};assert.deepEqual(sourceStructureApprovalIssues(data),[]);assert(sourceStructureApprovalIssues({...data,sourcePages:[data.sourcePages[0]]}).length);assert(sourceStructureApprovalIssues({...data,expectedPageCount:null}).length);assert(sourceStructureApprovalIssues({...data,structureReviewed:false}).length);assert(sourceStructureApprovalIssues({...data,sourcePages:[{...data.sourcePages[0],reviewed:false},data.sourcePages[1]]}).length);});

@@ -1,3 +1,4 @@
+import { validateKnowledgeReferences } from "./knowledge-service";
 import { createHash } from "node:crypto";
 import { Prisma, type SchoolAiRecord as StoredRecord } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
@@ -41,20 +42,70 @@ function canonical(value: unknown): unknown {
 }
 export function workspaceRequestHash(value: unknown) { return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex"); }
 
+async function assertKnowledgeEvidenceRead(user:AuthUser,kind:string,campusId:string|null,data:Record<string,unknown>,db:TxClient,permissions?:WorkspacePermissionSnapshot){
+  const evidence=kind==="POLICY"?(data.knowledge as {source?:{recordId:string;version:number}}|undefined)?.source:undefined;if(!evidence)return;
+  const source=await db.schoolAiRecord.findFirst({where:{id:evidence.recordId,schoolId:user.schoolId,campusId,kind:"SOURCE"}});
+  const subjects=user.role==="TEACHER"?await getAssignedWorkspaceSubjects(user,db):[];
+  if(!source||!canAccessWorkspaceRecord(user,source,"read",subjects))throw new SchoolAiError("Knowledge evidence is no longer accessible.",403,"PERMISSION_DENIED");
+  await assertWorkspaceDomainPermission(user,"SOURCE",dataOf(source),"view",permissions);
+  const saved=await db.schoolAiRevision.findFirst({where:{recordId:source.id,schoolId:user.schoolId,campusId,version:evidence.version,status:"APPROVED"},select:{data:true}});
+  if(!saved)throw new SchoolAiError("Approved knowledge evidence is no longer accessible.",403,"PERMISSION_DENIED");
+  await assertWorkspaceDomainPermission(user,"SOURCE",saved.data as Record<string,unknown>,"view",permissions);
+}
+
 async function scopedRecord(user: AuthUser, id: string, mode: "read" | "write", db: TxClient = prisma, permissions?: WorkspacePermissionSnapshot): Promise<StoredRecord> {
   workspaceIdSchema.parse(id);
   const record = await db.schoolAiRecord.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user, db) : [];
   if (!record || !canAccessWorkspaceRecord(user, record, mode, subjects)) throw new SchoolAiError("Workspace item not found or no longer accessible.", 404);
   await assertWorkspaceDomainPermission(user, record.kind as WorkspaceKind, dataOf(record), "view", permissions);
+  await assertKnowledgeEvidenceRead(user,record.kind,record.campusId,dataOf(record),db,permissions);
   return record;
 }
 
+/** Original bytes keep every retained classification and teaching-scope obligation.
+ * Editing the current text or category never declassifies the immutable upload.
+ * Project only authorization facts; do not load historical OCR bodies for this check.
+ */
+export async function assertSourceOriginalAccess(user: AuthUser, id: string, db: TxClient, options: { version?: number; versions?: readonly number[]; permissions?: WorkspacePermissionSnapshot; preserveClassification?: boolean } = {}) {
+  const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
+  if (!actor || actor.role !== user.role || user.role !== "SUPER_ADMIN" && actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new SchoolAiError("Your source access changed.", 403, "ACCESS_CHANGED");
+  const permissions = options.permissions ?? await loadWorkspacePermissionSnapshot(user, db);
+  await assertSchoolAiAccess(user, "view", permissions);
+  const record = await scopedRecord(user, id, "read", db, permissions), storageKey = dataOf(record).storageKey;
+  if (record.kind !== "SOURCE" || typeof storageKey !== "string" || !storageKey.startsWith(`school-ai/${user.schoolId}/`)) throw new SchoolAiError("The private source original is unavailable.", 409, "ORIGINAL_UNAVAILABLE");
+  const versions = [...new Set([...(options.versions ?? []), ...(options.version === undefined ? [] : [options.version])])];
+  if (versions.length) {
+    const saved = await db.schoolAiRevision.findMany({ where: { schoolId: user.schoolId, recordId: id, campusId: record.campusId, version: { in: versions }, data: { path: ["storageKey"], equals: storageKey } }, select: { version: true } });
+    if (saved.length !== versions.length) throw new SchoolAiError("The retained source version is no longer available.", 403, "SOURCE_HISTORY_UNAVAILABLE");
+  }
+  const scopes = await db.$queryRaw<Array<{ campusId: string | null; documentKind: string | null; subjectId: string | null; classId: string | null }>>`
+    SELECT DISTINCT campus_id AS "campusId", data->>'documentKind' AS "documentKind", data->>'subjectId' AS "subjectId", data->>'classId' AS "classId"
+    FROM school_ai_revisions WHERE school_id=${user.schoolId} AND record_id=${id}
+      AND (data->>'storageKey'=${storageKey} OR data->>'storageKey' IS NULL) LIMIT 1001`;
+  if (!scopes.length || scopes.length > 1000) throw new SchoolAiError("The retained source authority needs review.", 403, "SOURCE_HISTORY_UNAVAILABLE");
+  for (const saved of scopes) {
+    if (saved.campusId !== record.campusId) throw new SchoolAiError("The retained original belongs to a different source scope.", 403, "SOURCE_HISTORY_UNAVAILABLE");
+    await assertWorkspaceDomainPermission(user, "SOURCE", saved, "view", permissions);
+    await assertWorkspaceSubject(user, saved.campusId, saved, db);
+  }
+  // OCR is derived from the immutable original, even if it was requested after
+  // a category edit. Never copy its text into a broader current source scope.
+  if (options.preserveClassification) {
+    const current = dataOf(record);
+    if (scopes.some(saved => saved.documentKind && !["other", "policy"].includes(saved.documentKind) && saved.documentKind !== current.documentKind || saved.subjectId && (saved.subjectId !== current.subjectId || saved.classId !== current.classId))) {
+      throw new SchoolAiError("Restore the original source category and teaching scope before applying its extracted text.", 409, "SOURCE_CLASSIFICATION_CHANGED");
+    }
+  }
+}
+
 async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId: string | null, data: Record<string, unknown>, db: TxClient, permissions: WorkspacePermissionSnapshot) {
+  if(kind==="POLICY")await validateKnowledgeReferences(user,null,campusId,data,db,permissions);
   if (kind === "PAPER") {
     const paper = paperDataSchema.parse(data);
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);
     if (curriculum.kind !== "CURRICULUM" || curriculum.campusId !== campusId || curriculum.subjectId !== paper.subjectId || curriculum.classId !== paper.classId) throw new SchoolAiError("Choose a curriculum from the same campus, class and subject.", 403);
+    if (paper.questions.some(question=>question.figures?.length)) { const {validatePaperFigures}=await import("./paper-figure-service"); await validatePaperFigures(user,paper,campusId,db,permissions); }
     if (paper.questions.some((question) => question.reusedFrom)) {
       const { validatePaperBankProvenance } = await import("./question-bank-service");
       await validatePaperBankProvenance(user, paper, campusId, db, permissions);
@@ -71,6 +122,7 @@ async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId:
 async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient, permissions: WorkspacePermissionSnapshot) {
   const data = parseWorkspaceData(record.kind as WorkspaceKind, dataOf(record));
   const issues = workspaceApprovalIssues(record.kind as WorkspaceKind, data);
+  if(record.kind==="POLICY")await validateKnowledgeReferences(user,record.id,record.campusId,data,db,permissions,true);
   if (record.kind === "PAPER") {
     const paper = paperDataSchema.parse(data);
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);
@@ -115,7 +167,7 @@ export async function listWorkspaceRecords(user: AuthUser, filters: { kind?: Wor
       const records: AiWorkspaceRecord[] = [];
       for (const row of page) {
         if (!canAccessWorkspaceRecord(user, row, "read", subjects)) continue;
-        try { await assertWorkspaceDomainPermission(user, row.kind as WorkspaceKind, dataOf(row), "view", permissions); records.push(publicRecord(row)); }
+        try { await assertWorkspaceDomainPermission(user, row.kind as WorkspaceKind, dataOf(row), "view", permissions); await assertKnowledgeEvidenceRead(user,row.kind,row.campusId,dataOf(row),prisma,permissions); records.push(publicRecord(row)); }
         catch (error) { if (!(error instanceof Error && "status" in error && error.status === 403)) throw error; }
       }
       return { records, ...(rows.length > limit && page.length ? { nextCursor: page[page.length - 1].id } : {}) };
@@ -259,7 +311,7 @@ export async function listWorkspaceRevisionPage(user: AuthUser, id: string, opti
       }));
       const permitted: typeof scoped = [];
       for (const row of scoped) {
-        try { await assertWorkspaceDomainPermission(user, record.kind as WorkspaceKind, row.data as Record<string, unknown>, "view", permissions); permitted.push(row); }
+        try { await assertWorkspaceDomainPermission(user, record.kind as WorkspaceKind, row.data as Record<string, unknown>, "view", permissions); await assertKnowledgeEvidenceRead(user,record.kind,row.campusId,row.data as Record<string,unknown>,prisma,permissions); permitted.push(row); }
         catch (error) { if (!(error instanceof Error && "status" in error && error.status === 403)) throw error; }
       }
       const actors = await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(permitted.map(row => row.actorId))] } }, select: { id: true, fullName: true } });
@@ -296,6 +348,8 @@ export async function getApprovedWorkspaceRevision(user: AuthUser, id: string, v
       const current = await scopedRecord(user, id, "read", prisma, permissions);
       const saved = await prisma.schoolAiRevision.findFirst({ where: { recordId: id, schoolId: user.schoolId, campusId: current.campusId, version, status: "APPROVED" } });
       if (!saved) throw new SchoolAiError("Approved workspace version not found.", 404);
+      await assertWorkspaceDomainPermission(user, current.kind as WorkspaceKind, saved.data as Record<string, unknown>, "view", permissions);
+      await assertKnowledgeEvidenceRead(user,current.kind,saved.campusId,saved.data as Record<string,unknown>,prisma,permissions);
       if (user.role === "TEACHER") await assertWorkspaceSubject(user, saved.campusId, saved.data as Record<string, unknown>);
       return { ...publicRecord(current), title: saved.title, version: saved.version, status: "APPROVED", data: saved.data as AiWorkspaceRecord["data"], updatedAt: saved.createdAt.toISOString() };
     } catch (error) { return translateDatabaseError(error); }

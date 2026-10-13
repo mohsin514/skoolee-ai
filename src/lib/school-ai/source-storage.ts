@@ -87,15 +87,24 @@ function objectClient() {
 
 export async function saveOriginal(schoolId: string, bytes: Buffer, mimeType: string) {
   const key = checkedKey(`school-ai/${schoolId}/${randomUUID()}`);
+  await saveReservedOriginal(key, bytes, mimeType);
+  return key;
+}
+
+/** The caller durably reserves this random private key before starting an upload. */
+export async function saveReservedOriginal(key: string, bytes: Buffer, mimeType: string) {
+  checkedKey(key);
+  // A stale upload reservation is swept after five minutes. Bound active writes
+  // well inside that window so a late writer cannot recreate a deleted object.
+  const signal = AbortSignal.timeout(60000);
   const root = diskRoot(true);
   if (root) {
     const destination = diskObject(root, key);
     await mkdir(/* turbopackIgnore: true */ dirname(destination), { recursive: true, mode: 0o700 });
-    await writeFile(/* turbopackIgnore: true */ diskObject(root, key), bytes, { flag: "wx", mode: 0o600 });
+    await writeFile(/* turbopackIgnore: true */ diskObject(root, key), bytes, { flag: "wx", mode: 0o600, signal });
   } else {
-    await objectClient().send(new PutObjectCommand({ Bucket: process.env.S3_BUCKET_NAME!, Key: key, Body: bytes, ContentType: mimeType, CacheControl: "private, no-store" }));
+    await objectClient().send(new PutObjectCommand({ Bucket: process.env.S3_BUCKET_NAME!, Key: key, Body: bytes, ContentType: mimeType, CacheControl: "private, no-store" }), { abortSignal: signal });
   }
-  return key;
 }
 
 export async function readOriginal(key: string) {
@@ -111,6 +120,6 @@ export async function readOriginal(key: string) {
 export async function removeOriginal(key: string) {
   checkedKey(key);
   const root = diskRoot();
-  if (root) await unlink(/* turbopackIgnore: true */ diskObject(root, key));
+  if (root) { try { await unlink(/* turbopackIgnore: true */ diskObject(root, key)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; } }
   else await objectClient().send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET_NAME!, Key: key }));
 }

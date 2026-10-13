@@ -4,13 +4,14 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { resolveCampusId } from "@/lib/api/scope";
 import { resolveAcademicModelVersionForTerm } from "@/lib/academic/model-service";
-import { roomCapacity, seatGrid } from "@/lib/academic/room-capacity";
+import { roomCapacity } from "@/lib/academic/room-capacity";
 import { assertExamReservations } from "@/lib/academic/exam-bookings";
 import { assertExamSchedulingAccess } from "@/lib/academic/exam-scheduling-write";
 import { assertSchoolAiAccess, assertWorkspacePermission, loadWorkspacePermissionSnapshot, SchoolAiError } from "./access";
 import { workspaceRequestHash } from "./repository";
 import { examSessionPlanProposalSchema, type ExamSessionPlanOptions, type ExamSessionPlanPreview } from "./exam-session-plan";
-const fail = (message: string, code: string): never => { throw new SchoolAiError(message, 409, code); };
+import { allocateSupportedSeats } from "./exam-seat-support";
+function fail(message: string, code: string): never { throw new SchoolAiError(message, 409, code); }
 const roomSelect = { id: true, roomNumber: true, capacity: true, rows: true, benchesPerRow: true, seatsPerBench: true, examSeatsPerBench: true } as const;
 export async function assertExamSessionPlanAccess(user: AuthUser, db: TxClient, campusId?: string) {
   const campus = campusId ?? user.campusId;
@@ -35,6 +36,9 @@ export async function getExamSessionPlanOptions(user: AuthUser, requestedCampusI
     if (classes.length > 500 || subjects.length > 4000 || rooms.length > 500 || teachers.length > 1000 || periods.length > 100) fail("This campus needs a narrower planning scope.", "EXAM_PLAN_LIMIT");
     return { campusId, classes: classes.map(({ _count, ...cls }) => ({ ...cls, studentCount: _count.students })), subjects, rooms: rooms.map(room => ({ id: room.id, roomNumber: room.roomNumber, capacity: roomCapacity(room).exam, hasLayout: roomCapacity(room).hasLayout })), teachers, periods };
   });
+}
+export async function getExamSeatingCandidates(user:AuthUser,requestedCampusId:string|null,classId:string){
+ return runWithTenantContext({schoolId:user.schoolId,campusId:user.campusId,userId:user.userId,role:user.role},async()=>{const campusId=await resolveCampusId(user,requestedCampusId);await assertExamSessionPlanAccess(user,prisma,campusId);const cls=await prisma.class.findFirst({where:{id:classId,schoolId:user.schoolId,campusId,status:"ACTIVE",archivedAt:null}});if(!cls)throw new SchoolAiError("Class unavailable in this campus.",404,"EXAM_PLAN_REFERENCE");const students=await prisma.student.findMany({where:{schoolId:user.schoolId,campusId,classId,status:"active",archivedAt:null},select:{id:true,fullName:true,rollNo:true},orderBy:[{rollNo:"asc"},{id:"asc"}],take:1001});if(students.length>1000)fail("Choose a class with at most 1000 active candidates.","EXAM_PLAN_LIMIT");return students;});
 }
 export async function previewExamSessionPlan(user: AuthUser, record: SchoolAiRecord & { campusId: string }, db: TxClient): Promise<ExamSessionPlanPreview> {
   await assertExamSessionPlanAccess(user, db, record.campusId);
@@ -69,19 +73,16 @@ export async function previewExamSessionPlan(user: AuthUser, record: SchoolAiRec
     const date = new Date(`${paper.date}T00:00:00Z`);
     if (cycle && (cycle.startDate && date < cycle.startDate || cycle.endDate && date > cycle.endDate)) fail("A paper falls outside the configured academic year.", "EXAM_PLAN_YEAR");
     const period = checks!.periods.find(item => item.id === paper.periodDefinitionId)!;
-    let cursor = 0;
-    const allocated = paper.rooms.map(choice => {
-      const room = rooms.find(item => item.id === choice.roomId)!, teacher = teachers.find(item => item.id === choice.invigilatorId)!;
-      const capacity = roomCapacity(room);
-      if (capacity.unmeasured || capacity.exam < 1) fail("Record the exam seating capacity for every selected room.", "EXAM_PLAN_CAPACITY");
-      if (cursor >= candidates.length) fail("Remove rooms that would receive no candidates.", "EXAM_PLAN_EMPTY_ROOM");
-      const take = candidates.slice(cursor, cursor + capacity.exam), grid = seatGrid(room); cursor += take.length;
-      if (!capacity.hasLayout && !warnings.some(item => item.roomNumber === room.roomNumber)) warnings.push({ code: "EXAM_LAYOUT_INFERRED", roomNumber: room.roomNumber });
-      return { roomId: room.id, roomNumber: room.roomNumber, invigilatorId: teacher.id, invigilatorName: teacher.fullName, capacity: capacity.exam, hasLayout: capacity.hasLayout,
-        seats: take.map((student, index) => ({ studentId: student.id, fullName: student.fullName, rollNo: student.rollNo, seatNumber: grid[index].seatNumber, rowNo: capacity.hasLayout ? grid[index].rowNo : 0, benchNo: capacity.hasLayout ? grid[index].benchNo : 0, seatOnBench: capacity.hasLayout ? grid[index].seatOnBench : 0, label: grid[index].label })) };
+    const selectedRooms=paper.rooms.map(choice=>rooms.find(room=>room.id===choice.roomId)!);
+    for(const room of selectedRooms){const capacity=roomCapacity(room);if(capacity.unmeasured||capacity.exam<1)fail("Record the exam seating capacity for every selected room.","EXAM_PLAN_CAPACITY");}
+    if(!paper.seatingSupport?.length){let remaining=candidates.length;for(const room of selectedRooms){if(remaining<=0)fail("Remove rooms that would receive no candidates.","EXAM_PLAN_EMPTY_ROOM");remaining-=roomCapacity(room).exam;}if(remaining>0)fail("Selected rooms cannot seat every active candidate at exam spacing.","EXAM_PLAN_CAPACITY");}
+    let seating:ReturnType<typeof allocateSupportedSeats>;
+    try{seating=allocateSupportedSeats(candidates,selectedRooms,paper.seatingSupport??[]);}catch(error){fail(error instanceof Error?error.message:"The seating constraints cannot be satisfied.","EXAM_PLAN_ACCESSIBILITY");}
+    const allocated=paper.rooms.map(choice=>{const room=rooms.find(item=>item.id===choice.roomId)!,teacher=teachers.find(item=>item.id===choice.invigilatorId)!,capacity=roomCapacity(room);
+      if(!capacity.hasLayout&&!warnings.some(item=>item.roomNumber===room.roomNumber))warnings.push({code:"EXAM_LAYOUT_INFERRED",roomNumber:room.roomNumber});
+      return{roomId:room.id,roomNumber:room.roomNumber,invigilatorId:teacher.id,invigilatorName:teacher.fullName,capacity:capacity.exam,hasLayout:capacity.hasLayout,seats:seating.filter(row=>row.roomId===room.id).sort((a,b)=>a.seat.seatNumber-b.seat.seatNumber).map(row=>{const student=candidates.find(item=>item.id===row.studentId)!;return{studentId:student.id,fullName:student.fullName,rollNo:student.rollNo,...row.seat,rowNo:capacity.hasLayout?row.seat.rowNo:0,benchNo:capacity.hasLayout?row.seat.benchNo:0,seatOnBench:capacity.hasLayout?row.seat.seatOnBench:0};})};
     });
-    if (cursor < candidates.length) fail("Selected rooms cannot seat every active candidate at exam spacing.", "EXAM_PLAN_CAPACITY");
-    return { academicModelVersionId: modelIds.get(cls.id) ?? null, id: paper.id, classId: cls.id, className: [cls.name, cls.section].filter(Boolean).join(" · "), subjectId: subject.id, subjectName: subject.name, totalMarks: subject.totalMarks, date: paper.date, periodDefinitionId: period.id, periodNumber: period.periodNumber, startTime: period.startTime, endTime: period.endTime, rooms: allocated };
+    return { academicModelVersionId: modelIds.get(cls.id) ?? null, id: paper.id, classId: cls.id, className: [cls.name, cls.section].filter(Boolean).join(" · "), subjectId: subject.id, subjectName: subject.name, totalMarks: subject.totalMarks, date: paper.date, periodDefinitionId: period.id, periodNumber: period.periodNumber, startTime: period.startTime, endTime: period.endTime, rooms: allocated, seatingSupport:paper.seatingSupport??[] };
   });
   const candidateSeatCount = papers.reduce((total, paper) => total + paper.rooms.reduce((sum, room) => sum + room.seats.length, 0), 0);
   if (candidateSeatCount > 1000) fail("Plan at most 1000 candidate seat assignments in one session.", "EXAM_PLAN_LIMIT");

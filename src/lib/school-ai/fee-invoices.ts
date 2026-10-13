@@ -10,6 +10,7 @@ export const feeInvoiceProposalSchema = z.strictObject({
   academicYear: z.number().int().min(2000).max(2100), feeGroupId: id,
   feeLineIds: z.array(id).min(1).max(30).refine(unique), studentIds: z.array(id).min(1).max(50).refine(unique),
   billingMonth: z.string().regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/), dueDate: date,
+  applyCarryForward: z.boolean().optional(),
 }).superRefine((value, ctx) => {
   if (value.dueDate.slice(0, 7) !== value.billingMonth) ctx.addIssue({ code: "custom", path: ["dueDate"], message: "Choose a due date within the selected billing month." });
 });
@@ -39,10 +40,21 @@ export function invoiceMonthDates(month: string) {
   const [year, number] = month.split("-").map(Number);
   return { start: new Date(Date.UTC(year, number - 1, 1)), end: new Date(Date.UTC(year, number, 1)) };
 }
-export type FeeInvoiceExclusion = "FEE_STUDENT_UNAVAILABLE" | "FEE_ALREADY_INVOICED" | "FEE_CARRY_FORWARD_REVIEW" | "FEE_CURRENCY_CONFLICT" | "FEE_INVALID_AMOUNT" | "FEE_ZERO_BALANCE";
+export type FeeInvoiceExclusion = "FEE_STUDENT_UNAVAILABLE" | "FEE_ENROLLMENT_REVIEW" | "FEE_ALREADY_INVOICED" | "FEE_CARRY_FORWARD_REVIEW" | "FEE_CURRENCY_CONFLICT" | "FEE_INVALID_AMOUNT" | "FEE_ZERO_BALANCE";
 export interface FeeInvoiceStudent extends FeeInvoiceAmounts {
   studentId: string; name: string; rollNo: string; disposition: "CREATE" | "EXCLUDED";
+  invoiceDate?: string; enrollmentId?: string;
   reason?: FeeInvoiceExclusion; existingInvoiceIds: string[]; discounts: InvoiceDiscount[];
+  carryId?: string; carryBefore?: number; carryForwardAmount?: number; carryRemaining?: number;
+}
+
+/** Carry is a separate signed balance, never a new payment or a fee discount. */
+export function applyInvoiceCarry(amounts: FeeInvoiceAmounts, balance: number) {
+  if (!Number.isSafeInteger(balance) || balance < -MAX_INVOICE_MINOR || balance > MAX_INVOICE_MINOR) throw new Error("FEE_INVALID_AMOUNT");
+  const carryForwardAmount = balance < 0 ? Math.max(-amounts.totalAmount, balance) : balance;
+  const totalAmount = amounts.totalAmount + carryForwardAmount;
+  if (totalAmount < 0 || totalAmount > MAX_INVOICE_MINOR) throw new Error("FEE_INVALID_AMOUNT");
+  return { ...amounts, totalAmount, carryBefore: balance, carryForwardAmount, carryRemaining: balance - carryForwardAmount };
 }
 export interface FeeInvoicePreview {
   operation: "fees.generate_invoices"; recordId: string; version: number; campusId: string;

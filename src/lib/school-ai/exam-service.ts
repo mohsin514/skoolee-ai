@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/api/scope";
 import { assertWorkspacePermission, loadWorkspacePermissionSnapshot, assertSchoolAiAccess, assertWorkspaceSubject, getAssignedWorkspaceSubjects, isSchoolAiManager } from "./access";
 import { candidatePaper, paperDataSchema, type PaperData } from "./assessment";
 import { approveExamAccommodationSchema, examAccommodationsSchema, attemptDeadline, assertSupportedExamMode, examAssignmentSchema, examReviewSchema, examSaveDecision, responsesSchema, saveExamSchema, scoreObjectiveResponses, validateExamReview, validateExamWindow, validateResponses } from "./exam";
-import { retryDatabaseTransaction } from "./transaction";
+import { schoolAiTransaction, retryDatabaseTransaction } from "./transaction";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const selection = { id: true, title: true, startsAt: true, endsAt: true, paperVersion: true, mode: true, status: true, classId: true, campusId: true } as const;
@@ -19,7 +19,9 @@ async function studentFor(user: AuthUser, db: TxClient = prisma) {
   return student;
 }
 
-async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma) {
+export async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma) {
+  const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, role: user.role, campusId: user.campusId, isActive: true }, select: { id: true, accessVersion: true } });
+  if (!actor || (user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion)) throw new ApiError("Your exam access changed. Sign in again before continuing.", 403);
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
   await assertSchoolAiAccess(user, action, permissions);
   await assertWorkspacePermission(user, "exams", action, permissions);
@@ -31,7 +33,7 @@ async function staffExamAccess(user: AuthUser, assignment: { createdById: string
   return paper;
 }
 
-async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma) {
+export async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma) {
   const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   if (!assignment) throw new ApiError("Exam unavailable.", 404);
   if (assignment.mode !== "STANDARD") throw new ApiError("This exam mode has not been configured for delivery.", 409);
@@ -105,8 +107,9 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
 
 export async function getSchoolAiExam(user: AuthUser, id: string) {
   const { assignment, paper, student } = await scopedAssignment(user, id);
-  const extraMinutes = student ? examAccommodationsSchema.parse(assignment.accommodations)[student.id]?.extraMinutes ?? 0 : 0;
-  return { version: assignment.version, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
+  const accommodation = student ? examAccommodationsSchema.parse(assignment.accommodations)[student.id] : undefined;
+  const extraMinutes = accommodation?.extraMinutes ?? 0, breakMinutes = accommodation?.breakMinutes ?? 0;
+  return { version: assignment.version, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
 }
 
 function receipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; responses: unknown; submittedAt: Date | null }, paper: PaperData, now: Date) {
@@ -130,7 +133,8 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
       // An explicit clock remains fixed for deterministic service tests.
       const currentTime = now ?? new Date();
       if (currentTime < assignment.startsAt || currentTime >= assignment.endsAt) throw new ApiError("The exam is outside its availability window.", 409);
-      const extraMinutes = examAccommodationsSchema.parse(assignment.accommodations)[student.id]?.extraMinutes ?? 0;
+      const accommodation = examAccommodationsSchema.parse(assignment.accommodations)[student.id];
+      const extraMinutes = (accommodation?.extraMinutes ?? 0) + (accommodation?.breakMinutes ?? 0);
       return tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt: attemptDeadline(currentTime, assignment.endsAt, paper.blueprint.durationMinutes + extraMinutes), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
     const responseTime = now ?? new Date();
@@ -161,7 +165,7 @@ export async function getSchoolAiAccommodations(user: AuthUser, id: string) {
   ]);
   return { version: assignment.version, canApprove: canApprove && assignment.status === "ACTIVE" && assignment.endsAt > new Date(), baseDurationMinutes: paper.blueprint.durationMinutes, endsAt: assignment.endsAt, students: students.map((student) => {
     const approved = accommodations[student.id];
-    return { ...student, extraMinutes: approved?.extraMinutes ?? 0, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
+    return { ...student, extraMinutes: approved?.extraMinutes ?? 0, breakMinutes: approved?.breakMinutes ?? 0, reader: approved?.reader ?? false, scribe: approved?.scribe ?? false, largeText: approved?.largeText ?? false, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
   }) };
 }
 
@@ -184,7 +188,7 @@ export async function approveSchoolAiAccommodation(user: AuthUser, id: string, r
       const accommodations = examAccommodationsSchema.parse(current.accommodations);
       const currentTime = now ?? new Date();
       if (current.endsAt <= currentTime) throw new ApiError("The exam changed or closed. Refresh before approving extra time.", 409);
-      const approved = { extraMinutes: input.extraMinutes, reason: input.reason, approvedById: user.userId, approvedAt: currentTime.toISOString() };
+      const approved = { extraMinutes: input.extraMinutes, breakMinutes: input.breakMinutes ?? 0, reader: input.reader ?? false, scribe: input.scribe ?? false, largeText: input.largeText ?? false, reason: input.reason, approvedById: user.userId, approvedAt: currentTime.toISOString() };
       const updated = examAccommodationsSchema.parse({ ...accommodations, [input.studentId]: approved });
       await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, version: input.version }, data: { accommodations: json(updated), version: { increment: 1 } } });
       return { version: input.version + 1, studentId: input.studentId, ...approved };
@@ -249,14 +253,18 @@ export async function listSchoolAiAttempts(user: AuthUser, id: string, now = new
 }
 
 export async function reviewSchoolAiAttempt(user: AuthUser, assignmentId: string, attemptId: string, raw: unknown, now = new Date()) {
-  const { assignment, paper } = await scopedAssignment(user, assignmentId);
-  await staffExamAccess(user, assignment, "edit");
   const review = examReviewSchema.parse(raw);
-  const attempt = await prisma.schoolAiExamAttempt.findFirst({ where: { id: attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
-  if (!attempt || attempt.status !== "SUBMITTED") throw new ApiError("Only a submitted, unreviewed attempt can be moderated.", 409);
-  const errors = validateExamReview(paper, responsesSchema.parse(attempt.responses), review);
-  if (errors.length) throw new ApiError(errors.join(" "));
-  const changed = await prisma.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "SUBMITTED", sequence: attempt.sequence }, data: { status: "REVIEWED", reviewedAt: now, reviewedById: user.userId, review: json({ ...review, total: review.marks.reduce((sum, mark) => sum + mark.marks, 0) }) } });
-  if (changed.count !== 1) throw new ApiError("This attempt was already reviewed. Refresh the marking desk.", 409);
-  return { id: attempt.id, status: "REVIEWED", reviewedAt: now, note: "Moderation is saved. Existing gradebook and report publication are unchanged." };
+  return schoolAiTransaction(user, async tx => {
+    const { assignment, paper } = await scopedAssignment(user, assignmentId, tx);
+    await staffExamAccess(user, assignment, "edit", tx);
+    const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
+    if (!attempt || attempt.status !== "SUBMITTED") throw new ApiError("Only a submitted, unreviewed attempt can be moderated.", 409);
+    const errors = validateExamReview(paper, responsesSchema.parse(attempt.responses), review);
+    if (errors.length) throw new ApiError(errors.join(" "));
+    const saved = { ...review, total: review.marks.reduce((sum, mark) => sum + mark.marks, 0) };
+    const changed = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "SUBMITTED", sequence: attempt.sequence, reviewVersion: 0 }, data: { status: "REVIEWED", reviewedAt: now, reviewedById: user.userId, reviewVersion: 1, review: json(saved) } });
+    if (changed.count !== 1) throw new ApiError("This attempt was already reviewed. Refresh the marking desk.", 409);
+    await tx.schoolAiExamResultRevision.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId, version: 1, review: json(saved), reason: review.note, createdById: user.userId, createdAt: now } });
+    return { id: attempt.id, status: "REVIEWED", reviewedAt: now, reviewVersion: 1, note: "Moderation is saved. Existing gradebook and report publication are unchanged." };
+  });
 }

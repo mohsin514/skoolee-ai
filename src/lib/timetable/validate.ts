@@ -1,6 +1,7 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { getExamBookingSlots } from "@/lib/academic/exam-bookings";
 import { SchoolAiError } from "@/lib/school-ai/access";
+import { getSubstituteBookings } from "@/lib/school-ai/school-operations-bookings";
 
 /**
  * Server-side conflict engine for a class timetable.
@@ -179,6 +180,10 @@ export async function validateTimetableSlots(opts: {
 
   const roomById = new Map(rooms.map((r) => [r.id, r]));
   const conflicts: TimetableConflict[] = [];
+  const substitutes = await getSubstituteBookings(db, { schoolId: cls.schoolId, campusId, academicYear: opts.academicYear, term: opts.term });
+  for (const slot of teaching) for (const duty of substitutes) {
+    if (slot.id !== duty.slotId && slot.teacherId === duty.teacherId && overlaps(slot, duty)) conflicts.push({ identity: JSON.stringify(["SUBSTITUTE_BOOKING", duty.id, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`]), type: "TEACHER_DOUBLE_BOOKED", severity: "CRITICAL", message: `This teacher has substitute cover for ${duty.className} on ${duty.date}. Reassign the dated duty first.`, dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id, teacherName: duty.teacherName, otherClass: duty.className });
+  }
   const examBookings = await getExamBookingSlots(db, { schoolId: cls.schoolId, campusId, academicYear: opts.academicYear, term: opts.term });
   for (const slot of teaching) for (const exam of examBookings) {
     // CLASS and EXAM period numbers are separate namespaces; compare clocks.

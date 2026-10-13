@@ -320,11 +320,11 @@ export async function allocateExamRooms(opts: {
       periodDefinitionId: true,
       periodDefinition: { select: { startTime: true, endTime: true } },
       subject: { select: { name: true } },
-      exam: { select: { classId: true, title: true, status: true, class: { select: { status: true, archivedAt: true } } } },
+      exam: { select: { classId: true, title: true, status: true, isLocked: true, class: { select: { status: true, archivedAt: true } } } },
     },
   });
   if (!schedule) throw new ApiError("Schedule not found", 404);
-  if (["CANCELLED", "ARCHIVED", "PUBLISHED", "LOCKED", "PRINCIPAL_REVIEWED"].includes(schedule.exam.status) || schedule.exam.class.archivedAt || schedule.exam.class.status !== "ACTIVE") throw new ApiError("This exam is no longer editable.", 409);
+  if (schedule.exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(schedule.exam.status) || schedule.exam.class.archivedAt || schedule.exam.class.status !== "ACTIVE") throw new ApiError("This exam is no longer editable.", 409);
 
   const rooms = await db.classRoom.findMany({
     where: { id: { in: roomIds }, campusId },

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { subjectSchema } from "@/lib/validators/schemas";
+import { createCampusSubjects } from "@/lib/academic/subject-write";
 import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
@@ -12,32 +13,6 @@ import {
   scopedCampusWhere,
 } from "@/lib/api/scope";
 import { deleteSubjectWithTimetableSync, updateSubjectWithTeacherAssignment } from "@/lib/api/teacher-assignments";
-
-async function getScopedClass(classId: string, userCampusId: string | null, schoolId: string) {
-  const cls = await prisma.class.findFirst({
-    where: {
-      id: classId,
-      campus: { schoolId },
-      ...(userCampusId ? { campusId: userCampusId } : {}),
-    },
-    select: { id: true, campusId: true, name: true, academicYear: true },
-  });
-
-  if (!cls) throw new ApiError("Class not found", 404);
-  return cls;
-}
-
-async function assertTeacher(teacherId: string | null | undefined, campusId: string, schoolId: string) {
-  if (!teacherId) return null;
-
-  const teacher = await prisma.user.findFirst({
-    where: { id: teacherId, campusId, schoolId, role: "TEACHER", isActive: true },
-    select: { id: true },
-  });
-
-  if (!teacher) throw new ApiError("Teacher is not active in this campus", 400);
-  return teacher.id;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -81,78 +56,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const cls = await getScopedClass(
-      parsed.data.classId,
-      user.role === "SUPER_ADMIN" ? body.campusId || null : user.campusId,
-      user.schoolId
-    );
-    const teacherId = await assertTeacher(parsed.data.teacherId, cls.campusId, user.schoolId);
-    const totalMarks = parsed.data.totalMarks || parsed.data.maxMarks || 100;
-    const subjectName = parsed.data.name.trim();
-
-    // `applyToAllSections` adds the subject to every sibling section of the same
-    // class (same name + academic year in this campus), so an admin doesn't have
-    // to repeat the same subject list section by section. Sections that already
-    // have the subject are skipped rather than failing the whole request.
-    const targetClasses = body.applyToAllSections
-      ? await prisma.class.findMany({
-          where: { campusId: cls.campusId, name: cls.name, academicYear: cls.academicYear },
-          select: { id: true },
-        })
-      : [{ id: parsed.data.classId }];
-
-    const alreadyHave = await prisma.subject.findMany({
-      where: {
-        campusId: cls.campusId,
-        classId: { in: targetClasses.map((c) => c.id) },
-        name: { equals: subjectName, mode: "insensitive" },
-      },
-      select: { classId: true },
-    });
-    const skip = new Set(alreadyHave.map((s) => s.classId));
-    const toCreate = targetClasses.filter((c) => !skip.has(c.id));
-
-    if (toCreate.length === 0) {
-      throw new ApiError(
-        body.applyToAllSections
-          ? "Every section already has this subject"
-          : "This subject already exists in the selected section",
-        409
-      );
-    }
-
-    await prisma.subject.createMany({
-      data: toCreate.map((target) => ({
-        campusId: cls.campusId,
-        classId: target.id,
-        name: subjectName,
-        teacherId,
-        totalMarks,
-      })),
-    });
-
-    // Return the row for the section the request was made from when possible,
-    // so existing single-section callers keep getting the shape they expect.
-    const subject = (await prisma.subject.findFirst({
-      where: {
-        campusId: cls.campusId,
-        classId: skip.has(parsed.data.classId) ? toCreate[0].id : parsed.data.classId,
-        name: { equals: subjectName, mode: "insensitive" },
-      },
-      include: {
-        class: { select: { id: true, name: true, section: true } },
-        teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-      },
-    }))!;
-
-    await prisma.auditLog.create({
-      data: {
-        tableName: 'subject',
-        recordId: subject.id,
-        newValue: { name: subject.name, totalMarks: subject.totalMarks },
-        userId: user.userId,
-      }
-    });
+    const { subject, cls, createdCount } = await createCampusSubjects(user, { classId: parsed.data.classId, campusId: body.campusId, name: parsed.data.name, teacherId: parsed.data.teacherId, totalMarks: parsed.data.totalMarks || parsed.data.maxMarks || 100, applyToAllSections: body.applyToAllSections === true });
 
     notify("SUBJECT_CREATED", {
       schoolId: user.schoolId,
@@ -166,7 +70,7 @@ export async function POST(req: NextRequest) {
     });
 
     return Response.json(
-      { success: true, data: subject, createdCount: toCreate.length },
+      { success: true, data: subject, createdCount },
       { status: 201 }
     );
   } catch (error) {

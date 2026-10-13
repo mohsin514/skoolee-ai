@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "check:ui": "node --import tsx --test tests/design-system/adoption.test.ts",
-    "test:school-ai": "node --import tsx --test tests/school-ai/assessment.test.ts tests/school-ai/intake.test.ts tests/school-ai/onboarding.test.ts tests/school-ai/providers.test.ts tests/school-ai/workspace.test.ts tests/school-ai/roster-import.test.ts tests/school-ai/assistant-context.test.ts tests/school-ai/source-storage.test.ts tests/school-ai/timetable-setup.test.ts tests/school-ai/question-bank.test.ts tests/school-ai/revisions.test.ts tests/school-ai/scan.test.ts tests/school-ai/transaction.test.ts tests/school-ai/timetable-scope.test.ts tests/school-ai/paper-print.test.ts tests/school-ai/announcements.test.ts tests/school-ai/announcement-ui.test.ts tests/school-ai/exam-gradebook.test.ts tests/school-ai/period-changes.test.ts",
-    "test:school-ai:db": "node --import tsx --test --test-concurrency=1 tests/school-ai/workspace.database.test.ts tests/school-ai/assessment.database.test.ts tests/school-ai/timetable-setup.database.test.ts tests/school-ai/question-bank.database.test.ts tests/school-ai/exam-expiry.database.test.ts tests/school-ai/announcements.database.test.ts tests/school-ai/exam-gradebook.database.test.ts tests/school-ai/assignment-sync.database.test.ts",
+    "test:school-ai": "node scripts/run-school-ai-tests.mjs",
+    "test:school-ai:db": "node scripts/run-school-ai-tests.mjs --database",
     "test:school-ai:e2e": "playwright test --config tests/school-ai/playwright.config.ts",
     "audit:ui": "node --import tsx scripts/ui-adoption-inventory.ts",
     "worker:outbox": "tsx src/workers/outbox-worker.ts",
@@ -37,7 +37,9 @@
     "test:locale:db": "node --import tsx --test tests/locale/database.test.ts",
     "test:corrections": "node --import tsx --test tests/corrections/domain.test.ts tests/corrections/integration.test.ts",
     "test:support-access:local": "tsx scripts/sko-215-local-acceptance.ts",
-    "test:support-ui:local": "tsx scripts/sko-215-ui-acceptance.ts"
+    "test:support-ui:local": "tsx scripts/sko-215-ui-acceptance.ts",
+    "test:school-ai:load": "node --import tsx scripts/school-ai-exam-load.ts",
+    "calibrate:school-ai": "node --import tsx scripts/school-ai-calibration.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

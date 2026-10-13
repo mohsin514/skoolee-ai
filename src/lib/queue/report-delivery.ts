@@ -38,6 +38,7 @@ export async function reportDeliveryWorkflow(
             recipient: c.recipient,
           },
           c.channel,
+          "learningRecords",
         );
         const version = await getPublishedVersion(c.relatedId || "");
         if (version.id !== metadata?.reportVersionId)

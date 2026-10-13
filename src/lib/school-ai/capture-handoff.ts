@@ -1,0 +1,14 @@
+import { createHmac } from "node:crypto";
+import { SignJWT, jwtVerify } from "jose";
+import { z } from "zod";
+import { JWT_SECRET } from "@/lib/auth/secret";
+import type { AuthUser } from "@/lib/auth";
+import { documentKindSchema, languageSchema } from "./intake";
+import { assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SchoolAiError } from "./access";
+import { schoolAiTransaction } from "./transaction";
+const CAPTURE_SECRET=createHmac("sha256",JWT_SECRET).update("school-ai-phone-capture-v1").digest();
+export const captureScopeSchema=z.strictObject({campusId:z.string().min(1).max(128),subjectId:z.string().min(1).max(128).optional(),classId:z.string().min(1).max(128).optional(),documentKind:documentKindSchema,language:languageSchema});
+export type CaptureScope=z.infer<typeof captureScopeSchema>;
+async function checkedScope(user:AuthUser,raw:unknown){const input=captureScopeSchema.parse(raw);return schoolAiTransaction(user,async tx=>{const actor=await tx.user.findFirst({where:{id:user.userId,schoolId:user.schoolId,role:user.role,isActive:true,accessVersion:user.accessVersion??0,...(user.role==="SUPER_ADMIN"?{}:{campusId:user.campusId})},select:{id:true}});if(!actor)throw new SchoolAiError("Your access changed.",403);const permissions=await loadWorkspacePermissionSnapshot(user,tx);await assertSchoolAiAccess(user,"view",permissions);await assertSchoolAiAccess(user,"add",permissions);await resolveWorkspaceCampus(user,input.campusId,tx);await assertWorkspaceSubject(user,input.campusId,input,tx);await assertWorkspaceDomainPermission(user,"SOURCE",input,"add",permissions);return input;});}
+export async function createCaptureTicket(user:AuthUser,raw:unknown){const scope=await checkedScope(user,raw),expiresAt=new Date(Date.now()+15*60000);const ticket=await new SignJWT({scope,schoolId:user.schoolId,role:user.role,accessVersion:user.accessVersion??0}).setProtectedHeader({alg:"HS256",typ:"JWT"}).setSubject(user.userId).setAudience("school-ai-phone-capture").setIssuedAt().setExpirationTime(Math.floor(expiresAt.getTime()/1000)).sign(CAPTURE_SECRET);return{ticket,expiresAt:expiresAt.toISOString()};}
+export async function verifyCaptureTicket(user:AuthUser,ticket:string){if(ticket.length>4000)throw new SchoolAiError("Capture link is invalid.",400);try{const{payload}=await jwtVerify(ticket,CAPTURE_SECRET,{algorithms:["HS256"],audience:"school-ai-phone-capture"});if(payload.sub!==user.userId||payload.schoolId!==user.schoolId||payload.role!==user.role||payload.accessVersion!==(user.accessVersion??0))throw new Error("scope");return await checkedScope(user,payload.scope);}catch(error){if(error instanceof SchoolAiError)throw error;throw new SchoolAiError("This capture link has expired or belongs to another signed-in account.",403,"CAPTURE_EXPIRED");}}

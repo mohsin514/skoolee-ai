@@ -1,5 +1,5 @@
 import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
-import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
+import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { studentScope } from "@/lib/auth/policy";
@@ -78,11 +78,11 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     const { searchParams } = new URL(req.url);
-    const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const examId = searchParams.get("examId");
     // The master date sheet is every class's papers at once, which is one
     // query by session rather than one query per class.
     const sessionId = searchParams.get("sessionId");
+    const campusId = examId ? await resolveExamSchedulingCampus(user, searchParams.get("campusId"), { kind: "exam", id: examId }) : sessionId ? await resolveExamSchedulingCampus(user, searchParams.get("campusId"), { kind: "session", id: sessionId }) : await resolveCampusId(user, searchParams.get("campusId"));
 
     // Families see the date sheet for their own class only, and never for an
     // exam the office is still drafting. Without this, any signed-in student
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "examId, subjectId and date (YYYY-MM-DD) are required" }, { status: 400 });
     }
 
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "exam", id: examId });
     return await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
     const exam = await prisma.exam.findFirst({
       where: { id: examId, campusId, campus: { schoolId: user.schoolId } },
@@ -182,7 +182,7 @@ export async function PATCH(req: NextRequest) {
     const id = String(body.id ?? "");
     if (!id) return Response.json({ error: "id is required" }, { status: 400 });
 
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "schedule", id });
     return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
     const existing = await prisma.examSchedule.findFirst({
       where: { id, campusId, campus: { schoolId: user.schoolId } },
@@ -231,8 +231,10 @@ async function createOrUpdate(
   campusId: string,
   excludeId?: string
 ) {
-  const currentExam = await db.exam.findFirst({ where: { id: exam.id, schoolId, campusId, class: { archivedAt: null, status: "ACTIVE" }, status: { notIn: ["CANCELLED", "ARCHIVED", "PUBLISHED", "LOCKED", "PRINCIPAL_REVIEWED"] } }, select: { id: true } });
+  if (!Number.isFinite(new Date(`${date}T00:00:00Z`).getTime()) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) throw new ApiError("Choose a real calendar date.", 400);
+  const currentExam = await db.exam.findFirst({ where: { id: exam.id, schoolId, campusId, class: { archivedAt: null, status: "ACTIVE" }, isLocked: false, status: { in: ["DRAFT", "ACTIVE", "MARKS_ENTRY"] } }, select: { id: true, session: { select: { startDate: true, endDate: true } } } });
   if (!currentExam) throw new ApiError("This exam is no longer editable.", 409);
+  if (currentExam.session?.startDate && date < currentExam.session.startDate.toISOString().slice(0, 10) || currentExam.session?.endDate && date > currentExam.session.endDate.toISOString().slice(0, 10)) throw new ApiError("The paper must fall within the session dates.", 409);
   if (roomId) {
     const room = await db.classRoom.findFirst({ where: { id: roomId, campusId, schoolId } });
     if (!room) throw new ApiError("Room not found", 400);
@@ -282,13 +284,15 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return Response.json({ error: "id is required" }, { status: 400 });
 
-    const campusId = await resolveCampusId(user, searchParams.get("campusId"));
+    const campusId = await resolveExamSchedulingCampus(user, searchParams.get("campusId"), { kind: "schedule", id });
     return await withExamSchedulingWrite(user, campusId, "delete", async (prisma) => {
     const existing = await prisma.examSchedule.findFirst({
       where: { id, campusId, campus: { schoolId: user.schoolId } },
+      include: { exam: { select: { status: true, isLocked: true } } },
     });
     if (!existing) return Response.json({ error: "Schedule not found" }, { status: 404 });
 
+    if (existing.exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(existing.exam.status)) throw new ApiError("This exam is no longer editable.", 409);
     await prisma.examSchedule.delete({ where: { id } });
     return Response.json({ success: true });
     });

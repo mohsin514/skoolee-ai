@@ -1,6 +1,7 @@
 import type { TxClient } from "@/lib/db/prisma";
 import { SchoolAiError } from "@/lib/school-ai/access";
 import { loadLocaleTimeline } from "@/lib/locale/store";
+import { getSubstituteBookings } from "@/lib/school-ai/school-operations-bookings";
 
 export type ExamBookingScope = { schoolId: string; campusId: string; academicYear?: number; term?: string };
 export type ExamReservation = { id: string; classId: string; academicYear: number; term: string; date: string; periodDefinitionId: string | null; roomIds: string[]; teacherIds: string[] };
@@ -8,7 +9,7 @@ const knownTerms = ["ANNUAL", "TERM_1", "TERM_2", "TERM_3"];
 export function termsOverlap(first: string, second: string) { return first === second || first === "ANNUAL" || second === "ANNUAL" || !knownTerms.includes(first) || !knownTerms.includes(second); }
 export function examWeekday(date: string) { return new Date(`${date}T00:00:00Z`).getUTCDay() || 7; }
 export function validExamWindow(start: string, end: string) { return /^([01]\d|2[0-3]):[0-5]\d$/.test(start) && /^([01]\d|2[0-3]):[0-5]\d$/.test(end) && start < end; }
-const fail = (message: string, code = "EXAM_PLAN_CLASH"): never => { throw new SchoolAiError(message, 409, code); };
+function fail(message: string, code = "EXAM_PLAN_CLASH"): never { throw new SchoolAiError(message, 409, code); }
 export async function getCampusExamReservations(db: TxClient, scope: ExamBookingScope) {
   const rows = await db.examSchedule.findMany({
     where: { schoolId: scope.schoolId, campusId: scope.campusId, exam: { status: { notIn: ["CANCELLED", "ARCHIVED"] }, class: { archivedAt: null }, ...(scope.academicYear ? { academicYear: scope.academicYear } : {}) } },
@@ -32,21 +33,25 @@ export async function getExamBookingSlots(db: TxClient, scope: ExamBookingScope)
 /** Validate exact proposed reservations against one another and current exam/lesson commitments. Caller owns campus fence for writes. */
 export async function assertExamReservations(db: TxClient, scope: { schoolId: string; campusId: string }, proposed: ExamReservation[], excludedIds: string[] = []) {
   if (!proposed.length) return;
+  for (const item of proposed) {
+    if (new Set(item.roomIds).size !== item.roomIds.length || new Set(item.teacherIds).size !== item.teacherIds.length) fail("Each room needs a distinct invigilator for this paper.");
+  }
   const ids = [...new Set(proposed.flatMap(item => item.periodDefinitionId ? [item.periodDefinitionId] : []))];
   const [periods, existing, holidays, localeAt] = await Promise.all([
-    db.periodDefinition.findMany({ where: { ...scope, id: { in: ids }, timeType: "EXAM" } }),
+    db.periodDefinition.findMany({ where: { ...scope, id: { in: ids }, timeType: "EXAM" }, orderBy: { id: "asc" } }),
     getCampusExamReservations(db, scope),
     db.holiday.findMany({ where: scope, orderBy: { id: "asc" } }),
     loadLocaleTimeline(scope.schoolId, scope.campusId, db),
   ]);
   const classIds = [...new Set(proposed.map(item => item.classId))];
   const teacherIdsRequested = [...new Set(proposed.flatMap(item => item.teacherIds))];
-  const [classes, cycles, teachers] = await Promise.all([
-    db.class.findMany({ where: { ...scope, id: { in: classIds }, status: "ACTIVE", archivedAt: null }, select: { id: true, academicYear: true } }),
-    db.academicCycle.findMany({ where: { ...scope, academicYear: { in: [...new Set(proposed.map(item => item.academicYear))] } }, select: { academicYear: true, status: true, startDate: true, endDate: true } }),
-    db.user.findMany({ where: { ...scope, id: { in: teacherIdsRequested }, role: { in: ["TEACHER", "PRINCIPAL"] }, isActive: true }, select: { id: true } }),
+  const [classes, cycles, teachers, rooms] = await Promise.all([
+    db.class.findMany({ where: { ...scope, id: { in: classIds }, status: "ACTIVE", archivedAt: null }, select: { id: true, academicYear: true }, orderBy: { id: "asc" } }),
+    db.academicCycle.findMany({ where: { ...scope, academicYear: { in: [...new Set(proposed.map(item => item.academicYear))] } }, select: { academicYear: true, status: true, startDate: true, endDate: true }, orderBy: { academicYear: "asc" } }),
+    db.user.findMany({ where: { ...scope, id: { in: teacherIdsRequested }, role: { in: ["TEACHER", "PRINCIPAL"] }, isActive: true }, select: { id: true }, orderBy: { id: "asc" } }),
+    db.classRoom.findMany({ where: { ...scope, id: { in: [...new Set(proposed.flatMap(item => item.roomIds))] } }, select: { id: true }, orderBy: { id: "asc" } }),
   ]);
-  if (teachers.length !== teacherIdsRequested.length || proposed.some(item => !classes.some(cls => cls.id === item.classId && cls.academicYear === item.academicYear))) fail("The current class or invigilator is unavailable in this campus and year.", "EXAM_PLAN_REFERENCE");
+  if (rooms.length !== new Set(proposed.flatMap(item => item.roomIds)).size || teachers.length !== teacherIdsRequested.length || proposed.some(item => !classes.some(cls => cls.id === item.classId && cls.academicYear === item.academicYear))) fail("The current class or invigilator is unavailable in this campus and year.", "EXAM_PLAN_REFERENCE");
   for (const item of proposed) {
     const cycle = cycles.find(year => year.academicYear === item.academicYear), date = new Date(`${item.date}T00:00:00Z`);
     if (cycle && (!["ACTIVE", "DRAFT"].includes(cycle.status) || cycle.startDate && date < cycle.startDate || cycle.endDate && date > cycle.endDate)) fail("This paper is outside an editable academic year.", "EXAM_PLAN_YEAR");
@@ -62,6 +67,8 @@ export async function assertExamReservations(db: TxClient, scope: { schoolId: st
     if (holidays.some(day => day.fromDate <= date && day.toDate >= date)) fail("A proposed exam falls on a campus holiday.", "EXAM_PLAN_HOLIDAY");
     return { ...item, startTime: period?.startTime ?? null, endTime: period?.endTime ?? null };
   });
+  const substitutes = await getSubstituteBookings(db, scope);
+  for (const item of prepared) if (substitutes.some(duty => duty.date === item.date && item.teacherIds.includes(duty.teacherId) && (!item.startTime || !item.endTime || duty.startTime < item.endTime && item.startTime < duty.endTime))) fail("An invigilator has substitute lesson cover during this paper.", "SCHOOL_OPERATIONS_TEACHER_CLASH");
   const overlaps = (a: { startTime: string | null; endTime: string | null }, b: { startTime: string | null; endTime: string | null }) => !a.startTime || !a.endTime || !b.startTime || !b.endTime || !validExamWindow(b.startTime, b.endTime) || a.startTime < b.endTime && b.startTime < a.endTime;
   const reservations = rows.map(row => ({ id: row.id, date: row.date.toISOString().slice(0, 10), classId: row.exam.classId, roomIds: [...new Set([...(row.roomId ? [row.roomId] : []), ...row.rooms.map(room => room.roomId)])], teacherIds: row.rooms.flatMap(room => room.invigilation ? [room.invigilation.teacherId] : []), startTime: row.periodDefinition?.startTime ?? null, endTime: row.periodDefinition?.endTime ?? null }));
   for (const [index, candidate] of prepared.entries()) {
@@ -72,15 +79,15 @@ export async function assertExamReservations(db: TxClient, scope: { schoolId: st
   }
   const roomIds = [...new Set(proposed.flatMap(item => item.roomIds))], teacherIds = [...new Set(proposed.flatMap(item => item.teacherIds))];
   const [lessons, leaves] = await Promise.all([
-    db.timetableSlot.findMany({ where: { schoolId: scope.schoolId, timetable: { campusId: scope.campusId, status: "PUBLISHED" }, slotType: "CLASS", OR: [{ roomId: { in: roomIds } }, { teacherId: { in: teacherIds } }] }, include: { timetable: { select: { academicYear: true, term: true } } }, take: 10001 }),
-    db.leaveRequest.findMany({ where: { ...scope, userId: { in: teacherIds }, status: "APPROVED" }, select: { userId: true, fromDate: true, toDate: true } }),
+    db.timetableSlot.findMany({ where: { schoolId: scope.schoolId, timetable: { campusId: scope.campusId, status: "PUBLISHED" }, slotType: "CLASS", OR: [{ roomId: { in: roomIds } }, { teacherId: { in: teacherIds } }, { timetable: { classId: { in: classIds } } }] }, include: { timetable: { select: { academicYear: true, term: true, classId: true } } }, take: 10001, orderBy: { id: "asc" } }),
+    db.leaveRequest.findMany({ where: { ...scope, userId: { in: teacherIds }, status: "APPROVED" }, select: { userId: true, fromDate: true, toDate: true }, orderBy: { id: "asc" } }),
   ]);
   if (lessons.length > 10000) fail("This campus needs a narrower resource planning scope.", "EXAM_PLAN_LIMIT");
   for (const candidate of prepared) {
-    if (lessons.some(lesson => lesson.timetable.academicYear === candidate.academicYear && termsOverlap(lesson.timetable.term, candidate.term) && lesson.dayOfWeek === examWeekday(candidate.date) && (lesson.roomId && candidate.roomIds.includes(lesson.roomId) || lesson.teacherId && candidate.teacherIds.includes(lesson.teacherId)) && overlaps(candidate, lesson))) fail("A published lesson already uses a selected room or invigilator at this time.", "EXAM_PLAN_LESSON_CLASH");
+    if (lessons.some(lesson => lesson.timetable.academicYear === candidate.academicYear && termsOverlap(lesson.timetable.term, candidate.term) && lesson.dayOfWeek === examWeekday(candidate.date) && (lesson.timetable.classId === candidate.classId || lesson.roomId && candidate.roomIds.includes(lesson.roomId) || lesson.teacherId && candidate.teacherIds.includes(lesson.teacherId)) && overlaps(candidate, lesson))) fail("A published lesson already uses a selected room or invigilator at this time.", "EXAM_PLAN_LESSON_CLASH");
     if (leaves.some(leave => candidate.teacherIds.includes(leave.userId) && leave.fromDate.toISOString().slice(0, 10) <= candidate.date && leave.toDate.toISOString().slice(0, 10) >= candidate.date)) fail("A selected invigilator has approved leave on this date.", "EXAM_PLAN_LEAVE");
   }
-  return { periods, existing: rows, holidays, lessons, leaves, classes, cycles, teachers, calendar: proposed.map(item => ({ date: item.date, weekend: localeAt(new Date(`${item.date}T00:00:00Z`)).weekend })) };
+  return { periods, rooms, existing: rows, holidays, lessons, leaves, classes, cycles, teachers, calendar: proposed.map(item => ({ date: item.date, weekend: localeAt(new Date(`${item.date}T00:00:00Z`)).weekend })) };
 }
 export async function validateStoredExamSchedules(db: TxClient, scope: { schoolId: string; campusId: string }, scheduleIds: string[]) {
   const rows = (await getCampusExamReservations(db, scope)).filter(row => scheduleIds.includes(row.id));

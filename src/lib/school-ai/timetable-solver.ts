@@ -30,11 +30,13 @@ export function solveTimetable(input: {
   const overlap = (a: SolverWindow, b: SolverWindow) => a.dayOfWeek === b.dayOfWeek && a.startTime < b.endTime && b.startTime < a.endTime;
   const sameCell = (a: SolverWindow, b: SolverWindow) => a.dayOfWeek === b.dayOfWeek && a.periodNumber === b.periodNumber;
   const windows = [...input.windows].sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.periodNumber - b.periodNumber);
+  const deadline = performance.now() + 4000;
+  const teacherBookings = new Map<string, SolverBooking[]>(), roomBookings = new Map<string, SolverBooking[]>();
+  for (const booking of input.bookings) for (const [resourceId, map] of [[booking.teacherId, teacherBookings], [booking.roomId, roomBookings]] as const) { if (!resourceId) continue; const key = `${resourceId}:${booking.dayOfWeek}`; const values = map.get(key) ?? []; values.push(booking); map.set(key, values); }
+  const clashes = (window: SolverWindow, bookings: SolverBooking[]) => bookings.some(booking => overlap(window, booking) || !booking.clockOnly && sameCell(window, booking));
   const subjects = input.requirements.map(requirement => ({
     ...requirement, remaining: requirement.periodsPerWeek, last: -1,
-    candidates: windows.flatMap(window => input.roomIds.filter(roomId => !input.bookings.some(booking =>
-      (booking.teacherId === requirement.teacherId || booking.roomId === roomId) && (overlap(window, booking) || !booking.clockOnly && sameCell(window, booking))
-    )).map(roomId => ({ ...window, roomId }))).map((candidate, order) => ({ ...candidate, order })),
+    candidates: windows.filter(window => !clashes(window, teacherBookings.get(`${requirement.teacherId}:${window.dayOfWeek}`) ?? [])).flatMap(window => input.roomIds.filter(roomId => !clashes(window, roomBookings.get(`${roomId}:${window.dayOfWeek}`) ?? [])).map(roomId => ({ ...window, roomId }))).map((candidate, order) => ({ ...candidate, order })),
   })).sort((a, b) => a.subjectId.localeCompare(b.subjectId));
   const selected: Array<Candidate & { subjectId: string; teacherId: string }> = [];
   let visited = 0, limited = false;
@@ -43,7 +45,7 @@ export function solveTimetable(input: {
     selected.filter(slot => slot.subjectId === subject.subjectId && slot.dayOfWeek === candidate.dayOfWeek).length < subject.maxPerDay);
   function search(): boolean {
     if (subjects.every(subject => subject.remaining === 0)) return true;
-    if (++visited > maxNodes) { limited = true; return false; }
+    if (++visited > maxNodes || performance.now() > deadline) { limited = true; return false; }
     const choices = subjects.filter(subject => subject.remaining > 0).map(subject => ({ subject, candidates: options(subject) }));
     // Several rooms in a single cell still offer only one lesson for this class.
     if (choices.some(({ subject, candidates }) => new Set(candidates.map(slot => `${slot.dayOfWeek}:${slot.periodNumber}`)).size < subject.remaining)) return false;

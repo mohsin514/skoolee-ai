@@ -6,15 +6,18 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { getLocalePackage } from "@/lib/locale/store";
 import { minorUnits } from "@/lib/locale/package";
+import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
+import { existingMonthlyStudentInvoices } from "@/lib/fees/invoice-generation";
 import { assertApprovalRole, assertSchoolAiAccess, assertWorkspacePermission, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SchoolAiError } from "./access";
 import { workspaceRequestHash } from "./repository";
-import { calculateInvoiceAmounts, feeInvoiceProposalSchema, invoiceMonthDates, type FeeInvoiceOptions, type FeeInvoicePreview, type FeeInvoiceResult, type FeeInvoiceStudent, type InvoiceDiscount, type InvoiceFeeLine } from "./fee-invoices";
+import { applyInvoiceCarry, calculateInvoiceAmounts, feeInvoiceProposalSchema, invoiceMonthDates, type FeeInvoiceOptions, type FeeInvoicePreview, type FeeInvoiceResult, type FeeInvoiceStudent, type InvoiceDiscount, type InvoiceFeeLine } from "./fee-invoices";
 
 export async function assertFeeInvoiceAccess(user: AuthUser, db: TxClient = prisma) {
   assertApprovalRole(user);
   const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
   if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new SchoolAiError("Your account access changed. Sign in again.", 403, "PERMISSION_DENIED");
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
+  await assertSchoolAiAccess(user, "view", permissions);
   await assertSchoolAiAccess(user, "edit", permissions);
   await assertWorkspacePermission(user, "fees", "view", permissions);
   await assertWorkspacePermission(user, "fees", "add", permissions);
@@ -55,7 +58,7 @@ export async function previewFeeInvoices(user: AuthUser, record: SchoolAiRecord 
     db.feeGroupAssignment.findFirst({ where: { schoolId: user.schoolId, campusId: record.campusId, classId: proposal.classId, academicYear: proposal.academicYear, feeGroupId: proposal.feeGroupId }, include: { feeGroup: { include: { lines: { include: { feeType: true }, orderBy: { id: "asc" } } } } } }),
   ]);
   if (!cls) throw new SchoolAiError("The selected class or academic year changed.", 409, "FEE_CLASS_UNAVAILABLE");
-  if (!cycle || cycle.status !== "ACTIVE" || cycle.startDate && dateString(start) < dateString(cycle.startDate) || cycle.endDate && proposal.dueDate > dateString(cycle.endDate)) throw new SchoolAiError("The billing dates must be inside an active academic cycle.", 409, "FEE_CYCLE_SCOPE");
+  if (!cycle || cycle.status !== "ACTIVE" || cycle.startDate && proposal.dueDate < dateString(cycle.startDate) || cycle.endDate && proposal.dueDate > dateString(cycle.endDate)) throw new SchoolAiError("The billing dates must be inside an active academic cycle.", 409, "FEE_CYCLE_SCOPE");
   if (!assignment || assignment.feeGroup.schoolId !== user.schoolId || assignment.feeGroup.campusId !== record.campusId) throw new SchoolAiError("The selected fee package is not assigned to this class and academic year.", 409, "FEE_GROUP_UNAVAILABLE");
   const currency = assignment.feeGroup.currency;
   try { minorUnits(currency); } catch { throw new SchoolAiError("Review the fee currency.", 422, "FEE_CURRENCY_CONFLICT"); }
@@ -64,35 +67,41 @@ export async function previewFeeInvoices(user: AuthUser, record: SchoolAiRecord 
   const lines = linesFor(selectedLines);
   if (lines.some(line => line.dueDate && line.dueDate.slice(0, 7) !== proposal.billingMonth)) throw new SchoolAiError("Dated fee lines must belong to the selected billing month.", 409, "FEE_LINE_PERIOD");
   try { calculateInvoiceAmounts(lines, [], currency); } catch { throw new SchoolAiError("Review the configured integer fee amounts.", 422, "FEE_INVALID_AMOUNT"); }
-  const [students, invoices, carries, discounts, explicit] = await Promise.all([
+  const [students, invoices, carries, discounts, explicit, enrollments] = await Promise.all([
     db.student.findMany({ where: { id: { in: proposal.studentIds }, schoolId: user.schoolId, campusId: record.campusId, classId: cls.id, archivedAt: null, status: { equals: "active", mode: "insensitive" } }, select: { id: true, fullName: true, rollNo: true, categoryId: true }, orderBy: { id: "asc" } }),
-    db.invoice.findMany({ where: { schoolId: user.schoolId, campusId: record.campusId, studentId: { in: proposal.studentIds }, invoiceDate: { gte: start, lt: end } }, select: { id: true, studentId: true, invoiceDate: true, status: true, totalAmount: true, currency: true }, orderBy: { id: "asc" }, take: 501 }),
+    existingMonthlyStudentInvoices(db, user.schoolId, record.campusId, proposal.studentIds, start, end),
     db.feeCarryForward.findMany({ where: { schoolId: user.schoolId, campusId: record.campusId, studentId: { in: proposal.studentIds }, toAcademicYear: proposal.academicYear }, orderBy: { id: "asc" } }),
     db.feeDiscount.findMany({ where: { schoolId: user.schoolId, campusId: record.campusId }, orderBy: { id: "asc" }, take: 1001 }),
     db.feeDiscountAssignment.findMany({ where: { schoolId: user.schoolId, studentId: { in: proposal.studentIds }, student: { campusId: record.campusId } }, select: { studentId: true, discountId: true }, orderBy: [{ studentId: "asc" }, { discountId: "asc" }], take: 5001 }),
+    db.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId: record.campusId, classId: cls.id, academicYear: proposal.academicYear, studentId: { in: proposal.studentIds }, NOT: { origin: { startsWith: "LEGACY" } }, startDate: { lte: new Date(`${proposal.dueDate}T00:00:00.000Z`) }, OR: [{ endDate: null }, { endDate: { gt: new Date(`${proposal.dueDate}T00:00:00.000Z`) } }] }, select: { id: true, studentId: true, startDate: true, endDate: true }, orderBy: { id: "asc" }, take: 101 }),
   ]);
-  if (invoices.length > 500 || discounts.length > 1000 || explicit.length > 5000) throw new SchoolAiError("Narrow the fee scope.", 422, "FEE_SCOPE_LIMIT");
+  if (invoices.length > 500 || discounts.length > 1000 || explicit.length > 5000 || enrollments.length > 100) throw new SchoolAiError("Narrow the fee scope.", 422, "FEE_SCOPE_LIMIT");
   const rows: FeeInvoiceStudent[] = proposal.studentIds.slice().sort().map(studentId => {
     const student = students.find(item => item.id === studentId);
     const row: FeeInvoiceStudent = { studentId, name: student?.fullName ?? "", rollNo: student?.rollNo ?? "", disposition: "EXCLUDED", existingInvoiceIds: [], discounts: [], monthlyFee: 0, oneTimeFees: 0, subtotal: 0, discountAmount: 0, totalAmount: 0 };
     if (!student) return { ...row, reason: "FEE_STUDENT_UNAVAILABLE" };
     row.existingInvoiceIds = invoices.filter(item => item.studentId === studentId).map(item => item.id);
     if (row.existingInvoiceIds.length) return { ...row, reason: "FEE_ALREADY_INVOICED" };
+    const context = invoiceEnrollmentContext(enrollments.filter(item => item.studentId === studentId), start, new Date(`${proposal.dueDate}T00:00:00.000Z`), cycle.startDate);
+    if (!context) return { ...row, reason: "FEE_ENROLLMENT_REVIEW" };
+    Object.assign(row, context);
     const carry = carries.find(item => item.studentId === studentId);
-    if (carry && carry.balance !== 0) return { ...row, reason: "FEE_CARRY_FORWARD_REVIEW" };
+    if (carry && carry.balance !== 0 && !proposal.applyCarryForward) return { ...row, reason: "FEE_CARRY_FORWARD_REVIEW" };
+    if (carry && carry.balance !== 0 && carry.currency !== currency) return { ...row, reason: "FEE_CURRENCY_CONFLICT" };
     const explicitIds = explicit.filter(item => item.studentId === studentId).map(item => item.discountId);
     if (explicitIds.some(id => !discounts.some(item => item.id === id))) return { ...row, reason: "FEE_INVALID_AMOUNT" };
     const applicable = discounts.filter(item => student.categoryId && item.categoryId === student.categoryId || explicitIds.includes(item.id));
     row.discounts = applicable.map(item => ({ id: item.id, name: item.name, code: item.code, type: item.type as InvoiceDiscount["type"], value: item.value, currency: item.currency, source: student.categoryId && item.categoryId === student.categoryId ? "CATEGORY" : "EXPLICIT" }));
     try {
-      const amounts = calculateInvoiceAmounts(lines, row.discounts, currency);
-      return { ...row, ...amounts, ...(amounts.totalAmount === 0 ? { reason: "FEE_ZERO_BALANCE" as const } : { disposition: "CREATE" as const }) };
+      const baseAmounts = calculateInvoiceAmounts(lines, row.discounts, currency);
+      const amounts = carry && proposal.applyCarryForward ? { ...applyInvoiceCarry(baseAmounts, carry.balance), carryId: carry.id } : baseAmounts;
+      return { ...row, ...amounts, ...(amounts.totalAmount === 0 && !(carry && carry.balance !== 0 && proposal.applyCarryForward) ? { reason: "FEE_ZERO_BALANCE" as const } : { disposition: "CREATE" as const }) };
     } catch (error) { return { ...row, reason: error instanceof Error && error.message === "FEE_CURRENCY_CONFLICT" ? "FEE_CURRENCY_CONFLICT" : "FEE_INVALID_AMOUNT" }; }
   });
   const createdCount = rows.filter(row => row.disposition === "CREATE").length;
   const localeSnapshot = { ...await getLocalePackage(user.schoolId, record.campusId, start, undefined, db), currency } as FeeInvoicePreview["localeSnapshot"];
   const value = { operation: proposal.operation, recordId: record.id, version: record.version, campusId: record.campusId, classId: cls.id, className: className(cls), academicYear: proposal.academicYear, feeGroupId: assignment.feeGroupId, feeGroupName: assignment.feeGroup.name, billingMonth: proposal.billingMonth, invoiceDate: dateString(start), dueDate: proposal.dueDate, currency, localeSnapshot, lines, students: rows, createdCount, skippedCount: rows.length - createdCount, totalAmount: rows.filter(row => row.disposition === "CREATE").reduce((sum, row) => sum + row.totalAmount, 0), blockers: createdCount ? [] : ["FEE_EMPTY_BATCH" as const] };
-  return { ...value, previewHash: workspaceRequestHash(JSON.parse(JSON.stringify({ preview: value, proposal, cycle, assignment, students, invoices, carries, discounts, explicit }))) };
+  return { ...value, previewHash: workspaceRequestHash(JSON.parse(JSON.stringify({ preview: value, proposal, cycle, assignment, students, invoices, carries, discounts, explicit, enrollments }))) };
 }
 
 /** Called only after the campus fence and exact approved-preview recheck. */
@@ -104,8 +113,14 @@ export async function applyFeeInvoices(user: AuthUser, preview: FeeInvoicePrevie
     if (student.disposition !== "CREATE") { students.push(student); continue; }
     const id = createHash("sha256").update(`school-ai-invoice:${user.schoolId}:${preview.campusId}:${student.studentId}:${preview.billingMonth}`).digest("hex");
     const invoiceNumber = `AI-${preview.billingMonth}-${id.slice(0, 20).toUpperCase()}`;
-    await db.invoice.create({ data: { id, schoolId: user.schoolId, campusId: preview.campusId, studentId: student.studentId, invoiceNumber, currency: preview.currency, localeSnapshot: preview.localeSnapshot, invoiceDate: new Date(`${preview.invoiceDate}T00:00:00.000Z`), dueDate: new Date(`${preview.dueDate}T00:00:00.000Z`), monthlyFee: student.monthlyFee, oneTimeFees: student.oneTimeFees, subtotal: student.subtotal, discountAmount: student.discountAmount, lateFeeAmount: 0, taxAmount: 0, totalAmount: student.totalAmount, totalAmountPaid: 0, balanceDue: student.totalAmount, status: "PENDING" } });
+    if (!student.invoiceDate || !student.enrollmentId) throw new SchoolAiError("Review the student's enrollment for this billing period.", 409, "FEE_ENROLLMENT_REVIEW");
+    await db.invoice.create({ data: { id, schoolId: user.schoolId, campusId: preview.campusId, studentId: student.studentId, enrollmentId: student.enrollmentId, invoiceNumber, currency: preview.currency, localeSnapshot: preview.localeSnapshot, invoiceDate: new Date(`${student.invoiceDate}T00:00:00.000Z`), dueDate: new Date(`${preview.dueDate}T00:00:00.000Z`), monthlyFee: student.monthlyFee, oneTimeFees: student.oneTimeFees, subtotal: student.subtotal, discountAmount: student.discountAmount, lateFeeAmount: 0, taxAmount: 0, carryForwardAmount: student.carryForwardAmount || 0, totalAmount: student.totalAmount, totalAmountPaid: 0, balanceDue: student.totalAmount, status: student.totalAmount === 0 ? "PAID" : "PENDING" } });
     await db.auditLog.create({ data: { schoolId: user.schoolId, tableName: "invoices", recordId: id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { operation: preview.operation, workspaceId: preview.recordId, workspaceVersion: preview.version, previewHash: preview.previewHash, studentId: student.studentId, currency: preview.currency, subtotal: student.subtotal, discountAmount: student.discountAmount, totalAmount: student.totalAmount, lineIds: preview.lines.map(line => line.id), discountIds: student.discounts.map(discount => discount.id) } } });
+    if (student.carryId && student.carryBefore !== undefined && student.carryRemaining !== undefined) {
+      const consumed = await db.feeCarryForward.updateMany({ where: { id: student.carryId, schoolId: user.schoolId, campusId: preview.campusId, studentId: student.studentId, currency: preview.currency, balance: student.carryBefore }, data: { balance: student.carryRemaining } });
+      if (consumed.count !== 1) throw new SchoolAiError("The carry balance changed. Review the preview again.", 409, "STALE_EXECUTION_PREVIEW");
+      await db.auditLog.create({ data: { schoolId: user.schoolId, tableName: "fee_carry_forwards", recordId: student.carryId, userId: user.userId, oldValue: { balance: student.carryBefore }, newValue: { balance: student.carryRemaining, applied: student.carryForwardAmount || 0, currency: preview.currency, invoiceId: id, workspaceId: preview.recordId, version: preview.version } } });
+    }
     invoiceIds.push(id); students.push({ ...student, invoiceId: id, invoiceNumber });
   }
   return { invoiceIds, createdCount: invoiceIds.length, skippedCount: preview.skippedCount, currency: preview.currency, totalAmount: preview.totalAmount, billingMonth: preview.billingMonth, dueDate: preview.dueDate, lines: preview.lines, students };

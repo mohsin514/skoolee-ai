@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { ExamInvigilationPanel } from "@/components/school-ai/exam-session-plan-panel";
+import { examSessionPlanCopy } from "@/components/school-ai/exam-session-plan-copy";
 import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -413,11 +416,10 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
             ) : null}
 
             {step === "seating" ? (
-              <SeatingPlanner
-                sessionId={active.id}
-                campusId={campusId}
-                onChanged={() => load(true)}
-              />
+              <div className="space-y-4">
+                <ExamDutyControl sessionId={active.id} />
+                <SeatingPlanner sessionId={active.id} campusId={campusId} onChanged={() => load(true)} />
+              </div>
             ) : null}
 
             {step === "marks" ? (
@@ -932,4 +934,11 @@ function ResultsStep({
       </Panel>
     </div>
   );
+}
+
+/** The same duty editor is reachable beside the existing seating editor. */
+function ExamDutyControl({ sessionId }: { sessionId: string }) {
+  const { language } = useLocale(), t = examSessionPlanCopy(language);
+  const [open, setOpen] = useState(false), [dirty, setDirty] = useState(false);
+  return <><Button variant="outline" onClick={() => setOpen(true)}><Users aria-hidden="true" />{t.duties}</Button>{open && <Modal title={t.duties} onClose={() => setOpen(false)} dirty={dirty} wide><ExamInvigilationPanel language={language} sessionId={sessionId} canEdit onDraftChange={setDirty} /></Modal>}</>;
 }

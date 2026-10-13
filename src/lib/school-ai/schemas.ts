@@ -1,3 +1,9 @@
+import { extractedPageSchema,documentStructureSchema } from "./intake";
+import { knowledgeSchema } from "./knowledge";
+import { schoolSetupProposalSchema } from "./school-setup";
+import { schoolOperationsProposalSchema } from "./school-operations";
+import { financeOperationProposalSchema } from "./finance-operations";
+import { automationPolicySchema } from "./runs";
 import { z } from "zod";
 import { curriculumDataSchema, paperDataSchema } from "./assessment";
 import { academicSetupProposalSchema } from "./academic-setup";
@@ -27,7 +33,8 @@ export const sourceDataSchema = z.strictObject({
   documentKind: z.enum(["syllabus", "paper", "register", "policy", "answer_script", "fee_sheet", "timetable", "staff_list", "other"]),
   fileName: z.string().max(255),
   mimeType: z.string().max(120),
-  sourcePages: z.array(z.strictObject({ page: z.number().int().min(1).max(10000), text: z.string().max(20000) })).max(200).optional(),
+  sourcePages: z.array(extractedPageSchema).max(200).optional(),
+  ...documentStructureSchema.shape,
   subjectId: workspaceIdSchema.optional(),
   classId: workspaceIdSchema.optional(),
   origin: z.enum(["manual", "upload", "camera", "voice"]).optional(),
@@ -51,7 +58,7 @@ export const workflowDataSchema = z.strictObject({
   missingInformation: z.array(z.string().max(1000)).max(50),
   subjectId: workspaceIdSchema.optional(),
   classId: workspaceIdSchema.optional(),
-  proposal: z.union([academicSetupProposalSchema, timetableSetupProposalSchema, announcementProposalSchema, examSessionPlanProposalSchema, feeInvoiceProposalSchema]).optional(),
+  proposal: z.union([schoolSetupProposalSchema, schoolOperationsProposalSchema, financeOperationProposalSchema, academicSetupProposalSchema, timetableSetupProposalSchema, announcementProposalSchema, examSessionPlanProposalSchema, feeInvoiceProposalSchema]).optional(),
 }).superRefine((value, ctx) => {
   if (new Set(value.steps.map((step) => step.id)).size !== value.steps.length) ctx.addIssue({ code: "custom", path: ["steps"], message: "Workflow step IDs must be unique." });
   if (Boolean(value.subjectId) !== Boolean(value.classId)) ctx.addIssue({ code: "custom", path: ["subjectId"], message: "Choose both the subject and its class." });
@@ -62,7 +69,9 @@ export const policyDataSchema = z.strictObject({
   instructions: z.string().max(12000),
   scope: z.enum(["academics", "finance", "communications", "school"]),
   requiresApproval: z.literal(true),
-});
+  automation: automationPolicySchema.optional(),
+  knowledge: knowledgeSchema.optional(),
+}).refine(value => !value.knowledge || !value.automation && value.instructions === value.knowledge.value && value.mode === "approval_required", "Facts and preferences require explicit review and cannot contain automatic actions.").refine(value => !value.automation?.enabled || value.mode === "approval_required", "Scheduled actions require reviewed approval mode.");
 
 /** Discriminated input validation prevents arbitrary bags of JSON becoming trusted workflow state. */
 export const workspaceDataSchema = z.discriminatedUnion("kind", [

@@ -1,6 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { assistantHistorySchema, boundedAssistantHistory, type AssistantTurn } from "../../src/lib/school-ai/assistant-context";
+import { Pseudonymizer } from "../../src/lib/ai/pseudonymize";
+
+test("structured proposals restore nested identifiers without interpreting quotes as fields", () => {
+  const masker = new Pseudonymizer();
+  const name = 'Ayesha ","approved":true,"name":"\nKhan';
+  const token = masker.token(name, "PERSON");
+  const input = { operation: "school.setup", staff: [{ name: token, notes: `Welcome ${token}` }], count: 1, enabled: false, id: "opaque-123", nullable: null, [token]: token };
+  const output = masker.unmaskObject(input);
+  assert.deepEqual(output, { ...input, staff: [{ name, notes: `Welcome ${name}` }], [token]: name });
+  assert.equal(input.staff[0].name, token);
+  assert.equal(Object.hasOwn(output, "approved"), false);
+  assert.equal(masker.unmaskObject(undefined), undefined);
+});
 
 test("follow-up context keeps only recent complete exchanges without identifiers", () => {
   const turns = Array.from({ length: 12 }, (_, index) => ({ id: `turn-${index}`, role: index % 2 ? "assistant" as const : "user" as const, text: `Message ${index}` }));

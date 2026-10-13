@@ -1,3 +1,4 @@
+import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { correctionReleased } from "@/lib/corrections/visibility";
 import { createHash, randomUUID } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
@@ -52,7 +53,7 @@ export async function versionTransaction<T>(
         ),
     );
   } catch (error) {
-    if ((error as { code?: string }).code === "P2034")
+    if ((error as { code?: string }).code === "P2034" || (error as { code?: string; meta?: { code?: string } }).code === "P2010" && ["40001", "40P01"].includes(String((error as { meta?: { code?: string } }).meta?.code)))
       throw new ReportConflict(
         "This report changed during review. Reload and review the new version.",
       );
@@ -372,6 +373,8 @@ export async function approveVersions(
 
 export async function reviewExam(examId: string, reviewer: string) {
   return versionTransaction(async (tx) => {
+    const scope = await tx.exam.findUniqueOrThrow({ where: { id: examId }, select: { schoolId: true, campusId: true } });
+    await lockTimetableCampus(tx, scope.schoolId, scope.campusId, true);
     const cards = await tx.reportCard.findMany({ where: { examId } });
     if (!cards.length) throw new ReportConflict("Generate reports first.");
     for (const r of cards) {
@@ -400,6 +403,8 @@ export async function publishExam(
   correctionReason?: string,
 ) {
   return versionTransaction(async (tx) => {
+    const scope = await tx.exam.findUniqueOrThrow({ where: { id: examId }, select: { schoolId: true, campusId: true } });
+    await lockTimetableCampus(tx, scope.schoolId, scope.campusId, true);
     const exam = await tx.exam.findUniqueOrThrow({ where: { id: examId } });
     if (!["PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status))
       throw new ReportConflict(

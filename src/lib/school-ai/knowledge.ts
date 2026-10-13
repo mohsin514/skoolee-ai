@@ -1,0 +1,6 @@
+import { z } from "zod";
+export const knowledgeSchema=z.strictObject({category:z.enum(["FACT","PREFERENCE"]),topic:z.string().trim().min(2).max(100),value:z.string().trim().min(1).max(8000),effectiveFrom:z.iso.datetime(),effectiveUntil:z.iso.datetime().nullable(),source:z.strictObject({recordId:z.string().min(1).max(128),version:z.number().int().positive(),quote:z.string().trim().min(1).max(2000)}).nullable(),supersedes:z.strictObject({recordId:z.string().min(1).max(128),version:z.number().int().positive()}).nullable()}).refine(value=>!value.effectiveUntil||value.effectiveUntil>value.effectiveFrom,"The end must follow the effective start.");
+export type Knowledge=z.infer<typeof knowledgeSchema>;
+export const knowledgeTopic=(topic:string)=>topic.normalize("NFKC").trim().replace(/\s+/g," ").toLocaleLowerCase("en");
+export const knowledgeActive=(knowledge:Knowledge,at=new Date())=>new Date(knowledge.effectiveFrom)<=at&&(!knowledge.effectiveUntil||new Date(knowledge.effectiveUntil)>at);
+export const knowledgeOverlaps=(a:Knowledge,b:Knowledge)=>new Date(a.effectiveFrom).getTime()<new Date(b.effectiveUntil??"9999-12-31T00:00:00Z").getTime()&&new Date(b.effectiveFrom).getTime()<new Date(a.effectiveUntil??"9999-12-31T00:00:00Z").getTime();

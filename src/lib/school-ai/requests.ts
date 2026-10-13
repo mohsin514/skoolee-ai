@@ -1,3 +1,4 @@
+import { knowledgeIsCurrent } from "./knowledge-service";
 import { randomUUID } from "node:crypto";
 import { Prisma, type SchoolAiRequest } from "@prisma/client";
 import { z } from "zod";
@@ -6,11 +7,13 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { assertSchoolAiAccess, assertSchoolAiRole, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
-import { getWorkspaceRecord, getWorkspaceRecordInTransaction, workspaceRequestHash } from "./repository";
+import { getWorkspaceRecordInTransaction, workspaceRequestHash } from "./repository";
 import type { AiWorkspaceRecord } from "./types";
 import type { AssistantTurn } from "./assistant-context";
 import { schoolAiTransaction } from "./transaction";
-import { assertConversationActor, loadPrivateConversation, privateConversationContext, privateExchange } from "./conversation-service";
+import { assertConversationActor, canReadConversationEvidence, loadPrivateConversation, privateConversationContext, privateExchange } from "./conversation-service";
+
+import { assistantCatalogSelectionSchema, type AssistantCatalogSelection } from "./assistant-catalog";
 
 export const SCHOOL_AI_REQUEST_LEASE_MS = 180000;
 const MAX_ATTEMPTS = 10;
@@ -21,6 +24,7 @@ const requestSchema = z.strictObject({
   subjectId: z.string().min(1).max(128).optional(),
   classId: z.string().min(1).max(128).optional(),
   retryFailed: z.boolean().optional(),
+  catalogContext: assistantCatalogSelectionSchema.optional(),
   conversationId: z.string().min(1).max(128).optional(),
   expectedConversationVersion: z.number().int().nonnegative().optional(),
   userMessage: z.string().trim().min(1).max(8000).optional(),
@@ -49,6 +53,8 @@ export interface SchoolAiRequestClaim {
   conversationId?: string;
   conversationVersion?: number;
   history?: AssistantTurn[];
+  historyEvidenceVersions?: Record<string, number>;
+  catalogContext?: AssistantCatalogSelection;
 }
 export type SchoolAiRequestStart = { state: "CLAIMED"; claim: SchoolAiRequestClaim } | { state: "COMPLETED"; reply: string; record?: AiWorkspaceRecord };
 
@@ -81,17 +87,22 @@ export async function beginSchoolAiRequest(user: AuthUser, raw: BeginSchoolAiReq
       await assertSchoolOperational(user.schoolId);
       const campusId = await resolveWorkspaceCampus(user, input.campusId);
       const subject = await assertWorkspaceSubject(user, campusId, { subjectId: input.subjectId, classId: input.classId });
-      const requestHash = workspaceRequestHash({ feature: "ASSISTANT", fingerprint: input.fingerprint, campusId, ...subject, role: user.role });
+      const requestHash = workspaceRequestHash({ feature: "ASSISTANT", fingerprint: input.fingerprint, campusId, ...subject, role: user.role, ...(input.catalogContext ? { catalogContext: input.catalogContext } : {}) });
       const where = { schoolId: user.schoolId, actorId: user.userId, feature: "ASSISTANT", idempotencyKey: input.key };
-      const handle = (row: SchoolAiRequest): SchoolAiRequestClaim => ({ id: row.id, token: row.claimToken!, schoolId: user.schoolId, campusId, actorId: user.userId, actorRole: user.role, ...subject, requestHash, permissions });
+      const handle = (row: SchoolAiRequest): SchoolAiRequestClaim => ({ id: row.id, token: row.claimToken!, schoolId: user.schoolId, campusId, actorId: user.userId, actorRole: user.role, ...subject, requestHash, permissions, ...(input.catalogContext ? { catalogContext: input.catalogContext } : {}) });
       const existing = async (row: SchoolAiRequest): Promise<SchoolAiRequestStart> => {
         if (row.requestHash !== requestHash) throw new SchoolAiError("This request key was already used for different content or access scope.", 409);
         if (row.status === "COMPLETED") {
           const output = resultSchema.parse({ reply: row.reply, ...(row.recordId ? { recordId: row.recordId } : {}), contextRecordIds: row.contextRecordIds });
-          // Replaying a reply must not restore information after access to its evidence was removed.
-          for (const id of output.contextRecordIds) await getWorkspaceRecord(user, id);
-          const record = output.recordId ? await getWorkspaceRecord(user, output.recordId) : undefined;
-          return { state: "COMPLETED", reply: output.reply, ...(record ? { record } : {}) };
+          // Legacy callers also retain historical domain obligations. Reclassifying
+          // a generated draft must not make its old reply readable after revocation.
+          return schoolAiTransaction(user, async tx => {
+            const currentPermissions = await assertConversationActor(user, tx, "add");
+            await assertWorkspaceSubject(user, campusId, subject, tx);
+            if (!await canReadConversationEvidence(user, row, tx, currentPermissions)) throw new SchoolAiError("Access to evidence for this earlier reply is no longer available.", 403);
+            const record = output.recordId ? await getWorkspaceRecordInTransaction(user, output.recordId, tx, currentPermissions) : undefined;
+            return { state: "COMPLETED", reply: output.reply, ...(record ? { record } : {}) };
+          });
         }
         const now = new Date();
         if (row.status === "PENDING" && row.leaseExpiresAt && row.leaseExpiresAt > now) throw new SchoolAiError("This assistant request is still processing. Wait before retrying the same request.", 409);
@@ -108,7 +119,7 @@ export async function beginSchoolAiRequest(user: AuthUser, raw: BeginSchoolAiReq
       const row = await prisma.schoolAiRequest.findFirst({ where });
       if (row) return await existing(row);
       try {
-        const created = await prisma.schoolAiRequest.create({ data: { ...where, actorRole: user.role, campusId, ...subject, requestHash, claimToken: randomUUID(), leaseExpiresAt: new Date(Date.now() + SCHOOL_AI_REQUEST_LEASE_MS) } });
+        const created = await prisma.schoolAiRequest.create({ data: { ...where, actorRole: user.role, campusId, ...subject, requestHash, catalogContext: input.catalogContext ? JSON.parse(JSON.stringify(input.catalogContext)) : Prisma.DbNull, claimToken: randomUUID(), leaseExpiresAt: new Date(Date.now() + SCHOOL_AI_REQUEST_LEASE_MS) } });
         return { state: "CLAIMED", claim: handle(created) };
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -126,7 +137,11 @@ export async function beginSchoolAiRequest(user: AuthUser, raw: BeginSchoolAiReq
 export async function completeSchoolAiRequest(user: AuthUser, claim: SchoolAiRequestClaim, raw: SchoolAiRequestOutput, tx: TxClient): Promise<void> {
   try {
     checkClaim(user, claim);
-    const output = resultSchema.parse(raw);
+    if (claim.catalogContext) { const { resolveAssistantCatalog } = await import("./assistant-catalog-service"); await resolveAssistantCatalog(user, claim.campusId, claim.catalogContext); }
+    const output = resultSchema.parse({ ...raw, contextRecordIds: [...new Set([...Object.keys(claim.historyEvidenceVersions ?? {}), ...(raw.contextRecordIds ?? [])])], ...(claim.historyEvidenceVersions || raw.contextVersions ? { contextVersions: { ...claim.historyEvidenceVersions, ...raw.contextVersions } } : {}) });
+    for (const [id, version] of Object.entries(claim.historyEvidenceVersions ?? {})) {
+      if (output.contextVersions?.[id] !== version) throw new SchoolAiError("Conversation evidence changed while preparing the reply. Refresh before continuing.", 409);
+    }
     claim.permissions = await assertConversationActor(user, tx, "add");
     if (claim.conversationId) {
       const conversation = await loadPrivateConversation(user, claim.conversationId, tx);
@@ -136,11 +151,13 @@ export async function completeSchoolAiRequest(user: AuthUser, claim: SchoolAiReq
     await assertSchoolAiAccess(user, "view", claim.permissions);
     await assertWorkspaceSubject(user, claim.campusId, { subjectId: claim.subjectId, classId: claim.classId }, tx);
     const contextIds = [...new Set(output.contextRecordIds)];
+    const savedContextVersions: Record<string, number> = { ...output.contextVersions };
     if (output.contextVersions && (Object.keys(output.contextVersions).length !== contextIds.length || contextIds.some(id => output.contextVersions![id] === undefined))) throw new SchoolAiError("Every context item must name its reviewed version.", 400);
     for (const id of contextIds) {
       const record = await getWorkspaceRecordInTransaction(user, id, tx, claim.permissions);
       if (record.campusId !== claim.campusId && record.campusId !== null) throw new SchoolAiError("Assistant evidence belongs to a different campus.", 403);
-      if (output.contextVersions && (record.version !== output.contextVersions[id] || record.status !== "APPROVED")) throw new SchoolAiError("The approved context changed while the assistant was preparing an answer. Review the current information and retry.", 409);
+      savedContextVersions[id] ??= record.version;
+      if (!await knowledgeIsCurrent(user,record,tx,claim.permissions) || output.contextVersions && (record.version !== output.contextVersions[id] || record.status !== "APPROVED")) throw new SchoolAiError("The approved context changed while the assistant was preparing an answer. Review the current information and retry.", 409);
     }
     if (output.recordId) {
       const record = await tx.schoolAiRecord.findFirst({ where: { id: output.recordId, schoolId: user.schoolId, campusId: claim.campusId, createdById: user.userId, kind: "WORKFLOW", subjectId: claim.subjectId, classId: claim.classId } });
@@ -149,7 +166,7 @@ export async function completeSchoolAiRequest(user: AuthUser, claim: SchoolAiReq
     }
     const updated = await tx.schoolAiRequest.updateMany({
       where: { ...claimWhere(user, claim), leaseExpiresAt: { gt: new Date() } },
-      data: { status: "COMPLETED", reply: output.reply, recordId: output.recordId ?? null, contextRecordIds: contextIds, contextVersions: output.contextVersions ?? {}, claimToken: null, leaseExpiresAt: null, completedAt: new Date() },
+      data: { status: "COMPLETED", reply: output.reply, recordId: output.recordId ?? null, contextRecordIds: contextIds, contextVersions: savedContextVersions, claimToken: null, leaseExpiresAt: null, completedAt: new Date() },
     });
     if (updated.count !== 1) throw new SchoolAiError("This assistant attempt expired or was superseded. Retry the request before saving its answer.", 409);
   } catch (error) { return translate(error); }
@@ -174,11 +191,14 @@ async function beginPrivateRequest(user: AuthUser, input: BeginSchoolAiRequest):
     const campusId = await resolveWorkspaceCampus(user, input.campusId, tx);
     const subject = await assertWorkspaceSubject(user, campusId, { subjectId: input.subjectId, classId: input.classId }, tx);
     if (conversation.campusId !== campusId || conversation.subjectId !== subject.subjectId || conversation.classId !== subject.classId) throw new SchoolAiError("This conversation belongs to a different selected campus or subject.", 403);
-    const requestHash = workspaceRequestHash({ feature: "ASSISTANT", fingerprint: input.fingerprint, campusId, ...subject, role: user.role });
+    const requestHash = workspaceRequestHash({ feature: "ASSISTANT", fingerprint: input.fingerprint, campusId, ...subject, role: user.role, ...(input.catalogContext ? { catalogContext: input.catalogContext } : {}) });
     const where = { schoolId: user.schoolId, actorId: user.userId, feature: "ASSISTANT", idempotencyKey: input.key };
     const row = await tx.schoolAiRequest.findFirst({ where });
     const now = new Date();
-    const claim = async (saved: SchoolAiRequest): Promise<SchoolAiRequestStart> => ({ state: "CLAIMED", claim: { id: saved.id, token: saved.claimToken!, schoolId: user.schoolId, campusId, actorId: user.userId, actorRole: user.role, ...subject, requestHash, permissions, conversationId: conversation.id, conversationVersion: saved.conversationVersion!, history: await privateConversationContext(user, conversation.id, saved.conversationVersion!, tx, permissions) } });
+    const claim = async (saved: SchoolAiRequest): Promise<SchoolAiRequestStart> => {
+      const context = await privateConversationContext(user, conversation.id, saved.conversationVersion!, tx, permissions);
+      return { state: "CLAIMED", claim: { id: saved.id, token: saved.claimToken!, schoolId: user.schoolId, campusId, actorId: user.userId, actorRole: user.role, ...subject, requestHash, permissions, conversationId: conversation.id, conversationVersion: saved.conversationVersion!, history: context.history, historyEvidenceVersions: context.evidenceVersions, ...(input.catalogContext ? { catalogContext: input.catalogContext } : {}) } };
+    };
     if (row) {
       if (row.requestHash !== requestHash || row.conversationId !== conversation.id || row.userMessage !== input.userMessage || row.requestLanguage !== input.requestLanguage) throw new SchoolAiError("This request key was already used for different content or access scope.", 409);
       if (row.status === "COMPLETED") {
@@ -201,7 +221,7 @@ async function beginPrivateRequest(user: AuthUser, input: BeginSchoolAiRequest):
     if (pending) throw new SchoolAiError("Wait for this conversation's current reply before sending another message.", 409);
     const reserved = await tx.schoolAiConversation.updateMany({ where: { id: conversation.id, schoolId: user.schoolId, actorId: user.userId, version: conversation.version, archivedAt: null }, data: { version: { increment: 1 } } });
     if (reserved.count !== 1) throw new SchoolAiError("Another turn changed this conversation. Refresh before sending.", 409);
-    const saved = await tx.schoolAiRequest.create({ data: { ...where, actorRole: user.role, campusId, ...subject, requestHash, claimToken: randomUUID(), leaseExpiresAt: new Date(now.getTime() + SCHOOL_AI_REQUEST_LEASE_MS), conversationId: conversation.id, conversationVersion: conversation.version + 1, userMessage: input.userMessage, requestLanguage: input.requestLanguage } });
+    const saved = await tx.schoolAiRequest.create({ data: { ...where, actorRole: user.role, campusId, ...subject, requestHash, claimToken: randomUUID(), leaseExpiresAt: new Date(now.getTime() + SCHOOL_AI_REQUEST_LEASE_MS), conversationId: conversation.id, conversationVersion: conversation.version + 1, userMessage: input.userMessage, requestLanguage: input.requestLanguage, catalogContext: input.catalogContext ? JSON.parse(JSON.stringify(input.catalogContext)) : Prisma.DbNull } });
     return claim(saved);
   });
 }

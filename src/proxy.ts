@@ -21,6 +21,7 @@ import {
 } from "@/lib/auth/session-cookie";
 
 const PUBLIC_PATHS = [
+  "/school-capture", // Empty phone handoff shell; all capture data requires current authenticated API access.
   "/", "/login", "/sign-in", "/register", "/register-split", "/sign-up", "/pricing",
   "/verify-success", // Informational destination of token verification; it creates no session.
   "/accept-invite", "/forgot-password", "/protect-account", "/api/auth/mfa",

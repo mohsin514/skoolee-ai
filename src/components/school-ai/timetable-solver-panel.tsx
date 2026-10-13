@@ -36,7 +36,7 @@ export function TimetableSolverPanel({ language, options, classId, term, disable
     finally { if (!controller.signal.aborted) { setBusy(false); onBusyChange(false); } }
   };
   return <details className="min-w-0 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
-    <summary className="cursor-pointer rounded-lg py-2 font-semibold focus-visible:outline-2 focus-visible:outline-primary">{t.title}</summary>
+    <summary className="cursor-pointer rounded-lg py-2 font-semibold">{t.title}</summary>
     <div className="mt-4 min-w-0 space-y-4" aria-busy={busy}>
       <p className="text-sm text-ink-muted">{t.hint}</p><p className="text-xs leading-relaxed text-ink-muted">{t.bounds}</p>
       <fieldset disabled={disabled || busy} className="min-w-0 space-y-4">

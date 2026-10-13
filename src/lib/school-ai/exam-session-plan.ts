@@ -1,12 +1,15 @@
 import { z } from "zod";
 const id = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 export const examPlanDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => { const date = new Date(`${value}T00:00:00Z`); return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value; }, "Choose a real calendar date.");
+export const examSeatSupportSchema = z.strictObject({ studentId:id, frontRow:z.boolean(), edgeSeat:z.boolean(), extraSpacing:z.boolean(), separateRoomId:id.nullable(), confirmed:z.boolean(), approvalReference:z.string().trim().min(1).max(400) });
+export type ExamSeatSupport=z.infer<typeof examSeatSupportSchema>;
 export const examSessionPlanProposalSchema = z.strictObject({
   operation: z.literal("exams.create_session_plan"),
   title: z.string().trim().min(1).max(160), term: z.string().trim().min(1).max(60),
   academicYear: z.number().int().min(2000).max(2100), examType: z.enum(["MID_TERM", "FINAL"]),
   papers: z.array(z.strictObject({ id, classId: id, subjectId: id, date: examPlanDate, periodDefinitionId: id,
     rooms: z.array(z.strictObject({ roomId: id, invigilatorId: id })).min(1).max(6),
+    seatingSupport:z.array(examSeatSupportSchema).max(200).optional(),
   })).min(1).max(40),
 }).superRefine((value, ctx) => {
   const papers = new Set<string>(), ids = new Set<string>();
@@ -16,6 +19,8 @@ export const examSessionPlanProposalSchema = z.strictObject({
     ids.add(paper.id); papers.add(`${paper.classId}:${paper.subjectId}`);
     if (new Set(paper.rooms.map(room => room.roomId)).size !== paper.rooms.length) issue("Choose each room once per paper.");
     if (new Set(paper.rooms.map(room => room.invigilatorId)).size !== paper.rooms.length) issue("Assign a different invigilator to each room.");
+    if (new Set(paper.seatingSupport?.map(row=>row.studentId)).size !== (paper.seatingSupport?.length??0)) issue("Specify each candidate's seating support once.");
+    for(const support of paper.seatingSupport??[]){if(!support.frontRow&&!support.edgeSeat&&!support.extraSpacing&&!support.separateRoomId)issue("Choose at least one seating adjustment.");if(support.separateRoomId&&!paper.rooms.some(room=>room.roomId===support.separateRoomId))issue("The separate room must be allocated to this paper with its own invigilator.");}
   }
   if (new Set(value.papers.map(paper => paper.classId)).size > 10) ctx.addIssue({ code: "custom", path: ["papers"], message: "Plan up to ten classes at a time." });
 });
@@ -36,6 +41,7 @@ export interface ExamSessionPlanPreview {
   papers: Array<{ academicModelVersionId: string | null; id: string; classId: string; className: string; subjectId: string; subjectName: string; totalMarks: number;
     date: string; periodDefinitionId: string; periodNumber: number; startTime: string; endTime: string;
     rooms: Array<{ roomId: string; roomNumber: string; invigilatorId: string; invigilatorName: string; capacity: number; hasLayout: boolean; seats: ExamPlanSeat[] }>;
+    seatingSupport:ExamSeatSupport[];
   }>;
   warnings: Array<{ code: "EXAM_LAYOUT_INFERRED"; roomNumber: string }>;
   previewHash: string;

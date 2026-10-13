@@ -1,15 +1,24 @@
 import type { AuthUser } from "@/lib/auth";
+import type { TxClient } from "@/lib/db/prisma";
 import { getLocalePackage } from "@/lib/locale/store";
 import { assertTimetableWriteAccess } from "@/lib/timetable/manual";
 import { getExamBookingSlots } from "@/lib/academic/exam-bookings";
 import { SchoolAiError, assertSchoolAiAccess, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus } from "./access";
 import { schoolAiTransaction } from "./transaction";
 import { timetableSetupProposalSchema } from "./timetable-setup";
-import { solveTimetable, timetableSolveInputSchema } from "./timetable-solver";
+import { getSubstituteBookings } from "./school-operations-bookings";
+import { solveTimetable, timetableSolveInputSchema, type TimetableSolveInput } from "./timetable-solver";
 
 export async function suggestTimetable(user: AuthUser, raw: unknown) {
   const input = timetableSolveInputSchema.parse(raw);
   return schoolAiTransaction(user, async tx => {
+    const context = await prepareTimetableSolver(user, input, tx);
+    const solution = solveTimetable(context);
+    return { ...solution, proposal: solution.status === "SOLVED" ? timetableSetupProposalSchema.parse({ operation: "timetable.create_draft", classId: context.classId, academicYear: context.academicYear, term: input.term, slots: solution.slots }) : null, excludedRoomIds: context.excludedRoomIds, constraintScope: "CURRENT_BOOKINGS_AND_EXPLICIT_REQUIREMENTS" as const };
+  });
+}
+
+export async function prepareTimetableSolver(user: AuthUser, input: TimetableSolveInput, tx: TxClient) {
     await assertSchoolAiAccess(user, "add", await loadWorkspacePermissionSnapshot(user, tx));
     const campusId = await resolveWorkspaceCampus(user, input.campusId, tx);
     if (!campusId) throw new SchoolAiError("Choose a campus.", 400);
@@ -46,7 +55,6 @@ export async function suggestTimetable(user: AuthUser, raw: unknown) {
     if (bookings.length > 10000) throw new SchoolAiError("Narrow the planning scope.", 422, "TIMETABLE_SCOPE_LIMIT");
     if (bookings.some(slot => !validTime(slot.startTime) || !validTime(slot.endTime) || slot.startTime >= slot.endTime)) throw new SchoolAiError("Correct invalid times on existing bookings first.", 409, "TIMETABLE_EXISTING_INVALID");
     const exams = await getExamBookingSlots(tx, { ...scope, academicYear: cls.academicYear, term: input.term });
-    const solution = solveTimetable({ requirements, windows: input.days.flatMap(dayOfWeek => periods.map(period => ({ ...period, dayOfWeek }))), roomIds: availableRooms.map(room => room.id), bookings: [...bookings, ...exams.map(exam => ({ ...exam, clockOnly: true }))] });
-    return { ...solution, proposal: solution.status === "SOLVED" ? timetableSetupProposalSchema.parse({ operation: "timetable.create_draft", classId: cls.id, academicYear: cls.academicYear, term: input.term, slots: solution.slots }) : null, excludedRoomIds: rooms.filter(room => !availableRooms.some(item => item.id === room.id)).map(room => room.id), constraintScope: "CURRENT_BOOKINGS_AND_EXPLICIT_REQUIREMENTS" as const };
-  });
+    const substitutes = await getSubstituteBookings(tx, { ...scope, academicYear: cls.academicYear, term: input.term });
+    return { classId: cls.id, academicYear: cls.academicYear, requirements, windows: input.days.flatMap(dayOfWeek => periods.map(period => ({ ...period, dayOfWeek }))), roomIds: availableRooms.map(room => room.id), bookings: [...bookings, ...exams.map(exam => ({ ...exam, clockOnly: true })), ...substitutes.map(duty => ({ ...duty, roomId: null, clockOnly: true }))], excludedRoomIds: rooms.filter(room => !availableRooms.some(item => item.id === room.id)).map(room => room.id) };
 }

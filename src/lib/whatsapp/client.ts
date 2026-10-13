@@ -19,6 +19,7 @@ export async function sendWhatsAppMessage(
   message: WhatsAppMessage
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
+    if (process.env.DISABLE_OUTBOUND_MESSAGES === "true") return { success: false, error: "Outbound messages are disabled" };
     if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
       return {
         success: false,

@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 
 /**
  * Closing an academic year is the point of no return: marks stop being
@@ -54,8 +54,9 @@ function plural(n: number, one: string, many: string) {
 export async function getYearClosureReport(
   campusId: string,
   academicYear: number,
+  db: TxClient = prisma,
 ): Promise<YearClosureReport> {
-  const exams = await prisma.exam.findMany({
+  const exams = await db.exam.findMany({
     where: { campusId, academicYear },
     select: {
       id: true,
@@ -81,7 +82,7 @@ export async function getYearClosureReport(
   // 4 — Results released to families.
   const notPublished = exams.filter((e) => e.status !== "PUBLISHED");
 
-  const studentsWithReportCards = await prisma.reportCard.count({
+  const studentsWithReportCards = await db.reportCard.count({
     where: { campusId, exam: { academicYear } },
   });
 

@@ -4,22 +4,23 @@ Prepared 2026-10-08 from the planning snapshot. Initial rows began NOT STARTED /
 
 ## Scope and exact counts
 
-### School AI reconciliation — 12 October 2026
+### School AI reconciliation — 13 October 2026
 
-The refreshed `npm run audit:ui` inventory finds **87 pages, 17 layouts, 12 loading boundaries, 13 error boundaries and 1 not-found boundary**. Its full source/import inventory is reproducible at ignored `test-results/design-system/source-coverage.json`. The original 84-route snapshot below remains historical evidence; these three added routes complete the current page-path inventory. Existing `/account` and `/settings` layouts were also absent from the older boundary list and are accounted for here. They were not changed or runtime revalidated by this School AI batch.
+The refreshed `npm run audit:ui` inventory finds **88 pages, 17 layouts, 12 loading boundaries, 13 error boundaries and 1 not-found boundary**. Its full source/import inventory is reproducible at ignored `test-results/design-system/source-coverage.json`. The original 84-route snapshot below remains historical evidence; these four added routes complete the current page-path inventory. Existing `/account` and `/settings` layouts were also absent from the older boundary list and are accounted for here. They were not changed or runtime revalidated by this School AI batch.
 
 | ID | Route / boundary | Source | Context and states | Status | Verification |
 | --- | --- | --- | --- | --- | --- |
-| R085 | `/ai` | `src/app/ai/page.tsx` | Staff workspace; explicit owner campus, teacher subject scope; setup, sources, curriculum/papers, academic/timetable/announcement plans, work, policies and history | IN PROGRESS | Selected desktop EN and phone EN/AR/UR flows pass; full tablet/assistive-technology and every panel-state matrix UNVERIFIED. See [School AI coverage](../school-ai/IMPLEMENTATION.md#route-and-interaction-coverage). |
+| R085 | `/ai` | `src/app/ai/page.tsx` | Staff workspace; explicit owner campus, teacher subject scope; setup, sources, curriculum/papers, academic/timetable/announcement/exam/invoice plans, setup follow-ups, work, policies and history | IN PROGRESS | Selected desktop EN and phone EN/AR/UR flows pass; full tablet/assistive-technology and every panel-state matrix UNVERIFIED. See [School AI coverage](../school-ai/IMPLEMENTATION.md#route-and-interaction-coverage). |
 | R086 | `/ai/exams` | `src/app/ai/exams/page.tsx` | Student list/return navigation and staff paper assignment; real synthetic roster and access denials | IN PROGRESS | Desktop EN cases pass; full phone/tablet/locale matrix UNVERIFIED. |
 | R087 | `/ai/exams/[id]` | `src/app/ai/exams/[id]/page.tsx` | Student readiness/start/autosave/reconnect/submit; staff moderation, accommodation and reviewed gradebook transfer | IN PROGRESS | Desktop EN lifecycle and phone AR/UR gradebook review pass; other locale/device/accessibility combinations UNVERIFIED. |
+| R088 | `/school-capture` | `src/app/school-capture/page.tsx` | Expiring private phone handoff; same-user authentication, camera/source capture and return recovery | IN PROGRESS | Signed-out recovery, token expiry/access boundaries and phone capture browser cases pass; real phone camera matrix UNVERIFIED. |
 | AI-L | `/ai` layout | `src/app/ai/layout.tsx` | Shared role shell, sidebar, header and scope gates | IN PROGRESS | Exercised through new routes; not all existing role-shell pages retested. |
 | AI-S | `/ai` loading boundary | `src/app/ai/loading.tsx` | Shared whole-shell skeleton | IN PROGRESS | Source/build verified; isolated slow route-transition matrix UNVERIFIED. |
 | AI-E | `/ai` error boundary | `src/app/ai/error.tsx` | Installed Next retry API and shared error controls | UNVERIFIED | Compiles; deliberate fatal-boundary retry/focus browser case not recorded. API-level error recovery has separate passing cases. |
 | L-ACCOUNT | `/account` layout | `src/app/account/layout.tsx` | Existing account shell | UNVERIFIED | Added to inventory only; unchanged by this batch. |
 | L-SETTINGS | `/settings` layout | `src/app/settings/layout.tsx` | Existing settings shell | UNVERIFIED | Added to inventory only; unchanged by this batch. |
 
-School AI adds nine local workspace tabs; these do not change the older count of 99 role-console views below. No new whole-route PASS is claimed without the full BASE/DATA/ACTION matrix. The [implementation ledger](../school-ai/IMPLEMENTATION.md) records implemented functionality separately from this UI acceptance boundary.
+School AI adds seventeen permission-filtered local workspace tabs; these do not change the older count of 99 role-console views below. No new whole-route PASS is claimed without the full BASE/DATA/ACTION matrix. The [implementation ledger](../school-ai/IMPLEMENTATION.md) records implemented functionality separately from this UI acceptance boundary.
 
 ### Original 8 October snapshot
 

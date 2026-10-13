@@ -27,6 +27,12 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  guardianChannelPreferences GuardianChannelPreference[]
+  schoolAiSubstituteDuties SchoolAiSubstituteDuty[]
+  schoolAiExamResultRevisions SchoolAiExamResultRevision[]
+  schoolAiExamAppeals SchoolAiExamAppeal[]
+  schoolAiRuns SchoolAiRun[]
+  schoolAiDocumentJobs SchoolAiDocumentJob[]
   schoolAiConversations SchoolAiConversation[]
   schoolAiSetupTasks SchoolAiSetupTask[]
   schoolAiSetupTaskRevisions SchoolAiSetupTaskRevision[]
@@ -365,6 +371,12 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  guardianChannelPreferences GuardianChannelPreference[]
+  schoolAiSubstituteDuties SchoolAiSubstituteDuty[]
+  schoolAiExamResultRevisions SchoolAiExamResultRevision[]
+  schoolAiExamAppeals SchoolAiExamAppeal[]
+  schoolAiRuns SchoolAiRun[]
+  schoolAiDocumentJobs SchoolAiDocumentJob[]
   schoolAiConversations SchoolAiConversation[]
   schoolAiSetupTasks SchoolAiSetupTask[]
   examInvigilations ExamInvigilation[]
@@ -474,6 +486,7 @@ model Campus {
 
 // ─── 3. USERS ─────────────────────────────────────────────
 model User {
+  guardianChannelPreferences GuardianChannelPreference[] @relation("ChannelPreferenceGuardian")
   examInvigilations ExamInvigilation[] @relation("ExamInvigilator")
   mfaSecret String? @map("mfa_secret")
   mfaEnabled Boolean @default(false) @map("mfa_enabled")
@@ -1978,6 +1991,7 @@ model FeeCarryForward {
 
 // ─── 12. INVOICES ─────────────────────────────────────────
 model Invoice {
+  carryForwardAmount Int @default(0) @map("carry_forward_amount")
   paymentAllocations PaymentAllocation[]
   enrollmentId String? @map("enrollment_id")
   enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
@@ -2567,6 +2581,7 @@ model Timetable {
 }
 
 model TimetableSlot {
+  substituteDuties SchoolAiSubstituteDuty[]
   id           String     @id @default(uuid())
   schoolId     String     @default("") @map("school_id")
   school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3811,6 +3826,7 @@ model PaymentReceipt {
 
 // AI authoring stores drafts and approved snapshots; it does not bypass domain workflows.
 model SchoolAiRecord {
+  documentJobs SchoolAiDocumentJob[]
   setupTasks SchoolAiSetupTask[]
   schoolAiExecutions SchoolAiExecution[]
   id             String @id @default(uuid())
@@ -3866,6 +3882,8 @@ model SchoolAiRevision {
 }
 
 model SchoolAiExamAssignment {
+  proctorPolicy Json @default("{}") @map("proctor_policy")
+  proctorSessions SchoolAiProctorSession[]
   id           String @id @default(uuid())
   schoolId     String @default("") @map("school_id")
   school       School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3897,6 +3915,10 @@ model SchoolAiExamAssignment {
 }
 
 model SchoolAiExamAttempt {
+  proctorSessions SchoolAiProctorSession[]
+  reviewVersion Int @default(0) @map("review_version")
+  resultRevisions SchoolAiExamResultRevision[]
+  appeals SchoolAiExamAppeal[]
   id           String @id @default(uuid())
   schoolId     String @default("") @map("school_id")
   school       School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -3920,6 +3942,7 @@ model SchoolAiExamAttempt {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@unique([assignmentId, userId])
+  @@unique([id, schoolId, campusId])
   @@index([schoolId, campusId, studentId, status])
   @@map("school_ai_exam_attempts")
 }
@@ -3977,6 +4000,7 @@ model SchoolAiRequest {
   recordId         String? @map("record_id")
   contextRecordIds Json @default("[]") @map("context_record_ids")
   contextVersions Json @default("{}") @map("context_versions")
+  catalogContext Json? @map("catalog_context")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
   completedAt      DateTime? @map("completed_at")
@@ -4076,4 +4100,205 @@ model ExamInvigilation {
   createdAt DateTime @default(now()) @map("created_at")
   @@index([schoolId, campusId, teacherId])
   @@map("exam_invigilations")
+}
+
+model SchoolAiSubstituteDuty {
+  lessonSnapshot Json @default("{}") @map("lesson_snapshot")
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String @map("campus_id")
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  timetableSlotId String @map("timetable_slot_id")
+  timetableSlot TimetableSlot @relation(fields: [timetableSlotId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "school_ai_substitute_slot_fk")
+  date DateTime @db.Date
+  originalTeacherId String @map("original_teacher_id")
+  teacherId String @map("teacher_id")
+  reason String @db.Text
+  status String @default("ASSIGNED")
+  version Int @default(1)
+  assignedById String @map("assigned_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([schoolId, timetableSlotId, date])
+  @@index([schoolId, campusId, date, teacherId, status])
+  @@map("school_ai_substitute_duties")
+}
+
+model SchoolAiExamResultRevision {
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String @map("campus_id")
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  assignmentId String @map("assignment_id")
+  attemptId String @map("attempt_id")
+  attempt SchoolAiExamAttempt @relation(fields: [attemptId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade)
+  version Int
+  review Json
+  reason String @db.Text
+  createdById String @map("created_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([attemptId, version])
+  @@index([schoolId, campusId, assignmentId, attemptId])
+  @@map("school_ai_exam_result_revisions")
+}
+
+model SchoolAiExamAppeal {
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String @map("campus_id")
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  assignmentId String @map("assignment_id")
+  attemptId String @map("attempt_id")
+  attempt SchoolAiExamAttempt @relation(fields: [attemptId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade)
+  resultVersion Int @map("result_version")
+  studentId String @map("student_id")
+  userId String @map("user_id")
+  reason String @db.Text
+  status String @default("OPEN")
+  version Int @default(1)
+  resolution String? @db.Text
+  resolvedById String? @map("resolved_by_id")
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([attemptId, resultVersion])
+  @@index([schoolId, campusId, assignmentId, status])
+  @@map("school_ai_exam_appeals")
+}
+
+// Each step references an approved version and exact preview; workers never execute prose.
+model SchoolAiRun {
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String @map("campus_id")
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  title String
+  actorId String @map("actor_id")
+  actorRole String @map("actor_role")
+  accessVersion Int @map("access_version")
+  policyId String? @map("policy_id")
+  policyVersion Int? @map("policy_version")
+  idempotencyKey String @map("idempotency_key")
+  requestHash String @map("request_hash")
+  status String @default("QUEUED")
+  version Int @default(1)
+  steps Json
+  nextStep Int @default(0) @map("next_step")
+  receipts Json @default("[]")
+  errorCode String? @map("error_code")
+  scheduledAt DateTime @default(now()) @map("scheduled_at")
+  expiresAt DateTime @map("expires_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([schoolId, actorId, idempotencyKey])
+  @@index([status, scheduledAt, id])
+  @@index([schoolId, campusId, createdAt])
+  @@map("school_ai_runs")
+}
+
+// Only references and reviewed extraction proposals; originals remain in private storage.
+model SchoolAiDocumentJob {
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId String? @map("campus_id")
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  recordId String @map("record_id")
+  record SchoolAiRecord @relation(fields: [recordId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  recordVersion Int @map("record_version")
+  kind String
+  status String @default("QUEUED")
+  version Int @default(1)
+  actorId String @map("actor_id")
+  actorRole String @map("actor_role")
+  accessVersion Int @map("access_version")
+  scheduledAt DateTime @default(now()) @map("scheduled_at")
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @map("lease_until")
+  attempts Int @default(0)
+  result Json?
+  errorCode String? @map("error_code")
+  appliedVersion Int? @map("applied_version")
+  completedAt DateTime? @map("completed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([recordId, recordVersion, kind])
+  @@index([status, scheduledAt, id])
+  @@index([schoolId, campusId, recordId])
+  @@map("school_ai_document_jobs")
+}
+
+model GuardianChannelPreference {
+  id String @id @default(uuid())
+  schoolId String @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  campusId String @map("campus_id")
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  guardianUserId String @map("guardian_user_id")
+  guardian User @relation("ChannelPreferenceGuardian", fields: [guardianUserId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  channel String
+  recipient String
+  enabled Boolean @default(false)
+  verifiedAt DateTime? @map("verified_at")
+  consentAt DateTime? @map("consent_at")
+  evidence String
+  version Int @default(1)
+  updatedById String @map("updated_by_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([schoolId, campusId, guardianUserId, channel], map: "guardian_channel_preferences_scope_channel_key")
+  @@index([schoolId, campusId])
+  @@map("guardian_channel_preferences")
+}
+
+model SchoolAiProctorSession {
+  id String @id @default(cuid())
+  schoolId String @default("") @map("school_id")
+  campusId String @map("campus_id")
+  assignmentId String @map("assignment_id")
+  assignment SchoolAiExamAssignment @relation(fields: [assignmentId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Restrict, map: "school_ai_proctor_sessions_assignment_id_school_id_campus_id_fk")
+  attemptId String @map("attempt_id")
+  attempt SchoolAiExamAttempt @relation(fields: [attemptId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Restrict)
+  userId String @map("user_id")
+  kind String
+  clientKey String @map("client_key")
+  status String @default("ACTIVE")
+  consentVersion String @map("consent_version")
+  consentedAt DateTime @default(now()) @map("consented_at")
+  retentionUntil DateTime @map("retention_until")
+  endedAt DateTime? @map("ended_at")
+  bytes Int @default(0)
+  clipCount Int @default(0) @map("clip_count")
+  reviewNote String? @map("review_note")
+  reviewedById String? @map("reviewed_by_id")
+  reviewedAt DateTime? @map("reviewed_at")
+  clips SchoolAiProctorClip[]
+  @@unique([attemptId, kind, clientKey])
+  @@unique([id, schoolId, campusId])
+  @@index([schoolId, campusId, assignmentId], map: "school_ai_proctor_sessions_school_id_campus_id_assignment_id_id")
+  @@index([schoolId, status, retentionUntil])
+  @@map("school_ai_proctor_sessions")
+}
+model SchoolAiProctorClip {
+  id String @id @default(cuid())
+  schoolId String @default("") @map("school_id")
+  campusId String @map("campus_id")
+  sessionId String @map("session_id")
+  session SchoolAiProctorSession @relation(fields: [sessionId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Restrict)
+  sequence Int
+  storageKey String @unique @map("storage_key")
+  checksum String
+  mimeType String @map("mime_type")
+  bytes Int
+  status String @default("PENDING")
+  createdAt DateTime @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+  @@unique([sessionId, sequence])
+  @@index([schoolId, status, createdAt])
+  @@map("school_ai_proctor_clips")
 }

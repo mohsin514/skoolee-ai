@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
 import { examReadinessCopy } from "./exam-readiness-copy";
 
-export type ExamInfo = { version: number; title: string; startsAt: string; endsAt: string; baseDurationMinutes: number; extraMinutes: number; durationMinutes: number; totalMarks: number; serverNow: string };
+export type ExamInfo = { version: number; title: string; startsAt: string; endsAt: string; baseDurationMinutes: number; extraMinutes: number; breakMinutes?: number; assistance?: { reader: boolean; scribe: boolean; largeText: boolean }; durationMinutes: number; totalMarks: number; serverNow: string };
 export function ExamPreflight({ id, exam, locale, busy, serverNow, onChecked, onStart }: { id: string; exam: ExamInfo; locale: AssessmentLocale; busy: boolean; serverNow: number; onChecked: (exam: ExamInfo) => void; onStart: (version: number) => void }) {
   const t = examReadinessCopy(locale);
   const [checking, setChecking] = useState(false);

@@ -3,7 +3,7 @@ import { appendEvent } from "@/lib/queue/outbox";
 import { getLocalePackage } from "@/lib/locale/store";
 import { formatDateOnly, formatMoney, localeTag, localePackageSchema, type Language } from "@/lib/locale/package";
 import { notificationHtml } from "@/lib/locale/notification-catalog";
-import { assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
+import { authorizedGuardianCommunicationTargets, assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { normalizePlan } from "@/config/plans";
@@ -177,30 +177,8 @@ export function renderNotificationTemplate(template: NotificationTemplateDefinit
   };
 }
 
-async function authorizedGuardianRecipients(studentId: string, schoolId: string, channel: NotificationChannel) {
-  const now = new Date();
-  const links = await prisma.guardianRelationship.findMany({
-    where: {
-      schoolId, studentId, status: "ACTIVE", guardianUserId: { not: null },
-      verifiedAt: { not: null }, validFrom: { lte: now },
-      AND: [
-        { OR: [{ validUntil: null }, { validUntil: { gt: now } }] },
-        { guardian: { isActive: true } },
-        { accessVersions: { some: {
-          effectiveFrom: { lte: now },
-          OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }],
-          permissions: { path: ["communication"], equals: true },
-        } } },
-      ],
-    },
-    select: { fullName: true, email: true, phone: true, guardianUserId: true, guardian: { select: { phone: true } } },
-    orderBy: { createdAt: "asc" },
-  });
-  return links.flatMap((link) => {
-    const recipient = channel === "EMAIL" ? link.email : link.phone || link.guardian?.phone;
-    if (!link.guardianUserId || !recipient) return [];
-    return [{ guardianUserId: link.guardianUserId, fullName: link.fullName, recipient }];
-  });
+async function authorizedGuardianRecipients(studentId: string, schoolId: string, channel: NotificationChannel, permission: "communication" | "learningRecords" | "attendance" | "finances" = "communication") {
+  return authorizedGuardianCommunicationTargets({ studentId, schoolId }, channel, permission);
 }
 
 export function studentBaseContext(student: StudentContext): TemplateContext {
@@ -248,7 +226,8 @@ async function findExistingByIdempotency(idempotencyKey?: string) {
 }
 
 export async function sendTemplatedCommunication(input: SendTemplateInput) {
-  await assertCommunicationTarget(input.target, input.channel);
+  const permission = input.key === "REPORT_CARD_PUBLISHED" ? "learningRecords" : input.relatedType === "INVOICE" ? "finances" : "communication";
+  await assertCommunicationTarget(input.target, input.channel, permission);
   if (input.key === "REPORT_CARD_PUBLISHED") {
     await assertPublishedCommunicationReport(input.relatedId || "", input.target.studentId);
     const version = await getPublishedVersion(input.relatedId || "");
@@ -387,6 +366,9 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     });
   }
 
+  // Consent may have changed while templates and locale were resolved.
+  await assertCommunicationTarget(input.target, input.channel, permission);
+  if (process.env.DISABLE_OUTBOUND_MESSAGES === "true") return prisma.parentCommunication.update({ where: { id: communication.id }, data: { status: "BLOCKED", failedReason: "Outbound messages are disabled" } });
   const result =
     input.channel === "WHATSAPP"
       ? await sendWhatsAppMessage({
@@ -443,7 +425,7 @@ export async function sendStudentTemplatedCommunication({
 
   const results = [];
   for (const channel of channels) {
-    const recipients = await authorizedGuardianRecipients(student.id, student.campus.schoolId, channel);
+    const recipients = await authorizedGuardianRecipients(student.id, student.campus.schoolId, channel, key === "REPORT_CARD_PUBLISHED" ? "learningRecords" : relatedType === "INVOICE" ? "finances" : "communication");
     for (const guardian of recipients) results.push(await sendTemplatedCommunication({
       key,
       channel,

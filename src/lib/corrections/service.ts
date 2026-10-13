@@ -1,3 +1,6 @@
+import { lockInvoiceGeneration } from "@/lib/fees/invoice-generation";
+import { assertBankPeriodOpen } from "@/lib/fees/ledger-protection";
+import { loadWorkspacePermissionSnapshot, assertWorkspacePermission } from "@/lib/school-ai/access";
 import { correctionReleased } from "./visibility";
 import { capturePaymentReceipt } from "@/lib/fees/receipt";
 import { Prisma } from "@prisma/client";
@@ -112,6 +115,14 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
         const c = await tx.correction.findFirst({ where: { id, ...campusScope(user) } });
         if (!c)
             throw new ApiError("Correction unavailable", 403);
+        if (c.kind === "PAYMENT") {
+            await lockInvoiceGeneration(tx, user.schoolId, c.campusId);
+            const actor = await tx.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
+            if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new ApiError("Account access changed", 403);
+            const grants = await loadWorkspacePermissionSnapshot(user, tx);
+            await assertWorkspacePermission(user, "fees", "view", grants);
+            await assertWorkspacePermission(user, "fees", "edit", grants);
+        }
         await permit(user, c.kind as Kind, true, true);
         const policy = await tx.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { correctionSeparateApprover: true } });
         try {
@@ -145,6 +156,7 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
             }
             else if ("invoice" in current.row && "currency" in current.snapshot) {
                 const p = current.row;
+                if (p.ledgerEntry?.bankAccountId) await assertBankPeriodOpen(tx, user.schoolId, c.campusId, p.ledgerEntry.bankAccountId, new Date());
                 const a = c.after as unknown as {
                     reversal: {
                         minor: number;

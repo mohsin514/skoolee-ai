@@ -1,6 +1,8 @@
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
-import { invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
+import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
+import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
+import { minorUnits } from "@/lib/locale/package";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
@@ -41,20 +43,11 @@ export async function POST(req: NextRequest) {
     const students = await tx.student.findMany({
       where: {
         schoolId: user.schoolId, campusId, archivedAt: null,
-        status: "active",
+        status: { equals: "active", mode: "insensitive" },
         class: classWhere,
       },
       include: {
         class: true,
-        invoices: {
-          where: {
-            invoiceDate: {
-              gte: invoiceDate,
-              lt: nextMonth,
-            },
-          },
-          select: { id: true },
-        },
       },
     });
 
@@ -62,7 +55,7 @@ export async function POST(req: NextRequest) {
       throw new ApiError("No active students found for this class/campus", 404);
     }
 
-    const existingInvoices = students.filter((s) => s.invoices.length > 0);
+    const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, students.map(student => student.id), invoiceDate, nextMonth);
     if (existingInvoices.length > 0) {
       throw new ApiError(
         `Invoices already exist for ${existingInvoices.length} student(s) this month`,
@@ -74,15 +67,15 @@ export async function POST(req: NextRequest) {
       where: {
         campusId,
         activeFrom: { lte: dueDate },
-        AND: [
-          { activeTo: null },
-          { OR: [{ activeTo: { gte: invoiceDate } }, { activeTo: null }] },
-        ],
+        OR: [{ activeTo: { gte: invoiceDate } }, { activeTo: null }],
       },
       include: { class: true },
+      orderBy: { activeFrom: "desc" },
     });
 
-    const feeMap = new Map(feeStructures.map((fs) => [fs.classId, fs]));
+    const feeMap = new Map<string, typeof feeStructures[number]>();
+    for (const structure of feeStructures) if (!feeMap.has(structure.classId)) feeMap.set(structure.classId, structure);
+    const enrollments = await tx.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: students.map(student => student.id) }, NOT: { origin: { startsWith: "LEGACY" } } }, select: { id: true, studentId: true, classId: true, academicYear: true, startDate: true, endDate: true } });
 
     const maxSeq = await tx.invoice.findFirst({
       where: { campusId, invoiceNumber: { startsWith: generateInvoiceNumber(campusId, year, 0).slice(0, -5) } },
@@ -96,9 +89,11 @@ export async function POST(req: NextRequest) {
     const results: Array<{ studentId: string; status: string; error?: string }> = [];
 
     for (const student of students) {
+      const invoiceContext = invoiceEnrollmentContext(enrollments.filter(period => period.studentId === student.id && period.classId === student.classId && period.academicYear === student.class.academicYear), invoiceDate, dueDate);
+      if (!invoiceContext) { results.push({ studentId: student.id, status: "error", error: "Review enrollment for this billing period before generating an invoice." }); continue; }
       // 1. New-model resolution (FeeGroupAssignment + lines + discounts + carry-forward)
       const assignment = await tx.feeGroupAssignment.findFirst({
-        where: { campusId, classId: student.classId, academicYear: year },
+        where: { schoolId: user.schoolId, campusId, classId: student.classId, academicYear: student.class.academicYear },
         include: {
           feeGroup: {
             include: {
@@ -118,7 +113,7 @@ export async function POST(req: NextRequest) {
 
       if (assignment) {
         currency = assignment.feeGroup.currency;
-        const lines = assignment.feeGroup.lines.map((line) => ({
+        const lines = assignment.feeGroup.lines.filter(line => !line.dueDate || line.dueDate >= invoiceDate && line.dueDate < nextMonth).map((line) => ({
           id: line.id,
           name: line.feeType.name,
           code: line.feeType.code,
@@ -145,7 +140,7 @@ export async function POST(req: NextRequest) {
         ];
 
         const carryForward = await tx.feeCarryForward.findUnique({
-          where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: year } },
+          where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: student.class.academicYear } },
         });
 
         if (discounts.some((d) => d.type === "FLAT" && d.currency !== currency) || (carryForward && carryForward.balance !== 0 && carryForward.currency !== currency)) {
@@ -205,6 +200,7 @@ export async function POST(req: NextRequest) {
       }
 
       const totalAmount = subtotal - discountAmount + lateFeeAmount + taxAmount;
+      try { minorUnits(currency); } catch { results.push({ studentId: student.id, status: "error", error: "Review the configured fee currency." }); continue; }
       if ([monthlyFee, oneTimeTotal, subtotal, discountAmount, lateFeeAmount, taxAmount, totalAmount].some(value => !Number.isSafeInteger(value) || value < 0 || value > MAX_INVOICE_MINOR) || discountAmount > subtotal) { results.push({ studentId: student.id, status: "error", error: "Review fee, discount and tax amounts." }); continue; }
 
       const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
@@ -213,9 +209,10 @@ export async function POST(req: NextRequest) {
           campusId,
           studentId: student.id,
           currency,
-          localeSnapshot,
+          localeSnapshot: { ...localeSnapshot, currency },
           invoiceNumber: generateInvoiceNumber(campusId, year, sequence++),
-          invoiceDate,
+          invoiceDate: new Date(`${invoiceContext.invoiceDate}T00:00:00.000Z`),
+          enrollmentId: invoiceContext.enrollmentId,
           dueDate,
           monthlyFee,
           oneTimeFees: oneTimeTotal,

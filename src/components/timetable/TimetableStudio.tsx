@@ -32,6 +32,7 @@ import { ConflictPanel } from "./ConflictPanel";
 import { RoomView } from "./RoomView";
 import { SubjectPalette } from "./SubjectPalette";
 import { TeacherView } from "./TeacherView";
+import { SubstituteDuties } from "@/components/school-ai/school-operations-duties";
 import { TimetableGrid, type GridDensity } from "./TimetableGrid";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -1032,6 +1033,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
 
       {/* Teacher view */}
       {viewMode === "teacher" && (
+        <div className="space-y-5">
         <TeacherView
           timetables={scope.resources}
           teachers={teachers}
@@ -1041,6 +1043,8 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
           selectedTeacherId={selectedTeacherId}
           onSelectTeacher={setSelectedTeacherId}
         />
+        <SubstituteDuties campusId={campusId} />
+        </div>
       )}
 
       {/* Room view */}

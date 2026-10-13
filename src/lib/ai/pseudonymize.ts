@@ -93,6 +93,19 @@ export class Pseudonymizer {
     return out;
   }
 
+  /** Restore string values without interpreting restored text as JSON or keys. */
+  unmaskObject<T>(value: T): T {
+    const restore = (item: unknown): unknown => {
+      if (typeof item === "string") return this.unmask(item);
+      if (Array.isArray(item)) return item.map(restore);
+      if (item && typeof item === "object") return Object.fromEntries(
+        Object.entries(item).map(([key, child]) => [key, restore(child)]),
+      );
+      return item;
+    };
+    return restore(value) as T;
+  }
+
   /**
    * Deep-copies `value`, replacing any string under a sensitive key with a
    * token. Use to sanitize a structured context object before serializing it

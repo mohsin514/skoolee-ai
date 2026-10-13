@@ -76,3 +76,29 @@ export async function applyEnrollment(tx: TxClient, input: { studentId: string; 
     oldValue: { enrollmentId: from.id }, newValue: { enrollmentId: enrollment.id, reason: input.reason, preserved: impact.preserved } } });
   return { enrollment, preserved: impact.preserved };
 }
+
+/** Withdrawal closes placement at a reviewed boundary; original sources remain immutable. */
+export async function withdrawalImpact(tx: TxClient, studentId: string, effectiveDate: Date) {
+  const pupil = await tx.student.findFirst({ where: { id: studentId, archivedAt: null, status: "active", consolidatedIntoId: null } });
+  const from = await tx.studentEnrollment.findFirst({ where: { studentId, endDate: null, status: "ACTIVE" } });
+  if (!pupil || !from || from.classId !== pupil.classId || from.campusId !== pupil.campusId) throw new ApiError("Current placement needs reconciliation before withdrawal.", 409);
+  if (effectiveDate <= from.startDate || effectiveDate > new Date()) throw new ApiError("Withdrawal must be after the current enrollment began and no later than today.", 409);
+  const [attendance, reports, invoices, futureAttendance, futureReports, futureInvoices] = await Promise.all([
+    tx.attendance.count({ where: { studentId, enrollmentId: from.id } }), tx.reportCard.count({ where: { studentId, enrollmentId: from.id } }), tx.invoice.count({ where: { studentId, enrollmentId: from.id } }),
+    tx.attendance.count({ where: { studentId, date: { gte: effectiveDate } } }), tx.reportCard.count({ where: { studentId, enrollmentId: from.id, generatedAt: { gte: effectiveDate } } }), tx.invoice.count({ where: { studentId, enrollmentId: from.id, invoiceDate: { gte: effectiveDate } } }),
+  ]);
+  if (futureAttendance || futureReports || futureInvoices) throw new ApiError("Attendance, invoices or reports already exist on or after this date. Choose a later withdrawal boundary.", 409);
+  return { pupil, from, preserved: { attendance, reports, invoices } };
+}
+export async function applyWithdrawal(tx: TxClient, input: { studentId: string; effectiveDate: Date; actorId: string; reason: string }) {
+  const impact = await withdrawalImpact(tx, input.studentId, input.effectiveDate);
+  await tx.studentEnrollment.update({ where: { id: impact.from.id }, data: { endDate: input.effectiveDate, status: "WITHDRAWN" } });
+  await tx.student.update({ where: { id: input.studentId }, data: { status: "archived", archivedAt: input.effectiveDate, archiveReason: input.reason } });
+  if (impact.pupil.studentUserId) {
+    await tx.user.updateMany({ where: { id: impact.pupil.studentUserId, role: "STUDENT" }, data: { isActive: false, accessVersion: { increment: 1 } } });
+    await tx.loginSession.updateMany({ where: { userId: impact.pupil.studentUserId, isActive: true }, data: { isActive: false, logoutAt: new Date() } });
+  }
+  await tx.studentTimelineEvent.create({ data: { studentId: input.studentId, kind: "WITHDRAWN", title: "Enrollment withdrawn", detail: JSON.stringify({ enrollmentId: impact.from.id, effectiveDate: input.effectiveDate.toISOString().slice(0, 10), reason: input.reason, preserved: impact.preserved }), actorId: input.actorId } });
+  await tx.auditLog.create({ data: { tableName: "student_enrollments", recordId: impact.from.id, userId: input.actorId, oldValue: { status: "ACTIVE" }, newValue: { status: "WITHDRAWN", effectiveDate: input.effectiveDate.toISOString(), reason: input.reason, preserved: impact.preserved } } });
+  return impact;
+}

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     if (record.status !== "APPROVED" || record.version !== version) throw new SchoolAiError("This paper changed. Reload and select the current approved version before printing.", 409, "STALE_WORKSPACE_VERSION");
     return new Response(buildCandidatePaperHtml(paperDataSchema.parse(record.data), version), { headers: {
       "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store",
-      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+      "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
       "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
       "Permissions-Policy": "camera=(), microphone=(), display-capture=()",
     } });

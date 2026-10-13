@@ -71,11 +71,15 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(), geolocation=()" }],
       },
       {
+        source: "/ai/exams/:id",
+        headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), display-capture=(self), geolocation=()" }],
+      },
+      {
         source: "/api/school-ai/workspace/:id/print",
         // Configured headers run after route headers in this Next version.
         // Keep candidate documents isolated from the app's script policy.
         headers: [
-          { key: "Content-Security-Policy", value: "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
+          { key: "Content-Security-Policy", value: "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
           { key: "Referrer-Policy", value: "no-referrer" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), display-capture=()" },
         ],

@@ -1,4 +1,6 @@
-import { invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
+import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
+import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
+import { minorUnits } from "@/lib/locale/package";
 import { invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { recordPayment } from "@/lib/fees/payment";
 import { getLocalePackage } from "@/lib/locale/store";
@@ -133,25 +135,29 @@ export async function POST(req: NextRequest) {
       const dueDate = new Date(nextMonth.getTime() - 86400000);
       const result = await invoiceGenerationTransaction(user, campusId, async tx => {
         const students = await tx.student.findMany({
-          where: { schoolId: user.schoolId, campusId, archivedAt: null, status: "active", class: { campusId, archivedAt: null, status: "ACTIVE", ...(parsed.data.classId ? { id: parsed.data.classId } : {}) } },
-          select: { id: true, classId: true },
+          where: { schoolId: user.schoolId, campusId, archivedAt: null, status: { equals: "active", mode: "insensitive" }, class: { campusId, archivedAt: null, status: "ACTIVE", ...(parsed.data.classId ? { id: parsed.data.classId } : {}) } },
+          select: { id: true, classId: true, class: { select: { academicYear: true } } },
         });
         if (!students.length) throw new ApiError("No active students found", 404);
         const structures = await tx.feeStructure.findMany({ where: { campusId, classId: { in: [...new Set(students.map(student => student.classId))] }, activeFrom: { lte: invoiceDate }, OR: [{ activeTo: null }, { activeTo: { gte: invoiceDate } }] }, orderBy: { activeFrom: "desc" } });
-        const existing = await tx.invoice.findMany({ where: { campusId, studentId: { in: students.map(student => student.id) }, invoiceDate: { gte: invoiceDate, lt: nextMonth } }, select: { studentId: true } });
+        const existing = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, students.map(student => student.id), invoiceDate, nextMonth);
         const alreadyGenerated = new Set(existing.map(invoice => invoice.studentId));
+        const enrollments = await tx.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: students.map(student => student.id) }, NOT: { origin: { startsWith: "LEGACY" } } }, select: { id: true, studentId: true, classId: true, academicYear: true, startDate: true, endDate: true } });
         const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
         let created = 0;
         for (const student of students) {
           if (alreadyGenerated.has(student.id)) continue;
+          const invoiceContext = invoiceEnrollmentContext(enrollments.filter(period => period.studentId === student.id && period.classId === student.classId && period.academicYear === student.class.academicYear), invoiceDate, dueDate);
+          if (!invoiceContext) throw new ApiError("Review student enrollment for this billing period before generating invoices", 409);
           const structure = structures.find(item => item.classId === student.classId);
           if (!structure) throw new ApiError("Fee structure not found for a selected class and period", 404);
+          try { minorUnits(structure.currency); } catch { throw new ApiError("Review the configured fee currency", 422); }
           const entries = Object.values((structure.oneTimeFeesJson as Record<string, unknown>) ?? {});
           if (entries.some(value => typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > MAX_INVOICE_MINOR)) throw new ApiError("Review configured fee amounts", 422);
           const oneTimeFees = (entries as number[]).reduce((sum, value) => sum + value, 0);
           const subtotal = structure.monthlyFee + oneTimeFees;
           if (![structure.monthlyFee, oneTimeFees, subtotal].every(value => Number.isSafeInteger(value) && value >= 0 && value <= MAX_INVOICE_MINOR)) throw new ApiError("Review configured fee amounts", 422);
-          await tx.invoice.create({ data: { schoolId: user.schoolId, campusId, studentId: student.id, currency: structure.currency, localeSnapshot: { ...localeSnapshot, currency: structure.currency }, monthlyFee: structure.monthlyFee, oneTimeFees, subtotal, totalAmount: subtotal, totalAmountPaid: 0, balanceDue: subtotal, invoiceDate, dueDate, status: "PENDING" } });
+          await tx.invoice.create({ data: { schoolId: user.schoolId, campusId, studentId: student.id, enrollmentId: invoiceContext.enrollmentId, currency: structure.currency, localeSnapshot: { ...localeSnapshot, currency: structure.currency }, monthlyFee: structure.monthlyFee, oneTimeFees, subtotal, totalAmount: subtotal, totalAmountPaid: 0, balanceDue: subtotal, invoiceDate: new Date(`${invoiceContext.invoiceDate}T00:00:00.000Z`), dueDate, status: "PENDING" } });
           created++;
         }
         await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "invoices", recordId: `batch-${parsed.data.generationMonth}`, newValue: { month: parsed.data.generationMonth, created, skipped: alreadyGenerated.size } } });

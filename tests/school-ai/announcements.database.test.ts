@@ -6,7 +6,11 @@ import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/school-ai/repository";
 import { previewSchoolAiExecution, executeSchoolAiTool } from "../../src/lib/school-ai/execution";
+import { listChannelPreferences, saveChannelPreference } from "../../src/lib/school-ai/announcement-preferences-service";
 import { listAnnouncementDeliveries } from "../../src/lib/school-ai/announcements-service";
+import { assertCommunicationTarget } from "../../src/lib/auth/communication-policy";
+import { runWithTenantContext } from "../../src/lib/db/tenant-context";
+import { handleVerifiedGuardianMessage, resolveInboundGuardian } from "../../src/lib/whatsapp/inbound-guardian";
 import { consume, type Database } from "../../src/lib/queue/outbox";
 import { announcementDeliveryWorkflow, type AnnouncementEmailAdapter } from "../../src/lib/queue/announcement-delivery";
 import type { AnnouncementProposal } from "../../src/lib/school-ai/announcements";
@@ -156,3 +160,89 @@ test("provider disabled and cross-campus scopes cannot queue, and channel permis
   await assert.rejects(() => previewSchoolAiExecution(f.user, record.id, "communications.queue_announcement", record.version), { status: 403 });
   assert.equal(await db.parentCommunication.count({ where: { schoolId: f.schoolId } }), 0);
 }));
+
+async function phoneChannel(f: Fixture, channel: "SMS" | "WHATSAPP", run: (proposal: AnnouncementProposal) => Promise<void>) {
+  const template = { id: "reviewed-ur", name: "reviewed_school_notice", language: "ur", providerLanguage: "ur", ...f.proposal.messages.ur! }, env = { TWILIO_ACCOUNT_SID: `AC${"a".repeat(32)}`, TWILIO_AUTH_TOKEN: "synthetic-test-only", TWILIO_MESSAGING_SERVICE_SID: `MG${"b".repeat(32)}`, WHATSAPP_PHONE_NUMBER_ID: "123456", WHATSAPP_BUSINESS_ACCOUNT_ID: "654321", WHATSAPP_ACCESS_TOKEN: "synthetic-test-only", WHATSAPP_API_VERSION: "v25.0", WHATSAPP_ANNOUNCEMENT_TEMPLATES_JSON: JSON.stringify([template]) }, previous = Object.fromEntries(Object.keys(env).map(key => [key, process.env[key]])); Object.assign(process.env, env);
+  try { await db.school.update({ where: { id: f.schoolId }, data: { plan: "PRO" } }); await db.guardianRelationship.update({ where: { id: f.relation.id }, data: { phone: "+923001234567" } }); await run({ ...f.proposal, channel, messages: { ur: f.proposal.messages.ur }, ...(channel === "WHATSAPP" ? { templateIds: { ur: template.id } } : {}) }); } finally { for (const [key, value] of Object.entries(previous)) if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+}
+async function consent(f: Fixture, channel: "SMS" | "WHATSAPP" | "EMAIL", enabled = true, expectedVersion = 0) { return saveChannelPreference(f.user, { campusId: f.campusId, guardianUserId: f.parentId, channel, recipient: channel === "EMAIL" ? f.relation.email : "+923001234567", enabled, expectedVersion, verified: true, consent: true, evidence: "Guardian confirmed the current number and requested school messages on this channel." }); }
+for (const channel of ["SMS", "WHATSAPP"] as const) test(`${channel} requires consent and verified contact, queues exact text, and accepts one synthetic delivery`, () => school(f => phoneChannel(f, channel, async proposal => {
+  const record = await approved(f, proposal), excluded = await previewSchoolAiExecution(f.user, record.id, proposal.operation, record.version); assert.equal(excluded.recipients.length, 0); assert(excluded.skipped.some(row => row.reason === "CHANNEL_NOT_CONSENTED"));
+  await consent(f, channel); const queued = await queue(f, record), communication = await db.parentCommunication.findUniqueOrThrow({ where: { id: queued.receipt.communicationIds[0] } }); assert.equal(communication.channel, channel); assert.equal(communication.recipient, "+923001234567"); let calls = 0; await runDelivery(f, communication.id, async message => { calls++; assert.equal(message.channel, channel); assert.equal(message.body, f.proposal.messages.ur!.body); return { success: true, messageId: `synthetic-${channel}` }; }); assert.equal(calls, 1); assert.equal((await listAnnouncementDeliveries(f.user, record.id, queued.receipt.id)).counts.ACCEPTED, 1);
+})));
+test("guardian opt-out revokes queued phone delivery and old consent cannot be overwritten", () => school(f => phoneChannel(f, "SMS", async proposal => {
+  await consent(f, "SMS"); const record = await approved(f, proposal), queued = await queue(f, record), parent: AuthUser = { ...f.user, userId: f.parentId, email: f.relation.email, role: "PARENT" }; const own = await listChannelPreferences(parent); assert.equal(own[0].preferences[0].enabled, true);
+  await saveChannelPreference(parent, { campusId: f.campusId, guardianUserId: f.parentId, channel: "SMS", recipient: "+923001234567", enabled: false, expectedVersion: 1, verified: false, consent: false, evidence: "Guardian no longer wants operational text messages." }); await assert.rejects(() => consent(f, "SMS", true, 1), { status: 409 }); let calls = 0; await runDelivery(f, queued.receipt.communicationIds[0], async () => { calls++; return { success: true, messageId: "should-not-send" }; }); assert.equal(calls, 0); assert.equal((await db.parentCommunication.findUniqueOrThrow({ where: { id: queued.receipt.communicationIds[0] } })).status, "BLOCKED");
+})));
+test("channel consent changes invalidate exact audience preview and missing verification cannot enable phone delivery", () => school(f => phoneChannel(f, "SMS", async proposal => {
+  await assert.rejects(() => saveChannelPreference(f.user, { campusId: f.campusId, guardianUserId: f.parentId, channel: "SMS", recipient: "+923001234567", enabled: true, expectedVersion: 0, verified: false, consent: true, evidence: "The guardian has not yet verified this contact." }), { code: "ANNOUNCEMENT_PREFERENCE_EVIDENCE" }); await consent(f, "SMS"); const record = await approved(f, proposal), preview = await previewSchoolAiExecution(f.user, record.id, proposal.operation, record.version); await consent(f, "SMS", false, 1); await assert.rejects(() => executeSchoolAiTool(f.user, record.id, { operation: proposal.operation, version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() }), { code: "STALE_EXECUTION_PREVIEW" });
+})));
+test("WhatsApp template mutation and plan withdrawal prevent queued delivery", () => school(f => phoneChannel(f, "WHATSAPP", async proposal => {
+  await consent(f, "WHATSAPP"); const record = await approved(f, proposal), queued = await queue(f, record); await db.school.update({ where: { id: f.schoolId }, data: { plan: "FREE" } }); let calls = 0; await runDelivery(f, queued.receipt.communicationIds[0], async () => { calls++; return { success: true, messageId: "not-allowed" }; }); assert.equal(calls, 0); await db.school.update({ where: { id: f.schoolId }, data: { plan: "PRO" } }); process.env.WHATSAPP_ANNOUNCEMENT_TEMPLATES_JSON = "[]"; const current = await previewSchoolAiExecution(f.user, record.id, proposal.operation, record.version); assert(current.blockers.includes("ANNOUNCEMENT_TEMPLATE_REQUIRED"));
+})));
+test("email remains compatible without preferences and an explicit guardian opt-out is respected", () => school(async f => {
+  const record = await approved(f); assert.equal((await previewSchoolAiExecution(f.user, record.id, f.proposal.operation, record.version)).recipients.length, 1); await consent(f, "EMAIL", false); assert.equal((await previewSchoolAiExecution(f.user, record.id, f.proposal.operation, record.version)).recipients.length, 0);
+}));
+
+test("channel preferences reject forged guardian, campus, contact and fresh permission changes", () => school(f => phoneChannel(f, "SMS", async () => {
+  const input = { campusId: f.campusId, guardianUserId: f.parentId, channel: "SMS", recipient: "+923001234567", enabled: true, expectedVersion: 0, verified: true, consent: true, evidence: "Verified current guardian request for school messages." };
+  const parent: AuthUser = { ...f.user, userId: f.parentId, email: f.relation.email, role: "PARENT" };
+  await assert.rejects(() => saveChannelPreference(parent, input), { status: 403 });
+  await assert.rejects(() => saveChannelPreference(parent, { ...input, guardianUserId: f.user.userId, enabled: false }), { status: 403 });
+  await assert.rejects(() => saveChannelPreference(parent, { ...input, campusId: "foreign-campus", enabled: false }), { status: 403 });
+  await assert.rejects(() => saveChannelPreference(f.user, { ...input, recipient: "+923009999999" }), { code: "ANNOUNCEMENT_PREFERENCE_EVIDENCE" });
+  await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Synthetic revoked right", createdByUserId: f.user.userId } });
+  assert.deepEqual(await listChannelPreferences(parent), []);
+  await assert.rejects(() => saveChannelPreference(f.user, input), { status: 403 });
+  assert.equal(await db.guardianChannelPreference.count({ where: { schoolId: f.schoolId } }), 0);
+})));
+
+test("phone contact changes after queueing cannot redirect approved SMS delivery", () => school(f => phoneChannel(f, "SMS", async proposal => {
+  await consent(f, "SMS"); const record = await approved(f, proposal), queued = await queue(f, record);
+  await db.guardianRelationship.update({ where: { id: f.relation.id }, data: { phone: "+923009999999" } });
+  let calls = 0; await runDelivery(f, queued.receipt.communicationIds[0], async () => { calls++; return { success: true, messageId: "must-not-send" }; });
+  assert.equal(calls, 0);
+  assert.equal((await db.parentCommunication.findUniqueOrThrow({ where: { id: queued.receipt.communicationIds[0] } })).status, "BLOCKED");
+})));
+
+test("legacy communication target checks honor latest rights and phone consent without unverified phone fallback", () => school(f => phoneChannel(f, "WHATSAPP", async () => {
+  await runWithTenantContext({ schoolId: f.schoolId, userId: f.user.userId, role: f.user.role, campusId: f.campusId }, async () => {
+    const target = { schoolId: f.schoolId, campusId: f.campusId, studentId: f.studentId, parentUserId: f.parentId, recipient: "+923001234567" };
+    await assert.rejects(() => assertCommunicationTarget(target, "WHATSAPP"), { status: 403 });
+    await consent(f, "WHATSAPP"); await assertCommunicationTarget(target, "WHATSAPP");
+    await assert.rejects(() => assertCommunicationTarget(target, "WHATSAPP", "learningRecords"), { status: 403 });
+    await db.user.update({ where: { id: f.parentId }, data: { phone: "+923009999999" } });
+    await assert.rejects(() => assertCommunicationTarget({ ...target, recipient: "+923009999999" }, "WHATSAPP"), { status: 403 });
+    await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Newer denial supersedes still-effective old allow", createdByUserId: f.user.userId } });
+    await assert.rejects(() => assertCommunicationTarget(target, "WHATSAPP"), { status: 403 });
+    await assert.rejects(() => assertCommunicationTarget({ ...target, recipient: f.relation.email }, "EMAIL"), { status: 403 });
+  });
+})));
+
+test("WhatsApp inbound uses exact consented contact and never guesses across multiple children or guardians", () => school(f => phoneChannel(f, "WHATSAPP", async () => {
+  await consent(f, "WHATSAPP");
+  assert.equal(await resolveInboundGuardian("923001234567"), null, "Learning-record permission is required");
+  await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: true, learningRecords: true }, reason: "Verified learning-record access", createdByUserId: f.user.userId } });
+  assert.equal((await resolveInboundGuardian("923001234567"))?.studentId, f.studentId);
+  assert.equal(await resolveInboundGuardian("3001234567"), null, "A partial phone must never match");
+  const otherParent = await db.user.create({ data: { schoolId: f.schoolId, campusId: f.campusId, email: `${randomUUID()}@example.invalid`, fullName: "Another guardian", role: "PARENT" } });
+  const duplicateContact = await db.guardianChannelPreference.create({ data: { schoolId: f.schoolId, campusId: f.campusId, guardianUserId: otherParent.id, channel: "WHATSAPP", recipient: "+923001234567", enabled: true, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic duplicated contact", updatedById: f.user.userId } });
+  assert.equal(await resolveInboundGuardian("923001234567"), null, "Shared guardian contacts cannot reveal an arbitrarily chosen pupil");
+  await db.guardianChannelPreference.delete({ where: { id: duplicateContact.id } });
+  const sibling = await db.student.create({ data: { schoolId: f.schoolId, campusId: f.campusId, classId: f.classId, fullName: "Second eligible learner", rollNo: "2", gender: "OTHER" } });
+  await db.guardianRelationship.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: sibling.id, guardianUserId: f.parentId, createdByUserId: f.user.userId, fullName: "Guardian", email: f.relation.email, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: f.schoolId } }, permissions: { communication: true, learningRecords: true }, reason: "Synthetic sibling scope", createdByUserId: f.user.userId } } } });
+  assert.equal(await resolveInboundGuardian("923001234567"), null, "Multiple pupils require portal selection");
+})));
+
+test("verified inbound replies are deduplicated and consent revoked during drafting prevents delivery", async () => {
+  for (const revoke of [false, true]) await school(f => phoneChannel(f, "WHATSAPP", async () => {
+    await consent(f, "WHATSAPP");
+    await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: true, learningRecords: true }, reason: "Verified learning-record access", createdByUserId: f.user.userId } });
+    let drafts = 0, sends = 0;
+    const input = { id: `synthetic-inbound-${randomUUID()}`, phone: "923001234567", text: "Please show approved reports" }, dependencies = { draft: async () => { drafts++; if (revoke) await consent(f, "WHATSAPP", false, 1); return { text: "اسکول پورٹل میں منظور شدہ ریکارڈ دیکھیں۔", tokensUsed: 0, model: "synthetic-only", promptVersion: "synthetic" }; }, send: async () => { sends++; return { success: true, messageId: "synthetic-inbound-provider" }; } };
+    await handleVerifiedGuardianMessage(input, dependencies); await handleVerifiedGuardianMessage(input, dependencies);
+    assert.equal(drafts, 1); assert.equal(sends, revoke ? 0 : 1);
+    const stored = await db.parentCommunication.findFirstOrThrow({ where: { schoolId: f.schoolId, idempotencyKey: `whatsapp-inbound:${input.id}` } });
+    assert.equal(stored.status, revoke ? "BLOCKED" : "SENT");
+  }));
+});

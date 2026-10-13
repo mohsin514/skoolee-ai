@@ -9,6 +9,7 @@ import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { TimetableSkeleton } from "@/components/teacher/teacher-components";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
+import { SubstituteDuties } from "@/components/school-ai/school-operations-duties";
 
 interface TeacherSlot {
   id: string;
@@ -68,6 +69,7 @@ export default function TeacherTimetablePage() {
           the padding; repeating them here nested a second scrollbar inside the
           first, so the week grid scrolled independently of the page around it. */}
       <div className="space-y-6">
+      <SubstituteDuties />
       {slots.length === 0 ? (
         <div className="sk-panel sk-rise p-10 text-center" style={{ animationDelay: "80ms" }}>
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe]">

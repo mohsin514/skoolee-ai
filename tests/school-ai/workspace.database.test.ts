@@ -445,7 +445,7 @@ test("cached assistant answers recheck teacher subject assignment and current ev
   try { await assert.rejects(() => beginSchoolAiRequest(teacher, input), { status: 403 }); }
   finally { await raw.subject.update({ where: { id: subjectId }, data: { teacherId: teacher.userId } }); }
   await raw.schoolAiRecord.update({ where: { id: evidence.id }, data: { createdById: otherTeacher.userId } });
-  await assert.rejects(() => beginSchoolAiRequest(teacher, input), { status: 404 });
+  await assert.rejects(() => beginSchoolAiRequest(teacher, input), { status: 403 });
 });
 
 test("assistant request receipt bounds reject oversized replies without charging", async () => {
@@ -476,11 +476,19 @@ test("assistant completion enforces the refreshed permission snapshot after prov
   const started = await beginSchoolAiRequest(admin, { key: randomUUID(), fingerprint: "permission-revoked-during-generation", campusId });
   assert.equal(started.state, "CLAIMED");
   if (started.state !== "CLAIMED") return;
-  const permissions = new Map(started.claim.permissions);
-  permissions.set("ai", { canView: false, canAdd: true, canEdit: true, canDelete: true });
-  started.claim.permissions = permissions;
-  await assert.rejects(() => context(admin, () => consumeAICreditAndLog(usage("REVOKED_ASSISTANT_PERMISSION"), (tx) => completeSchoolAiRequest(admin, started.claim, { reply: "An answer after access was removed." }, tx))), { status: 403 });
-  assert.equal((await raw.school.findUniqueOrThrow({ where: { id: schoolId } })).aiCreditsUsed, 0);
+  const previous = await raw.rolePermission.findFirst({ where: { schoolId, role: admin.role, module: "ai" } });
+  if (previous) await raw.rolePermission.update({ where: { id: previous.id }, data: { canView: false } });
+  else await raw.rolePermission.create({ data: { schoolId, role: admin.role, module: "ai", canView: false, canAdd: true, canEdit: true, canDelete: true } });
+  try {
+    // The in-memory claim still permits access; completion must read the live
+    // grant in the same transaction that saves and charges the response.
+    await assert.rejects(() => context(admin, () => consumeAICreditAndLog(usage("REVOKED_ASSISTANT_PERMISSION"), (tx) => completeSchoolAiRequest(admin, started.claim, { reply: "An answer after access was removed." }, tx))), { status: 403 });
+    assert.equal((await raw.school.findUniqueOrThrow({ where: { id: schoolId } })).aiCreditsUsed, 0);
+    assert.equal((await raw.schoolAiRequest.findUniqueOrThrow({ where: { id: started.claim.id } })).status, "PENDING");
+  } finally {
+    if (previous) await raw.rolePermission.update({ where: { id: previous.id }, data: { canView: previous.canView } });
+    else await raw.rolePermission.deleteMany({ where: { schoolId, role: admin.role, module: "ai" } });
+  }
 });
 
 async function setupFixture() {

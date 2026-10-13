@@ -36,6 +36,7 @@ async function validateAgainstKnownTerm(term: string | undefined, existingTerm: 
   const client = {
     class: { findFirst: async () => ({ schoolId: "school" }) },
     examSchedule: { findMany: async () => [] },
+    schoolAiSubstituteDuty: { findMany: async () => [] },
     student: { count: async () => 0 },
     classRoom: { findMany: async () => [{ id: "room", roomNumber: "1", capacity: 20 }] },
     timetableSlot: { findMany: async (query: { where: { timetable: TimetableFilter } }) => {
@@ -71,6 +72,7 @@ test("full-board validation catches internal resource overlap without confusing 
   const client = {
     class: { findFirst: async () => ({ schoolId: "school" }) },
     examSchedule: { findMany: async () => [] },
+    schoolAiSubstituteDuty: { findMany: async () => [] },
     student: { count: async () => 0 },
     classRoom: { findMany: async () => [{ id: "room", roomNumber: "1", capacity: 20 }] },
     timetableSlot: { findMany: async () => [] },
@@ -83,4 +85,19 @@ test("full-board validation catches internal resource overlap without confusing 
   assert.equal((await check({ ...slot, id: "two", periodNumber: 2, startTime: "08:40", endTime: "09:00" })).canPublish, true);
   assert.equal((await check({ ...slot, id: "two", dayOfWeek: 2 })).canPublish, true);
   assert.equal((await check({ ...slot, id: "two", periodNumber: 2, startTime: "08:20", endTime: "09:00", teacherId: "other", roomId: "other" })).canPublish, true);
+});
+
+test("dated substitute bookings reserve the cover teacher in weekly publication validation", async () => {
+  const client = {
+    class: { findFirst: async () => ({ schoolId: "school" }) },
+    examSchedule: { findMany: async () => [] },
+    student: { count: async () => 0 },
+    classRoom: { findMany: async () => [{ id: "room", roomNumber: "1", capacity: 20 }] },
+    user: { findMany: async () => [{ id: "teacher", fullName: "Assigned cover teacher" }] },
+    schoolAiSubstituteDuty: { findMany: async () => [{ id: "cover", timetableSlotId: "covered-lesson", teacherId: "teacher", date: new Date("2026-10-19") }] },
+    timetableSlot: { findMany: async (query: { where: { id?: unknown } }) => query.where.id ? [{ ...slot, id: "covered-lesson", timetable: { term: "ANNUAL", academicYear: 2026, class: { name: "Covered class", section: "A" } } }] : [] },
+  } as unknown as NonNullable<Parameters<typeof validateTimetableSlots>[1]>;
+  const result = await validateTimetableSlots({ campusId: "campus", timetableId: "current", classId: "class", slots: [slot], academicYear: 2026, term: "ANNUAL" }, client);
+  assert.equal(result.canPublish, false);
+  assert.equal(result.counts.teacher, 1);
 });

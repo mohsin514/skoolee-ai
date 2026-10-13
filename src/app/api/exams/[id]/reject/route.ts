@@ -1,5 +1,6 @@
+import { errorResponse } from "@/lib/api/scope";
+import { resolveExamSchedulingCampus, withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
@@ -60,6 +61,8 @@ export async function POST(
       return Response.json({ error: "Reason is too long (max 2000 characters)" }, { status: 400 });
     }
 
+    const campusId = await resolveExamSchedulingCampus(user, null, { kind: "exam", id });
+    const result = await withExamSchedulingWrite(user, campusId, "edit", async prisma => {
     const exam = await prisma.exam.findUnique({
       where: { id },
       select: {
@@ -93,9 +96,8 @@ export async function POST(
 
     // Report cards and the unlock have to move together — a half-applied
     // rejection would leave stale cards attached to editable marks.
-    const [, updated] = await prisma.$transaction([
-      prisma.reportCard.deleteMany({ where: { examId: id } }),
-      prisma.exam.update({
+    await prisma.reportCard.deleteMany({ where: { examId: id } });
+    const updated = await prisma.exam.update({
         where: { id },
         data: {
           status: "MARKS_ENTRY",
@@ -113,8 +115,11 @@ export async function POST(
           class: { select: { id: true, name: true, section: true, academicYear: true } },
           _count: { select: { marks: true, reportCards: true } },
         },
-      }),
-    ]);
+      });
+    return { exam, updated };
+    });
+    if (result instanceof Response) return result;
+    const { exam, updated } = result;
 
     notify("MARKS_REJECTED", {
       schoolId: user.schoolId,
@@ -129,7 +134,6 @@ export async function POST(
 
     return Response.json({ success: true, exam: updated });
   } catch (error) {
-    console.error("[exams/[id]/reject] POST failed", error);
-    return Response.json({ error: "Operation failed" }, { status: 500 });
+    return errorResponse(error, "Unable to return this exam for correction.");
   }
 }

@@ -20,11 +20,11 @@ export function buildCandidatePaperHtml(raw: PaperData, version: number): string
       questionNumber++;
       // Very long prompts must be allowed to flow to the next page. Small
       // questions stay together; answer lines remain individually breakable.
-      const short = question.prompt.length + question.options.reduce((sum, option) => sum + option.text.length, 0) < 1200;
-      return `<article class="question${short ? " short-question" : ""}" data-question-number="${questionNumber}"><div class="question-heading"><b class="question-number">${num(questionNumber)}.</b><p class="prompt" dir="auto">${escape(question.prompt)}</p><span class="question-marks">[${num(question.marks)}]</span></div>${question.options.length ? `<ol class="options">${question.options.map(option => `<li dir="auto">${escape(option.text)}</li>`).join("")}</ol>` : `<div class="answer-space" aria-hidden="true">${Array.from({ length: question.type === "EXTENDED_TEXT" ? 8 : 3 }, () => '<div class="answer-line"></div>').join("")}</div>`}${questionNumber === projection.questions.length ? `<footer class="ending">${c.end}</footer>` : ""}</article>`;
+      const short = !question.figures?.length && question.prompt.length + question.options.reduce((sum, option) => sum + option.text.length, 0) < 1200;
+      return `<article class="question${short ? " short-question" : ""}" data-question-number="${questionNumber}"><div class="question-heading"><b class="question-number">${num(questionNumber)}.</b><p class="prompt" dir="auto">${escape(question.prompt)}</p><span class="question-marks">[${num(question.marks)}]</span></div>${question.figures?.map(figure=>`<figure class="candidate-figure"><img src="data:image/png;base64,${figure.png}" width="${figure.width}" height="${figure.height}" alt="${escape(figure.alt)}">${figure.caption?`<figcaption dir="auto">${escape(figure.caption)}</figcaption>`:""}</figure>`).join("")??""}${question.options.length ? `<ol class="options">${question.options.map(option => `<li><bdi>${escape(option.text)}</bdi></li>`).join("")}</ol>` : `<div class="answer-space" aria-hidden="true">${Array.from({ length: question.type === "EXTENDED_TEXT" ? 8 : 3 }, () => '<div class="answer-line"></div>').join("")}</div>`}${questionNumber === projection.questions.length ? `<footer class="ending">${c.end}</footer>` : ""}</article>`;
     }).join("")}</section>`;
   }).join("");
-  return `<!doctype html><html lang="${paper.language}" dir="${paper.language === "en" ? "ltr" : "rtl"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${escape(projection.title)}</title><style>
+  return `<!doctype html><html lang="${paper.language}" dir="${paper.language === "en" ? "ltr" : "rtl"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${escape(projection.title)}</title><style>
 @page { size: A4; margin: 17mm 16mm 19mm; @bottom-center { content: "${c.page} " counter(page) " / " counter(pages); font: 9pt sans-serif; color: #555; } }
 * { box-sizing: border-box; }
 html { color-scheme: light; }
@@ -51,10 +51,13 @@ html[dir="rtl"] h2 { text-align: right; }
 .prompt { white-space: pre-wrap; orphans: 3; widows: 3; }
 .options { margin: 8px 0 0; padding-inline-start: 52px; list-style-type: upper-alpha; }
 .options li { padding-inline-start: 3px; white-space: pre-wrap; break-inside: avoid; }
+.candidate-figure { margin: 12px 28px; break-inside: avoid; }
+.candidate-figure img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100mm; object-fit: contain; }
+.candidate-figure figcaption { font-size: 10pt; white-space: pre-wrap; margin-top: 4px; }
 .answer-space { margin-inline-start: 28px; }
 .answer-line { height: 24px; border-bottom: .5px solid #afb6bf; break-inside: avoid; }
 .ending { text-align: center; border-top: 1px solid #87919d; padding-top: 12px; margin-top: 24px; font-size: 9pt; break-inside: avoid; break-before: avoid; }
 @media print { body { padding: 0; max-width: none; } }
 @media screen and (max-width: 500px) { body { padding: 16px; } h1 { font-size: 18pt; } .metadata { gap: 10px; } }
-</style></head><body><header class="masthead"><p class="eyebrow">${c.paper}</p><h1 dir="auto">${escape(projection.title)}</h1><div class="metadata"><span>${num(projection.durationMinutes)} ${c.duration}</span><span>${c.marks}: ${num(projection.totalMarks)}</span><span>${c.version}: ${num(version)}</span></div></header><div class="identity"><span>${c.name}:</span><span>${c.roll}:</span></div>${projection.instructions ? `<p class="instructions" dir="auto">${escape(projection.instructions)}</p>` : ""}${sections}</body></html>`;
+</style></head><body><header class="masthead"><p class="eyebrow">${c.paper}</p><h1 dir="auto">${escape(projection.title)}</h1><div class="metadata"><span>${num(projection.durationMinutes)} ${c.duration}</span><span>${c.marks}: ${num(projection.totalMarks)}</span><span>${c.version}: ${num(version)}</span></div></header><div class="identity"><span>${c.name}:</span><span>${c.roll}:</span></div>${projection.instructions ? `<p class="instructions" dir="auto">${escape(projection.instructions)}</p>` : ""}${projection.resources?.map(resource => `<section class="section"><h2 dir="auto">${escape(resource.title)}</h2><p class="instructions" dir="auto">${escape(resource.content)}</p></section>`).join("") ?? ""}${sections}</body></html>`;
 }

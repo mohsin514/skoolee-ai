@@ -1,3 +1,5 @@
+import { queueDocumentJobInTransaction } from "@/lib/school-ai/document-jobs-service";
+import { verifyCaptureTicket } from "@/lib/school-ai/capture-handoff";
 import { createHash } from "node:crypto";
 import { ApiError } from "@/lib/api/scope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
@@ -8,7 +10,6 @@ import { documentKindSchema, languageSchema, MAX_DOCUMENT_BYTES, safeOriginalFil
 import { readBoundedForm, schoolAiError } from "@/lib/school-ai/http";
 import { extractDocument, schoolAiProviderCapabilities } from "@/lib/school-ai/providers";
 import { saveOriginal, removeOriginal, sourceStorageAvailable } from "@/lib/school-ai/source-storage";
-import { consumeAICreditAndLog, ensureAICreditsAvailable } from "@/lib/ai/openai";
 import type { TxClient } from "@/lib/db/prisma";
 
 export const runtime = "nodejs";
@@ -31,6 +32,10 @@ export async function POST(request: Request) {
       documentKind,
       ...(form.get("subjectId") ? { subjectId: String(form.get("subjectId")), classId: String(form.get("classId") || "") } : {}),
     };
+    if (form.get("captureTicket")) {
+      const capture = await verifyCaptureTicket(user, String(form.get("captureTicket")));
+      if (capture.campusId !== campusId || capture.documentKind !== documentKind || capture.language !== language || capture.subjectId !== scopedData.subjectId || capture.classId !== scopedData.classId) throw new ApiError("This upload differs from the reviewed capture scope.", 403);
+    }
     await assertWorkspaceSubject(user, campusId, scopedData);
     await assertWorkspaceDomainPermission(user, "SOURCE", scopedData, "add");
     const bytes = Buffer.from(await file.arrayBuffer());
@@ -44,11 +49,11 @@ export async function POST(request: Request) {
     uploadedKey = await saveOriginal(user.schoolId, bytes, mimeType);
     const unavailable = { en: "Automatic extraction is unavailable. Review the original and enter its text.", ar: "الاستخراج التلقائي غير متاح. راجع الأصل وأدخل نصه.", ur: "خودکار متن اخذ کرنا دستیاب نہیں۔ اصل فائل دیکھ کر اس کا متن درج کریں۔" };
     const incomplete = { en: "Automatic extraction did not complete. The original is saved for manual review.", ar: "لم يكتمل الاستخراج التلقائي. تم حفظ الأصل للمراجعة اليدوية.", ur: "خودکار متن اخذ کرنا مکمل نہیں ہوا۔ اصل فائل دستی جائزے کے لیے محفوظ ہے۔" };
-    let extraction = { text: "", pages: [] as Array<{ page: number; text: string }>, uncertainties: [unavailable[language]], model: "manual-review", tokensUsed: 0 };
+    let extraction: Awaited<ReturnType<typeof extractDocument>> = { text: "", pages: [] as Array<{ page: number; text: string }>, uncertainties: [unavailable[language]], model: "manual-review", tokensUsed: 0 };
     const nativeText = mimeType === "text/plain" || mimeType === "text/csv";
-    if (nativeText || schoolAiProviderCapabilities().documentExtraction) {
+    const queuedExtraction = !nativeText && schoolAiProviderCapabilities().documentExtraction;
+    if (nativeText) {
       try {
-        if (!nativeText) await ensureAICreditsAvailable(user.schoolId);
         extraction = await extractDocument(bytes, fileName, mimeType, language);
       } catch {
         extraction = { text: "", pages: [], uncertainties: [incomplete[language]], model: "manual-review", tokensUsed: 0 };
@@ -57,15 +62,16 @@ export async function POST(request: Request) {
     const record = await createWorkspaceRecord(user, {
       kind: "SOURCE", title: fileName.slice(0, 180), campusId, idempotencyKey,
       data: { ...scopedData, fileName, mimeType, extractedText: extraction.text, sourcePages: extraction.pages,
+        ...(extraction.expectedPageCount!==undefined?{expectedPageCount:extraction.expectedPageCount}:{}),...(extraction.missingPages?{missingPages:extraction.missingPages}:{}),...(extraction.structureReviewed!==undefined?{structureReviewed:extraction.structureReviewed}:{}),
         origin: form.get("origin") === "camera" ? "camera" : "upload", extractionStatus: "needs_review", uncertainties: extraction.uncertainties },
     }, {
       idempotencyFingerprint: idempotencyKey,
       trustedSourceMetadata: { storageKey: uploadedKey, sha256, extractionModel: extraction.model, extractedAt: new Date().toISOString(), sourceLanguage: language },
-      ...(!nativeText && extraction.model !== "manual-review" ? { onCreate: async (tx: TxClient) => { await consumeAICreditAndLog({ schoolId: user.schoolId, campusId, userId: user.userId, feature: "SCHOOL_AI_DOCUMENT", action: "EXTRACT", model: extraction.model, tokensUsed: extraction.tokensUsed, metadata: { language, documentKind, sha256 } }, undefined, tx); } } : {}),
+      ...(queuedExtraction ? { onCreate: async (tx: TxClient, saved: import("@/lib/school-ai/types").AiWorkspaceRecord) => { await queueDocumentJobInTransaction(user,saved,tx); } } : {}),
     });
     if (record.data.storageKey !== uploadedKey) await removeOriginal(uploadedKey).catch(() => {});
     uploadedKey = undefined;
-    return Response.json({ record, requiresReview: true }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ record, requiresReview: true, processing: queuedExtraction }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (uploadedKey) await removeOriginal(uploadedKey).catch(() => {});
     return schoolAiError(error);

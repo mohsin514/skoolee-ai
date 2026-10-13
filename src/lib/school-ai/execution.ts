@@ -1,3 +1,10 @@
+import { assertSchoolSetupRecordAccess, assertSchoolSetupAccess, previewSchoolSetup, applySchoolSetup } from "./school-setup-service";
+import type { SchoolSetupPreview, SchoolSetupResult, SchoolSetupExecutionReceipt } from "./school-setup";
+import { SCHOOL_AI_OPERATION_NAMES } from "./operations";
+import { assertSchoolOperationsAccess, lockSchoolOperations, previewSchoolOperations, applySchoolOperations } from "./school-operations-service";
+import { isSchoolOperationsOperation, type SchoolOperationsPreview, type SchoolOperationsReceipt, type SchoolOperationsResult } from "./school-operations";
+import { assertFinanceOperationsAccess, previewFinanceOperations, applyFinanceOperations } from "./finance-operations-service";
+import type { FinanceOperationsPreview, FinanceOperationsResult, FinanceOperationsExecutionReceipt } from "./finance-operations";
 import { Prisma, type SchoolAiExecution, type SchoolAiRecord } from "@prisma/client";
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
@@ -5,7 +12,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { schoolAiTransaction as transaction } from "./transaction";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
-import { assertApprovalRole, assertSchoolAiAccess, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
+import { assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema, validateCurriculumApproval, type CurriculumData } from "./assessment";
 import { workspaceRequestHash } from "./repository";
 import { applyAcademicSetup, previewAcademicSetup } from "./academic-setup-service";
@@ -24,6 +31,15 @@ import { assertTimetableWriteAccess } from "@/lib/timetable/manual";
 
 /** New executors must register a typed operation here; generated prose is never executable. */
 export const SCHOOL_AI_TOOLS = {
+  "timetable.publish_reviewed": {kind:"WORKFLOW",permission:"timetable.view+edit",requiresApprovedVersion:true,effect:"Publish exactly reviewed draft timetables after current complete validation."},
+  "operations.record_risk_decision": {kind:"WORKFLOW",permission:"indicator-specific current domain view",requiresApprovedVersion:true,effect:"Record a reviewed evidence-based decision with an accountable owner and due date."},
+  "setup.apply_changes": { kind: "WORKFLOW", permission: "timetable.view+add,staff.view+add,students.view+edit", requiresApprovedVersion: true, effect: "Create exactly reviewed resources, pending staff invitations or unverified guardian relationships." },
+  "academics.transition_year": { kind: "WORKFLOW", permission: "exams.view+edit", requiresApprovedVersion: true, effect: "Apply the reviewed academic-year lifecycle transition with current closure checks." },
+  "students.promote_enrollment": { kind: "WORKFLOW", permission: "students.view+edit", requiresApprovedVersion: true, effect: "Promote exactly selected pupils to the reviewed next-year class while preserving history." },
+  "finance.apply_operation": { kind: "WORKFLOW", permission: "fees.view+add+edit,accounts.view+add", requiresApprovedVersion: true, effect: "Apply the exact reviewed financial operation with existing accounting invariants." },
+  "timetable.create_school_drafts": { kind: "WORKFLOW", permission: "timetable.view+add", requiresApprovedVersion: true, effect: "Create the reviewed school-wide timetable drafts atomically." },
+  "attendance.record_register": { kind: "WORKFLOW", permission: "attendance.view+add,students.view", requiresApprovedVersion: true, effect: "Save explicitly observed and reviewed attendance." },
+  "timetable.assign_substitutes": { kind: "WORKFLOW", permission: "timetable.view+edit", requiresApprovedVersion: true, effect: "Reserve reviewed substitute lesson duties." },
   "fees.generate_invoices": { kind: "WORKFLOW", permission: "fees.view+add", requiresApprovedVersion: true, effect: "Create exactly reviewed fee invoices; preserve payments and ledger postings." },
   "exams.create_session_plan": { kind: "WORKFLOW", permission: "exams.view+add+edit,students.view", requiresApprovedVersion: true, effect: "Create a draft exam session, datesheet, seating and invigilator duties." },
   "curriculum.import_topics": { kind: "CURRICULUM", permission: "exams.edit", requiresApprovedVersion: true, effect: "Append missing subject syllabus topics; preserve existing topics." },
@@ -32,7 +48,7 @@ export const SCHOOL_AI_TOOLS = {
   "communications.queue_announcement": { kind: "WORKFLOW", permission: "students.view+edit", requiresApprovedVersion: true, effect: "Queue exact reviewed guardian email text and audience; reauthorize every recipient before delivery." },
 } as const;
 export type SchoolAiOperation = keyof typeof SCHOOL_AI_TOOLS;
-export const executionOperationSchema = z.enum(["curriculum.import_topics", "academics.setup_year", "timetable.create_draft", "communications.queue_announcement", "exams.create_session_plan", "fees.generate_invoices"]);
+export const executionOperationSchema = z.enum(SCHOOL_AI_OPERATION_NAMES);
 export const executionInputSchema = z.strictObject({
   operation: executionOperationSchema,
   version: z.number().int().positive(),
@@ -63,8 +79,8 @@ export interface SchoolAiExecutionReceipt {
   topicIds: string[];
   completedAt: string;
 }
-export type AnySchoolAiExecutionReceipt = SchoolAiExecutionReceipt | AcademicSetupExecutionReceipt | TimetableSetupExecutionReceipt | AnnouncementExecutionReceipt | ExamSessionPlanExecutionReceipt | FeeInvoiceExecutionReceipt;
-export type SchoolAiExecutionPreview = CurriculumImportPreview | AcademicSetupPreview | TimetableSetupPreview | AnnouncementPreview | ExamSessionPlanPreview | FeeInvoicePreview;
+export type AnySchoolAiExecutionReceipt = SchoolSetupExecutionReceipt | FinanceOperationsExecutionReceipt | SchoolOperationsReceipt | SchoolAiExecutionReceipt | AcademicSetupExecutionReceipt | TimetableSetupExecutionReceipt | AnnouncementExecutionReceipt | ExamSessionPlanExecutionReceipt | FeeInvoiceExecutionReceipt;
+export type SchoolAiExecutionPreview = SchoolSetupPreview | FinanceOperationsPreview | SchoolOperationsPreview | CurriculumImportPreview | AcademicSetupPreview | TimetableSetupPreview | AnnouncementPreview | ExamSessionPlanPreview | FeeInvoicePreview;
 
 const normalize = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase("en").replace(/\s+/g, " ");
 export function buildCurriculumImportPreview(record: { id: string; version: number; campusId: string }, curriculum: CurriculumData, existing: Topic[]): CurriculumImportPreview {
@@ -91,17 +107,28 @@ export function buildCurriculumImportPreview(record: { id: string; version: numb
 }
 
 function hasToolPermission(permissions: WorkspacePermissionSnapshot, operation: SchoolAiOperation) {
+  if (operation === "operations.record_risk_decision") return Boolean(permissions.get("attendance")?.canView && permissions.get("students")?.canView || permissions.get("timetable")?.canView && permissions.get("leave")?.canView || permissions.get("exams")?.canView && permissions.get("reports")?.canView);
+  if (operation === "setup.apply_changes") return permissions.get("timetable")?.canView && permissions.get("timetable")?.canAdd && permissions.get("staff")?.canView && permissions.get("staff")?.canAdd && permissions.get("students")?.canView && permissions.get("students")?.canEdit;
+  if (operation === "academics.transition_year") return permissions.get("exams")?.canView && permissions.get("exams")?.canEdit;
+  if (operation === "students.promote_enrollment") return permissions.get("students")?.canView && permissions.get("students")?.canEdit;
+  if (operation === "finance.apply_operation") return permissions.get("fees")?.canView && permissions.get("fees")?.canAdd && permissions.get("fees")?.canEdit && permissions.get("accounts")?.canView && permissions.get("accounts")?.canAdd;
+  if (operation === "attendance.record_register") return permissions.get("attendance")?.canView && permissions.get("attendance")?.canAdd && permissions.get("students")?.canView;
+  if (operation === "timetable.create_school_drafts") return permissions.get("timetable")?.canView && permissions.get("timetable")?.canAdd;
+  if (operation === "timetable.assign_substitutes" || operation === "timetable.publish_reviewed") return permissions.get("timetable")?.canView && permissions.get("timetable")?.canEdit;
   if (operation === "fees.generate_invoices") return permissions.get("fees")?.canView && permissions.get("fees")?.canAdd;
   if (operation === "exams.create_session_plan") return permissions.get("exams")?.canView && permissions.get("exams")?.canAdd && permissions.get("exams")?.canEdit && permissions.get("students")?.canView;
   if (operation === "communications.queue_announcement") return permissions.get("students")?.canView && permissions.get("students")?.canEdit;
   return operation === "timetable.create_draft" ? permissions.get("timetable")?.canView && permissions.get("timetable")?.canAdd : permissions.get("exams")?.canEdit && permissions.get("exams")?.canView && (operation !== "academics.setup_year" || permissions.get("students")?.canView && permissions.get("students")?.canAdd);
 }
-async function authorize(user: AuthUser, operation: SchoolAiOperation = "curriculum.import_topics", snapshot?: WorkspacePermissionSnapshot) {
+async function authorize(user: AuthUser, operation: SchoolAiOperation = "curriculum.import_topics", snapshot?: WorkspacePermissionSnapshot, db?: TxClient) {
   assertApprovalRole(user); // Mirrors the existing syllabus management boundary.
   const permissions = snapshot ?? await loadWorkspacePermissionSnapshot(user);
   await assertSchoolAiAccess(user, "edit", permissions);
   if (!hasToolPermission(permissions, operation)) throw new SchoolAiError("Your current permissions do not allow this operation.", 403, "PERMISSION_DENIED");
-  await assertSchoolOperational(user.schoolId);
+  await assertSchoolOperational(user.schoolId, db);
+}
+export async function assertSchoolAiOperationAccess(user: AuthUser, operation: SchoolAiOperation, db: TxClient) {
+  await authorize(user, operation, await loadWorkspacePermissionSnapshot(user, db), db);
 }
 function withContext<T>(user: AuthUser, fn: () => Promise<T>) {
   return runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role, unscoped: false }, fn);
@@ -121,6 +148,9 @@ async function previewInTransaction(user: AuthUser, record: SchoolAiRecord & { c
   return { preview: buildCurriculumImportPreview(record, curriculum, existing), existing };
 }
 function receipt(execution: SchoolAiExecution): AnySchoolAiExecutionReceipt {
+  if (execution.operation === "setup.apply_changes") return { ...(execution.receipt as unknown as SchoolSetupResult), id: execution.id, operation: "setup.apply_changes", recordId: execution.recordId, version: execution.recordVersion, status: "COMPLETED", completedAt: execution.completedAt.toISOString() };
+  if (execution.operation === "finance.apply_operation") return { ...(execution.receipt as unknown as FinanceOperationsResult), id: execution.id, operation: "finance.apply_operation", recordId: execution.recordId, version: execution.recordVersion, status: "COMPLETED", completedAt: execution.completedAt.toISOString() };
+  if (isSchoolOperationsOperation(execution.operation)) return { ...(execution.receipt as unknown as SchoolOperationsResult), id: execution.id, operation: execution.operation, recordId: execution.recordId, version: execution.recordVersion, status: "COMPLETED", completedAt: execution.completedAt.toISOString() };
   if (execution.operation === "fees.generate_invoices") return { ...(execution.receipt as unknown as FeeInvoiceResult), id: execution.id, operation: "fees.generate_invoices", recordId: execution.recordId, version: execution.recordVersion, status: "COMPLETED", completedAt: execution.completedAt.toISOString() };
   if (execution.operation === "exams.create_session_plan") {
     const value = execution.receipt as unknown as Pick<ExamSessionPlanExecutionReceipt, "sessionId" | "examIds" | "scheduleIds" | "seatCount" | "invigilationCount" | "sessionStatus" | "examStatus">;
@@ -147,6 +177,8 @@ export function previewSchoolAiExecution(user: AuthUser, id: string, operation: 
 export function previewSchoolAiExecution(user: AuthUser, id: string, operation: "communications.queue_announcement", version: number): Promise<AnnouncementPreview>;
 export function previewSchoolAiExecution(user: AuthUser, id: string, operation: "exams.create_session_plan", version: number): Promise<ExamSessionPlanPreview>;
 export function previewSchoolAiExecution(user: AuthUser, id: string, operation: "fees.generate_invoices", version: number): Promise<FeeInvoicePreview>;
+export function previewSchoolAiExecution(user: AuthUser, id: string, operation: "setup.apply_changes", version: number): Promise<SchoolSetupPreview>;
+export function previewSchoolAiExecution(user: AuthUser, id: string, operation: "finance.apply_operation", version: number): Promise<FinanceOperationsPreview>;
 export function previewSchoolAiExecution(user: AuthUser, id: string, operation: SchoolAiOperation, version: number): Promise<SchoolAiExecutionPreview>;
 export async function previewSchoolAiExecution(user: AuthUser, id: string, operation: SchoolAiOperation, version: number): Promise<SchoolAiExecutionPreview> {
   return withContext(user, async () => {
@@ -154,6 +186,9 @@ export async function previewSchoolAiExecution(user: AuthUser, id: string, opera
     await authorize(user, operation);
     return transaction(user, async (tx) => {
       const record = await approvedRecord(user, id, operation, version, tx);
+      if (operation === "setup.apply_changes") { await assertSchoolSetupAccess(user, tx); return previewSchoolSetup(user, record, tx); }
+      if (operation === "finance.apply_operation") { await assertFinanceOperationsAccess(user, tx); return previewFinanceOperations(user, record, tx); }
+      if (isSchoolOperationsOperation(operation)) { await assertSchoolOperationsAccess(user, operation, tx, record.campusId); return previewSchoolOperations(user, record, tx); }
       if (operation === "fees.generate_invoices") { await assertFeeInvoiceAccess(user, tx); return previewFeeInvoices(user, record, tx); }
       if (operation === "exams.create_session_plan") { await assertExamSessionPlanAccess(user, tx, record.campusId); return previewExamSessionPlan(user, record, tx); }
       if (operation === "academics.setup_year") return previewAcademicSetup(user, record, tx);
@@ -170,12 +205,23 @@ export function executeSchoolAiTool(user: AuthUser, id: string, rawInput: School
 export function executeSchoolAiTool(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput & { operation: "communications.queue_announcement" }): Promise<AnnouncementExecutionReceipt>;
 export function executeSchoolAiTool(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput & { operation: "fees.generate_invoices" }): Promise<FeeInvoiceExecutionReceipt>;
 export function executeSchoolAiTool(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput & { operation: "exams.create_session_plan" }): Promise<ExamSessionPlanExecutionReceipt>;
+export function executeSchoolAiTool(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput & { operation: "setup.apply_changes" }): Promise<SchoolSetupExecutionReceipt>;
+export function executeSchoolAiTool(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput & { operation: "finance.apply_operation" }): Promise<FinanceOperationsExecutionReceipt>;
 export function executeSchoolAiTool(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput): Promise<AnySchoolAiExecutionReceipt>;
 export async function executeSchoolAiTool(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput): Promise<AnySchoolAiExecutionReceipt> {
-  return withContext(user, async () => {
+  return executeSchoolAiToolInTransaction(user, id, rawInput);
+}
+
+/** Internal worker entry: an existing transaction makes cancellation and each effect atomic. */
+export async function executeSchoolAiToolInTransaction(user: AuthUser, id: string, rawInput: SchoolAiExecutionInput, existingTransaction?: TxClient): Promise<AnySchoolAiExecutionReceipt> {
+  const work = async () => {
     const input = executionInputSchema.parse(rawInput);
-    await authorize(user, input.operation);
+    await authorize(user, input.operation, existingTransaction ? await loadWorkspacePermissionSnapshot(user, existingTransaction) : undefined, existingTransaction);
     const replay = async (db: TxClient) => {
+      if (input.operation === "operations.record_risk_decision") { const revision=await db.schoolAiRevision.findFirst({where:{schoolId:user.schoolId,recordId:id,version:input.version},select:{data:true}}); if(!revision)throw new SchoolAiError("Reviewed decision not found.",404); await assertWorkspaceDomainPermission(user,"WORKFLOW",revision.data as Record<string,unknown>,"view",await loadWorkspacePermissionSnapshot(user,db)); }
+      if (input.operation === "setup.apply_changes") await assertSchoolSetupRecordAccess(user,id,db,input.version);
+      if (input.operation === "finance.apply_operation") await assertFinanceOperationsAccess(user, db);
+      if (isSchoolOperationsOperation(input.operation)) { const target = await db.schoolAiRecord.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { campusId: true } }); if (!target?.campusId) throw new SchoolAiError("Workspace item not found.", 404); await assertSchoolOperationsAccess(user, input.operation, db, target.campusId); }
       if (input.operation === "fees.generate_invoices") await assertFeeInvoiceAccess(user, db);
       if (input.operation === "exams.create_session_plan") {
         const target = await db.schoolAiRecord.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { campusId: true } });
@@ -191,12 +237,31 @@ export async function executeSchoolAiTool(user: AuthUser, id: string, rawInput: 
       return previous ? receipt(previous) : null;
     };
     try {
-      const previous = await replay(prisma);
+      const previous = await replay(existingTransaction ?? prisma);
       if (previous) return previous;
-      return await transaction(user, async (tx) => {
+      const perform = async (tx: TxClient) => {
         const completed = await replay(tx);
         if (completed) return completed;
         const record = await approvedRecord(user, id, input.operation, input.version, tx);
+        if (input.operation === "setup.apply_changes") {
+          await lockTimetableCampus(tx,user.schoolId,record.campusId); await assertSchoolSetupAccess(user,tx);
+          const preview=await previewSchoolSetup(user,record,tx);
+          if(preview.previewHash!==input.previewHash)throw new SchoolAiError("School information changed. Review a fresh preview.",409,"STALE_EXECUTION_PREVIEW");
+          const result=await applySchoolSetup(user,record,preview,tx);
+          const execution=await tx.schoolAiExecution.create({data:{schoolId:user.schoolId,campusId:record.campusId,recordId:record.id,recordVersion:record.version,operation:input.operation,previewHash:input.previewHash,requestedById:user.userId,idempotencyKey:input.idempotencyKey,receipt:JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue}});
+          await tx.auditLog.create({data:{schoolId:user.schoolId,tableName:"school_ai_executions",recordId:execution.id,userId:user.userId,oldValue:Prisma.DbNull,newValue:{operation:input.operation,workspaceId:record.id,workspaceVersion:record.version}}});return receipt(execution);
+        }
+        if (input.operation === "finance.apply_operation" || isSchoolOperationsOperation(input.operation)) {
+          await lockTimetableCampus(tx, user.schoolId, record.campusId);
+          if (input.operation === "finance.apply_operation") await assertFinanceOperationsAccess(user, tx);
+          else { await lockSchoolOperations(user, record.campusId, tx); await assertSchoolOperationsAccess(user, input.operation, tx, record.campusId); }
+          const preview = input.operation === "finance.apply_operation" ? await previewFinanceOperations(user, record, tx) : await previewSchoolOperations(user, record, tx);
+          if (preview.previewHash !== input.previewHash) throw new SchoolAiError("School information changed. Review a fresh exact preview.", 409, "STALE_EXECUTION_PREVIEW");
+          const result = preview.operation === "finance.apply_operation" ? await applyFinanceOperations(user, record, preview, tx) : await applySchoolOperations(user, preview, tx);
+          const execution = await tx.schoolAiExecution.create({ data: { schoolId: user.schoolId, campusId: record.campusId, recordId: record.id, recordVersion: record.version, operation: input.operation, previewHash: input.previewHash, requestedById: user.userId, idempotencyKey: input.idempotencyKey, receipt: JSON.parse(JSON.stringify(result)) as Prisma.InputJsonValue } });
+          await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "school_ai_executions", recordId: execution.id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { operation: input.operation, workspaceId: record.id, workspaceVersion: record.version } } });
+          return receipt(execution);
+        }
         if (input.operation === "fees.generate_invoices" || input.operation === "exams.create_session_plan") {
           const fees = input.operation === "fees.generate_invoices";
           if (fees) { await lockInvoiceGeneration(tx, user.schoolId, record.campusId); await assertFeeInvoiceAccess(user, tx); }
@@ -250,16 +315,18 @@ export async function executeSchoolAiTool(user: AuthUser, id: string, rawInput: 
         } });
         await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "school_ai_executions", recordId: execution.id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { operation: input.operation, curriculumId: record.id, curriculumVersion: record.version, subjectId: preview.subjectId, createdCount: preview.willCreate.length, keptCount: preview.willKeep.length, topicIds } } });
         return receipt(execution);
-      });
+      };
+      return existingTransaction ? await perform(existingTransaction) : await transaction(user, perform);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2002"].includes(error.code)) {
-        const previous = await replay(prisma);
+        const previous = await replay(existingTransaction ?? prisma);
         if (previous) return previous;
         throw new SchoolAiError("School information changed during execution. Review a new preview and retry.", 409, "STALE_EXECUTION_PREVIEW");
       }
       throw error;
     }
-  });
+  };
+  return existingTransaction ? work() : withContext(user, work);
 }
 
 export async function listSchoolAiExecutions(user: AuthUser, id: string): Promise<AnySchoolAiExecutionReceipt[]> {
@@ -269,14 +336,21 @@ export async function listSchoolAiExecutions(user: AuthUser, id: string): Promis
     await assertSchoolAiAccess(user, "edit", permissions);
     const record = await prisma.schoolAiRecord.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) }, select: { id: true, campusId: true, kind: true, data: true } });
     if (!record) throw new SchoolAiError("Workspace item not found.", 404);
+    await assertWorkspaceDomainPermission(user,record.kind as import("./types").WorkspaceKind,record.data as Record<string,unknown>,"view",permissions);
     const proposal = (record.data as { proposal?: { operation?: string } }).proposal;
     const operation = executionOperationSchema.safeParse(proposal?.operation);
     await authorize(user, record.kind === "WORKFLOW" && operation.success ? operation.data : "curriculum.import_topics", permissions);
+    if (operation.success && operation.data === "setup.apply_changes") await assertSchoolSetupRecordAccess(user,id,prisma);
+    if (operation.success && operation.data === "finance.apply_operation") await assertFinanceOperationsAccess(user, prisma);
+    if (operation.success && isSchoolOperationsOperation(operation.data)) await assertSchoolOperationsAccess(user, operation.data, prisma, record.campusId ?? "");
     if (operation.success && operation.data === "fees.generate_invoices") await assertFeeInvoiceAccess(user, prisma);
     if (operation.success && operation.data === "exams.create_session_plan") await assertExamSessionPlanAccess(user, prisma, record.campusId ?? undefined);
-    return (await prisma.schoolAiExecution.findMany({ where: { recordId: id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) }, orderBy: { createdAt: "desc" }, take: 50 })).filter(item => {
-      const operation = executionOperationSchema.safeParse(item.operation);
-      return operation.success && hasToolPermission(permissions, operation.data);
-    }).map(receipt);
+    const rows=await prisma.schoolAiExecution.findMany({where:{recordId:id,schoolId:user.schoolId,...(user.role!=="SUPER_ADMIN"?{campusId:user.campusId??""}:{})},orderBy:{createdAt:"desc"},take:50});
+    const allowed:AnySchoolAiExecutionReceipt[]=[];
+    for(const item of rows){const operation=executionOperationSchema.safeParse(item.operation);if(!operation.success||!hasToolPermission(permissions,operation.data))continue;
+      if(operation.data==="operations.record_risk_decision"){const revision=await prisma.schoolAiRevision.findFirst({where:{schoolId:user.schoolId,recordId:id,version:item.recordVersion},select:{data:true}});if(!revision)continue;try{await assertWorkspaceDomainPermission(user,"WORKFLOW",revision.data as Record<string,unknown>,"view",permissions);}catch(error){if(error instanceof SchoolAiError&&error.status===403)continue;throw error;}}
+      if(operation.data==="setup.apply_changes"){try{await assertSchoolSetupRecordAccess(user,id,prisma,item.recordVersion);}catch(error){if(error instanceof SchoolAiError&&[403,404].includes(error.status))continue;throw error;}}
+      allowed.push(receipt(item));
+    }return allowed;
   });
 }

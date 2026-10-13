@@ -200,10 +200,12 @@ export async function PATCH(req: NextRequest) {
       throw new ApiError(`Only pending requests can be cancelled (current status: ${request.status})`, 409);
     }
 
-    const updated = await prisma.leaveRequest.update({
-      where: { id },
+    const changed = await prisma.leaveRequest.updateMany({
+      where: { id, schoolId: user.schoolId, userId: user.userId, status: "PENDING" },
       data: { status: "CANCELLED" },
     });
+    if (changed.count !== 1) throw new ApiError("This request was already reviewed or cancelled. Refresh its status.", 409);
+    const updated = await prisma.leaveRequest.findFirstOrThrow({ where: { id, schoolId: user.schoolId, userId: user.userId } });
     return Response.json({ success: true, data: updated });
   } catch (error) {
     return errorResponse(error, "[leave] PATCH failed");

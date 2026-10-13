@@ -52,7 +52,7 @@ test("manual source stays editable, persists, then requires explicit review", as
   const title = `Synthetic source ${Date.now()}`;
   await page.getByRole("textbox", { name: /^Source title/ }).fill(title);
   await page.getByLabel("Extracted or transcribed text", { exact: true }).fill("Compare and order positive and negative integers.");
-  await page.getByRole("checkbox").check();
+  await page.getByRole("checkbox", { name: "I compared this text with its" }).check();
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("button", { name: "Approve reviewed record", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Approve reviewed record", exact: true }).click();

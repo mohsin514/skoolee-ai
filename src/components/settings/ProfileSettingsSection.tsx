@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Lock, Mail, RotateCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { AnnouncementPreferencesPanel } from "@/components/school-ai/announcement-preferences-panel";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -24,7 +25,7 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
   /** Reports unsaved edits so the modal can ask before discarding them. */
   onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const t = useUiText();
+  const t = useUiText(), { language } = useLocale();
   const fileRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<EditableProfile | null>(null);
   const [form, setForm] = useState<Form>({ fullName: "", phone: "", profileImageUrl: "" });
@@ -172,6 +173,7 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
           {t(saving ? "Saving…" : "Save changes")}
         </Button>
       </div>
+      {profile.role === "PARENT" && <AnnouncementPreferencesPanel language={language} parent />}
       {message?.kind === "error" ? <p role="alert" className="text-sm font-semibold text-destructive">{message.text}</p> : null}
     </form>
   );

@@ -56,7 +56,7 @@ export interface WorkspaceCapabilities {
   setupDefaults?: Partial<Record<"schoolName" | "timezone" | "campuses" | "grades" | "academicYear" | "startDate" | "endDate", string>>;
   /** Approval saves an approved artifact. It never publishes domain records or sends messages. */
   execution: "DRAFTS_ONLY" | "EXPLICIT_TOOLS_ONLY";
-  tools?: Array<{ operation: "curriculum.import_topics"; kind: "CURRICULUM" } | { operation: "academics.setup_year" | "timetable.create_draft" | "communications.queue_announcement" | "exams.create_session_plan" | "fees.generate_invoices"; kind: "WORKFLOW" }>;
+  tools?: Array<{ operation: "curriculum.import_topics"; kind: "CURRICULUM" } | { operation: "timetable.publish_reviewed" | "operations.record_risk_decision" | "setup.apply_changes" | "academics.transition_year" | "students.promote_enrollment" | "finance.apply_operation" | "timetable.create_school_drafts" | "attendance.record_register" | "timetable.assign_substitutes" | "academics.setup_year" | "timetable.create_draft" | "communications.queue_announcement" | "exams.create_session_plan" | "fees.generate_invoices"; kind: "WORKFLOW" }>;
 }
 
 export interface WorkspaceCreateInput {

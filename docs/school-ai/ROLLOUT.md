@@ -1,129 +1,120 @@
 # School AI implementation and rollout
 
-This change adds an integrated school workspace and a standard online assessment workflow. It does not complete the entire autopilot PRD. The requirement-by-requirement scope and remaining work are in [IMPLEMENTATION.md](IMPLEMENTATION.md).
+The integrated workspace connects guided setup, reviewed school operations, assessment, private source processing and scheduled reviewed runs. [IMPLEMENTATION.md](IMPLEMENTATION.md) tracks every requirement and its external acceptance gates. Use the [go-live checklist](GO_LIVE_CHECKLIST.md) for exact environment variables and launch steps. Code completion and synthetic verification do not certify live educational quality or production operations.
 
-The confirmed exam target is **standard browser exams without device lockdown** (user decision, 12 October 2026).
+The selected exam target is **standard browser exams without device lockdown**. Optional camera/screen clips cannot prevent app/tab switching or screenshots. Declining recording never blocks an exam or changes marks.
 
-## What can be used
+## Staff and student journeys
 
-Authorized staff open **School AI workspace** from the shared sidebar, at `/ai`. Students open **My online exams**, at `/ai/exams`. Existing role dashboards and their operational records remain in place.
+Authorized staff enter `/ai` from the shared sidebar. Seventeen permission-filtered tabs use shared controls, English/Arabic/Urdu, RTL, draft guards, loading/error recovery and reduced motion. Managers select a campus; teachers remain within assigned classes/subjects. Students enter `/ai/exams`.
 
-- Fullscreen setup asks one question at a time, adapts to new/import/migration paths and the first desired outcome, uses known school facts, and saves resumable drafts. Reviewed facts can be approved. Saving setup does not import rosters, post balances or silently create operational records.
-- **Academic setup** saves a structured year/class proposal. After approving its exact version, staff review a create/keep preview and explicitly apply it. Existing teachers, pupils and classes are preserved; a new academic cycle stays DRAFT for the existing lifecycle controls. Conflicting/unfinished prior cycles block execution.
-- **Bring your student roster** maps known English, Arabic and Urdu CSV headings into the existing admission workflow. Staff choose an active class, correct or exclude rows, review identity conflicts and explicitly create selected students. Required review hashes prevent stale/omitted reviews; live grant/class checks and serialized case-insensitive identity checks run before creation. Saved receipts support retry/resume. This does not import historical balances or overwrite existing pupils.
-- School-wide managers explicitly select a campus; a sole campus can be preselected. Teacher scope is restricted to assigned subjects. Changing scope clears the chat, prevents late responses appearing under the new scope, and prompts for unsaved work. Chat sends only bounded successful exchanges in the current session; durable approved facts and drafts remain separate from this untrusted conversation context.
-- Text, recorded voice, file upload and device-camera capture share a composer. Microphone permission failures preserve typed work. Transcription is editable before saving; this is not live voice conversation.
-- **Scan multiple pages** collects up to 10 JPEG/PNG/WebP photos (8 MB total; 12 megapixels per photo). Cropping, rotation, reset and ordering happen locally; an explicit clarity/page-order check precedes saving. The server strictly decodes prepared images and creates a bounded PDF through the private intake path. Stalled requests can stop waiting while retaining pages and the same prepared file for retry. Photos are session-only until saved; there is no phone handoff, perspective correction or automatic blur judgment.
-- **History & comparison** exposes paginated audit metadata and selected snapshots for every record kind. Staff compare saved versions, approve the current saved version, or restore a selected snapshot as a new draft with CAS protection. Historical entries retain current domain/subject/campus access checks.
-- The source library retains private originals, extracted text and uncertainty. Image originals can be viewed beside editable text. PDFs are downloaded through an authenticated route. Explicit review is required before approval.
-- Curriculum and paper authoring supports source excerpts/page references, taught/included outcomes, assessment blueprints, three question types, answer keys, rubrics, pinned questions, structural validation, version approval and candidate printing. Printing fetches a fresh permission-checked approved version and uses the same candidate projection as online exams, with no answer key or source metadata. A4 pagination, long prompts and EN/AR/UR text were rendered and visually inspected; other browser/printer/font combinations still need deployment checks.
-- **Approved question bank** searches immutable approved paper revisions within the same campus, class, subject and language. Staff filter tags/type/marks/difficulty labels, map to current outcomes, review quoted evidence and insert a pinned copy into a draft. Copied options and rubric items receive fresh IDs; server checks reject forged provenance. Difficulty labels are not calibrated measurements, and quoted evidence does not prove semantic equivalence.
-- **Reviewed timetable setup** prepares one weekly class schedule with explicit periods, times, teachers, subjects and rooms. A saved approved version produces an exact preview; applying creates one DRAFT timetable and a receipt. Current assignment, working-day, room and clash constraints are checked inside the transaction. Existing schedules are preserved; publishing remains a separate existing action. It does not automatically solve the school timetable. Both existing timetable editors select exact year/term/schedule, scope teacher/room views consistently and add blank periods to sparse drafts with safe retries. Manual edits, teacher assignment synchronization, subject deletion and AI creation share a campus transaction fence. Partial edits validate the full resulting board; an individual suggested fix must remove an existing critical conflict without introducing a new one, while regular saves and publication require no critical conflicts. Converting populated lessons to non-teaching periods shows a shared EN/AR/UR review of the assignments to clear. School owners can continue from a selected campus even without a default campus. Mixed manual/tool races, scope, cancellation and retry behavior were verified locally; production load remains a separate gate.
-- **Import approved curriculum topics** previews the exact new and existing syllabus topics. Explicit confirmation writes missing topics into the existing syllabus module and records a receipt. It preserves manual topics and their progress.
-- Standard online exams use approved paper snapshots, assigned students with active logins, server deadlines, sequenced autosave, reconnect/retry and final receipts. Choice marking is deterministic. Written marks require a staff reviewer.
-- **Transfer reviewed marks** becomes available after the assignment window closes and every started attempt is moderated. A manager selects a compatible current-year exam, reviews exact marks or explicitly chooses proportional whole-mark conversion, then applies the current preview. Existing marks, absences or reports block the entire transfer; nonstarters are not silently assigned zero. Current permissions, roster, moderation and target exam state are rechecked inside the transaction. One durable receipt makes retries safe. Existing exam locking and report review/publication remain separate actions; no reports or notifications are automatically published.
-- **Reviewed announcements** creates exact operational email variants in English, Arabic and Urdu. Staff choose classes and inspect verified eligible guardians, language selection, exclusions and exact text before approving and queuing. Siblings sharing a guardian are deduplicated; ambiguous contacts and missing translations block queuing unless an explicit available fallback is selected. Up to 200 active students and 100 recipients are supported per proposal. Queuing is transactional and does not synchronously send. The existing outbox worker rechecks approval, account access, guardian communication rights, scope, contact and language immediately before its fenced send. Provider acceptance is displayed separately from actual delivery/read receipts; uncertain outcomes are not retried automatically. SMS/WhatsApp, marketing consent and additional channel preference controls are not implemented.
-- Managers can approve 0–240 extra minutes for an assigned student before the attempt starts. Start and approval serialize against the assignment version; an active attempt's deadline cannot be shortened or recomputed. The announced availability end remains a hard cap. Preflight checks real server connectivity and browser session storage, explains this timing, and offers practice text that never leaves the page. There is no offline answer persistence or recording.
-- Workflow briefs and policies are editable, versioned records. Model-generated prose cannot execute arbitrary application APIs. Registered domain tools are `curriculum.import_topics`, `academics.setup_year`, `timetable.create_draft` and `communications.queue_announcement`; each needs its own reviewed preview and explicit application. Roster imports and gradebook transfers have separate exact-review contracts.
+- **Guided setup:** fullscreen questions adapt to new-school/import/migration paths, save progress and delegate missing facts. Reviewed year/classes, rooms/periods, staff invitations, guardian relationships, transfers/withdrawals, opening balances and cutover reconciliation use explicit typed drafts. Named subject/teacher selectors and exact holiday/weekly-closure previews complete the academic setup path. Roster mapping recognizes EN/AR/UR headings and retains editable rows, identity checks and exact admission receipts.
+- **Contextual conversation:** shared text/audio/file/camera input is available on School AI domain tabs. Saved private history is bounded and rechecks current and historical access. Focused named-entity selection supplies only explicitly chosen current facts, masks names before generation and restores failed private requests in their original workflow. Conversation text never becomes approved school memory.
+- **Voice:** explicit microphone consent starts turn-based recording, silence detection, transcription and available device speech playback. Interrupt, pause, resume and stopping release capture. Sessions end after five minutes/16 turns. Missing device voices or provider configuration leave text/manual paths available. A spoken yes does not approve operational changes.
+- **Scanning:** up to ten photos support local crop, rotation, reordering, restore, manual perspective correction and clarity heuristics. A 15-minute QR handoff uses the same authenticated person/school/campus/access version on a phone. Originals remain private. Structured extraction includes page/region text, tables, math, figures, handwriting, confidence and uncertainty; missing pages/unreviewed regions block approval. Provider output starts unreviewed.
+- **School memory:** facts/preferences retain source quote/version, owner, effective dates and explicit supersession. Conflicting current facts require resolution. Immutable revisions support comparison and restore as a new draft.
+- **Exact changes:** save → approve current version → inspect exact preview → apply/receipt. Each operation rechecks current access, scope, evidence, versions and records. Changed state invalidates stale previews. Typed proposals cannot invoke arbitrary SQL or application routes.
 
-The interface supports English, Arabic and Urdu with shared controls, RTL layout, mobile layouts, reduced motion and unsaved-draft guards. Model output and extraction accuracy still require representative language and educational evaluation.
+## Operational coverage
 
-## Implemented review flow
+Academic operations cover year activation/pause/resume/closure, reviewed promotion, observed attendance and dated substitute duties. History remains preserved. Descriptive risk reviews contain evidence, owner, due date and a human decision; no punitive judgment is inferred.
 
-```mermaid
-flowchart LR
-  Input["Text · recorded voice · files · scanned pages"] --> Draft["Scoped, editable draft"]
-  Draft --> Evidence["Review facts, evidence and missing information"]
-  Evidence --> Approved["Approve the saved version"]
-  Approved --> Preview["Inspect the exact proposed changes"]
-  Preview --> Recheck["Recheck access, version and current records"]
-  Recheck --> Apply["Explicitly apply the registered operation"]
-  Apply --> Receipt["Durable receipt and audit history"]
-  Receipt --> Modules["Existing academic, timetable or communication modules"]
-  Approved --> Exam["Fixed paper snapshot · standard browser exam"]
-  Exam --> Review["Submission and staff moderation"]
-  Review --> Marks["Review and transfer marks to an existing exam"]
-  Marks --> Reports["Existing report review and publication controls"]
-```
+Timetables support editable single-class drafts and bounded joint solving for up to 24 classes/400 lessons. Current assignments, room capacity, periods, working days, calendar and actual lesson/exam windows constrain suggestions. Search exhaustion differs from infeasibility. Explicit publication validates the complete board. Manual and AI writers share booking fences.
 
-The arrows describe implemented paths with explicit staff actions. They do not represent an unattended school-wide agent. History keeps saved versions, and editing an approved record requires a new review before it can be applied.
+Exam planning connects draft sessions, datesheets, rooms, seats and invigilators with front-row/edge/separate-room requests and neighbor/diagonal spacing. Limits remain 40 papers, ten classes, six rooms per paper and 1,000 seat assignments. Calendar/resource/leave changes cannot silently invalidate existing bookings.
+
+Finance covers reviewed pending invoices, signed carry-forward reconciliation, payments, credits/refunds, opening balances, expenses and bank matching. Currency, enrollment, account scope, allocations and ledger invariants are rechecked. Revenue scenarios do not post money. Cutover compares six people/resource datasets and every existing financial currency/year against independently verified source totals; it does not invent past entries.
+
+Announcements cover exact EN/AR/UR email, SMS and static approved WhatsApp variants. Preview shows eligible verified/consented guardians, deduplication, missing translations and exclusions. Parent settings allow opt-out. The queue worker rechecks current actor access, relationship rights, contact, consent and language immediately before sending. Legacy fee/report messaging and inbound WhatsApp honor these boundaries. Uncertain sends are not automatically retried. Provider acceptance differs from delivered/read receipts.
+
+Payroll, transport, library, inventory and dormitory continue in existing reviewed workspaces; no unattended writes are claimed for those modules.
+
+## Curriculum, assessment and results
+
+Approved curricula carry edition, outcomes, exact source excerpts/pages, exclusions and separate section coverage. Source-grounded lesson/remediation plans need explicit teacher confirmation. Papers combine blueprint, approved question bank, pinned regeneration, solutions/rubric, immutable snapshots and deterministic scope/totals/duplicate/provenance checks. Independent semantic proposals solve without the supplied answer key; they may flag disagreement but do not prove correctness. Difficulty/item/distractor summaries describe observed moderated evidence, not universal calibration.
+
+Standard exams use fixed approved snapshots and key-free candidate projections, server timing, sequenced autosave, reconnect/retry and final receipts. Responses include single/multiple choice, localized numbers, short/extended text and math/code text; code is never executed. Resources, extra time, supervised breaks, reader/scribe and large text are explicit. Availability end is a hard cap. Offline answer persistence is not promised.
+
+Printing rechecks the exact approved paper and shares the candidate projection. Figures come from exact approved PNG/JPEG/WebP source regions, are cropped and verified on the server, and retain identical pixels in print and online snapshots. Private source provenance and answer keys are excluded from candidate output. PDF figures require a separate reviewed image capture; the editor explains this. The text-only semantic checker does not certify unseen diagrams.
+
+Signed QR/script matching supports camera/image decoding where available and manual fallback. Staff confirm student/paper/pages. Key-free response proposals cite exact quotes from approved reviewed transcripts, leave unresolved questions visible and require explicit application/import. Written mark proposals cite student evidence and bounded rubric credits; staff moderate. Reviewed key corrections/regrading create immutable result revisions with scoped appeals and controlled publication. Gradebook transfer blocks conflicting existing marks/absences/reports and never silently scores nonstarters zero. Existing report review/publication remains separate.
+
+## Optional recording
+
+Staff may offer camera/screen capture before the first attempt; policy then freezes. Each stream requires candidate consent and browser permission. No audio is captured. Candidates may decline, stop or delete without losing answers or marks. The browser targets independently playable 20-second clips; delayed browser timers can make clips longer. The server caps uploads at 2 MiB each, 360 clips or 128 MiB per stream, with four starts. Gaps are possible; stopping discards the unfinished clip and releases tracks.
+
+Only the candidate and currently authorized exam staff can open private clips. Current assignment membership is rechecked for reads/uploads. The review console paginates 50 sessions at a time; human notes do not change marks. Access expires immediately after the selected 1–7 days (default one); the worker removes files. Reserved storage keys allow abandoned-upload cleanup. This is optional evidence capture, not lockdown or automatic cheating detection.
+
+## Workers, review and recovery
+
+The existing `npm run worker:outbox` process handles communication, due exams, reviewed runs, document jobs and recording retention. Deploy and monitor it with the intended database/Redis/storage settings; API routes alone do not start it.
+
+Runs hold at most 20 exact approved steps with scheduled start/expiry and atomic step receipts. Pause/cancel serialize against execution. Earlier completed steps remain visible when later work blocks. Policies bind operations, scope, expiry and run/action budgets to a saved reviewed version. Changed permissions/evidence/previews require a new review. History and replay recheck the original approved step's domain and subject permissions even if its current draft was reclassified. Billing-suspended work becomes blocked so it cannot starve later schools' queued runs. This is bounded deferred execution of reviewed work, not unrestricted autonomous decision-making.
+
+Document extraction has durable queues, leases, bounded retries and explicit cancel/retry/apply. Successful extraction awaits application to the current draft. Original downloads, figures and job history retain every historical source classification and teaching-scope obligation; reclassifying a source does not expose its old original or extraction. Applying OCR to a broader classification is blocked. Original deletion requires a reviewed archived version and refuses referenced evidence. Unknown provider outcomes need explicit retry because external costs cannot always be undone. Raw prompts/audio and secrets are not written into AI usage logs.
+
+Exam expiry uses the database UTC clock and bounded locked batches. Corrupt snapshots are reported without discarding saved answers or inventing marks. Recording deletion uses a bounded school cursor; failed storage deletion does not starve later schools. Document/recording processing is separate from the main outbox pump.
 
 ## Database installation
 
-The additive migrations are:
+Use versioned migrations, never a production reset. The 45-migration chain through `20261013141000_school_ai_assistant_catalog` passed on an empty local PostgreSQL database and matched Prisma without schema drift.
 
-1. `20261012090000_school_ai_workspace`: workspace records, immutable revisions, exam assignments and attempts.
-2. `20261012100000_school_ai_execution`: completed typed-tool receipts.
-3. `20261012110000_school_ai_requests`: bounded assistant request claims, exact reply receipts and explicit retry leases.
-4. `20261012120000_school_ai_academic_execution`: per-student accommodation approvals and the academic-setup execution operation constraint.
-5. `20261012130000_school_ai_timetable_execution`: extends the operation constraint for reviewed timetable drafts.
-6. `20261012140000_school_ai_exam_expiry`: partial index for bounded due-attempt discovery.
-7. `20261012150000_school_ai_gradebook_publication`: nullable immutable gradebook-transfer receipt on exam assignments.
-8. `20261012160000_school_ai_announcement_execution`: extends the typed operation constraint for reviewed operational email.
+The migrations add the workspace/execution/request/history contracts, conversations/tasks, result versions/appeals, substitutes, runs, carry-forward column, lifecycle constraints, document jobs, setup/risk/publication operation lists, channel preferences, recordings, schema index alignment and assistant metadata.
 
-Review the target environment and its migration history with `prisma migrate status`. After the existing history is correctly applied or baselined, deploy with the normal `prisma migrate deploy` workflow and run `prisma generate`. Do not use `db push --force-reset` on an existing school database. A database that was previously managed only with `db push` needs its existing schema baselined before deploying migrations.
+The reported database had partial schema adoption. The continuation `P3009` and further pre-existing feature tables were repaired through inspected forward completion. See [the incident procedure](../recovery/RUNBOOK.md#school-ai-continuation-collision-13-october-2026). The incident-specific scripts reject unexpected definitions and must not run against newer operation sets. The seven remaining additive migrations were then deployed successfully on the reported database. For another environment, follow its reviewed deployment process, regenerate Prisma and restart application/worker processes.
 
-Application tenant checks are always active. The additions in `prisma/rls.sql` support the repository's optional database RLS layer; that layer still requires a correctly configured non-owner database role and the existing RLS deployment procedure.
+Application tenant/campus/permission checks are active. New tables include tenant policies. The repository's broader optional RLS deployment still needs its documented non-owner/service-role configuration. `db push` alone omits SQL triggers, CHECKs and policies and is not equivalent to migration deployment.
 
-## Provider and storage configuration
+## Configuration
 
-Use [.env.school-ai.example](../../.env.school-ai.example) with the deployment's secret manager. Never commit real credentials.
+Use [.env.school-ai.example](../../.env.school-ai.example) with the deployment secret manager:
 
-- Text generation uses the existing approved OpenAI gateway. Select an evaluated model with `OPENAI_MODEL`; `OPENAI_API_KEY` remains server-only. Other destinations are not enabled for the new workspace.
-- Document/audio egress is disabled by default. Enable `SCHOOL_AI_MEDIA_EGRESS_APPROVED=true` only for an approved deployment and set compatible `SCHOOL_AI_DOCUMENT_MODEL` and `SCHOOL_AI_TRANSCRIPTION_MODEL` values. The media client pins the official HTTPS OpenAI endpoint and refuses an unapproved `OPENAI_BASE_URL`.
-- Originals use the existing private S3 configuration, or `SCHOOL_AI_STORAGE_DIR` pointing to a private, durable, absolute filesystem volume. Do not use `public/`, a source-code checkout, or an ephemeral serverless filesystem. Local files are created with restrictive permissions; canonical path checks reject public-directory symlinks and nested redirects across school folders. The volume must be controlled by the application operator; it is not a sandbox against another process with filesystem write privileges.
-- Unconfigured extraction or exhausted AI credits leave a source available for manual review. Native UTF-8 text/CSV extraction needs no external model. Audio originals are not retained by the app's transcription route; provider retention must match the deployment's approved policy.
-- Calls have bounded inputs, output validation and timeouts. Provider failures return generic errors. Raw prompts, audio and extracted source content are not written into AI usage logs.
-- Announcements use the existing server-side email provider configuration and outbox worker. They refuse queuing while `EMAIL_DEV_MODE=true`, `DISABLE_OUTBOUND_MESSAGES=true`, or no real provider is configured. Keep these guards active in local tests; database tests use injected synthetic adapters and never send live email. Deploying the worker requires the existing Redis and database configuration. Provider acceptance alone is not proof of delivery; delivery/read statuses require verified receipts from the existing receipt integration.
+- Approved text gateway: `AI_PROVIDER=openai`, server-only `OPENAI_API_KEY` and evaluated `OPENAI_MODEL`.
+- Media egress is disabled by default. Enable `SCHOOL_AI_MEDIA_EGRESS_APPROVED=true` and compatible document/transcription models only for an approved deployment. The adapter pins the approved official endpoint.
+- Private S3 or `SCHOOL_AI_STORAGE_DIR` on a durable absolute private volume. Public directories, unsafe symlinks and redirected tenant paths are rejected. Ephemeral serverless filesystems are unsuitable.
+- Existing email settings; optional Twilio account/token/Messaging Service for SMS; optional WhatsApp account/phone/token/API version and exact BODY-only template JSON. Live template approval and app-level guardian contact evidence/consent are required.
+- Keep `EMAIL_DEV_MODE=true` and `DISABLE_OUTBOUND_MESSAGES=true` in local QA. Provider mocks are not delivery acceptance.
 
-Assistant requests claim a short lease before provider work; duplicate active requests are refused. A completed reply, optional workflow draft and one usage charge commit together. Failed/expired claims require an explicit user retry. After provider work, current access and the approved context versions are rechecked. These guarantees prevent duplicate application charges and saves; a network failure at an external provider can still have a provider-side cost.
+## Reproducing local verification
 
-Secure browser, managed-device lockdown, screen recording and remote proctoring are unavailable. Their API modes fail closed. A standard browser exam cannot block operating-system app switching or other browsers. The `/ai` permission policy permits user-approved microphone/camera access and disables screen capture until a real integration exists.
-
-## Deadline processing
-
-The existing `npm run worker:outbox` service now sweeps due standard exam attempts without a student reconnecting. It uses the PostgreSQL UTC clock against UTC timestamp columns, locks one attempt at a time with `SKIP LOCKED`, scores only persisted answers against the assigned snapshot, and commits one content-free system audit with submission. Written responses still require moderation. The stored submission time is the fixed deadline; the audit also records processing time.
-
-The sweep handles up to 100 references per batch, continues full batches once per second, and checks again after 15 seconds when caught up. Invalid snapshots/answers remain unchanged and emit a count-only operational error; a cursor lets later deadlines progress. The privileged service database role must have the existing worker's cross-school dispatch rights. Deploy and monitor that service with the repository's Redis/worker configuration; adding application routes alone does not start it. Request-time expiry remains available as a fallback. No live worker was started against the configured school database during implementation.
-
-## Reproducing local acceptance
-
-The database test files refuse any target except the isolated PostgreSQL instance at `127.0.0.1:55438/postgres`. Browser fixtures use only synthetic schools and a fixed test-only signing secret. Never copy that secret into a deployment.
-
-Pure tests:
-
-```sh
-npm run test:school-ai
-npm run check:ui
-```
-
-For integration tests, first provision an empty local PostgreSQL instance at that port. Set both database URLs to the isolated fixture, create the baseline schema in that disposable database, and apply the School AI SQL constraints/migrations. Then:
+Provision empty disposable PostgreSQL at `127.0.0.1:55438`. Fixtures refuse other targets. Never use the test secret in a deployment.
 
 ```sh
 export DATABASE_URL=postgresql://angular_dev_15@127.0.0.1:55438/postgres
 export DIRECT_URL=postgresql://angular_dev_15@127.0.0.1:55438/postgres
 export AUTH_SECRET=school-ai-isolated-browser-test-secret-only
+npx prisma migrate deploy
+npx prisma generate
+npm run test:school-ai
 npm run test:school-ai:db
-npx tsx tests/school-ai/browser-fixture.ts
-npx tsx tests/school-ai/assessment-browser-fixture.ts
+npm run check:ui
+npm run test:locale
+node --import tsx tests/school-ai/browser-fixture.ts
+node --import tsx tests/school-ai/assessment-browser-fixture.ts
 ```
 
-The database script runs fixture files sequentially; concurrency scenarios inside each file still issue simultaneous requests. This separates unrelated school creation/deletion from the operation being tested. Running all eight fixture suites concurrently against the small shared database exhausted bounded serialization retries in one timetable setup (130/131 passed); it returned a safe 409 and wrote no partial schedule. Sustained multi-school load and retry rates remain an explicit deployment gate. Retries are bounded to seven attempts, apply only to known rolled-back database conflicts, and never repeat external sends. Production exam retries sample current server time so a delay cannot admit late starts or answers.
+The runner discovers all pure/database files. Fixture files run serially; deliberate race scenarios stay concurrent. The complete migration chain installs the production enrollment/invoice triggers.
 
-Start a separate local test server with no external AI credentials:
+Start a separate server in that isolated environment:
 
 ```sh
-env OPENAI_API_KEY= SCHOOL_AI_MEDIA_EGRESS_APPROVED=false EMAIL_DEV_MODE=true \
-  SCHOOL_AI_STORAGE_DIR=/private/tmp/skoolee-ai-test-documents \
-  NEXT_BUILD_DIR=.next/school-ai-tests npx next dev --hostname 127.0.0.1 -p 3106
+OPENAI_API_KEY= SCHOOL_AI_MEDIA_EGRESS_APPROVED=false EMAIL_DEV_MODE=true DISABLE_OUTBOUND_MESSAGES=true SCHOOL_AI_STORAGE_DIR=/private/tmp/skoolee-ai-test-documents NEXT_BUILD_DIR=.next/school-ai-tests npx next dev --hostname 127.0.0.1 -p 3106
 ```
 
-In a second terminal with the same isolated database settings, run `npm run test:school-ai:e2e`. Reseed the assessment fixture before rerunning the complete browser suite because those tests intentionally submit and moderate their synthetic exam. Run browser files serially: several share the synthetic school's locale and attempts. Academic setup and assistant scope tests create their own temporary schools. Restart the test server after Prisma schema/client changes. Generated tokens, screenshots and reports belong in ignored `test-results/`, never in the commit. An alternate `NEXT_BUILD_DIR` avoids disturbing another dev server; Next may add its generated type paths to `tsconfig.json`, which are local test artifacts and should be removed after verification.
+Run `npm run test:school-ai:e2e`. Browser files run serially because some share locale/attempt fixtures. Reseed before the full suite; restart after Prisma client changes. Tokens, screenshots and reports remain in ignored `test-results/`.
 
-## Acceptance boundaries
+`npm run test:school-ai:load` creates 32 synthetic candidates on the exact guarded target, signs in through HTTP, checks paced saves/stale retries/submission/receipts and cleans only its synthetic school. This is local load evidence, not a production capacity promise.
 
-Final local checks on 12 October 2026: `npm run build` passed (Prisma generation, commercial contract, shared UI checks, TypeScript and Next production output); 87 pure tests, 131 controlled-fixture database tests, 76 distinct Chromium browser cases and 3 shared UI checks passed. Changed-file ESLint, Prisma schema validation and whitespace checks passed. The route inventory contains 87 pages, 17 layouts, 12 loading boundaries, 13 error boundaries and one not-found boundary; the detailed [UI coverage matrix](IMPLEMENTATION.md#route-and-interaction-coverage) preserves UNVERIFIED cases. Production build output and synthetic evidence remain outside the commit.
+Calibration evaluates recorded results without sending school data:
 
-Local tests cover the implemented state transitions, access checks, retries, shared UI and standard browser exam lifecycle. They do not certify live OCR/transcription/paper generation quality, S3 policy configuration, representative accessibility assistive technology, high-concurrency examination load, native device lockdown or production recovery.
+```sh
+npm run calibrate:school-ai -- --fixtures tests/fixtures/school-ai-calibration/synthetic-examples.json --synthetic-replay --require-gate
+```
 
-Before a school pilot, finish the relevant PRD gates: retention/deletion and backup recovery, provider calibration, additional accommodation types, worker monitoring, live provider delivery verification, further operational tool validation and a supported device matrix. The implementation ledger keeps every unfinished requirement visible.
+This example intentionally exits 2 with BLOCKED: synthetic replay does not prove live accuracy. Real evaluation requires source-hashed deidentified representative material, approved processing, reviewed expectations, exact-model outputs/request IDs and human adjudication. Default coverage is ten qualified cases per language/category across EN/AR/UR and text/handwriting/table/math/figure/assessment. Thresholds are team policy, not certification.
+
+## Acceptance boundary
+
+Final checks are recorded in [the implementation ledger](IMPLEMENTATION.md#verification): 173 pure tests, 329 database tests, all 192 browser scenarios after the affected exam-file rerun, shared UI/locale checks, TypeScript and production builds. Local verification covers state transitions, isolation, retries, shared controls, RTL and exams. Live AI quality, provider delivery, production storage/worker/backup settings, assistive devices/printers and measured school outcomes remain external release gates.
+
+The separate legacy report-version suite requires ports 55410/3210 and its own fixture. School AI tests exercise changed gradebook/report paths but do not represent that independent suite. No live communications, real financial postings or school exams are sent by acceptance tests.

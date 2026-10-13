@@ -5,12 +5,14 @@ import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
 import { JWT_SECRET } from "@/lib/auth/secret";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { wallTimeInstants } from "@/lib/locale/events";
 import { currencyForCountry } from "@/lib/locale/country";
 import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage, type Language } from "@/lib/locale/package";
+import { lockTimetableCampus } from "@/lib/timetable/locking";
+import { withExamCalendarChange } from "@/lib/academic/calendar-bookings";
 import { getLocalePackage } from "@/lib/locale/store";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { LANGUAGE_COOKIE, languageCookieAttributes, parseLanguage } from "@/lib/locale/language-cookie";
@@ -115,7 +117,10 @@ export async function applyLocaleChange(token: string) {
       const scopeCount = school.registrationKind === "STANDALONE" ? 1 : 2;
       const campus = campusRows.find((c) => c.id === change.campusId);
       assertDelegatedChanges(current.role, current.campusId, change.campusId, scopeCount, campus?.localeDelegatedFields || [], change.settings);
-      const record = await tx.localePolicy.create({ data: { schoolId: user.schoolId, campusId: change.campusId, scopeKey: change.campusId || "school", settings: preview.settings, effectiveAt: new Date(preview.effectiveAt), createdBy: user.id, status: preview.currencyReview ? "FINANCE_REVIEW" : "ACTIVE" } });
+      const affectedCampuses = campusRows.filter(item => !change.campusId || item.id === change.campusId).map(item => item.id).sort();
+      for (const id of affectedCampuses) await lockTimetableCampus(tx as TxClient, user.schoolId, id, true);
+      const record = await withExamCalendarChange(tx as TxClient, user.schoolId, affectedCampuses, new Date(preview.effectiveAt), () =>
+        tx.localePolicy.create({ data: { schoolId: user.schoolId, campusId: change.campusId, scopeKey: change.campusId || "school", settings: preview.settings, effectiveAt: new Date(preview.effectiveAt), createdBy: user.id, status: preview.currencyReview ? "FINANCE_REVIEW" : "ACTIVE" } }));
       return { id: record.id, status: record.status };
     }, { isolationLevel: "Serializable" });
   });
@@ -133,8 +138,18 @@ export async function reviewLocaleCurrency(id: string, approved: boolean) {
   const user = await session();
   if (user.role !== "ACCOUNTANT") throw new Error("permission");
   return runWithTenantContext(user, async () => {
-    const result = await prisma.localePolicy.updateMany({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...(user.campusId ? { OR: [{ campusId: user.campusId }, { campusId: null }] } : {}) }, data: { status: approved ? "ACTIVE" : "REJECTED", financeReviewedBy: user.id } });
-    if (result.count !== 1) throw new Error("permission");
+    await prisma.$transaction(async tx => {
+      const current = await tx.user.findFirst({ where: { id: user.id, schoolId: user.schoolId, role: "ACCOUNTANT", isActive: true, campusId: user.campusId }, select: { id: true } });
+      if (!current) throw new Error("permission");
+      const policy = await tx.localePolicy.findFirst({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...(user.campusId ? { OR: [{ campusId: user.campusId }, { campusId: null }] } : {}) } });
+      if (!policy) throw new Error("permission");
+      const campuses = await tx.campus.findMany({ where: { schoolId: user.schoolId, ...(policy.campusId ? { id: policy.campusId } : {}) }, select: { id: true }, orderBy: { id: "asc" } });
+      for (const campus of campuses) await lockTimetableCampus(tx as TxClient, user.schoolId, campus.id, true);
+      await withExamCalendarChange(tx as TxClient, user.schoolId, campuses.map(campus => campus.id), policy.effectiveAt, async () => {
+        const result = await tx.localePolicy.updateMany({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...(user.campusId ? { OR: [{ campusId: user.campusId }, { campusId: null }] } : {}) }, data: { status: approved ? "ACTIVE" : "REJECTED", financeReviewedBy: user.id } });
+        if (result.count !== 1) throw new Error("permission");
+      });
+    }, { isolationLevel: "Serializable" });
   });
 }
 

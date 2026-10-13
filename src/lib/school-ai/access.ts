@@ -1,3 +1,4 @@
+import { riskIndicatorSchema,riskModules } from "./school-operations-risk";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import type { PermissionAction, PermissionModule, PermissionFlags } from "@/lib/permissions";
@@ -129,7 +130,30 @@ export async function assertWorkspaceDomainPermission(user: AuthUser, kind: Work
   if (kind === "WORKFLOW") {
     if (data.proposal) {
       assertApprovalRole(user);
-      if ((data.proposal as { operation?: string }).operation === "fees.generate_invoices") {
+      const operation = (data.proposal as { operation?: string }).operation;
+      if(operation === "operations.record_risk_decision") {
+        const indicator=riskIndicatorSchema.parse((data.proposal as {indicator?:unknown}).indicator); for(const moduleName of riskModules(indicator))await assertPermission(user,moduleName,"view");
+      } else if (operation === "setup.apply_changes") {
+        for (const moduleName of ["timetable", "staff", "students"] as const) { await assertPermission(user,moduleName,"view"); if (action!=="view") await assertPermission(user,moduleName,moduleName==="students"?"edit":"add"); }
+        const setup = data.proposal as { action?: string; rows?: Array<{ calendarAction?: string }> };
+        if (setup.action === "SUBJECTS" || setup.action === "TEACHER_ALLOCATIONS") { await assertPermission(user, "exams", "view"); if (action !== "view") await assertPermission(user, "exams", setup.action === "SUBJECTS" ? "add" : "edit"); }
+        if (action !== "view" && ["TEACHER_ALLOCATIONS", "HOLIDAYS", "WEEKENDS"].includes(setup.action ?? "")) await assertPermission(user, "timetable", "edit");
+        if (action !== "view" && setup.action === "HOLIDAYS" && setup.rows?.some(row => row.calendarAction === "DELETE")) await assertPermission(user, "timetable", "delete");
+        if (setup.action === "MIGRATION_CUTOVER") {
+          await assertPermission(user, "fees", "view"); await assertPermission(user, "accounts", "view");
+          if (action !== "view") { await assertPermission(user, "fees", "add"); await assertPermission(user, "fees", "edit"); await assertPermission(user, "accounts", "add"); }
+        }
+      } else if (operation === "academics.transition_year" || operation === "students.promote_enrollment") {
+        const permissionModule = operation === "academics.transition_year" ? "exams" : "students";
+        await assertPermission(user, permissionModule, "view"); if (action !== "view") await assertPermission(user, permissionModule, "edit");
+      } else if (operation === "finance.apply_operation") {
+        await assertPermission(user, "fees", "view"); await assertPermission(user, "accounts", "view");
+        if (action !== "view") { await assertPermission(user, "fees", "add"); await assertPermission(user, "fees", "edit"); await assertPermission(user, "accounts", "add"); }
+      } else if (operation === "attendance.record_register") {
+        await assertPermission(user, "attendance", "view"); await assertPermission(user, "students", "view"); if (action !== "view") await assertPermission(user, "attendance", "add");
+      } else if (operation === "timetable.publish_reviewed" || operation === "timetable.create_school_drafts" || operation === "timetable.assign_substitutes") {
+        await assertPermission(user, "timetable", "view"); if (action !== "view") await assertPermission(user, "timetable", operation === "timetable.assign_substitutes" || operation === "timetable.publish_reviewed" ? "edit" : "add");
+      } else if ((data.proposal as { operation?: string }).operation === "fees.generate_invoices") {
         await assertPermission(user, "fees", "view");
         if (action !== "view") await assertPermission(user, "fees", "add");
       } else if ((data.proposal as { operation?: string }).operation === "exams.create_session_plan") {
@@ -187,6 +211,13 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
   const fees = permissions.get("fees");
   const canGenerateInvoices = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd));
   const canPlanExams = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && exam?.canView && exam?.canAdd && exam?.canEdit && students?.canView));
+  const accounts = permissions.get("accounts"), attendance = permissions.get("attendance");
+  const staff = permissions.get("staff");
+  const canReviewRisks = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && (attendance?.canView && students?.canView || timetable?.canView && permissions.get("leave")?.canView || exam?.canView && permissions.get("reports")?.canView)));
+  const canSchoolSetup = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && timetable?.canView && timetable?.canAdd && staff?.canView && staff?.canAdd && students?.canView && students?.canEdit));
+  const canFinance = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd && fees?.canEdit && accounts?.canView && accounts?.canAdd));
+  const canAttendance = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && attendance?.canView && attendance?.canAdd && students?.canView));
+  const canSubstitutes = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && timetable?.canView && timetable?.canEdit));
   return {
     role: user.role, campusId: user.campusId,
     canCreate: fixed || Boolean(ai?.canAdd),
@@ -198,8 +229,8 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
     subjects: subjects.map(({ class: cls, ...subject }) => ({ ...subject, className: [cls.name, cls.section].filter(Boolean).join(" · ") })),
     profile,
     setupDefaults: { ...profile, ...(startDate ? { startDate } : {}), ...(endDate ? { endDate } : {}) },
-    execution: canExecute || canSetupTimetable || canQueueAnnouncement || canGenerateInvoices || canPlanExams ? "EXPLICIT_TOOLS_ONLY" : "DRAFTS_ONLY",
-    tools: [...(canGenerateInvoices ? [{ operation: "fees.generate_invoices" as const, kind: "WORKFLOW" as const }] : []), ...(canPlanExams ? [{ operation: "exams.create_session_plan" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "curriculum.import_topics" as const, kind: "CURRICULUM" as const }] : []), ...(canSetupYear ? [{ operation: "academics.setup_year" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_draft" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "communications.queue_announcement" as const, kind: "WORKFLOW" as const }] : [])],
+    execution: canReviewRisks || canSchoolSetup || canFinance || canAttendance || canSubstitutes || canExecute || canSetupTimetable || canQueueAnnouncement || canGenerateInvoices || canPlanExams ? "EXPLICIT_TOOLS_ONLY" : "DRAFTS_ONLY",
+    tools: [...(canSubstitutes ? [{ operation: "timetable.publish_reviewed" as const,kind:"WORKFLOW" as const }] : []),...(canReviewRisks ? [{operation:"operations.record_risk_decision" as const,kind:"WORKFLOW" as const}] : []),...(canSchoolSetup ? [{ operation: "setup.apply_changes" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "academics.transition_year" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "students.promote_enrollment" as const, kind: "WORKFLOW" as const }] : []), ...(canFinance ? [{ operation: "finance.apply_operation" as const, kind: "WORKFLOW" as const }] : []), ...(canAttendance ? [{ operation: "attendance.record_register" as const, kind: "WORKFLOW" as const }] : []), ...(canSubstitutes ? [{ operation: "timetable.assign_substitutes" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_school_drafts" as const, kind: "WORKFLOW" as const }] : []), ...(canGenerateInvoices ? [{ operation: "fees.generate_invoices" as const, kind: "WORKFLOW" as const }] : []), ...(canPlanExams ? [{ operation: "exams.create_session_plan" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "curriculum.import_topics" as const, kind: "CURRICULUM" as const }] : []), ...(canSetupYear ? [{ operation: "academics.setup_year" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_draft" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "communications.queue_announcement" as const, kind: "WORKFLOW" as const }] : [])],
   };
 }
 

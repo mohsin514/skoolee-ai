@@ -48,40 +48,46 @@ export async function updateClassWithTeacherAssignment(user: AuthUser, body: Ass
   if (!located) throw new ApiError("Class not found", 404);
   return schoolAiTransaction(user, async tx => {
     await lockTimetableCampus(tx, user.schoolId, located.campusId);
-    const grants = await authorizeAssignment(tx, user, "students");
-    const existing = await tx.class.findFirst({ where: { id, ...scope, campusId: located.campusId }, select: { id: true, campusId: true, classTeacherId: true, teachingMode: true, academicYear: true } });
-    if (!existing) throw new ApiError("Class not found", 404);
-    const data: Prisma.ClassUncheckedUpdateInput = {};
-    if (body.name !== undefined) data.name = String(body.name).trim();
-    if (body.section !== undefined) data.section = body.section ? String(body.section).trim() : null;
-    if (body.academicYear !== undefined) {
-      const academicYear = Number(body.academicYear);
-      if (!Number.isInteger(academicYear)) throw new ApiError("A valid academic year is required", 400);
-      if (academicYear !== existing.academicYear && await tx.timetable.count({ where: { schoolId: user.schoolId, campusId: existing.campusId, classId: id } })) throw new ApiError("A class with timetables cannot move to another academic year. Create the new year's class instead.", 409);
-      data.academicYear = academicYear;
-    }
-    const teacherProvided = body.classTeacherId !== undefined || body.teacherId !== undefined;
-    const classTeacherId = teacherProvided ? await teacherInCampus(tx, body.classTeacherId !== undefined ? body.classTeacherId : body.teacherId, user.schoolId, existing.campusId, true) : existing.classTeacherId;
-    if (teacherProvided) data.classTeacherId = classTeacherId;
-    let effectiveMode = existing.teachingMode;
-    if (body.teachingMode !== undefined) {
-      const mode = String(body.teachingMode).toUpperCase();
-      if (mode !== "SINGLE" && mode !== "SUBJECT") throw new ApiError("teachingMode must be SINGLE or SUBJECT", 400);
-      data.teachingMode = mode; effectiveMode = mode;
-    }
-    const cls = await tx.class.update({ where: { id }, data, include: { classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } }, _count: { select: { students: true, subjects: true } } } });
-    // A mode-only change must preserve individually assigned subject teachers.
-    if (effectiveMode === "SINGLE" && teacherProvided && classTeacherId !== existing.classTeacherId) {
-      const subjectScope = { schoolId: user.schoolId, campusId: existing.campusId, classId: id };
-      const subjects = await tx.subject.findMany({ where: subjectScope, select: { id: true } });
-      const ids = subjects.map(subject => subject.id);
-      await requireScheduleEdit(tx, user, existing.campusId, ids, grants);
-      await tx.subject.updateMany({ where: subjectScope, data: { teacherId: classTeacherId } });
-      await syncTimetableSlotsForSubjects(tx, { schoolId: user.schoolId, campusId: existing.campusId }, ids, classTeacherId);
-    }
-    if (teacherProvided) await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { classTeacherId: existing.classTeacherId }, newValue: { classTeacherId }, userId: user.userId } });
-    return { existing, cls, clashes: [] as TimetableClash[] };
+    return updateClassWithTeacherAssignmentTx(tx, user, body, located.campusId);
   });
+}
+
+/** Caller holds the campus scheduling fence and a SERIALIZABLE transaction. */
+export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: AuthUser, body: AssignmentInput, campusId: string) {
+  const id = recordId(body.id), scope = campusScope(user, campusId);
+  const grants = await authorizeAssignment(tx, user, "students");
+  const existing = await tx.class.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, classTeacherId: true, teachingMode: true, academicYear: true } });
+  if (!existing) throw new ApiError("Class not found", 404);
+  const data: Prisma.ClassUncheckedUpdateInput = {};
+  if (body.name !== undefined) data.name = String(body.name).trim();
+  if (body.section !== undefined) data.section = body.section ? String(body.section).trim() : null;
+  if (body.academicYear !== undefined) {
+    const academicYear = Number(body.academicYear);
+    if (!Number.isInteger(academicYear)) throw new ApiError("A valid academic year is required", 400);
+    if (academicYear !== existing.academicYear && await tx.timetable.count({ where: { schoolId: user.schoolId, campusId: existing.campusId, classId: id } })) throw new ApiError("A class with timetables cannot move to another academic year. Create the new year's class instead.", 409);
+    data.academicYear = academicYear;
+  }
+  const teacherProvided = body.classTeacherId !== undefined || body.teacherId !== undefined;
+  const classTeacherId = teacherProvided ? await teacherInCampus(tx, body.classTeacherId !== undefined ? body.classTeacherId : body.teacherId, user.schoolId, existing.campusId, true) : existing.classTeacherId;
+  if (teacherProvided) data.classTeacherId = classTeacherId;
+  let effectiveMode = existing.teachingMode;
+  if (body.teachingMode !== undefined) {
+    const mode = String(body.teachingMode).toUpperCase();
+    if (mode !== "SINGLE" && mode !== "SUBJECT") throw new ApiError("teachingMode must be SINGLE or SUBJECT", 400);
+    data.teachingMode = mode; effectiveMode = mode;
+  }
+  const cls = await tx.class.update({ where: { id }, data, include: { classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } }, _count: { select: { students: true, subjects: true } } } });
+  // A mode-only change must preserve individually assigned subject teachers.
+  if (effectiveMode === "SINGLE" && teacherProvided && classTeacherId !== existing.classTeacherId) {
+    const subjectScope = { schoolId: user.schoolId, campusId: existing.campusId, classId: id };
+    const subjects = await tx.subject.findMany({ where: subjectScope, select: { id: true } });
+    const ids = subjects.map(subject => subject.id);
+    await requireScheduleEdit(tx, user, existing.campusId, ids, grants);
+    await tx.subject.updateMany({ where: subjectScope, data: { teacherId: classTeacherId } });
+    await syncTimetableSlotsForSubjects(tx, { schoolId: user.schoolId, campusId: existing.campusId }, ids, classTeacherId);
+  }
+  if (teacherProvided) await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { classTeacherId: existing.classTeacherId }, newValue: { classTeacherId }, userId: user.userId } });
+  return { existing, cls, clashes: [] as TimetableClash[] };
 }
 
 export async function updateSubjectWithTeacherAssignment(user: AuthUser, body: AssignmentInput) {
@@ -90,26 +96,32 @@ export async function updateSubjectWithTeacherAssignment(user: AuthUser, body: A
   if (!located) throw new ApiError("Subject not found", 404);
   return schoolAiTransaction(user, async tx => {
     await lockTimetableCampus(tx, user.schoolId, located.campusId);
-    const grants = await authorizeAssignment(tx, user, "exams");
-    const existing = await tx.subject.findFirst({ where: { id, ...scope, campusId: located.campusId }, select: { id: true, campusId: true, name: true, classId: true } });
-    if (!existing) throw new ApiError("Subject not found", 404);
-    const data: Prisma.SubjectUncheckedUpdateInput = {};
-    if (body.name !== undefined) data.name = String(body.name).trim();
-    if (body.totalMarks !== undefined) data.totalMarks = Number(body.totalMarks);
-    const teacherProvided = body.teacherId !== undefined;
-    if (teacherProvided) data.teacherId = await teacherInCampus(tx, body.teacherId, user.schoolId, existing.campusId);
-    if (body.classId !== undefined) {
-      const cls = await tx.class.findFirst({ where: { id: recordId(body.classId), schoolId: user.schoolId, campusId: existing.campusId }, select: { id: true } });
-      if (!cls) throw new ApiError("Class not found", 404);
-      if (cls.id !== existing.classId && await tx.timetableSlot.count({ where: { schoolId: user.schoolId, subjectId: id } })) throw new ApiError("A scheduled subject cannot move to another class. Remove it from the timetable first.", 409);
-      data.classId = cls.id;
-    }
-    if (teacherProvided) await requireScheduleEdit(tx, user, existing.campusId, [id], grants);
-    const subject = await tx.subject.update({ where: { id }, data, include: { class: { select: { id: true, name: true, section: true } }, teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } } });
-    if (teacherProvided) await syncTimetableSlotsForSubjects(tx, { schoolId: user.schoolId, campusId: existing.campusId }, [id], subject.teacherId);
-    await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "subject", recordId: id, oldValue: { name: existing.name }, newValue: { name: subject.name, teacherId: subject.teacherId }, userId: user.userId } });
-    return { existing, subject, clashes: [] as TimetableClash[] };
+    return updateSubjectWithTeacherAssignmentTx(tx, user, body, located.campusId);
   });
+}
+
+/** Caller holds the campus scheduling fence and a SERIALIZABLE transaction. */
+export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: AuthUser, body: AssignmentInput, campusId: string) {
+  const id = recordId(body.id), scope = campusScope(user, campusId);
+  const grants = await authorizeAssignment(tx, user, "exams");
+  const existing = await tx.subject.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, name: true, classId: true } });
+  if (!existing) throw new ApiError("Subject not found", 404);
+  const data: Prisma.SubjectUncheckedUpdateInput = {};
+  if (body.name !== undefined) data.name = String(body.name).trim();
+  if (body.totalMarks !== undefined) data.totalMarks = Number(body.totalMarks);
+  const teacherProvided = body.teacherId !== undefined;
+  if (teacherProvided) data.teacherId = await teacherInCampus(tx, body.teacherId, user.schoolId, existing.campusId);
+  if (body.classId !== undefined) {
+    const cls = await tx.class.findFirst({ where: { id: recordId(body.classId), schoolId: user.schoolId, campusId: existing.campusId }, select: { id: true } });
+    if (!cls) throw new ApiError("Class not found", 404);
+    if (cls.id !== existing.classId && await tx.timetableSlot.count({ where: { schoolId: user.schoolId, subjectId: id } })) throw new ApiError("A scheduled subject cannot move to another class. Remove it from the timetable first.", 409);
+    data.classId = cls.id;
+  }
+  if (teacherProvided) await requireScheduleEdit(tx, user, existing.campusId, [id], grants);
+  const subject = await tx.subject.update({ where: { id }, data, include: { class: { select: { id: true, name: true, section: true } }, teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } } });
+  if (teacherProvided) await syncTimetableSlotsForSubjects(tx, { schoolId: user.schoolId, campusId: existing.campusId }, [id], subject.teacherId);
+  await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "subject", recordId: id, oldValue: { name: existing.name }, newValue: { name: subject.name, teacherId: subject.teacherId }, userId: user.userId } });
+  return { existing, subject, clashes: [] as TimetableClash[] };
 }
 
 /** Subject deletion clears timetable references via SetNull in this transaction. */

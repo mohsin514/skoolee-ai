@@ -17,7 +17,8 @@ test("student saves, reloads and submits a real attempt without receiving markin
   expect(JSON.stringify(await metadata.json())).not.toMatch(/correctOptionId|modelAnswer|rubric|paperSnapshot/);
   await page.goto(`/ai/exams/${fixture.examId}`);
   await expect(page.getByRole("heading", { name: "Browser QA mathematics exam" })).toBeVisible();
-  await expect(page.getByText(/this page cannot block other tabs/)).toBeVisible();
+  await expect(page.getByText(/Standard browser mode cannot block other tabs or applications/)).toBeVisible();
+  await expect(page.getByText(/Camera or screen clips are optional, require your separate consent/)).toBeVisible();
   await readiness(page);
   await page.getByRole("button", { name: "Start exam", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What is 2 + 2?" })).toBeVisible();

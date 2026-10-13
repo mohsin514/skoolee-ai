@@ -1,6 +1,8 @@
+import { assertOriginalAvailable } from "@/lib/school-ai/document-jobs-service";
+import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { ApiError } from "@/lib/api/scope";
 import { requireSchoolAiUser } from "@/lib/school-ai/access";
-import { getWorkspaceRecord } from "@/lib/school-ai/repository";
+import { getWorkspaceRecord, assertSourceOriginalAccess } from "@/lib/school-ai/repository";
 import { readOriginal } from "@/lib/school-ai/source-storage";
 import { schoolAiError } from "@/lib/school-ai/http";
 
@@ -11,6 +13,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const user = await requireSchoolAiUser("view");
     const record = await getWorkspaceRecord(user, (await context.params).id);
     if (record.kind !== "SOURCE" || typeof record.data.storageKey !== "string" || !record.data.storageKey.startsWith(`school-ai/${user.schoolId}/`)) throw new ApiError("Original source is unavailable.", 404);
+    await schoolAiTransaction(user,async tx=>{ await assertSourceOriginalAccess(user,record.id,tx); await assertOriginalAvailable(user,record.id,tx); });
     const bytes = await readOriginal(record.data.storageKey);
     const mime = String(record.data.mimeType);
     const safeMime = ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "text/csv"].includes(mime) ? mime : "application/octet-stream";

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { solveTimetable, timetableSolveInputSchema, type SolverWindow } from "../../src/lib/school-ai/timetable-solver";
+import type { TimetableSetupProposal } from "../../src/lib/school-ai/timetable-setup";
 const window = (dayOfWeek = 1, periodNumber = 1): SolverWindow => ({ dayOfWeek, periodNumber, startTime: periodNumber === 1 ? "08:00" : "09:00", endTime: periodNumber === 1 ? "08:40" : "09:40" });
 const requirement = (subjectId = "math", periodsPerWeek = 2) => ({ subjectId, teacherId: "teacher", periodsPerWeek, maxPerDay: 1 });
 test("solver honors exact subject counts, daily bounds, room/teacher bookings and is deterministic", () => {
@@ -9,7 +10,7 @@ test("solver honors exact subject counts, daily bounds, room/teacher bookings an
   assert(result.status === "SOLVED"); assert.deepEqual(solveTimetable(input), result);
   assert.equal(result.slots.length, 4);
   for (const subject of ["math", "language"]) {
-    const subjectSlots = result.slots.filter(slot => slot.subjectId === subject); assert.equal(subjectSlots.length, 2);
+    const subjectSlots: TimetableSetupProposal["slots"] = result.slots.filter(slot => slot.subjectId === subject); assert.equal(subjectSlots.length, 2);
     assert.equal(new Set(subjectSlots.map(slot => slot.dayOfWeek)).size, 2);
   }
   assert(!result.slots.some(slot => slot.dayOfWeek === 1 && slot.periodNumber === 1));

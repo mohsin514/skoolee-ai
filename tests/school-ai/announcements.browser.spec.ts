@@ -4,6 +4,7 @@ import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
 import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { announcementCopy } from "../../src/components/school-ai/announcement-copy";
+import { announcementChannelCopy } from "../../src/components/school-ai/announcement-channel-copy";
 import type { AnnouncementExecutionReceipt, AnnouncementDelivery } from "../../src/lib/school-ai/announcements";
 
 // Draft saves/approvals use the real local API. Delivery preview, queue and status
@@ -179,4 +180,89 @@ test("principal dashboard server responses omit restricted announcement payloads
   expect(denied).not.toContain(announcementId);
   expect(denied).not.toContain("restricted-principal");
   expect(denied).not.toContain("Restricted principal announcement");
+});
+
+for (const language of ["en", "ar", "ur"] as const) test(`${language} records verified channel consent and honestly blocks an unconfigured SMS provider`, async ({ page }) => {
+  const parentId = randomUUID(), studentId = randomUUID(), t = announcementChannelCopy(language), a = announcementCopy(language);
+  await db.user.update({ where: { id: adminId }, data: { preferredLanguage: language } });
+  await db.user.create({ data: { id: parentId, schoolId, campusId, role: "PARENT", fullName: "Channel guardian", email: `${parentId}@example.test`, preferredLanguage: language, isActive: true, onboardingComplete: true } });
+  await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Channel learner", rollNo: "channel-1", gender: "OTHER" } });
+  await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Channel guardian", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic browser guardian right", createdByUserId: adminId } } } });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await openDraft(page, language);
+  await page.locator("summary").filter({ hasText: t.preferences }).click();
+  const preferences = page.getByRole("region", { name: t.preferences, exact: true });
+  await preferences.getByRole("combobox", { name: t.channel, exact: true }).selectOption("SMS");
+  await preferences.getByRole("combobox", { name: t.recipient, exact: true }).selectOption("+923001234567");
+  await preferences.getByRole("checkbox", { name: t.enabled, exact: true }).check();
+  await preferences.getByRole("textbox", { name: t.evidence, exact: true }).fill("Synthetic guardian consent and contact verification recorded.");
+  await preferences.getByRole("button", { name: t.save, exact: true }).click();
+  await expect(preferences.getByRole("alert")).toHaveText(t.invalid);
+  expect(await db.guardianChannelPreference.count({ where: { schoolId, campusId } })).toBe(0);
+  await preferences.getByRole("checkbox", { name: t.verified, exact: true }).check();
+  await preferences.getByRole("checkbox", { name: t.consent, exact: true }).check();
+  await preferences.getByRole("button", { name: t.save, exact: true }).click();
+  await expect(preferences.getByRole("status").filter({ hasText: t.saved })).toBeVisible();
+  const saved = await db.guardianChannelPreference.findFirstOrThrow({ where: { schoolId, campusId, guardianUserId: parentId } });
+  expect(saved.channel).toBe("SMS"); expect(saved.enabled).toBe(true); expect(saved.version).toBe(1);
+  await expect(preferences.getByRole("combobox", { name: t.channel, exact: true })).toHaveValue("SMS");
+  await page.setViewportSize({ width: 360, height: 1500 });
+  await preferences.screenshot({ path: `test-results/school-ai/announcements-completion/consent-${language}.png` });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.locator("summary").filter({ hasText: t.preferences }).click();
+  await page.getByRole("combobox", { name: t.channel, exact: true }).selectOption("SMS");
+  await expect(page.getByText(t.unavailable, { exact: true })).toBeVisible();
+  await saveAndApprove(page, language);
+  await page.getByRole("button", { name: a.preview, exact: true }).click();
+  const preview = page.getByRole("region", { name: a.previewTitle, exact: true });
+  await expect(preview.getByText("+923001234567", { exact: true })).toBeVisible();
+  await expect(preview.getByRole("alert")).toHaveText(a.ANNOUNCEMENT_PROVIDER_UNAVAILABLE);
+  await expect(preview.getByRole("button", { name: a.queue, exact: true })).toBeDisabled();
+  const geometry = await page.evaluate(() => ({ width: window.innerWidth, scroll: document.documentElement.scrollWidth, dir: document.documentElement.dir }));
+  expect(geometry.scroll).toBeLessThanOrEqual(geometry.width); expect(geometry.dir).toBe(language === "en" ? "ltr" : "rtl");
+  expect(await db.parentCommunication.count({ where: { schoolId, campusId } })).toBe(0);
+});
+
+test("guardian profile settings stop an enabled channel using the real API without permission to enable it", async ({ page, context }) => {
+  const parentId = randomUUID(), studentId = randomUUID(), t = announcementChannelCopy("en");
+  await db.user.create({ data: { id: parentId, schoolId, campusId, role: "PARENT", fullName: "Preferences parent", email: `${parentId}@example.test`, isActive: true, onboardingComplete: true } });
+  await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Preferences learner", rollNo: "preferences-1", gender: "OTHER" } });
+  await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Preferences parent", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic browser guardian right", createdByUserId: adminId } } } });
+  await db.guardianChannelPreference.create({ data: { schoolId, campusId, guardianUserId: parentId, channel: "SMS", recipient: "+923001234567", enabled: true, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic prior verified consent", updatedById: adminId } });
+  const token = await new SignJWT({ userId: parentId, schoolId, campusId, role: "PARENT", email: `${parentId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  await db.loginSession.create({ data: { userId: parentId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
+  await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
+  await page.goto("/parent?settings=profile");
+  const preferences = page.getByRole("region", { name: t.preferences, exact: true }), sms = preferences.locator("div").filter({ has: page.locator("b").filter({ hasText: /^SMS$/ }) }).filter({ has: page.getByRole("button", { name: t.stop, exact: true }) }).last();
+  await expect(preferences.getByText(t.parentHint, { exact: true })).toBeVisible();
+  await sms.getByRole("button", { name: t.stop, exact: true }).click();
+  await expect(preferences.getByRole("status").filter({ hasText: t.stopped })).toBeVisible();
+  await expect(sms.getByRole("button", { name: t.stop, exact: true })).toBeDisabled();
+  await preferences.screenshot({ path: "test-results/school-ai/announcements-completion/parent-opt-out.png" });
+  const saved = await db.guardianChannelPreference.findFirstOrThrow({ where: { schoolId, campusId, guardianUserId: parentId, channel: "SMS" } });
+  expect(saved.enabled).toBe(false); expect(saved.version).toBe(2);
+  const response = await page.request.post("/api/communications/channel-preferences", { headers: { origin }, data: { campusId, guardianUserId: parentId, channel: "SMS", recipient: "+923001234567", enabled: true, expectedVersion: 2, verified: true, consent: true, evidence: "Forged self-service enable attempt" } });
+  expect(response.status()).toBe(403);
+  expect(await db.parentCommunication.count({ where: { schoolId, campusId } })).toBe(0);
+});
+
+test("legacy fee reminders enforce channel consent, campus and financial rights and never claim delivery while disabled", async ({ page }) => {
+  const parentId = randomUUID(), studentId = randomUUID(), invoiceId = randomUUID();
+  await db.user.create({ data: { id: parentId, schoolId, campusId, role: "PARENT", fullName: "Fee guardian", email: `${parentId}@example.test`, preferredLanguage: "ur", isActive: true, onboardingComplete: true } });
+  await db.academicCycle.create({ data: { schoolId, campusId, label: "Fee cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") } });
+  await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Fee learner", rollNo: "fee-1", gender: "OTHER", guardianPhone: "+923001234567", enrollmentDate: new Date("2026-01-01Z") } });
+  const relation = await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Fee guardian", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic communication access only", createdByUserId: adminId } } } });
+  await db.invoice.create({ data: { id: invoiceId, schoolId, campusId, studentId, invoiceDate: new Date("2026-10-01Z"), dueDate: new Date("2026-10-31Z"), monthlyFee: 10000, subtotal: 10000, totalAmount: 10000, balanceDue: 10000, currency: "USD" } });
+  const remind = () => page.request.post("/api/fees/remind", { headers: { origin }, data: { studentId } });
+  expect((await remind()).status()).toBe(409);
+  await db.guardianChannelPreference.create({ data: { schoolId, campusId, guardianUserId: parentId, channel: "WHATSAPP", recipient: "+923001234567", enabled: true, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic verified consent", updatedById: adminId } });
+  expect((await remind()).status()).toBe(409);
+  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: relation.id, permissions: { communication: true, finances: true }, reason: "Synthetic financial records consent", createdByUserId: adminId } });
+  const response = await remind(); expect(response.ok(), await response.text()).toBeTruthy(); const result = await response.json();
+  expect(result.data.accepted).toBe(0); expect(result.data.delivered).toBe(false); expect(result.data.communications[0].status).toBe("BLOCKED");
+  const stored = await db.parentCommunication.findFirstOrThrow({ where: { schoolId, campusId, studentId } });
+  expect(stored.relatedId).toBe(invoiceId); expect(stored.body).toContain("فیس"); expect(stored.body).not.toContain("Rs "); expect(stored.sentAt).toBe(null);
+  const foreignCampus = randomUUID(); await db.campus.create({ data: { id: foreignCampus, schoolId, name: "Foreign campus", regId: foreignCampus, city: "Test" } });
+  await db.student.update({ where: { id: studentId }, data: { campusId: foreignCampus } });
+  expect((await remind()).status()).toBe(404);
 });

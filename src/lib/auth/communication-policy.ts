@@ -1,49 +1,37 @@
 import { prisma } from "@/lib/db/prisma";
+import { announcementChannelSchema, contactForChannel, validChannelContact } from "@/lib/school-ai/announcement-channel-contract";
 import { AccessDenied } from "./policy";
 
-/** Recheck queued recipient relationships immediately before delivery. */
-export async function assertCommunicationTarget(target: {
-  schoolId: string; campusId?: string | null; studentId?: string | null;
-  parentUserId?: string | null; recipient?: string | null;
-}, channel: string) {
-  if (!target.studentId) return; // Institution announcements use a trusted service identity.
-  const student = await prisma.student.findFirst({
-    where: { id: target.studentId, schoolId: target.schoolId, ...(target.campusId ? { campusId: target.campusId } : {}) },
-    select: { id: true },
+type CommunicationTarget = { schoolId: string; campusId?: string | null; studentId?: string | null; parentUserId?: string | null; recipient?: string | null };
+type CommunicationPermission = "communication" | "learningRecords" | "attendance" | "finances";
+
+/** The latest effective grant wins; historical allow rows never override a later denial. */
+export async function authorizedGuardianCommunicationTargets(target: CommunicationTarget, channel: string, permission: CommunicationPermission = "communication") {
+  const parsed = announcementChannelSchema.safeParse(channel);
+  if (!target.studentId || !parsed.success) return [];
+  const student = await prisma.student.findFirst({ where: { id: target.studentId, schoolId: target.schoolId, ...(target.campusId ? { campusId: target.campusId } : {}), archivedAt: null, status: { equals: "active", mode: "insensitive" }, campus: { archivedAt: null } }, select: { id: true, campusId: true } });
+  if (!student) return [];
+  const now = new Date(), relationships = await prisma.guardianRelationship.findMany({
+    where: { schoolId: target.schoolId, campusId: student.campusId, studentId: student.id, guardianUserId: target.parentUserId || { not: null }, status: "ACTIVE", verifiedAt: { not: null }, validFrom: { lte: now }, OR: [{ validUntil: null }, { validUntil: { gt: now } }], guardian: { schoolId: target.schoolId, isActive: true, role: "PARENT" } },
+    select: { email: true, phone: true, fullName: true, guardianUserId: true, accessVersions: { where: { effectiveFrom: { lte: now }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }] }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }], take: 1, select: { permissions: true } } }, orderBy: { id: "asc" }, take: 101,
   });
-  if (!student || (!target.parentUserId && !target.recipient)) throw new AccessDenied("communication", "send");
-  const now = new Date();
-  const relationships = await prisma.guardianRelationship.findMany({
-    where: {
-      schoolId: target.schoolId,
-      studentId: target.studentId,
-      guardianUserId: { not: null },
-      status: "ACTIVE",
-      verifiedAt: { not: null },
-      validFrom: { lte: now },
-      AND: [
-        { OR: [{ validUntil: null }, { validUntil: { gt: now } }] },
-        { guardian: { isActive: true } },
-        { accessVersions: { some: {
-          effectiveFrom: { lte: now },
-          permissions: { path: ["communication"], equals: true },
-          AND: [{ OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }] }],
-        } } },
-      ],
-      ...(target.parentUserId ? { guardianUserId: target.parentUserId } : {}),
-    },
-    select: { email: true, phone: true, guardianUserId: true, guardian: { select: { phone: true } } },
+  if (relationships.length > 100) throw new AccessDenied("communication", "scope");
+  const preferences = await prisma.guardianChannelPreference.findMany({ where: { schoolId: target.schoolId, campusId: student.campusId, channel, guardianUserId: { in: relationships.flatMap(row => row.guardianUserId ? [row.guardianUserId] : []) } } });
+  const expected = target.recipient ? contactForChannel(parsed.data, target.recipient) : null;
+  return relationships.flatMap(row => {
+    const rights = row.accessVersions[0]?.permissions as Record<string, unknown> | undefined;
+    const recipient = contactForChannel(parsed.data, channel === "EMAIL" ? row.email : row.phone), preference = preferences.find(item => item.guardianUserId === row.guardianUserId);
+    if (!row.guardianUserId || rights?.communication !== true || rights[permission] !== true || !validChannelContact(parsed.data, recipient) || expected && expected !== recipient) return [];
+    if (preference ? !preference.enabled || !preference.verifiedAt || !preference.consentAt || preference.recipient !== recipient : channel !== "EMAIL") return [];
+    return [{ guardianUserId: row.guardianUserId, fullName: row.fullName, recipient, campusId: student.campusId }];
   });
-  const normalizedRecipient = channel === "EMAIL"
-    ? target.recipient?.trim().toLocaleLowerCase("en-US")
-    : target.recipient?.replace(/[^\d+]/g, "");
-  const allowed = relationships.some((relation) => {
-    if (target.parentUserId && relation.guardianUserId !== target.parentUserId) return false;
-    if (!normalizedRecipient) return true;
-    const contacts = channel === "EMAIL" ? [relation.email.trim().toLocaleLowerCase("en-US")] : [relation.phone, relation.guardian?.phone].map((contact) => contact?.replace(/[^\d+]/g, ""));
-    return contacts.some((contact) => !!contact && contact === normalizedRecipient);
-  });
-  if (!allowed) throw new AccessDenied("communication", "send");
+}
+
+/** Used both when queuing and immediately before a provider effect. */
+export async function assertCommunicationTarget(target: CommunicationTarget, channel: string, permission: CommunicationPermission = "communication") {
+  if (!target.studentId && !target.parentUserId) return; // Institution-only notices contain no pupil records.
+  if (!target.parentUserId && !target.recipient) throw new AccessDenied("communication", "send");
+  if (!(await authorizedGuardianCommunicationTargets(target, channel, permission)).length) throw new AccessDenied("communication", "send");
 }
 
 export async function assertPublishedCommunicationReport(reportId: string, studentId?: string | null) {

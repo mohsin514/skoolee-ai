@@ -1,5 +1,6 @@
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 export const arabicUi: Record<string, string> = {
+  "Carry Forward": "الرصيد أو الائتمان السابق",
   "Edit fee item": "تعديل بند الرسوم",
   "Delete fee item": "حذف بند الرسوم",
   "Edit fee structure": "تعديل هيكل الرسوم",
@@ -364,6 +365,7 @@ export const arabicUi: Record<string, string> = {
 };
 
 export const urduUi: Record<string, string> = {
+  "Carry Forward": "سابقہ بقایا یا کریڈٹ",
   "Edit fee item": "فیس کی مد میں ترمیم",
   "Delete fee item": "فیس کی مد حذف کریں",
   "Edit fee structure": "فیس کے ڈھانچے میں ترمیم",

@@ -480,6 +480,7 @@ function InvoiceDetailModal({
               {inv.oneTimeFees > 0 && <Row label={tr("One-Time Fees")} value={formatPKR(inv.oneTimeFees, inv.currency)} />}
               <Row label={tr("Subtotal")} value={formatPKR(inv.subtotal, inv.currency)} />
               {inv.discountAmount > 0 && <Row label={tr("Discount")} value={`-${formatPKR(inv.discountAmount, inv.currency)}`} className="text-emerald-600" />}
+              {Boolean(inv.carryForwardAmount) && <Row label={tr("Carry Forward")} value={formatPKR(inv.carryForwardAmount || 0, inv.currency)} />}
               {inv.lateFeeAmount > 0 && <Row label={tr("Late Fee")} value={formatPKR(inv.lateFeeAmount, inv.currency)} className="text-rose-600" />}
               {inv.taxAmount > 0 && <Row label={tr("Tax")} value={formatPKR(inv.taxAmount, inv.currency)} />}
               <div className="border-t border-[#cfc2d6]/10 pt-2 mt-2" />

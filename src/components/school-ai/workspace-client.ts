@@ -30,5 +30,5 @@ export async function workspaceRequest<T>(url: string, init?: RequestInit): Prom
 }
 export type SaveRecord = (kind: WorkspaceKind, title: string, data: Record<string, unknown>, existing?: AiWorkspaceRecord, idempotencyKey?: string) => Promise<AiWorkspaceRecord>;
 export type RecordAction = (record: AiWorkspaceRecord, action: "review" | "approve" | "archive") => Promise<AiWorkspaceRecord>;
-export interface AIFeatureCapabilities { documentUpload: boolean; documentExtraction: boolean; voiceTranscription: boolean; assistant: boolean; paperGeneration: boolean; secureBrowser: boolean; proctoring: boolean }
-export const UNCONFIGURED_CAPABILITIES: AIFeatureCapabilities = { documentUpload: false, documentExtraction: false, voiceTranscription: false, assistant: false, paperGeneration: false, secureBrowser: false, proctoring: false };
+export interface AIFeatureCapabilities { documentUpload: boolean; documentExtraction: boolean; voiceTranscription: boolean; assistant: boolean; paperGeneration: boolean; secureBrowser: boolean; proctoring: boolean; optionalRecording: boolean }
+export const UNCONFIGURED_CAPABILITIES: AIFeatureCapabilities = { documentUpload: false, documentExtraction: false, voiceTranscription: false, assistant: false, paperGeneration: false, secureBrowser: false, proctoring: false, optionalRecording: false };

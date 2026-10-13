@@ -4,7 +4,7 @@ import { isCurrentSessionRevoked } from "@/lib/auth/session-revocation";
 import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
-import { assertPermission as assertPermissionImpl, type PermissionAction, type PermissionModule } from "@/lib/permissions";
+import { assertPermission as assertPermissionImpl, moduleFlags, type PermissionAction, type PermissionModule } from "@/lib/permissions";
 import { cookies } from "next/headers";
 
 export class ApiError extends Error {
@@ -145,7 +145,11 @@ export function assertStaffRole(user: AuthUser) {
  * was simply never consulted here.
  */
 export async function assertFeesRead(user: AuthUser) {
-  return assertModuleRead(user, "fees");
+  assertStaffRole(user);
+  // Financial records must stop being readable as soon as a grant is revoked;
+  // the short-lived UI permission cache is not an authorization snapshot.
+  const rows = await prisma.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role, module: "fees" }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true } });
+  if (!moduleFlags(rows, user.role, "fees").canView) throw new ApiError("Insufficient permissions: fees.view", 403);
 }
 
 /**

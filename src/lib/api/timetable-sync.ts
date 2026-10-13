@@ -1,5 +1,6 @@
 import type { TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
+import { assertSubstituteLessonsUnchanged } from "@/lib/school-ai/school-operations-bookings";
 import { validateStoredTimetable } from "@/lib/timetable/validate";
 
 /** Kept in successful assignment responses for existing administrative clients. */
@@ -30,12 +31,13 @@ export async function syncTimetableSlotsForSubjects(
   const classBySubject = new Map(subjects.map(subject => [subject.id, subject.classId]));
   const affected = await tx.timetableSlot.findMany({
     where: { schoolId: scope.schoolId, subjectId: { in: ids } },
-    select: { id: true, subjectId: true, timetable: { select: { id: true, schoolId: true, campusId: true, classId: true } } },
+    select: { id: true, subjectId: true, teacherId: true, roomId: true, startTime: true, endTime: true, slotType: true, timetable: { select: { id: true, schoolId: true, campusId: true, classId: true } } },
   });
   if (affected.some(slot => slot.timetable.schoolId !== scope.schoolId || slot.timetable.campusId !== scope.campusId || slot.timetable.classId !== classBySubject.get(slot.subjectId!))) {
     throw new ApiError("A scheduled subject no longer belongs to its timetable class. Correct the schedule before changing its teacher.", 409);
   }
   if (!affected.length) return;
+  await assertSubstituteLessonsUnchanged(tx, scope.schoolId, scope.campusId, affected, affected.map(slot => ({ ...slot, teacherId })));
   await tx.timetableSlot.updateMany({
     where: { id: { in: affected.map(slot => slot.id) }, schoolId: scope.schoolId, timetable: { schoolId: scope.schoolId, campusId: scope.campusId } },
     data: { teacherId },

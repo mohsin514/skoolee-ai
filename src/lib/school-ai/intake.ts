@@ -40,13 +40,41 @@ export function validateAudio(mimeType: string, bytes: Uint8Array): string {
   return mime;
 }
 
+export const documentRegionSchema=z.strictObject({
+  id:z.string().trim().min(1).max(100),kind:z.enum(["TEXT","HANDWRITING","TABLE","MATH","FIGURE"]),
+  box:z.strictObject({x:z.number().min(0).max(1),y:z.number().min(0).max(1),width:z.number().positive().max(1),height:z.number().positive().max(1)}).nullable(),
+  text:z.string().max(12000),confidence:z.number().min(0).max(1).nullable(),needsReview:z.boolean(),reviewed:z.boolean(),issue:z.string().max(1000),
+  table:z.strictObject({rows:z.array(z.array(z.string().max(2000)).max(30)).max(100)}).optional(),
+  math:z.strictObject({latex:z.string().max(6000),plainText:z.string().max(6000)}).optional(),
+  figure:z.strictObject({description:z.string().max(6000),labels:z.array(z.string().max(500)).max(50)}).optional(),
+}).superRefine((value,ctx)=>{if(value.box&&(value.box.x+value.box.width>1.000001||value.box.y+value.box.height>1.000001))ctx.addIssue({code:"custom",path:["box"],message:"The region must fit within its page."});if(value.table&&value.kind!=="TABLE"||value.math&&value.kind!=="MATH"||value.figure&&value.kind!=="FIGURE")ctx.addIssue({code:"custom",message:"Structured details must match the region kind."});if(value.reviewed&&value.needsReview)ctx.addIssue({code:"custom",message:"Resolve the region review flag before confirming it."});});
+export const extractedPageSchema=z.strictObject({page:z.number().int().min(1).max(10000),text:z.string().max(20000),reviewed:z.boolean().optional(),regions:z.array(documentRegionSchema).max(100).optional()}).superRefine((value,ctx)=>{if(new Set(value.regions?.map(row=>row.id)).size!==(value.regions?.length??0))ctx.addIssue({code:"custom",message:"Region identifiers must be unique within a page."});});
+export const documentStructureSchema=z.strictObject({expectedPageCount:z.number().int().positive().max(10000).nullable().optional(),missingPages:z.array(z.number().int().positive().max(10000)).max(200).optional(),structureReviewed:z.boolean().optional()});
+export type ExtractedPage=z.infer<typeof extractedPageSchema>;
+export type DocumentRegion=z.infer<typeof documentRegionSchema>;
+export type DocumentStructure=z.infer<typeof documentStructureSchema>;
 export const extractionSchema = z.object({
   text: z.string().max(80000),
-  pages: z.array(z.object({ page: z.number().int().min(1).max(10000), text: z.string().max(20000) }).strict()).max(200),
+  pages: z.array(extractedPageSchema).max(200),
   uncertainties: z.array(z.string().max(1000)).max(100),
+  ...documentStructureSchema.shape,
 }).strict().superRefine((value, context) => {
   if (new Set(value.pages.map(page => page.page)).size !== value.pages.length) context.addIssue({ code: "custom", message: "Duplicate source page numbers." });
+  if(new Set(value.missingPages).size!==(value.missingPages?.length??0)||value.missingPages?.some(page=>value.pages.some(row=>row.page===page)))context.addIssue({code:"custom",message:"Missing pages must be distinct and absent from the extraction."});
+  if(value.expectedPageCount&&[...value.pages.map(row=>row.page),...(value.missingPages??[])].some(page=>page>value.expectedPageCount!))context.addIssue({code:"custom",message:"Page numbers cannot exceed the known document length."});
 });
+/** A provider cannot confirm its own recognition or silently resolve visual uncertainty. */
+export function unreviewedExtraction(raw:unknown){const value=extractionSchema.parse(raw);return {...value,structureReviewed:false,pages:[...value.pages].sort((a,b)=>a.page-b.page).map(page=>({...page,reviewed:false,regions:page.regions?.map(region=>({...region,reviewed:false,needsReview:true}))}))};}
+export function sourceStructureApprovalIssues(value:{sourcePages?:ExtractedPage[];expectedPageCount?:number|null;missingPages?:number[];structureReviewed?:boolean;extractedText?:string}){
+ const pages=value.sourcePages??[],structured=value.expectedPageCount!==undefined||value.structureReviewed!==undefined||Boolean(value.missingPages?.length)||pages.some(page=>page.reviewed!==undefined||page.regions!==undefined);
+ if(!structured)return[];
+ const issues:string[]=[];
+ if(!value.expectedPageCount||value.expectedPageCount!==pages.length||pages.some((page,index)=>page.page!==index+1)||value.missingPages?.length)issues.push("Confirm the physical page count and transcribe every missing page in order before source approval.");
+ if(pages.some(page=>!page.reviewed||page.regions?.some(region=>!region.reviewed||region.needsReview)))issues.push("Review every page and resolve every structured region before source approval.");
+ if(!value.structureReviewed)issues.push("Confirm the complete structured document review before source approval.");
+ if(value.extractedText!==undefined&&value.extractedText!==pages.map(page=>page.text).join("\n\n"))issues.push("Apply the corrected page text to the source before approving the structured document.");
+ return issues;
+}
 
 export function parseModelJson(text: string): unknown {
   if (text.length > 250000) throw new Error("The generated response exceeds the review limit.");

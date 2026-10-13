@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { paperFigureSchema, candidateFigure, figureBudgetIssues, type CandidateFigure } from "./paper-figures";
+import { lessonPlanSchema, validateLessonPlan } from "./learning";
 
 const id = z.string().trim().min(1).max(120);
 const draftText = (max: number) => z.string().max(max);
 export const assessmentLanguageSchema = z.enum(["en", "ar", "ur"]);
-export const questionTypeSchema = z.enum(["SINGLE_CHOICE", "SHORT_TEXT", "EXTENDED_TEXT"]);
+export const questionTypeSchema = z.enum(["SINGLE_CHOICE", "MULTIPLE_CHOICE", "NUMERIC", "SHORT_TEXT", "EXTENDED_TEXT", "MATH", "CODE"]);
 
 export const curriculumDataSchema = z.object({
   subjectId: id,
@@ -17,7 +19,13 @@ export const curriculumDataSchema = z.object({
     reference: draftText(2000),
     excerpt: draftText(30000),
     approved: z.boolean(),
+    edition: draftText(160).optional(),
+    effectiveFrom: z.string().date().optional(),
   }).strict()).max(30),
+  lessonPlans: z.array(lessonPlanSchema).max(50).optional(),
+  sectionCoverage: z.array(z.object({
+    section: id, outcomeIds: z.array(id).min(1).max(200), taughtOn: z.string().date(), confirmed: z.boolean(),
+  }).strict()).max(100).optional(),
   outcomes: z.array(z.object({
     id,
     title: draftText(1200),
@@ -61,6 +69,9 @@ export const questionSchema = z.object({
   marks: z.number().min(0.25).max(100),
   options: z.array(z.object({ id, text: draftText(2000) }).strict()).max(8),
   correctOptionId: id.nullable(),
+  correctOptionIds: z.array(id).max(8).optional(),
+  numericKey: z.object({ value: z.number().finite(), tolerance: z.number().finite().min(0).max(1000000) }).strict().optional(),
+  figures: z.array(paperFigureSchema).max(2).optional(),
   modelAnswer: draftText(12000),
   rubric: z.array(z.object({ id, criterion: draftText(2000), marks: z.number().min(0.25).max(100) }).strict()).max(30),
   outcomeIds: z.array(id).max(50),
@@ -77,6 +88,8 @@ export const paperDataSchema = z.object({
   classId: id,
   language: assessmentLanguageSchema,
   blueprint: blueprintSchema,
+  coverageSection: id.optional(),
+  resources: z.array(z.object({ id, title: draftText(200), content: draftText(20000), approved: z.boolean() }).strict()).max(10).optional(),
   questions: z.array(questionSchema).max(100),
   generation: z.object({
     kind: z.enum(["MANUAL", "AI"]),
@@ -89,6 +102,7 @@ export const generatePaperRequestSchema = z.object({
   curriculumId: id,
   blueprint: blueprintSchema,
   language: assessmentLanguageSchema,
+  coverageSection: id.optional(),
   lockedQuestions: z.array(questionSchema).max(100).optional(),
 }).strict();
 
@@ -122,6 +136,16 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
       errors.push(`Outcome ${outcome.title || outcome.id} needs an approved source and page reference.`);
     }
   }
+  if (curriculum.lessonPlans) {
+    if (!unique(curriculum.lessonPlans.map(plan => plan.id))) errors.push("Learning plan identifiers must be unique.");
+    for (const plan of curriculum.lessonPlans) { errors.push(...validateLessonPlan(plan, curriculum)); if (!plan.confirmed) errors.push(`Learning plan ${plan.title} needs teacher confirmation.`); }
+  }
+  if (curriculum.sectionCoverage) {
+    if (!unique(curriculum.sectionCoverage.map(row => row.section))) errors.push("Coverage sections must be unique.");
+    for (const row of curriculum.sectionCoverage) {
+      if (!row.confirmed || !unique(row.outcomeIds) || row.outcomeIds.some(outcomeId => !curriculum.outcomes.some(outcome => outcome.id === outcomeId && outcome.taught))) errors.push(`Section ${row.section}: confirm distinct taught curriculum outcomes.`);
+    }
+  }
   return errors;
 }
 
@@ -147,6 +171,13 @@ export function validateBlueprint(blueprint: Blueprint, curriculum?: CurriculumD
 export function validatePaperApproval(paper: PaperData, curriculum: CurriculumData): string[] {
   const errors = [...validateCurriculumApproval(curriculum), ...validateBlueprint(paper.blueprint, curriculum)];
   if (paper.classId !== curriculum.classId || paper.subjectId !== curriculum.subjectId) errors.push("Paper and curriculum class/subject must match.");
+  if (curriculum.sectionCoverage?.length) {
+    const coverage = curriculum.sectionCoverage.find(row => row.section === paper.coverageSection && row.confirmed);
+    if (!coverage || paper.blueprint.sections.some(section => section.outcomeIds.some(outcomeId => !coverage.outcomeIds.includes(outcomeId)))) errors.push("Choose a confirmed section coverage containing every assessed outcome.");
+  }
+  if (paper.resources?.some(resource => !resource.title.trim() || !resource.content.trim() || !resource.approved) || (paper.resources && !unique(paper.resources.map(resource => resource.id)))) errors.push("Every candidate resource needs a distinct identifier, title, content and explicit approval.");
+  errors.push(...figureBudgetIssues(paper.questions.flatMap(question=>question.figures??[])));
+  if (paper.questions.some(question=>question.figures?.some(figure=>!figure.approved||!figure.alt.trim()))) errors.push("Review each candidate figure and add accessible alternative text before approval.");
   if (!unique(paper.questions.map((question) => question.id))) errors.push("Question identifiers must be unique.");
   const prompts = paper.questions.map((question) => question.prompt.trim().toLocaleLowerCase().replace(/\s+/g, " "));
   if (!unique(prompts)) errors.push("Duplicate question prompts must be reviewed.");
@@ -167,11 +198,15 @@ export function validatePaperApproval(paper: PaperData, curriculum: CurriculumDa
       const outcome = curriculum.outcomes.find((item) => item.id === outcomeId);
       return !outcome || !question.sourceRefs.some((ref) => ref.sourceId === outcome.sourceId && ref.page === outcome.sourcePage);
     })) errors.push(`Question ${question.id} evidence must support its learning outcomes.`);
-    if (question.type === "SINGLE_CHOICE") {
-      if (question.options.length < 2 || !unique(question.options.map((option) => option.id)) || !unique(question.options.map((option) => option.text.trim().toLocaleLowerCase())) || question.options.some((option) => !option.text.trim()) || !question.options.some((option) => option.id === question.correctOptionId)) errors.push(`Question ${question.id} needs distinct options and a valid answer key.`);
+    if (question.type === "SINGLE_CHOICE" || question.type === "MULTIPLE_CHOICE") {
+      if (question.options.length < 2 || !unique(question.options.map((option) => option.id)) || !unique(question.options.map((option) => option.text.trim().toLocaleLowerCase())) || question.options.some((option) => !option.text.trim()) || (question.type === "SINGLE_CHOICE" && !question.options.some((option) => option.id === question.correctOptionId))) errors.push(`Question ${question.id} needs distinct options and a valid answer key.`);
     } else if (question.options.length || question.correctOptionId !== null) {
       errors.push(`Question ${question.id}: written questions cannot contain a choice answer key.`);
     }
+    if (question.type === "MULTIPLE_CHOICE" && (question.correctOptionId !== null || !question.correctOptionIds?.length || !unique(question.correctOptionIds) || question.correctOptionIds.some(optionId => !question.options.some(option => option.id === optionId)))) errors.push(`Question ${question.id} needs distinct valid correct choices.`);
+    if (question.type !== "MULTIPLE_CHOICE" && question.correctOptionIds?.length) errors.push(`Question ${question.id}: multiple-choice keys belong only to multiple-choice questions.`);
+    if (question.type === "NUMERIC" && !question.numericKey) errors.push(`Question ${question.id} needs a numeric answer and tolerance.`);
+    if (question.type !== "NUMERIC" && question.numericKey) errors.push(`Question ${question.id}: numeric keys belong only to numeric questions.`);
     if (!question.modelAnswer.trim()) errors.push(`Question ${question.id} needs a model answer.`);
     if (!question.rubric.length || !unique(question.rubric.map((criterion) => criterion.id)) || question.rubric.some((criterion) => !criterion.criterion.trim()) || !equalMarks(question.rubric.reduce((sum, criterion) => sum + criterion.marks, 0), question.marks)) errors.push(`Question ${question.id}: rubric criteria must total the question marks.`);
   }
@@ -188,13 +223,14 @@ export function mergeLockedQuestions(generated: Question[], locked: Question[]):
 
 /** Provider output cannot invent an approved-bank origin; only exact pinned inputs retain it. */
 export function prepareGeneratedQuestions(generated: Question[], locked: Question[]): Question[] {
-  return mergeLockedQuestions(generated.map(({ reusedFrom: _unverifiedOrigin, ...question }) => question), locked);
+  return mergeLockedQuestions(generated.map(({ reusedFrom: _unverifiedOrigin, figures: _unverifiedFigures, ...question }) => question), locked);
 }
 
 export type CandidatePaper = {
   title: string; instructions: string; durationMinutes: number; totalMarks: number;
   sections: Blueprint["sections"];
-  questions: Array<Pick<Question, "id" | "sectionId" | "type" | "prompt" | "marks" | "options">>;
+  resources?: Array<{ id: string; title: string; content: string }>;
+  questions: Array<Pick<Question, "id" | "sectionId" | "type" | "prompt" | "marks" | "options"> & {figures?:CandidateFigure[]}>;
 };
 
 /** Explicit allow-list: no rubric, model answer, correct option or source excerpt can reach candidates. */
@@ -205,6 +241,7 @@ export function candidatePaper(paper: PaperData): CandidatePaper {
     durationMinutes: paper.blueprint.durationMinutes,
     totalMarks: paper.blueprint.totalMarks,
     sections: paper.blueprint.sections.map(({ id: sectionId, title, questionCount, answerCount, marksPerQuestion, type }) => ({ id: sectionId, title, questionCount, answerCount, marksPerQuestion, type, outcomeIds: [] })),
-    questions: paper.questions.map(({ id: questionId, sectionId, type, prompt, marks, options }) => ({ id: questionId, sectionId, type, prompt, marks, options: options.map(({ id: optionId, text }) => ({ id: optionId, text })) })),
+    ...(paper.resources?.length ? { resources: paper.resources.filter(resource => resource.approved).map(({ id, title, content }) => ({ id, title, content })) } : {}),
+    questions: paper.questions.map(({ id: questionId, sectionId, type, prompt, marks, options, figures }) => ({ id: questionId, sectionId, type, prompt, marks, options: options.map(({ id: optionId, text }) => ({ id: optionId, text })), ...(figures?.length ? {figures:figures.filter(figure=>figure.approved).map(candidateFigure)} : {}) })),
   };
 }

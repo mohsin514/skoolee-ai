@@ -2,6 +2,7 @@ import type { WorkspaceKind, WorkspaceStatus, WorkspaceUpdateInput } from "./typ
 import { SchoolAiError } from "./access";
 import { ONBOARDING_ANSWER_KEYS, onboardingDataSchema, policyDataSchema, sourceDataSchema, workflowDataSchema } from "./schemas";
 import { curriculumDataSchema, validateCurriculumApproval } from "./assessment";
+import { sourceStructureApprovalIssues } from "./intake";
 
 /** Approval applies only to a previously saved version. Saving an approved artifact starts a new draft. */
 export function nextWorkspaceStatus(current: { version: number; status: WorkspaceStatus }, update: WorkspaceUpdateInput): WorkspaceStatus {
@@ -25,6 +26,8 @@ export const TRUSTED_SOURCE_FIELDS = ["storageKey", "sha256", "extractionModel",
 export type TrustedSourceMetadata = Partial<Record<typeof TRUSTED_SOURCE_FIELDS[number], string>>;
 export function protectSourceMetadata(next: Record<string, unknown>, previous?: Record<string, unknown>, trusted?: TrustedSourceMetadata): Record<string, unknown> {
   const result = { ...next };
+  // Once extraction carries page review provenance, omission cannot erase its approval boundary.
+  if(previous&&(previous.structureReviewed!==undefined||previous.expectedPageCount!==undefined||Array.isArray(previous.sourcePages)&&previous.sourcePages.some(page=>page&&typeof page==="object"&&("regions" in page||"reviewed" in page))))for(const key of ["sourcePages","expectedPageCount","missingPages","structureReviewed"]){if(next[key]===undefined&&previous[key]!==undefined)result[key]=previous[key];}
   for (const key of TRUSTED_SOURCE_FIELDS) {
     if (previous) {
       if (next[key] !== undefined && next[key] !== previous[key]) throw new SchoolAiError("The original source metadata cannot be changed. Add a new source instead.", 400);
@@ -55,6 +58,7 @@ export function workspaceApprovalIssues(kind: WorkspaceKind, data: Record<string
     const issues: string[] = [];
     if (!value.extractedText.trim()) issues.push("Add readable source text before approval.");
     if (value.extractionStatus === "needs_review" || value.uncertainties?.length) issues.push("Resolve and clear the extraction uncertainties before approval.");
+    issues.push(...sourceStructureApprovalIssues(value));
     return issues;
   }
   if (kind === "CURRICULUM") return validateCurriculumApproval(curriculumDataSchema.parse(data));

@@ -44,6 +44,7 @@ test.afterAll(async () => {
   for (const f of fixtures) {
     await db.exam.delete({ where: { id: f.target.id } }); await db.schoolAiExamAssignment.delete({ where: { id: f.assignment.id } });
     await db.schoolAiRecord.deleteMany({ where: { id: { in: [f.paper.id, f.curriculum.id] }, schoolId } });
+    await db.studentEnrollment.deleteMany({ where: { studentId: f.student.id, schoolId } });
     await db.student.delete({ where: { id: f.student.id } }); await db.user.delete({ where: { id: f.userId } }); await db.subject.deleteMany({ where: { schoolId, classId: f.classId } }); await db.class.delete({ where: { id: f.classId } });
   }
   await db.$disconnect(); await prisma.$disconnect();

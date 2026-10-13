@@ -10,6 +10,7 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { lockTimetableCampus } from "./locking";
 import { validateTimetableSlots, type TimetableValidation } from "./validate";
 import type { SuggestionAction } from "./suggest";
+import { assertSubstituteLessonsUnchanged } from "@/lib/school-ai/school-operations-bookings";
 
 export const timetableInclude = {
   class: { select: { id: true, name: true, section: true } },
@@ -101,6 +102,7 @@ async function saveInTransaction(user: AuthUser, board: Board, input: unknown, t
     const patch = parsed.data.find(item => item.id === slot.id);
     return patch ? { ...slot, ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) } : slot;
   });
+  await assertSubstituteLessonsUnchanged(tx, user.schoolId, board.campusId, board.slots, merged);
   const { validation, roomRows } = await validateResult(user, board, merged, tx, suggestion, suggestion);
   if (suggestion) {
     const before = await validateTimetableSlots({ campusId: board.campusId, timetableId: board.id, classId: board.classId, academicYear: board.academicYear, term: board.term, slots: board.slots, requireComplete: true }, tx);
@@ -128,12 +130,13 @@ export async function changeManualTimetableStatus(user: AuthUser, campusId: stri
     const validation = action === "publish" ? (await validateResult(user, board, board.slots, tx, true)).validation : undefined;
     const status = action === "publish" ? "PUBLISHED" : "DRAFT";
     const changed = board.status !== status;
+    if (changed && action === "unpublish") await assertSubstituteLessonsUnchanged(tx, user.schoolId, campusId, board.slots, []);
     if (changed) await tx.timetable.update({ where: { id: board.id }, data: { status, publishedAt: action === "publish" ? new Date() : null } });
     return { data: await load(user, campusId, timetableId, tx), validation, changed };
   }, action === "unpublish");
 }
 export async function deleteManualTimetable(user: AuthUser, campusId: string, timetableId: string) {
-  return write(user, campusId, "delete", async tx => { const board = await load(user, campusId, timetableId, tx); await tx.timetable.delete({ where: { id: board.id } }); return board; }, true);
+  return write(user, campusId, "delete", async tx => { const board = await load(user, campusId, timetableId, tx); if (await tx.schoolAiSubstituteDuty.count({ where: { schoolId: user.schoolId, campusId, timetableSlotId: { in: board.slots.map(slot => slot.id) } } })) throw new ApiError("This timetable has dated substitute history. Keep it for the academic record.", 409); await tx.timetable.delete({ where: { id: board.id } }); return board; }, true);
 }
 export async function createManualTimetable(user: AuthUser, campusId: string, input: unknown) {
   const parsed = createSchema.safeParse(input);
@@ -166,4 +169,15 @@ export async function applyManualTimetableSuggestion(user: AuthUser, campusId: s
     }
     throw new ApiError("Unknown or incomplete suggestion action", 400);
   });
+}
+
+/** The reviewed AI publication uses the same current-resource validation as the manual publish control. */
+export async function reviewTimetablePublication(user: AuthUser, campusId: string, timetableId: string, tx: TxClient) {
+  await assertTimetableWriteAccess(user, campusId, "edit", tx);
+  const board = await load(user, campusId, timetableId, tx);
+  if (board.status !== "DRAFT") throw new ApiError("Choose a current draft timetable to publish.", 409);
+  const { validation } = await validateResult(user, board, board.slots, tx, true);
+  const lessons = board.slots.filter(slot => slot.slotType === "CLASS");
+  if (!lessons.length || lessons.some(slot => !slot.subjectId || !slot.teacherId || !slot.roomId || !slot.room || slot.room.capacity <= 0) || validation.conflicts.length) throw new ApiError("Complete every teaching lesson and resolve capacity or resource warnings before reviewed publication.", 409);
+  return board;
 }
