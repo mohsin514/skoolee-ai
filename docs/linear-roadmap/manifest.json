@@ -1377,5 +1377,244 @@
     ],
     "reuseIssue": null,
     "relatedIssues": []
+  },
+  {
+    "key": "F83",
+    "title": "Sign-in, sign-up, verification and password recovery journeys",
+    "value": "Complete the existing account flows with verifiable activation, recovery and secure session behavior",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 83,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01",
+      "F79"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-380",
+      "SKO-376",
+      "SKO-387"
+    ]
+  },
+  {
+    "key": "F84",
+    "title": "Teacher first-login onboarding and profile completion",
+    "value": "Let invited teachers finish a resumable profile and enter their assigned teaching workspace",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 84,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F79",
+      "F80"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-380",
+      "SKO-391"
+    ]
+  },
+  {
+    "key": "F85",
+    "title": "Recoverable multilingual AI chat and multimodal assistant workflow",
+    "value": "Gather school work through private chat, consented voice, upload or scan; prepare source-grounded drafts and recover safely",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 85,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F01",
+      "F63",
+      "F70"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-383",
+      "SKO-415",
+      "SKO-408"
+    ]
+  },
+  {
+    "key": "F86",
+    "title": "Teacher performance analytics and review workflow",
+    "value": "Make period-scoped evidence understandable, permission-safe and independently reviewable.",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 86,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F40"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-461"
+    ]
+  },
+  {
+    "key": "F87",
+    "title": "Class, section, subject and teaching assignment administration",
+    "value": "Manage authorized academic structure and preserve historical assignment context.",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 87,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F19",
+      "F40"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-462"
+    ]
+  },
+  {
+    "key": "F88",
+    "title": "Dormitory rooms, occupancy and student allocation operations",
+    "value": "Manage rooms, capacities and dated student allocations with campus privacy.",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 88,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F01",
+      "F20"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-463"
+    ]
+  },
+  {
+    "key": "F89",
+    "title": "Reception visitor register and check-in/check-out",
+    "value": "Record campus visitor arrival, host and departure with minimal personal data.",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 89,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-466"
+    ]
+  },
+  {
+    "key": "F90",
+    "title": "Complaint intake, assignment, status and resolution tracking",
+    "value": "Track routine complaints to resolution while protecting sensitive cases.",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 90,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-467"
+    ]
+  },
+  {
+    "key": "F91",
+    "title": "Inbound and outbound postal/courier register",
+    "value": "Track incoming and outgoing campus mail and accountable handoffs.",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 91,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-464"
+    ]
+  },
+  {
+    "key": "F92",
+    "title": "Reception phone-call log and follow-up queue",
+    "value": "Record calls and make due follow-ups visible to their assigned owner.",
+    "kind": "Extend",
+    "priority": "P2",
+    "sequence": 92,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-465"
+    ]
+  },
+  {
+    "key": "F93",
+    "title": "Student certificates and identity-card generation",
+    "value": "Preview, approve and issue correctly scoped student documents with history.",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 93,
+    "phase": "M2",
+    "phaseName": "02 School setup and records",
+    "dependsOn": [
+      "F20",
+      "F01"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-469"
+    ]
+  },
+  {
+    "key": "F94",
+    "title": "School chart of accounts, ledger entries and financial reporting",
+    "value": "Manage accounts and reconcile filtered financial reports to auditable entries.",
+    "kind": "Extend",
+    "priority": "P1",
+    "sequence": 94,
+    "phase": "M5",
+    "phaseName": "05 Finance and operations",
+    "dependsOn": [
+      "F37",
+      "F41"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-468"
+    ]
+  },
+  {
+    "key": "F95",
+    "title": "School AI operational plans and reviewed run lifecycle",
+    "value": "Coordinate evidence-linked, human-approved typed AI operations with bounded execution and recoverable outcomes.",
+    "kind": "Extend",
+    "priority": "P0",
+    "sequence": 95,
+    "phase": "M1",
+    "phaseName": "01 Trust and shared UX",
+    "dependsOn": [
+      "F63",
+      "F70",
+      "F07"
+    ],
+    "reuseIssue": null,
+    "relatedIssues": [
+      "SKO-470",
+      "SKO-397",
+      "SKO-400",
+      "SKO-460"
+    ]
   }
 ]

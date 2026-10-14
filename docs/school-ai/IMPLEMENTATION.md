@@ -73,7 +73,7 @@ BUILT means the described code path exists with local verification. External gat
 
 ## Completion work delivered on 13 October 2026
 
-The shared workspace now has 17 permission-filtered tabs, with learning/assessment tools under curriculum, optional recording in the exam player/review desk, and review observations on Overview. Operational drafts use the existing save → approve current version → exact preview → apply/receipt flow. Scheduled runs hold these same exact reviewed operations, not arbitrary model instructions.
+The shared workspace now has 17 permission-filtered tabs, with learning/assessment tools under curriculum, optional recording in the exam player/review desk, and review observations on Overview. Operational drafts use the existing save → approve current version → exact preview → apply/receipt flow. Scheduled runs hold these same exact reviewed operations, not arbitrary model instructions. The cross-tab plan, approval, bounded execution and recovery lifecycle is independently tracked by Linear feature SKO-470; provider policy (SKO-383), durable jobs (SKO-382), delivery receipts (SKO-386) and domain record owners stay separate.
 
 The central registry covers `curriculum.import_topics`, `academics.setup_year`, `timetable.create_draft`, `timetable.create_school_drafts`, `timetable.publish_reviewed`, `communications.queue_announcement`, `exams.create_session_plan`, `fees.generate_invoices`, `finance.apply_operation`, `setup.apply_changes`, `academics.transition_year`, `students.promote_enrollment`, `attendance.record_register`, `timetable.assign_substitutes` and `operations.record_risk_decision`. Roster/script imports, result publication and gradebook transfers retain their specialized review contracts.
 

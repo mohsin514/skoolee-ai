@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { schoolAiProviderCapabilities, extractDocument } from "../../src/lib/school-ai/providers";
 import { schoolAiError } from "../../src/lib/school-ai/http";
+import { AIProviderQuotaError } from "../../src/lib/ai/openai";
+import { PIILeakError } from "../../src/lib/ai/pseudonymize";
 import { ApiError } from "../../src/lib/api/scope";
 import { SchoolAiError } from "../../src/lib/school-ai/access";
 
@@ -39,4 +41,22 @@ test("provider errors cannot disclose their response bodies or credentials", asy
   }
   assert.equal(schoolAiError(new ApiError("Choose a source.", 400)).status, 400);
   assert.equal(schoolAiError(new SchoolAiError("Review the current version.", 409)).status, 409);
+});
+
+test("exhausted provider quota is reported with a safe actionable code", async () => {
+  const response = schoolAiError(new AIProviderQuotaError());
+  assert.equal(response.status, 503);
+  const payload = await response.json() as { error: string; code: string };
+  assert.equal(payload.code, "AI_QUOTA_EXHAUSTED");
+  assert.match(payload.error, /quota/i);
+  assert.equal(JSON.stringify(payload).includes("secret"), false);
+});
+
+test("PII safety refusal stays blocked and returns no identifier values", async () => {
+  const response = schoolAiError(new PIILeakError("private identifier must not be serialized"));
+  assert.equal(response.status, 422);
+  const payload = await response.json() as { error: string; code: string };
+  assert.equal(payload.code, "AI_SENSITIVE_CONTENT_BLOCKED");
+  assert.match(payload.error, /personal identifiers/i);
+  assert.equal(JSON.stringify(payload).includes("private identifier"), false);
 });

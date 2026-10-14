@@ -8,7 +8,7 @@ import { isSchoolOperational } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
 import { transliterateToUrdu } from "@/lib/urdu";
-import { assertNoPII, Pseudonymizer } from "./pseudonymize";
+import { assertNoPII, PIILeakError, Pseudonymizer } from "./pseudonymize";
 import { AI_POLICY_VERSION, AI_SOURCE_VERSION } from "./evaluation";
 
 type AIProvider = "pollinations" | "openai" | "ollama";
@@ -367,6 +367,12 @@ async function completeChat({
     try {
       return await completeWithProvider(provider, { messages, temperature, maxTokens });
     } catch (error) {
+      if (error instanceof PIILeakError) throw error;
+      if (provider === "openai" && isOpenAIQuotaExhausted(error)) {
+        // A quota failure is actionable and should never be collapsed into a
+        // generic provider outage or retried against an unexpected fallback.
+        throw new AIProviderQuotaError();
+      }
       failures.push(`${provider}: ${error instanceof Error && error.name === "AbortError" ? "request timed out" : "request failed"}`);
       if (normalizeProvider(process.env.AI_PROVIDER) !== "auto") break;
     }
@@ -375,6 +381,15 @@ async function completeChat({
   throw new Error(
     `AI provider request failed. ${failures.join(" | ")}`
   );
+}
+
+function isOpenAIQuotaExhausted(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const value = error as { status?: unknown; code?: unknown; type?: unknown; error?: { code?: unknown; type?: unknown } };
+  const status = value.status;
+  const code = value.code ?? value.error?.code;
+  const type = value.type ?? value.error?.type;
+  return status === 429 && (code === "insufficient_quota" || type === "insufficient_quota" || code === "credit_balance_exhausted");
 }
 
 export interface AIDraftResult {
@@ -401,6 +416,12 @@ export interface AIUsageRecordInput {
 
 export class AICreditError extends Error {
   status = 402;
+}
+
+export class AIProviderQuotaError extends Error {
+  readonly code = "AI_QUOTA_EXHAUSTED";
+  readonly status = 503;
+  constructor() { super("The configured AI provider has exhausted its API quota."); }
 }
 
 export async function getAICreditSnapshot(schoolId: string) {

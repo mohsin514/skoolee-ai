@@ -36,7 +36,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     ".next/school-ai-tests/types/**/*.ts",
-    ".next/school-ai-tests/dev/types/**/*.ts"
+    ".next/school-ai-tests/dev/types/**/*.ts",
+    ".next/school-ai-live-qa/types/**/*.ts",
+    ".next/school-ai-live-qa/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

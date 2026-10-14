@@ -4072,5 +4072,409 @@
         "Version 4 is scheduled. Two campus exceptions need review."
       ]
     }
+  },
+  {
+    "key": "F83",
+    "userStory": "As a new owner, invited staff member or returning user, I want registration, verification, sign-in and recovery to guide me into only the account and school scope I am authorized to access.",
+    "problem": "Source pages and endpoints exist, but static UI checks did not execute authenticated token activation, provider delivery, registration, recovery or the full first-login chain.",
+    "currentEvidence": "Auth routes exist for login, registration, verification, invite acceptance, first login, password recovery, MFA and sessions. The verification-success UI has 12 focused browser checks; backend activation and mail delivery remain unverified.",
+    "scope": [
+      "Register and verify a school-owner account",
+      "Accept/expire/reissue invitation without role or tenant substitution",
+      "Sign in, recover password, complete first login and MFA/session policy",
+      "Preserve safe form state, prevent duplicate submits and avoid account enumeration"
+    ],
+    "outOfScope": [
+      "Rebuilding existing auth pages without a demonstrated defect",
+      "Unrequested identity-provider or SSO integrations"
+    ],
+    "acceptance": [
+      "Complete real synthetic account registration through workspace entry in staging",
+      "Exercise invalid, expired, reused and resend tokens",
+      "Verify session and membership rechecks, rate limits and neutral recovery responses",
+      "Verify responsive keyboard and EN/AR/UR/RTL states"
+    ],
+    "qa": [
+      "Authenticated Playwright journey with provider sandbox",
+      "Token replay/expiry and duplicate-submit cases",
+      "Session revocation after role or school change"
+    ],
+    "successMetric": "Synthetic account lifecycle completes exactly once and no unauthorized session survives revocation.",
+    "ux": "One clear next action at every state; preserve safe details; isolate email and one-time code direction in RTL."
+  },
+  {
+    "key": "F84",
+    "userStory": "As an invited teacher, I want to complete a short resumable profile so I can reach the teaching workspace without re-entering details.",
+    "problem": "The first-login route exists, but teacher subject/step/profile submission is listed as unexercised in the route acceptance report.",
+    "currentEvidence": "Teacher onboarding page and completion action contain personal, professional and address/emergency steps plus session draft persistence.",
+    "scope": [
+      "Route only incomplete teacher profiles into onboarding",
+      "Save and resume each step",
+      "Validate and persist authorized profile fields once",
+      "Route completed teachers to assigned teaching scope"
+    ],
+    "outOfScope": [
+      "Rebuilding the existing step UI without a reproduced gap",
+      "Editing school-managed role or class assignments from self-profile"
+    ],
+    "acceptance": [
+      "Complete/resume, invalid-session, retry, success and duplicate-submit cases",
+      "Verify role/school-scoped writes and authorized destination",
+      "Verify phone/desktop, keyboard, assistive technology and EN/AR/UR/RTL"
+    ],
+    "qa": [
+      "Authenticated synthetic teacher journey",
+      "Refresh/network-failure recovery per step",
+      "Unauthorized profile field and wrong-school probes"
+    ],
+    "successMetric": "Teacher completes onboarding once and lands on the correct authorized workspace.",
+    "ux": "Three concise steps, visible progress, preserved draft and a calm confirmation."
+  },
+  {
+    "key": "F85",
+    "userStory": "As authorized school staff, I want to use private multilingual chat, audio, upload or scan to gather information and prepare reviewed school work.",
+    "problem": "The assistant spans multiple modules; conversation ownership, recoverability, source evidence and separation from approved school memory must remain obvious.",
+    "currentEvidence": "The AI workspace and messaging routes exist; the School AI ledger records durable private conversations and multimodal intake. Full provider, phone camera, locale and device acceptance remain gates.",
+    "scope": [
+      "Persist and resume only within current user and tenant scope",
+      "Accept supported text, consented voice, upload and scan",
+      "Attach source/version/confidence to extracted facts",
+      "Ask focused questions and prepare versioned drafts",
+      "Invoke typed domain operations only after current permission and approval checks"
+    ],
+    "outOfScope": [
+      "Conversation text as approved school memory",
+      "Autonomous publishing, grade changes, fee posting, payments or broadcasts",
+      "Claims that a standard browser locks the device"
+    ],
+    "acceptance": [
+      "Provider outage, stale permission, upload/transcription failure and resume are recoverable",
+      "Human can correct source-linked extraction before commit",
+      "Approved tools are idempotent and receipt-backed",
+      "Verify phone/desktop and EN/AR/UR/RTL/accessibility states"
+    ],
+    "qa": [
+      "Tenant/user isolation and stale-grant probes",
+      "Source/confidence correction and duplicate action replay",
+      "Synthetic multimodal workflows with provider sandbox"
+    ],
+    "successMetric": "Users complete an approved school action with fewer repeated inputs and no unsupported auto-commit.",
+    "ux": "One focused question at a time; visible source, confidence and draft/approved status; easy resume."
+  },
+  {
+    "key": "F86",
+    "userStory": "As an authorized school administrator or academic leader, I want teacher performance analytics and review workflow so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "TeacherPerformancePanel appears in admin and principal consoles.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F87",
+    "userStory": "As an authorized school administrator or academic leader, I want class, section, subject and teaching assignment administration so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "AcademicPanel class/section hierarchy and assignment forms appear in admin/principal consoles.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F88",
+    "userStory": "As an authorized school operations or finance user, I want dormitory rooms, occupancy and student allocation operations so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "DormitoryPanel appears in operations and admin/principal consoles.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F89",
+    "userStory": "As an authorized school operations or finance user, I want reception visitor register and check-in/check-out so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "VisitorsPanel and campus-scoped front-desk visitor API exist.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F90",
+    "userStory": "As an authorized school operations or finance user, I want complaint intake, assignment, status and resolution tracking so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "ComplaintsPanel and campus-scoped front-desk complaint API exist.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F91",
+    "userStory": "As an authorized school operations or finance user, I want inbound and outbound postal/courier register so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "PostalPanel and campus-scoped front-desk postal API exist.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F92",
+    "userStory": "As an authorized school operations or finance user, I want reception phone-call log and follow-up queue so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "PhoneCallsPanel exists in the receptionist console.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F93",
+    "userStory": "As an authorized school administrator or academic leader, I want student certificates and identity-card generation so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "CertificatesPanel and front-desk certificate API exist.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F94",
+    "userStory": "As an authorized school operations or finance user, I want school chart of accounts, ledger entries and financial reporting so that the existing workflow is safe, clear and independently verifiable.",
+    "problem": "This capability is present in the repository and role console, but its code presence has not proved complete role, data, action, locale, device or accessibility acceptance. It needs a direct feature owner and explicit acceptance criteria.",
+    "currentEvidence": "AccountsTab, accountant console, ledger API and account/ledger models exist.",
+    "scope": [
+      "Preserve the existing user-facing workflow and provide a direct independent acceptance owner",
+      "Enforce server-side school, campus, role and record scope for every read and write",
+      "Handle loading, populated, empty, validation, failure/retry, denied and confirmed-success states",
+      "Keep history and audit evidence for consequential changes; prevent duplicate mutation",
+      "Support English, Urdu RTL and Arabic RTL, responsive layouts, keyboard navigation and accessible status text"
+    ],
+    "outOfScope": [
+      "Treating repository source presence as proof of production readiness",
+      "Using real pupil, safeguarding, payment or identity data during verification"
+    ],
+    "acceptance": [
+      "Complete the role-appropriate end-to-end flow using synthetic records and verify its saved result from the server",
+      "Probe cross-campus and unauthorized role access for both reads and mutations",
+      "Verify invalid input, conflict, duplicate submission, server failure/retry and history behavior",
+      "Verify desktop and phone layouts, EN/UR/AR/RTL behavior, keyboard access and screen-reader status feedback",
+      "Attach route-specific evidence and retain any untested state as explicitly UNVERIFIED"
+    ],
+    "qa": [
+      "Run role/data/action matrix against synthetic records",
+      "Check scope isolation, duplicate action and recoverable failures",
+      "Check EN/UR/AR RTL and accessible keyboard behavior"
+    ],
+    "successMetric": "The complete supported workflow is independently reproducible, permission-scoped, recoverable and backed by route-specific evidence.",
+    "ux": "Make current scope and next action visible; preserve safe form state; explain validation, denied access and successful save in the user language."
+  },
+  {
+    "key": "F95",
+    "userStory": "As an authorized school user, I want AI to prepare a versioned operational plan and execute only the reviewed typed actions so that repetitive work is faster while school records remain under human authority.",
+    "problem": "The repository contains 17 School AI tabs and a typed operation/run implementation, while Linear separately owns provider policy, generic job infrastructure and delivery receipts but lacks a dedicated owner for their shared AI plan-to-run lifecycle.",
+    "currentEvidence": "School AI workspace, planning panels, execution previews, typed operation registry, run services/APIs and SchoolAiRun/Execution/Request/Record/Revision persistence exist.",
+    "scope": [
+      "Coordinate only registered operations with explicit role, tenant/campus/subject scope, deterministic validation and declared side effects",
+      "Collect missing facts and source provenance into editable versioned drafts; keep suggestions unconfirmed until an authorized user accepts them",
+      "Preview exact steps, affected records, audience/financial impact, blockers and source versions before approval",
+      "Bind approval to the displayed plan and preview hash, then recheck permissions, policy and domain facts before execution",
+      "Execute through existing domain services with idempotent receipts, bounded budgets, expiry, pause, cancellation and safe retry",
+      "Show partial outcomes and distinguish queued, committed, provider-accepted and delivered evidence",
+      "Preserve manual paths and drafts on provider/storage/worker failures; enforce tenant and role isolation and redact sensitive logs",
+      "Support English, Urdu, Arabic/RTL, responsive layouts, keyboard access and explicit loading/empty/blocked/error/partial/success states"
+    ],
+    "outOfScope": [
+      "Replacing domain feature ownership, business rules or authoritative data services",
+      "Replacing provider/privacy policy, generic outbox infrastructure or generic delivery receipts",
+      "Unreviewed model-defined tools, silent record writes, result publication, financial posting or message broadcast",
+      "Claiming standard-browser exams can lock the operating system or other browser tabs"
+    ],
+    "acceptance": [
+      "Exercise setup, curriculum, academic lifecycle, timetable, attendance/substitute, exams, fees/finance, announcements and risk operations through plan, preview, approval and receipt",
+      "Prove stale-version, changed-scope, revoked-permission and changed-evidence approvals are blocked and require review again",
+      "Prove retries do not duplicate domain writes, payments or external messages and receipts reconcile to resulting records",
+      "Prove provider outage, partial delivery, pause/cancel and recovery preserve truthful state and usable manual work",
+      "Verify authorized role/campus/subject/guardian scope, history isolation and prompt/secret redaction",
+      "Verify EN/UR/AR RTL, desktop/phone, keyboard and screen-reader status feedback; leave untested route states UNVERIFIED"
+    ],
+    "qa": [
+      "Run synthetic role/data/action scenarios across each typed operation family",
+      "Check stale approval, scope revocation, idempotency, partial effects and recovery",
+      "Check locale, responsive, keyboard and screen-reader states"
+    ],
+    "successMetric": "Every reviewed run can be reconstructed from its plan version, approval, scoped domain effects and truthful receipt; no unauthorized or duplicate effect occurs.",
+    "ux": "Keep the user's goal, current scope, evidence, exact next action and run state visible; make editing and recovery understandable without hiding approval impact."
   }
 ]

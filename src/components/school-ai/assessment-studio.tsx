@@ -13,6 +13,7 @@ import { curriculumDataSchema, paperDataSchema, validateBlueprint, validateCurri
 import { AdvancedQuestionOptions, AdvancedQuestionKey, CurriculumCoverage, PaperResources } from "./assessment-extensions";
 import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { assessmentCopy } from "./assessment-copy";
+import { schoolAICopy } from "@/lib/school-ai/copy";
 import { QuestionBank, QuestionBankLabels } from "./question-bank";
 import { CurriculumExecution } from "./curriculum-execution";
 import { LearningPlanEditor, LearningTools } from "./learning-plans";
@@ -38,7 +39,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 export function AssessmentStudio({ records, locale, onRefresh, subjects = [], canCreate = true, canApprove = false }: Props) {
-  const t = assessmentCopy(locale), extension = assessmentExtensionCopy(locale);
+  const t = assessmentCopy(locale), extension = assessmentExtensionCopy(locale), aiCopy = schoolAICopy(locale);
   const [selected, setSelected] = useState<RecordSummary | null>(null);
   const [kind, setKind] = useState<"CURRICULUM" | "PAPER">("CURRICULUM");
   const [curriculum, setCurriculum] = useState<CurriculumData | null>(null);
@@ -127,7 +128,7 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
     try {
       const response = await fetch("/api/school-ai/generate-paper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ curriculumId: paper.curriculumId, blueprint: paper.blueprint, language: paper.language, coverageSection: paper.coverageSection, lockedQuestions: paper.questions.filter((question) => question.locked) }) });
       const payload = await response.json();
-      if (!response.ok) throw new Error(errorMessage(payload, t.failure));
+      if (!response.ok) throw new Error(payload.code === "AI_QUOTA_EXHAUSTED" ? aiCopy.AI_QUOTA_EXHAUSTED : payload.code === "AI_SENSITIVE_CONTENT_BLOCKED" ? aiCopy.AI_SENSITIVE_CONTENT_BLOCKED : errorMessage(payload, t.failure));
       const result = paperDataSchema.parse(payload.paper);
       changePaper({ ...result, coverageSection: paper.coverageSection, resources: paper.resources }); setMessage(t.draftOnly);
     } catch (error) { setMessage(error instanceof Error ? error.message : t.failure); }

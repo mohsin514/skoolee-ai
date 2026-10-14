@@ -1,6 +1,6 @@
 # F61 implementation and interaction contract
 
-SKO-208 · sequence 001/082 · M1 / 01 Trust and shared UX · roadmap P0.
+SKO-208 · sequence 001/094 · M1 / 01 Trust and shared UX · roadmap P0.
 The restored manifest and specs-a.json remain authoritative. This supplement does not change feature identity, ownership, priority or dependency order. Synthetic references are local design/QA fixtures, not a new school module or evidence of deployment.
 
 ## Worldwide visual direction
