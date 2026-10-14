@@ -255,6 +255,7 @@ export async function generateInvoicePdf(invoiceId: string) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
     include: {
+      enrollment: true,
       campus: {
         select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
       },
@@ -265,26 +266,15 @@ export async function generateInvoicePdf(invoiceId: string) {
   });
   if (!invoice) throw new Error("Invoice not found");
 
+  if (invoice.enrollment) {
+    invoice.student.rollNo = invoice.enrollment.rollNo;
+    invoice.student.class = { name: invoice.enrollment.className, section: null };
+    invoice.campus.name = invoice.enrollment.campusName;
+  }
   return renderLocaleInvoice(invoice);
 }
 
 export async function generatePaymentPdf(paymentId: string) {
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
-    include: {
-      campus: {
-        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
-      },
-      student: {
-        include: { class: { select: { name: true, section: true } } },
-      },
-      invoice: {
-        select: { currency: true, localeSnapshot: true, invoiceNumber: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, dueDate: true },
-      },
-      recorder: { select: { fullName: true } },
-    },
-  });
-  if (!payment) throw new Error("Payment not found");
-
-  return renderLocaleReceipt(payment);
+  const { immutablePaymentPdf } = await import("@/lib/fees/receipt");
+  return immutablePaymentPdf(paymentId);
 }

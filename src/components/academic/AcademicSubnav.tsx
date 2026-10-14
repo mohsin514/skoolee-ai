@@ -4,6 +4,7 @@ import {
   Calendar,
   CalendarDays,
   CalendarRange,
+  BookOpen,
   ClipboardList,
   Clock,
   DoorOpen,
@@ -28,6 +29,7 @@ export type AcademicNavItem = SectionNavItem;
 export const ACADEMIC_NAV: AcademicNavItem[] = [
   { view: "academic-hub", label: "Overview", icon: LayoutDashboard, group: "Set up", tone: "brand" },
   { view: "year-setup", label: "Set Up New Year", icon: CalendarRange, group: "Set up", tone: "brand" },
+  { view: "academic-model", label: "Curriculum & Terms", icon: BookOpen, group: "Set up", tone: "brand" },
   { view: "classes", label: "Classes & Subjects", icon: School, group: "Set up", tone: "classes" },
   { view: "year-cycle", label: "Academic Years", icon: History, group: "Set up", tone: "classes" },
   { view: "timetable", label: "Class Timetable", icon: Calendar, group: "Run the year", tone: "timetable" },
@@ -49,6 +51,7 @@ export const ACADEMIC_VIEWS = new Set(ACADEMIC_NAV.map((i) => i.view));
 export const ACADEMIC_VIEW_MODULE: Record<string, string> = {
   "academic-hub": "timetable",
   "year-setup": "timetable",
+  "academic-model": "exams",
   classes: "timetable",
   "year-cycle": "students",
   timetable: "timetable",

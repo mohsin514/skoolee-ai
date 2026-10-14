@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
     const students = await prisma.student.findMany({
       where: {
         ...scopedCampusWhere(user, campusId),
+        class: { is: archivedOnly ? {} : { archivedAt: null } },
         ...(classId ? { classId } : {}),
         ...(archivedOnly
           ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }

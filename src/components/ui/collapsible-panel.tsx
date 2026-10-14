@@ -43,7 +43,7 @@ export function CollapsiblePanel({
             setOpen((current) => !current);
           }
         }}
-        className="flex w-full cursor-pointer flex-col gap-4 p-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1 sm:flex-row sm:items-center sm:justify-between"
+        className="flex w-full cursor-pointer flex-col gap-4 p-6 text-left sm:flex-row sm:items-center sm:justify-between"
         aria-expanded={open}
       >
         <div className="flex items-start gap-3 sm:items-center sm:justify-start">

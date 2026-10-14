@@ -18,7 +18,7 @@ export default async function ForbiddenPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f3f4f9] p-6 text-[#1f1a23]">
       <section
-        className="sk-rise max-w-md rounded-[32px] border border-[#cfc2d6]/20 bg-white p-10 text-center shadow-2xl"
+        className="sk-panel sk-rise max-w-md p-10 text-center"
         style={{ animationDelay: "0ms" }}
       >
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-[#fbf0fe] text-[#8127cf]">

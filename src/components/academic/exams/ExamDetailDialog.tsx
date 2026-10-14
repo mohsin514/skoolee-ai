@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
 import { StatusPill } from "@/components/shared-admin";
@@ -105,29 +107,29 @@ export function ExamDetailDialog({
       headerActions={
         sequence && sequence.length > 1 && onNavigate ? (
           <div className="flex items-center gap-1 rounded-2xl bg-[#f6f2fa] px-1.5 py-1">
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               disabled={!prev || dirty}
               onClick={() => prev && onNavigate(prev.id)}
               title={dirty ? "Save your marks first" : prev ? `Previous: ${prev.title}` : "First exam"}
               aria-label="Previous exam"
-              className="flex h-7 w-7 items-center justify-center rounded-xl text-ink-muted transition-colors enabled:cursor-pointer hover:bg-white hover:text-[#8127cf] disabled:opacity-35"
+              className="flex items-center justify-center enabled:cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
-            </button>
+            </Button>
             <span className="px-1 text-[10px] font-black tabular-nums text-ink-muted">
               {index + 1}/{sequence.length}
             </span>
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               disabled={!next || dirty}
               onClick={() => next && onNavigate(next.id)}
               title={dirty ? "Save your marks first" : next ? `Next: ${next.title}` : "Last exam"}
               aria-label="Next exam"
-              className="flex h-7 w-7 items-center justify-center rounded-xl text-ink-muted transition-colors enabled:cursor-pointer hover:bg-white hover:text-[#8127cf] disabled:opacity-35"
+              className="flex items-center justify-center enabled:cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         ) : null
       }
@@ -139,15 +141,15 @@ export function ExamDetailDialog({
             const Icon = t.icon;
             const active = tab === t.key;
             return (
-              <button
+              <Button data-selected={active} variant="choice"
                 key={t.key}
                 type="button"
                 onClick={() => setTab(t.key)}
                 aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex cursor-pointer items-center gap-1.5 rounded-xl px-3.5 py-2 text-[11px] font-black uppercase tracking-wider transition-all",
-                  active ? "text-[#8127cf]" : "text-ink-muted hover:text-[#8127cf]",
-                )}
+                className={"justify-start " + (cn(
+                  "relative flex items-center gap-1.5 px-3.5 py-2",
+                  "",
+                ))}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {t.label}
@@ -157,7 +159,7 @@ export function ExamDetailDialog({
                     className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-gradient-to-r from-[#8127cf] to-[#b06bea]"
                   />
                 ) : null}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -200,6 +202,7 @@ interface Subject {
  * "scored nothing" cannot be told apart once written.
  */
 const ABSENT = -1;
+const EXEMPT = -2;
 
 function MarksEntry({
   exam,
@@ -210,6 +213,7 @@ function MarksEntry({
   onDirtyChange: (dirty: boolean) => void;
   onSaved?: () => void;
 }) {
+  const tr = useUiText();
   const [students, setStudents] = useState<Student[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [saved, setSaved] = useState<Record<string, number>>({});
@@ -241,9 +245,9 @@ function MarksEntry({
       setSubjects(res.subjects ?? []);
       setLocked(Boolean(res.exam?.isLocked));
       const map: Record<string, number> = {};
-      (res.marks ?? []).forEach((m: { studentId: string; subjectId: string; marksObtained: number; isAbsent?: boolean }) => {
+      (res.marks ?? []).forEach((m: { studentId: string; subjectId: string; marksObtained: number; isAbsent?: boolean; isExempt?: boolean }) => {
         // Absence comes back as its own fact, not as the 0 stored beside it.
-        map[`${m.studentId}:${m.subjectId}`] = m.isAbsent ? ABSENT : m.marksObtained;
+        map[`${m.studentId}:${m.subjectId}`] = m.isAbsent ? ABSENT : m.isExempt ? EXEMPT : m.marksObtained;
       });
       setSaved(map);
       setDraft({});
@@ -317,6 +321,7 @@ function MarksEntry({
           subjectId,
           marksObtained: marksObtained === ABSENT ? 0 : marksObtained,
           isAbsent: marksObtained === ABSENT,
+          isExempt: marksObtained === EXEMPT,
         }));
       if (entries.length === 0) return;
 
@@ -331,7 +336,7 @@ function MarksEntry({
       setSaved((prev) => {
         const next = { ...prev };
         entries.forEach(
-          (e) => (next[`${e.studentId}:${e.subjectId}`] = e.isAbsent ? ABSENT : e.marksObtained),
+          (e) => (next[`${e.studentId}:${e.subjectId}`] = e.isAbsent ? ABSENT : e.isExempt ? EXEMPT : e.marksObtained),
         );
         return next;
       });
@@ -429,17 +434,17 @@ function MarksEntry({
           const active = s.id === subjectId;
           const complete = s.done === s.total && s.total > 0;
           return (
-            <button
+            <Button data-selected={active} variant="choice"
               key={s.id}
               type="button"
               onClick={() => setSubjectId(s.id)}
               aria-current={active ? "true" : undefined}
-              className={cn(
-                "group flex shrink-0 cursor-pointer flex-col gap-1.5 rounded-2xl border px-3.5 py-2 transition-all duration-200",
+              className={"justify-start " + (cn(
+                "group flex shrink-0 flex-col gap-1.5 px-3.5 py-2",
                 active
-                  ? "border-[#8127cf] bg-gradient-to-br from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.3),0_10px_24px_-14px_rgba(129,39,207,0.5)]"
-                  : "border-[#cfc2d6]/25 bg-white hover:-translate-y-0.5 hover:border-[#8127cf]/35",
-              )}
+                  ? ""
+                  : "hover:-translate-y-0.5",
+              ))}
             >
               <span className="flex items-center gap-1.5">
                 {complete ? (
@@ -463,7 +468,7 @@ function MarksEntry({
                 tone={complete ? "emerald" : "violet"}
                 className="w-full"
               />
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -512,8 +517,8 @@ function MarksEntry({
 
       {/* ── The column ──────────────────────────────────────────────────── */}
       {subject ? (
-        <div className="overflow-hidden rounded-[20px] border border-[#cfc2d6]/20 bg-white">
-          <div className="grid grid-cols-[3rem_1fr_7rem_5rem_5rem] items-center gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-muted">
+        <div className="sk-panel overflow-hidden">
+          <div className="grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-2 sm:px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-muted">
             <span>Roll</span>
             <span>Student</span>
             <span className="text-center">Marks / {subject.totalMarks}</span>
@@ -526,6 +531,7 @@ function MarksEntry({
               const key = `${student.id}:${subjectId}`;
               const unsaved = key in draft;
               const absent = value === ABSENT;
+              const exempt = value === EXEMPT;
               const pct =
                 value !== undefined && value >= 0 && subject.totalMarks > 0
                   ? Math.round((value / subject.totalMarks) * 100)
@@ -535,7 +541,7 @@ function MarksEntry({
                 <li
                   key={student.id}
                   className={cn(
-                    "grid grid-cols-[3rem_1fr_7rem_5rem_5rem] items-center gap-2 px-4 py-1.5 transition-colors",
+                    "grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 px-2 py-1.5 transition-colors sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 sm:px-4",
                     unsaved ? "bg-amber-50/40" : "hover:bg-[#faf7fc]",
                   )}
                 >
@@ -554,8 +560,8 @@ function MarksEntry({
                       inputMode="numeric"
                       min={0}
                       max={subject.totalMarks}
-                      disabled={locked || absent}
-                      value={value === undefined || absent ? "" : value}
+                      disabled={locked || absent || exempt}
+                      value={value === undefined || absent || exempt ? "" : value}
                       onKeyDown={(e) => onKey(e, i)}
                       // Clicking into a cell that already has a mark should
                       // let you retype it, not append a digit to it — 8 typed
@@ -569,30 +575,40 @@ function MarksEntry({
                       }}
                       placeholder="—"
                       className={cn(
-                        "w-16 rounded-lg border px-2 py-1.5 text-center text-sm font-black tabular-nums outline-none transition-all focus:ring-4 focus:ring-[#8127cf]/15",
-                        absent
-                          ? "border-[#cfc2d6]/25 bg-[#f3f4f9] text-ink-subtle"
+                        "w-10 text-center tabular-nums sm:w-16 sm:px-2",
+                        absent || exempt
+                          ? ""
                           : pct === null
-                          ? "border-[#cfc2d6]/25 bg-white text-[#1f1a23] focus:border-[#8127cf]/50"
-                          : pass
-                          ? "border-emerald-200 bg-emerald-50/60 text-emerald-700 focus:border-emerald-400"
-                          : "border-rose-200 bg-rose-50/60 text-rose-600 focus:border-rose-400",
+                          ? ""
+                          : "",
                       )}
                     />
-                    <button
+                    <Button aria-pressed={absent} variant="choice"
                       type="button"
                       disabled={locked}
                       onClick={() => setValue(student.id, absent ? undefined : ABSENT)}
-                      title={absent ? "Mark present" : "Mark absent"}
+                      title={tr(absent ? "Mark present" : "Mark absent")}
+
                       className={cn(
-                        "h-6 shrink-0 rounded-md px-1.5 text-[9px] font-black uppercase transition-colors enabled:cursor-pointer disabled:opacity-40",
-                        absent
-                          ? "bg-[#1f1a23] text-white"
-                          : "bg-[#f3f4f9] text-ink-subtle hover:bg-[#e8e0ec]",
+                        "shrink-0 px-1.5 enabled:cursor-pointer",
+                        "",
                       )}
                     >
                       Abs
-                    </button>
+                    </Button>
+                    <Button aria-pressed={exempt} variant="choice"
+                      type="button"
+                      disabled={locked}
+                      onClick={() => setValue(student.id, exempt ? undefined : EXEMPT)}
+                      title={tr(exempt ? "Remove exemption" : "Mark exempt")}
+
+                      className={cn(
+                        "shrink-0 px-1.5 enabled:cursor-pointer",
+                        "",
+                      )}
+                    >
+                      Ex
+                    </Button>
                   </div>
                   <span
                     className={cn(
@@ -604,12 +620,16 @@ function MarksEntry({
                         : "text-rose-500",
                     )}
                   >
-                    {absent ? "—" : pct === null ? "—" : `${pct}%`}
+                      {absent ? "ABS" : exempt ? "EX" : pct === null ? "—" : `${pct}%`}
                   </span>
                   <span className="text-center">
                     {absent ? (
                       <span className="rounded-md bg-[#f3f4f9] px-1.5 py-0.5 text-[9px] font-black uppercase text-ink-subtle">
-                        Absent
+                        <UiText>Absent</UiText>
+                      </span>
+                    ) : exempt ? (
+                      <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-sky-700">
+                        <UiText>Exempt</UiText>
                       </span>
                     ) : pct === null ? (
                       <span className="text-[10px] font-bold text-ink-subtle">—</span>

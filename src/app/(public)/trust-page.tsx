@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import {
   ArrowLeft, Sparkles, ShieldCheck, Lock, Eye, Database, CheckCircle2,
 } from "lucide-react";
@@ -18,6 +19,7 @@ const NAV = [
   { label: "Privacy", href: "/privacy", desc: "Who can see each school record" },
   { label: "Security", href: "/security", desc: "How access and data are protected" },
   { label: "AI Governance", href: "/ai-governance", desc: "How AI assists and is reviewed" },
+  { label: "Human Review Policy", href: "/human-review-policy", desc: "How drafts are approved before sharing" },
 ];
 
 export function TrustPage({ copy }: { copy: TrustPageCopy }) {
@@ -68,11 +70,9 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
 
         <div className="relative z-10 mx-auto max-w-4xl px-6 py-8 lg:py-10">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/ai-school-management-software">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-white/90 backdrop-blur transition-colors hover:bg-white/20">
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Product
-              </span>
+            <Link href="/ai-school-management-software" className={buttonVariants({ variant: "outline", size: "sm", className: "focus-on-dark" })}>
+              <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
+              Product
             </Link>
 
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
@@ -114,7 +114,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
             return (
               <div
                 key={section.title}
-                className="flex gap-5 rounded-2xl border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_24px_60px_-32px_rgba(129,39,207,0.25)] transition-shadow hover:shadow-[0_28px_70px_-32px_rgba(129,39,207,0.4)]"
+                className="sk-panel flex flex-col gap-5 p-6 sm:flex-row"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white">
                   <Icon className="h-5 w-5" />
@@ -129,16 +129,17 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
         </div>
 
         {/* Cross-navigation between the trust pages */}
-        <div className="mt-8 rounded-2xl border border-[#cfc2d6]/25 bg-white p-6">
+        <div className="sk-panel mt-8 p-6">
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8127cf]">
             Continue reading
           </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <nav aria-label="Trust policies" className="mt-4 grid gap-3 sm:grid-cols-2">
             {NAV.map((nav) => (
               <Link
                 key={nav.href}
                 href={nav.href}
-                className="group rounded-xl border border-[#cfc2d6]/20 p-4 transition-colors hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]"
+                aria-current={nav.label === copy.title ? "page" : undefined}
+                className="sk-panel group p-4 aria-[current=page]:border-primary"
               >
                 <p className="text-sm font-black text-[#1f1a23] transition-colors group-hover:text-[#8127cf]">
                   {nav.label}
@@ -148,13 +149,13 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
                 </p>
               </Link>
             ))}
-          </div>
+          </nav>
         </div>
 
         <div className="mt-8 text-center">
           <Link
             href="/ai-school-management-software"
-            className="text-sm font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+            className={buttonVariants({ variant: "ghost" })}
           >
             Back to Skoolee AI
           </Link>

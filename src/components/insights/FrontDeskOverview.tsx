@@ -37,6 +37,8 @@ import {
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
+import { Button } from "@/components/ui/button";
+
 
 export interface FrontDeskSummary {
   kind: "RECEPTIONIST";
@@ -247,13 +249,13 @@ export function FrontDeskOverview({
           subtitle="By state"
           delay={180}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("complaints")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+
             >
               Open
-            </button>
+            </Button>
           }
           table={{
             columns: ["State", "Complaints"],

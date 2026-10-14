@@ -58,10 +58,11 @@ export function dashboardPathForRole(role: unknown): string {
 }
 
 export const ROLE_LABELS_AR: Record<UserRole, string> = { APP_OWNER: "مشغّل المنصة", SUPER_ADMIN: "مدير المجموعة", ADMIN: "مدير المدرسة", CAMPUS_ADMIN: "مدير الفرع", PRINCIPAL: "المدير الأكاديمي", TEACHER: "المعلم", PARENT: "ولي الأمر", STUDENT: "الطالب", ACCOUNTANT: "المحاسب", LIBRARIAN: "أمين المكتبة", RECEPTIONIST: "موظف الاستقبال" };
+export const ROLE_LABELS_UR: Record<UserRole, string> = { APP_OWNER: "پلیٹ فارم آپریٹر", SUPER_ADMIN: "ادارے کا منتظم", ADMIN: "اسکول منتظم", CAMPUS_ADMIN: "کیمپس منتظم", PRINCIPAL: "تعلیمی سربراہ", TEACHER: "استاد", PARENT: "والدین", STUDENT: "طالب علم", ACCOUNTANT: "اکاؤنٹنٹ", LIBRARIAN: "لائبریرین", RECEPTIONIST: "استقبالیہ عملہ" };
 
-export function roleLabel(role: unknown, language: "en" | "ar" = "en"): string {
+export function roleLabel(role: unknown, language: "en" | "ar" | "ur" = "en"): string {
   const normalized = normalizeUserRole(role);
-  return normalized ? (language === "ar" ? ROLE_LABELS_AR[normalized] : ROLE_LABELS[normalized]) : "User";
+  return normalized ? (language === "ar" ? ROLE_LABELS_AR[normalized] : language === "ur" ? ROLE_LABELS_UR[normalized] : ROLE_LABELS[normalized]) : "User";
 }
 
 export function isCampusAdminRole(role: unknown): role is "CAMPUS_ADMIN" | "ADMIN" {

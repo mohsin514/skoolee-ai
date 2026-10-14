@@ -1,4 +1,6 @@
 "use client";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +11,7 @@ import type { ReactNode } from "react";
 import {
   AlertCircle,
   Building2,
+  BookOpen,
   ChevronRight,
   CheckCircle2,
   ClipboardList,
@@ -34,10 +37,12 @@ import {
   X,
   type LucideIcon,
   Network,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
+import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { addCampus } from "@/app/actions/addCampus";
 import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from "@/config/boards";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
@@ -55,6 +60,7 @@ import {
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { FeesPanel } from "@/components/fees/FeesPanel";
+import { AcademicModelPanel } from "@/components/academic/AcademicModelPanel";
 import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
 import { getPlanLimits } from "@/config/plans";
 import { NetworkOverview } from "@/components/insights";
@@ -64,6 +70,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { formatSupportInstant } from "@/lib/owner/support-ui";
 
 function formatStatus(status?: string) {
   return (status || "Pending").replaceAll("_", " ");
@@ -97,7 +105,7 @@ function hasActiveSlot(slot: any) {
 
 const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
-type SuperView = "schools" | "billing" | "fees" | "settings";
+type SuperView = "schools" | "billing" | "fees" | "settings" | "curriculum-templates" | "support";
 export default function SuperAdminDashboard() {
   const { data, loading, refetch } = useSuperAdminData();
   const [activeView, setActiveView] = useState<SuperView>("schools");
@@ -156,6 +164,10 @@ export default function SuperAdminDashboard() {
     }
     if (params.get("view") === "settings") {
       setActiveView("settings");
+      setSelectedCampus(null);
+    }
+    if (params.get("view") === "curriculum-templates") {
+      setActiveView("curriculum-templates");
       setSelectedCampus(null);
     }
   }, []);
@@ -335,11 +347,19 @@ export default function SuperAdminDashboard() {
     window.history.replaceState(null, "", "/super?view=settings");
   }, []);
 
+  const openCurriculumTemplates = useCallback(() => {
+    setSelectedCampus(null);
+    setActiveView("curriculum-templates");
+    window.history.replaceState(null, "", "/super?view=curriculum-templates");
+  }, []);
+
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools" && !selectedCampus, onClick: openSchools },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: openFees },
     { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
     { icon: Settings, label: "School Settings", active: activeView === "settings", onClick: openSettings },
+    { icon: BookOpen, label: "Curriculum Templates", active: activeView === "curriculum-templates", onClick: openCurriculumTemplates },
+    { icon: ShieldCheck, label: "Support Approvals", active: activeView === "support", onClick: () => setActiveView("support") },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
   ];
@@ -393,7 +413,9 @@ const bottomItems: RoleNavItem[] = [];
       }
     >
       <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 overflow-hidden flex flex-col")} >
-        {activeView === "billing" ? (
+        {activeView === "support" ? (
+          <SupportApprovalsPanel />
+        ) : activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
               <div>
@@ -405,8 +427,13 @@ const bottomItems: RoleNavItem[] = [];
               </div>
             </div>
             <div className="p-6">
+              <SubscriptionLifecyclePanel />
               <PlansPanel />
             </div>
+          </div>
+        ) : activeView === "curriculum-templates" ? (
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
+            <AcademicModelPanel templatesOnly />
           </div>
         ) : activeView === "settings" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -454,27 +481,27 @@ const bottomItems: RoleNavItem[] = [];
                 onOpenAI={() => document.getElementById("network-ai-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 actions={
                   <>
-                    <button
+                    <Button variant="outline"
                       type="button"
                       onClick={openFees}
-                      className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/15 backdrop-blur transition-all hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                      className="focus-on-dark justify-start"
                     >
                       <Receipt className="h-4 w-4" /> Fees
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="outline"
                       type="button"
                       onClick={openBilling}
-                      className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white/10 px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-white ring-1 ring-white/15 backdrop-blur transition-all hover:bg-white/20 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                      className="focus-on-dark justify-start"
                     >
                       <CreditCard className="h-4 w-4" /> Plans &amp; billing
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="outline"
                       type="button"
                       onClick={() => setShowAddCampusModal(true)}
-                      className="flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-[#1f1a23] shadow-sm transition-all hover:bg-[#fbf0fe] focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                      className="focus-on-dark justify-start"
                     >
                       <Plus className="h-4 w-4" /> Add campus
-                    </button>
+                    </Button>
                   </>
                 }
               />
@@ -534,12 +561,12 @@ const bottomItems: RoleNavItem[] = [];
           <div className="flex flex-col h-full">
             <div className="p-8 border-b border-[#f3f4f9] flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-5">
-                <button
+                <Button aria-label="Close campus fees" size="icon" variant="ghost"
                   onClick={() => setShowCampusFees(false)}
-                  className="h-10 w-10 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+                  className="items-center justify-center"
                 >
                   <ChevronRight className="w-5 h-5 rotate-180" />
-                </button>
+                </Button>
                 <div>
                   <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal leading-none mb-1">
                     {selectedCampus.name}
@@ -556,12 +583,12 @@ const bottomItems: RoleNavItem[] = [];
           <div className="flex flex-col h-full">
             <div className="p-8 border-b border-[#f3f4f9] flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-5">
-                <button
+                <Button aria-label="Close campus details" size="icon" variant="ghost"
                   onClick={() => setSelectedCampus(null)}
-                  className="h-10 w-10 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
+                  className="items-center justify-center"
                 >
                   <ChevronRight className="w-5 h-5 rotate-180" />
-                </button>
+                </Button>
                 <div>
                   <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal leading-none mb-1">
                     {selectedCampus.name}
@@ -688,7 +715,7 @@ const bottomItems: RoleNavItem[] = [];
                 <SystemInput
                   type="email"
                   placeholder="Enter official email..."
-                  className="bg-transparent border-none outline-none font-bold text-sm w-full"
+                  className={"w-full"}
                   value={inviteEmail}
                   onChange={(event) => setInviteEmail(event.target.value)}
                 />
@@ -776,7 +803,7 @@ const bottomItems: RoleNavItem[] = [];
                   id="campus-board"
                   value={newCampusData.board}
                   onChange={(event) => setNewCampusData({ ...newCampusData, board: event.target.value })}
-                  className="w-full cursor-pointer border-none bg-transparent text-sm font-bold outline-none"
+                  className={"w-full"}
                 >
                   {EXAM_BOARDS.map((board) => <option key={board} value={board}>{board}</option>)}
                 </SystemSelect>
@@ -793,7 +820,7 @@ const bottomItems: RoleNavItem[] = [];
             <div className="md:col-span-2 p-6 bg-[#fbf0fe] rounded-[28px] border border-[#cfc2d6]/20">
               <div className="flex items-center justify-between mb-4">
                 <label className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal">Campus Key</label>
-                <button
+                <Button aria-pressed={newCampusData.autoId} variant="choice"
                   onClick={() =>
                     setNewCampusData({
                       ...newCampusData,
@@ -801,16 +828,16 @@ const bottomItems: RoleNavItem[] = [];
                       regId: !newCampusData.autoId ? "" : generateRegId()
                     })
                   }
-                  className="text-[9px] font-black uppercase tracking-normal px-3 py-1 rounded-lg bg-white text-[#8127cf] border border-[#8127cf]/20"
+
                 >
                   {newCampusData.autoId ? "Auto" : "Manual"}
-                </button>
+                </Button>
               </div>
               <SystemInput
                 type="text"
                 placeholder={newCampusData.autoId ? "KEY-AUTO" : "BR-XXXX"}
                 readOnly={newCampusData.autoId}
-                className="w-full h-14 bg-white rounded-xl border-none outline-none font-black text-center tracking-normal shadow-sm"
+                className={"w-full text-center"}
                 value={newCampusData.regId}
                 onChange={(event) => setNewCampusData({ ...newCampusData, regId: event.target.value.toUpperCase() })}
               />
@@ -944,9 +971,9 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
         <div className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">
           {campus.reportCardCount} reports / {campus.aiUsage.runs} AI runs
         </div>
-        <button onClick={onManage} className="flex items-center gap-1.5 text-[#8127cf] font-black italic tracking-normal text-base hover:translate-x-1 transition-transform cursor-pointer">
+        <Button variant="link" onClick={onManage} className="items-center gap-1.5 justify-start">
           Manage <ChevronRight className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1046,7 +1073,7 @@ function FormInput({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+        className={"w-full"}
       />
     </label>
   );
@@ -1069,7 +1096,7 @@ function FormSelect({
       <SystemSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
+        className={"w-full"}
       >
         {children}
       </SystemSelect>
@@ -1106,7 +1133,7 @@ function CampusInput({
           aria-label={label}
           required={required}
           placeholder={placeholder}
-          className="bg-transparent border-none outline-none font-bold text-sm w-full"
+          className={"w-full"}
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -1163,4 +1190,39 @@ function ActivityLogModal({ onClose }: { onClose: () => void }) {
       )}
     </ModalFrame>
   );
+}
+
+function SupportApprovalsPanel() {
+  const t = useUiText();
+  const [items, setItems] = useState<any[]>([]);
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try { const response = await fetch("/api/super/support-grants", { cache: "no-store" }); const json = await response.json(); if (!response.ok) throw new Error(json.error); setItems(json.data || []); }
+    catch (error) { toast.error(error instanceof Error ? error.message : t("Could not load support approvals")); }
+    finally { setLoading(false); }
+  }, [t]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  const decide = async (item: any, decision: string) => {
+    const response = await fetch("/api/super/support-grants", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grantId: item.id, decision, evidence: evidence[item.id] }) });
+    const json = await response.json();
+    if (!response.ok) { toast.error(json.error || t("Could not update support grant")); return; }
+    toast.success(decision === "approve" ? t("Support access approved") : decision === "reject" ? t("Support request rejected") : decision === "revoke" ? t("Support access revoked") : t("Emergency review recorded"));
+    await refresh();
+  };
+  return <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" dir="auto">
+    <div className="mx-auto max-w-4xl space-y-5">
+      <header><h2 className="text-xl font-extrabold">{t("Support access approvals")}</h2><p className="mt-2 text-sm text-ink-muted">{t("Review vendor requests for this school only. Approve the named purpose, domains, actions, and expiry together.")}</p></header>
+      {loading ? <p>{t("Loading…")}</p> : items.length === 0 ? <p className="rounded-lg border border-slate-200 bg-white p-6">{t("No support requests need review")}</p> : items.map((item) => <article key={item.id} className="sk-panel space-y-3 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold"><bdi dir="ltr">{item.incident.reference}</bdi> · {t(item.status)}</p><p className="mt-1 text-sm">{item.purpose}</p><p className="mt-1 text-xs text-ink-muted">{t("Impact")}: {item.incident.impact}</p><p className="mt-2 text-xs">{t("Domains")}: {item.scope.map((domain: string) => t(({ school_profile: "School profile", operations: "Operations", users: "Staff directory", finance: "Finance", learning: "Learning records" } as Record<string, string>)[domain] || domain)).join(", ")} · {t("Actions")}: {item.actions.map((action: string) => t(action[0].toUpperCase() + action.slice(1))).join(", ")}</p><p className="mt-1 text-xs">{t("Expires")}: <bdi dir="ltr">{formatSupportInstant(item.expiresAt)}</bdi></p></div>
+          {item.emergencyReason && <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold">{t("Emergency access")}</span>}</div>
+        {item.emergencyReason && <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm"><p className="font-bold">{t("Emergency justification")}</p><p className="mt-1">{item.emergencyReason}</p>{item.reviewDueAt && !item.reviewedAt && <p className="mt-2 font-semibold">{t("Review due")}: <bdi dir="ltr">{formatSupportInstant(item.reviewDueAt)}</bdi></p>}</div>}
+        {item.status === "pending" && <div className="flex flex-wrap gap-2"><Button variant="default" type="button" onClick={() => void decide(item, "approve")} >{t("Approve request")}</Button><Button variant="outline" type="button" onClick={() => void decide(item, "reject")} >{t("Reject request")}</Button></div>}
+        {item.status === "active" && !item.reviewedAt && item.emergencyReason && <div className="space-y-2"><label className="block text-sm font-semibold">{t("Review evidence")}<Textarea className={"mt-1 min-h-20 w-full"} value={evidence[item.id] || ""} onChange={(event) => setEvidence((current) => ({ ...current, [item.id]: event.target.value }))} aria-label={t("Review evidence")} /></label><Button variant="outline" type="button" disabled={(evidence[item.id] || "").trim().length < 12} onClick={() => void decide(item, "review")} >{t("Record emergency review")}</Button></div>}
+        {item.status === "active" && <Button variant="outline" type="button" onClick={() => void decide(item, "revoke")} >{t("Revoke access now")}</Button>}
+      </article>)}
+      <Button variant="outline" type="button" onClick={() => void refresh()} >{t("Refresh")}</Button>
+    </div>
+  </div>;
 }

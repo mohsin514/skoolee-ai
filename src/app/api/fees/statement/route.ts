@@ -4,11 +4,12 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  assertFeesRead,
+  assertSharedModuleRead,
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
 import { resolveStudentFees } from "@/lib/fees/compute";
+import { studentScope } from "@/lib/auth/policy";
 
 // GET /api/fees/statement?studentId=&academicYear=
 // Full fee statement for a student: resolved lines + discounts + carry-forward,
@@ -17,7 +18,7 @@ import { resolveStudentFees } from "@/lib/fees/compute";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    await assertFeesRead(user);
+    await assertSharedModuleRead(user, "fees");
     const { searchParams } = new URL(req.url);
     const studentId = searchParams.get("studentId");
     const year = Number(searchParams.get("academicYear") ?? new Date().getFullYear());
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (!Number.isInteger(year)) throw new ApiError("invalid academicYear", 400);
 
     const student = await prisma.student.findFirst({
-      where: { id: studentId, campus: { schoolId: user.schoolId } },
+      where: { id: studentId, ...studentScope(user, "finances") },
       select: {
         id: true,
         fullName: true,

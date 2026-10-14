@@ -1,6 +1,8 @@
-import { loadCampusLocaleTimeline } from "@/lib/locale/store";
+import { assertExamReservations, validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
+import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
+import { loadCampusLocaleTimeline, loadLocaleTimeline } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { BulkConflict } from "@/lib/academic/exam-conflicts";
 import {
   ApiError,
@@ -9,7 +11,6 @@ import {
   canManageOperations,
   errorResponse,
   requireAuthUser,
-  resolveCampusId,
 } from "@/lib/api/scope";
 
 /**
@@ -49,10 +50,11 @@ function classLabelOf(c: { name: string; section: string | null }) {
 }
 
 /** Weekend and holiday days for a campus, as a lookup. */
-async function calendarBlocks(campusId: string) {
+async function calendarBlocks(campusId: string, client?: TxClient, schoolId?: string) {
+  const db = client ?? prisma;
   const [weekends, holidays] = await Promise.all([
-    loadCampusLocaleTimeline(campusId),
-    prisma.holiday.findMany({
+    client && schoolId ? loadLocaleTimeline(schoolId, campusId, client) : loadCampusLocaleTimeline(campusId),
+    db.holiday.findMany({
       where: { campusId },
       select: { name: true, fromDate: true, toDate: true },
     }),
@@ -69,9 +71,9 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
-    const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
     const sessionId = req.nextUrl.searchParams.get("sessionId");
     if (!sessionId) throw new ApiError("sessionId is required", 400);
+    const campusId = await resolveExamSchedulingCampus(user, req.nextUrl.searchParams.get("campusId"), { kind: "session", id: sessionId });
 
     const session = await prisma.examSession.findFirst({
       where: { id: sessionId, campusId },
@@ -270,16 +272,18 @@ export async function POST(req: NextRequest) {
     if (!sessionId || !subjectName) throw new ApiError("sessionId and subjectName are required", 400);
     if (!DATE_RE.test(date)) throw new ApiError("date must be YYYY-MM-DD", 400);
 
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "session", id: sessionId });
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
     const session = await prisma.examSession.findFirst({
       where: { id: sessionId, campusId },
-      select: { id: true },
+      select: { id: true, startDate: true, endDate: true },
     });
     if (!session) throw new ApiError("Exam session not found", 404);
 
+    if (session.startDate && date < session.startDate.toISOString().slice(0, 10) || session.endDate && date > session.endDate.toISOString().slice(0, 10)) throw new ApiError("The paper must fall within the session dates.", 409);
     const conflicts: BulkConflict[] = [];
 
-    const { weekendDays, holidayFor } = await calendarBlocks(campusId);
+    const { weekendDays, holidayFor } = await calendarBlocks(campusId, prisma, user.schoolId);
     const day = dayOfWeek(date);
     if (weekendDays(date).has(day)) {
       conflicts.push({
@@ -309,7 +313,7 @@ export async function POST(req: NextRequest) {
       },
       select: {
         id: true,
-        classId: true,
+        classId: true, status: true, isLocked: true, academicYear: true, term: true, subjectId: true,
         class: {
           select: {
             name: true,
@@ -328,7 +332,8 @@ export async function POST(req: NextRequest) {
 
     for (const exam of exams) {
       const subject = exam.class.subjects.find((s) => s.name.trim().toLowerCase() === wanted);
-      if (!subject) continue; // this class does not take the subject — not an error
+      if (!subject || exam.subjectId && exam.subjectId !== subject.id) continue; // this class does not take the subject — not an error
+      if (exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(exam.status)) throw new ApiError("A selected class exam is no longer editable.", 409);
       const existing = exam.schedules.find((s) => s.subjectId === subject.id);
 
       // Another paper for this class already occupies the slot.
@@ -362,6 +367,13 @@ export async function POST(req: NextRequest) {
       throw new ApiError(`No class in this session takes "${subjectName}"`, 400);
     }
 
+    const targetIds = targets.flatMap(target => target.scheduleId ? [target.scheduleId] : []);
+    const currentRows = await prisma.examSchedule.findMany({ where: { id: { in: targetIds }, campusId }, include: { rooms: { include: { invigilation: true } } } });
+    await assertExamReservations(prisma, { schoolId: user.schoolId, campusId }, targets.map(target => {
+      const exam = exams.find(item => item.id === target.examId)!, row = currentRows.find(item => item.id === target.scheduleId);
+      return { id: target.scheduleId ?? target.examId, classId: exam.classId, academicYear: exam.academicYear, term: exam.term, date, periodDefinitionId,
+        roomIds: [...new Set([...(row?.roomId ? [row.roomId] : []), ...(row?.rooms.map(room => room.roomId) ?? [])])], teacherIds: row?.rooms.flatMap(room => room.invigilation ? [room.invigilation.teacherId] : []) ?? [] };
+    }), targetIds);
     const blocking = conflicts.filter((c) => c.blocking);
     if (dryRun || blocking.length > 0) {
       return Response.json(
@@ -382,15 +394,18 @@ export async function POST(req: NextRequest) {
     }
 
     const dateValue = new Date(`${date}T00:00:00.000Z`);
-    await prisma.$transaction(async (tx) => {
+    const tx = prisma;
+    const affectedIds: string[] = [];
+    {
       for (const t of targets) {
         if (t.scheduleId) {
-          await tx.examSchedule.update({
+          const saved = await tx.examSchedule.update({
             where: { id: t.scheduleId },
             data: { date: dateValue, periodDefinitionId },
           });
+          affectedIds.push(saved.id);
         } else {
-          await tx.examSchedule.create({
+          const saved = await tx.examSchedule.create({
             data: {
               campusId,
               examId: t.examId,
@@ -399,9 +414,11 @@ export async function POST(req: NextRequest) {
               periodDefinitionId,
             },
           });
+          affectedIds.push(saved.id);
         }
       }
-    });
+    }
+    await validateStoredExamSchedules(tx, { schoolId: user.schoolId, campusId }, affectedIds);
 
     return Response.json({
       success: true,
@@ -410,6 +427,7 @@ export async function POST(req: NextRequest) {
         classes: targets.map((t) => t.classLabel),
         conflicts,
       },
+    });
     });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/bulk] POST failed");
@@ -428,7 +446,8 @@ export async function DELETE(req: NextRequest) {
     if (!sessionId || !subjectName) {
       throw new ApiError("sessionId and subjectName are required", 400);
     }
-    const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
+    const campusId = await resolveExamSchedulingCampus(user, req.nextUrl.searchParams.get("campusId"), { kind: "session", id: sessionId });
+    return await withExamSchedulingWrite(user, campusId, "delete", async (prisma) => {
 
     const schedules = await prisma.examSchedule.findMany({
       where: {
@@ -436,14 +455,16 @@ export async function DELETE(req: NextRequest) {
         exam: { sessionId },
         subject: { name: { equals: subjectName, mode: "insensitive" } },
       },
-      select: { id: true },
+      select: { id: true, exam: { select: { status: true, isLocked: true } } },
     });
 
+    if (schedules.some(item => item.exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(item.exam.status))) throw new ApiError("A selected class exam is no longer editable.", 409);
     if (schedules.length) {
       await prisma.examSchedule.deleteMany({ where: { id: { in: schedules.map((s) => s.id) } } });
     }
 
     return Response.json({ success: true, data: { removed: schedules.length } });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/bulk] DELETE failed");
   }

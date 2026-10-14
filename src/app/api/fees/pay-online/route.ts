@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertSharedModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createSafePayOrder } from "@/lib/payments/safepay";
+import { studentScope } from "@/lib/auth/policy";
 
 // POST /api/fees/pay-online
 // body: { invoiceId }
@@ -12,6 +13,7 @@ import { createSafePayOrder } from "@/lib/payments/safepay";
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertSharedModuleRead(user, "fees");
     const body = await req.json();
     if (!body.invoiceId) throw new ApiError("invoiceId required", 400);
 
@@ -19,11 +21,7 @@ export async function POST(req: NextRequest) {
       where: {
         id: body.invoiceId,
         balanceDue: { gt: 0 },
-        student: {
-          campus: { schoolId: user.schoolId },
-          ...(user.role === "STUDENT" ? { studentUserId: user.userId } : {}),
-          ...(user.role === "PARENT" ? { parentUserId: user.userId } : {}),
-        },
+        student: studentScope(user, "finances"),
       },
       include: { student: { select: { id: true, fullName: true, campusId: true } } },
     });

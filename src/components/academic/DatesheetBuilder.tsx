@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
@@ -214,7 +215,7 @@ export function DatesheetBuilder({
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
       {/* Subject sidebar */}
-      <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm">
+      <div className="sk-panel p-4">
         <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-ink-muted">
           Exam Subjects
         </p>
@@ -226,18 +227,16 @@ export function DatesheetBuilder({
             const isScheduled = scheduledSubjectIds.has(s.id);
             const isArmed = armed === s.id;
             return (
-              <button
+              <Button aria-pressed={isArmed} variant="choice"
                 key={s.id}
                 type="button"
                 disabled={isScheduled}
                 onClick={() => setArmed(isArmed ? null : s.id)}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left transition-all cursor-pointer",
+                  "flex w-full items-center justify-between px-3 py-2.5 text-left",
                   isScheduled
-                    ? "border-[#cfc2d6]/15 bg-[#f3f4f9] text-ink-subtle"
-                    : isArmed
-                    ? "border-[#8127cf] bg-[#fbf0fe] text-[#8127cf] shadow-sm"
-                    : "border-[#cfc2d6]/15 bg-white text-[#1d1b20] hover:border-[#8127cf]/40"
+                    ? ""
+                    : ""
                 )}
               >
                 <span className="text-sm font-bold">{s.name}</span>
@@ -246,7 +245,7 @@ export function DatesheetBuilder({
                 ) : isArmed ? (
                   <Plus className="h-4 w-4" />
                 ) : null}
-              </button>
+              </Button>
             );
           })}
           {subjects.length === 0 ? (
@@ -258,7 +257,7 @@ export function DatesheetBuilder({
       </div>
 
       {/* Calendar grid */}
-      <div className="overflow-x-auto rounded-3xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm custom-scrollbar">
+      <div className="sk-panel overflow-x-auto p-4 custom-scrollbar">
         <div className="mb-3 flex items-center gap-2 text-ink-muted">
           <CalendarDays className="h-4 w-4 text-[#8127cf]" />
           <span className="text-xs font-bold">
@@ -311,17 +310,17 @@ export function DatesheetBuilder({
                       >
                         {sched ? (
                           <div className="group relative rounded-lg bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 p-2">
-                            <button
+                            <Button aria-label="Remove scheduled exam" variant="destructive" size="icon"
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeSchedule(sched.id);
                               }}
                               disabled={busy}
-                              className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-md bg-white/70 text-rose-500 hover:bg-rose-500 hover:text-white group-hover:flex cursor-pointer"
+                              className="absolute end-1 top-1 flex items-center justify-center"
                             >
                               <Trash2 className="h-3 w-3" />
-                            </button>
+                            </Button>
                             <p className="pr-4 text-[11px] font-black text-[#1d1b20]">
                               {sched.subject.name}
                             </p>
@@ -544,13 +543,13 @@ function AssignmentPopover({
       onClose={onClose}
       footer={
         <div className="flex items-center justify-end gap-3">
-          <button
+          <Button variant="secondary"
             type="button"
             onClick={onClose}
-            className="rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
+            className="px-5 py-2.5"
           >
             Cancel
-          </button>
+          </Button>
           <BrandButton
             variant="gradient"
             onClick={submit}
@@ -577,7 +576,7 @@ function AssignmentPopover({
             <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
               Rooms (free rooms only) — pick more than one to split the paper
             </span>
-            <div className="max-h-52 space-y-1 overflow-y-auto rounded-2xl border border-[#cfc2d6]/20 bg-white p-1.5">
+            <div className="sk-panel max-h-52 space-y-1 overflow-y-auto p-1.5">
               {rooms.map((r) => {
                 const order = roomIds.indexOf(r.id);
                 const checked = order !== -1;
@@ -592,7 +591,7 @@ function AssignmentPopover({
 
                       checked={checked}
                       onChange={() => toggleRoom(r.id)}
-                      className="h-4 w-4 shrink-0 accent-[#8127cf]"
+                      className="shrink-0"
                     />
                     <DoorOpen className="h-4 w-4 shrink-0 text-[#8127cf]" />
                     <span className="min-w-0 flex-1 truncate">{r.roomNumber}</span>
@@ -624,7 +623,7 @@ function AssignmentPopover({
             ) : roomsError ? (
               <div className="mt-1 flex items-center gap-2">
                 <p className="text-[10px] font-semibold text-rose-500">{roomsError}</p>
-                <button
+                <Button variant="secondary"
                   type="button"
                   onClick={() => {
                     const reloadKey = Date.now();
@@ -632,10 +631,10 @@ function AssignmentPopover({
                     setRoomsError(null);
                     setReloadTick(reloadKey);
                   }}
-                  className="flex cursor-pointer items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] hover:bg-[#fdf0fe]"
+                  className="justify-start flex items-center gap-1 px-2 py-1"
                 >
                   <RefreshCw className="h-2.5 w-2.5" /> Retry
-                </button>
+                </Button>
               </div>
             ) : rooms.length === 0 ? (
               <p className="mt-1 text-[10px] font-semibold text-ink-subtle">

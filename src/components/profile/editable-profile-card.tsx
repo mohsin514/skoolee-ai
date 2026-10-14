@@ -7,6 +7,8 @@ import { BrandButton } from "@/components/role-dashboard/BrandButton";
 import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
 
 export type EditableProfile = {
   id?: string;
@@ -174,15 +176,15 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
             className="hidden"
             onChange={(event) => handleImageFile(event.target.files?.[0])}
           />
-          <button
+          <Button variant="default"
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white text-sm font-bold text-[#8127cf] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#8127cf] hover:text-white hover:shadow-lg active:scale-[0.97] disabled:cursor-wait disabled:opacity-60"
+            className="mt-4 flex w-full items-center justify-center gap-2 hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60"
           >
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             {uploading ? "Uploading" : "Add Image"}
-          </button>
+          </Button>
           <div className="mt-4 space-y-2">
             <ProfileChip icon={UserRound} label={profile.roleLabel || "Active account"} />
             <ProfileChip icon={Mail} label={profile.email || "Email locked"} />
@@ -303,7 +305,7 @@ function ProfileInput({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 py-3 text-sm font-bold outline-none transition-all duration-300 placeholder:text-ink-subtle hover:border-[#8127cf]/20 focus:border-[#8127cf]/35 focus:bg-white"
+        className="h-14 w-full px-4 py-3"
       />
     </label>
   );

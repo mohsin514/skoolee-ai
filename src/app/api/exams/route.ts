@@ -1,12 +1,17 @@
+import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
+import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
+import { ApiError } from "@/lib/api/scope";
 import { reviewExam, publishExam } from "@/lib/academic/report-versions";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { studentScope } from "@/lib/auth/policy";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 import { notify } from "@/lib/notifications/in-app";
+import { resolveAcademicModelVersionForTerm } from "@/lib/academic/model-service";
 import { assertPermission } from "@/lib/permissions";
 import {
   canCreateExamType,
@@ -22,10 +27,10 @@ import {
  */
 function permissionAwareError(error: unknown) {
   const status = (error as { status?: number })?.status;
-  if (status === 403) {
+  if (typeof status === "number" && status >= 400 && status < 500) {
     return Response.json(
       { error: (error as Error).message || "Insufficient permissions" },
-      { status: 403 },
+      { status },
     );
   }
   return Response.json({ error: "Operation failed" }, { status: 500 });
@@ -66,7 +71,7 @@ export async function GET(req: NextRequest) {
         where:
           user.role === "STUDENT"
             ? { studentUserId: user.userId }
-            : { parentUserId: user.userId },
+            : studentScope(user, "learningRecords"),
         select: { classId: true },
       });
       const classIds = Array.from(new Set(students.map((s) => s.classId)));
@@ -161,6 +166,9 @@ export async function POST(req: NextRequest) {
 
     if (!cls) return Response.json({ error: "Class not found" }, { status: 404 });
 
+    const result = await withExamSchedulingWrite(user, cls.campusId, "add", async (prisma) => {
+    const currentClass = await prisma.class.findFirst({ where: { id: cls.id, schoolId: user.schoolId, campusId: cls.campusId, status: "ACTIVE", archivedAt: null, academicYear: parsed.data.academicYear } });
+    if (!currentClass) throw new ApiError("Class is not active in this academic year.", 409);
     // If teacher, verify they are assigned to this class
     if (user.role === "TEACHER") {
       const isAssigned = await prisma.subject.findFirst({
@@ -190,6 +198,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (["MID_TERM", "FINAL"].includes(examType)) {
+      const duplicate = await prisma.exam.findFirst({ where: { schoolId: user.schoolId, campusId: cls.campusId, classId: cls.id, academicYear: parsed.data.academicYear, examType, term: { equals: parsed.data.term, mode: "insensitive" } } });
+      if (duplicate) throw new ApiError("This class already has this term exam. Edit its existing session.", 409);
+    }
     const subjectFilter = parsed.data.subjectId
       ? { id: parsed.data.subjectId }
       : {};
@@ -198,6 +210,13 @@ export async function POST(req: NextRequest) {
       select: { totalMarks: true },
     });
     const totalMarks = subjects.reduce((sum, s) => sum + s.totalMarks, 0);
+
+    const academicModelVersionId = await resolveAcademicModelVersionForTerm({
+      campusId: cls.campusId,
+      classId: parsed.data.classId,
+      academicYear: parsed.data.academicYear,
+      term: parsed.data.term,
+    }, prisma);
 
     // If a specific subject is selected, verify it belongs to the class
     if (parsed.data.subjectId && subjects.length === 0) {
@@ -211,6 +230,7 @@ export async function POST(req: NextRequest) {
         title: parsed.data.title,
         term: parsed.data.term,
         academicYear: parsed.data.academicYear,
+        academicModelVersionId,
         examType,
         subjectId: parsed.data.subjectId || null,
         totalMarks,
@@ -223,6 +243,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    return exam;
+    }, true);
+    if (result instanceof Response) return result;
+    const exam = result;
     notify("EXAM_CREATED", {
       schoolId: user.schoolId,
       campusId: cls.campusId,
@@ -299,13 +323,20 @@ export async function PATCH(req: NextRequest) {
       else await publishExam(exam.id, user.userId);
       return Response.json({ success: true, exam: await prisma.exam.findUnique({ where: { id: exam.id } }) });
     }
+    const updated = await withExamSchedulingWrite(user, exam.campusId, "edit", async tx => {
+      const current = await tx.exam.findFirst({ where: { id: exam.id, schoolId: user.schoolId, campusId: exam.campusId }, include: { _count: { select: { marks: true } } } });
+      if (!current) throw new ApiError("Exam not found", 404);
+      if (!canManageExamType(user.role, current.examType)) throw new ApiError(TERM_EXAM_DENIED_MESSAGE, 403);
+      if (current.isLocked) throw new ApiError("Locked exams cannot return to editable states", 409);
+      if (target === "DRAFT" && current._count.marks > 0) throw new ApiError("Exams with marks cannot return to draft", 409);
+      if (user.role === "TEACHER" && !await tx.class.findFirst({ where: { id: current.classId, schoolId: user.schoolId, campusId: current.campusId, OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] }, select: { id: true } })) throw new ApiError("You are not assigned to this class", 403);
     const now = new Date();
-    const updated = await prisma.exam.update({
+    const updated = await tx.exam.update({
       where: { id: parsed.data.id },
       data: {
         status: target,
-        ...(target === "ACTIVE" ? { activatedAt: exam.activatedAt || now } : {}),
-        ...(target === "MARKS_ENTRY" ? { marksEntryAt: exam.marksEntryAt || now } : {}),
+        ...(target === "ACTIVE" ? { activatedAt: current.activatedAt || now } : {}),
+        ...(target === "MARKS_ENTRY" ? { marksEntryAt: current.marksEntryAt || now } : {}),
       },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
@@ -315,6 +346,10 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
+      const schedules = await tx.examSchedule.findMany({ where: { schoolId: user.schoolId, campusId: current.campusId, examId: current.id }, select: { id: true } });
+      await validateStoredExamSchedules(tx, { schoolId: user.schoolId, campusId: current.campusId }, schedules.map(item => item.id));
+      return updated;
+    }, true);
     return Response.json({ success: true, exam: updated });
   } catch (error) {
     console.error("[exams] PATCH failed", error);

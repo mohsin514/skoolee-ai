@@ -45,6 +45,8 @@ import {
 } from "@/lib/staff/hierarchy-presets";
 import type { OrgNode } from "@/lib/staff/hierarchy";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+
 
 export interface DesignationOption {
   id: string;
@@ -354,18 +356,15 @@ export function PositionDialog({
           { key: "position" as const, label: "Position", icon: Network },
           { key: "history" as const, label: "Service record", icon: History },
         ]).map((t) => (
-          <button
+          <Button aria-pressed={tab === t.key} variant="choice" size="sm"
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-black transition-all",
-              tab === t.key ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-ink"
-            )}
+            className="flex flex-1 items-center justify-center gap-2"
           >
             <t.icon className="h-3.5 w-3.5" />
             {t.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -455,7 +454,7 @@ export function PositionDialog({
                     {m.isPrimary ? (
                       <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-600">HOME</span>
                     ) : (
-                      <button
+                      <Button variant="secondary" size="sm"
                         type="button"
                         onClick={() =>
                           departmentAction(
@@ -463,21 +462,21 @@ export function PositionDialog({
                             `${m.department.name} is now their home department`
                           )
                         }
-                        className="shrink-0 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase text-ink-subtle hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                        className="shrink-0"
                       >
                         Make home
-                      </button>
+                      </Button>
                     )}
-                    <button
+                    <Button variant="destructive" size="icon"
                       type="button"
                       onClick={() =>
                         departmentAction({ action: "remove-member", memberId: m.id }, `Removed from ${m.department.name}`)
                       }
-                      className="shrink-0 rounded-lg p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600"
+                      className="shrink-0"
                       aria-label={`Remove from ${m.department.name}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -488,7 +487,7 @@ export function PositionDialog({
             )}
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-              <Select value={extraDeptId} onChange={(e) => setExtraDeptId(e.target.value)} className="h-10 text-xs">
+              <Select value={extraDeptId} onChange={(e) => setExtraDeptId(e.target.value)} >
                 <option value="">Also belongs to…</option>
                 {departments
                   .filter((d) => !memberships.some((m) => m.department.id === d.id))
@@ -576,16 +575,16 @@ export function PositionDialog({
                       {line.label ? <span className="font-semibold text-ink-muted"> · {line.label}</span> : null}
                     </span>
                     <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[9px] font-black uppercase text-cyan-700">{line.kind}</span>
-                    <button type="button" onClick={() => removeLine(line.id)} className="rounded-lg p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600" aria-label="Remove line">
+                    <Button variant="destructive" size="icon" type="button" onClick={() => removeLine(line.id)}  aria-label="Remove line">
                       <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
             ) : null}
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-              <Select value={newLine.managerId} onChange={(e) => setNewLine((p) => ({ ...p, managerId: e.target.value }))} className="h-10 text-xs">
+              <Select value={newLine.managerId} onChange={(e) => setNewLine((p) => ({ ...p, managerId: e.target.value }))} >
                 <option value="">Also reports to…</option>
                 {managerOptions.map((m) => (
                   <option key={m.id} value={m.id}>{m.fullName}</option>
@@ -595,7 +594,7 @@ export function PositionDialog({
                 value={newLine.label}
                 onChange={(e) => setNewLine((p) => ({ ...p, label: e.target.value }))}
                 placeholder="What for? e.g. Exam duty"
-                className="h-10 text-xs"
+
               />
               <BrandButton variant="soft" icon={<Plus className="h-3.5 w-3.5" />} onClick={addLine} disabled={!newLine.managerId} className="min-h-10 px-4 text-xs">
                 Add

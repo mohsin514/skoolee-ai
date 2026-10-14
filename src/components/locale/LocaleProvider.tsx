@@ -4,16 +4,22 @@ import { getEffectiveDisplayLocale } from "@/app/actions/locale";
 import { defaultLocale, formatMoney, formatDateOnly, type LocalePackage } from "@/lib/locale/package";
 import { translateUi } from "@/lib/locale/ui-messages";
 const LocaleContext = createContext<LocalePackage | null>(null);
-export function LocaleProvider({ children }: { children: ReactNode }) {
+/** `initialLocale` is server-resolved by the shell layout so first paint is already in the right language/direction. */
+export function LocaleProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: LocalePackage }) {
  const inherited = useContext(LocaleContext);
- return inherited ? <>{children}</> : <LocaleRoot>{children}</LocaleRoot>;
+ return inherited ? <>{children}</> : <LocaleRoot initialLocale={initialLocale}>{children}</LocaleRoot>;
 }
-function LocaleRoot({ children }: { children: ReactNode }) {
- const [locale, setLocale] = useState(defaultLocale);
+/** A fixed locale with no fetch and no `<html>` effect (pre-login pages own those). Nested `LocaleProvider`s become passthroughs. */
+export function StaticLocaleProvider({ value, children }: { value: LocalePackage; children: ReactNode }) {
+ return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
+function LocaleRoot({ children, initialLocale }: { children: ReactNode; initialLocale?: LocalePackage }) {
+ const [locale, setLocale] = useState(initialLocale ?? defaultLocale);
+ const seeded = Boolean(initialLocale);
  const reload = useCallback(() => { void getEffectiveDisplayLocale().then(setLocale).catch(() => {}); }, []);
- useEffect(() => { reload(); window.addEventListener("skoolee:locale-change", reload); return () => window.removeEventListener("skoolee:locale-change", reload); }, [reload]);
+ useEffect(() => { if (!seeded) reload(); window.addEventListener("skoolee:locale-change", reload); return () => window.removeEventListener("skoolee:locale-change", reload); }, [reload, seeded]);
  useEffect(() => { const html = document.documentElement; const previous = { lang: html.lang, dir: html.dir }; html.lang = locale.language; html.dir = locale.language !== "en" ? "rtl" : "ltr"; return () => { html.lang = previous.lang; html.dir = previous.dir; }; }, [locale.language]);
- return <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>;
+ return <LocaleContext.Provider value={locale}><div lang={locale.language} dir={locale.language !== "en" ? "rtl" : "ltr"} className="contents">{children}</div></LocaleContext.Provider>;
 }
 export function useLocale() { return useContext(LocaleContext) ?? defaultLocale; }
 export function useUiText() { const { language } = useLocale(); return useCallback((source: string, values: unknown[] = []) => translateUi(source, language).replace(/\{(\d+)\}/g, (match, index) => index in values ? String(values[Number(index)]) : match), [language]); }

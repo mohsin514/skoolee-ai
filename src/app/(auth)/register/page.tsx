@@ -1,5 +1,5 @@
 'use client'
-import { InputGroup } from "@/components/ui/input-group";
+import { FieldAction, InputGroup } from "@/components/ui/input-group";
 
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
@@ -16,9 +16,17 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/ui/form-field";
+import { Select } from "@/components/ui/select";
+import { Button, buttonVariants } from "@/components/ui/button";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import AvatarOrbit from "@/components/auth/AvatarOrbit";
 import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
+import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
+import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
+import { LanguageSelect } from "@/components/locale/LanguageSelect";
+import { directionFor } from "@/lib/locale/language-cookie";
+import type { Language } from "@/lib/locale/package";
 
 type RegistrationType = 'school_group' | 'single_campus';
 
@@ -29,6 +37,7 @@ interface FormState {
   password: string;
   confirmPassword: string;
   schoolName: string;
+  country: Country;
   regId: string;
   autoId: boolean;
   acceptedTerms: boolean;
@@ -40,6 +49,7 @@ interface InputFieldProps {
   placeholder: string;
   value: string;
   onChange: (val: string) => void;
+  onBlur?: () => void;
   icon: LucideIcon;
   type?: string;
   className?: string;
@@ -47,6 +57,7 @@ interface InputFieldProps {
   autoComplete?: string;
   error?: string;
   hint?: string;
+  descriptionId?: string;
 }
 
 interface TypeOptionProps {
@@ -57,27 +68,340 @@ interface TypeOptionProps {
   desc: string;
 }
 
-const STEP_LABELS = ["Institution", "Your account", "Verify"];
+type PanelCopy = { headline: string; accent: string; body: string; caption: string };
 
-/**
- * The brand panel says something different depending on what is being set up,
- * so the left half stays relevant to the choice rather than repeating one
- * generic pitch through the whole flow.
- */
-const PANEL_COPY: Record<RegistrationType, { headline: string; accent: string; body: string; caption: string }> = {
-  school_group: {
-    headline: "Run every campus",
-    accent: "from one login.",
-    body: "Each branch keeps its own classes, fees and staff — sealed from the others — while the group office sees all of it in one roll-up.",
-    caption: "Campus-level isolation, group-level visibility.",
+/** Every visible registration string, co-located like login and protect-account. */
+const en = {
+  language: "Language",
+  steps: ["Institution", "Your account", "Verify"],
+  progress: "Registration progress",
+  stepOf: "Step {0} of {1}: {2}",
+  /**
+   * The brand panel says something different depending on what is being set up,
+   * so the left half stays relevant to the choice rather than repeating one
+   * generic pitch through the whole flow.
+   */
+  panel: {
+    school_group: {
+      headline: "Run every campus",
+      accent: "from one login.",
+      body: "Each branch keeps its own classes, fees and staff — sealed from the others — while the group office sees all of it in one roll-up.",
+      caption: "Campus-level isolation, group-level visibility.",
+    },
+    single_campus: {
+      headline: "Set up your school",
+      accent: "with a clear plan.",
+      body: "Start with up to 50 students, 2 teacher accounts, one campus and 100 AI credits per month. Compare the current plan limits before you register.",
+      caption: "Unused AI credits expire at the calendar month reset.",
+    },
+  } as Record<RegistrationType, PanelCopy>,
+  eyebrow: "Plan your account",
+  ticker: "Illustrative activity · synthetic example only",
+  encrypted: "Encrypted at rest & in transit",
+  humanReviewed: "Human-reviewed AI",
+  strength: ["", "Very weak", "Weak", "Fair", "Strong", "Excellent"],
+  requirements: ["Min 8 characters", "One uppercase", "One number", "Special character", "Passwords match"],
+  emailError: "Enter a valid email address",
+  nameError: "Enter your full name",
+  schoolNameError: "Institution name must be at least 3 characters",
+  regIdError: "An institution ID is required.",
+  passwordError: "Please meet all password requirements.",
+  confirmError: "Passwords must match.",
+  problemName: "Please enter your full name.",
+  problemEmail: "Please enter a valid email address.",
+  problemSchool: "Please enter your institution's name.",
+  problemTerms: "Please accept the Terms of Service and Privacy Policy.",
+  startFailed: "Could not start registration",
+  registrationFailed: "Registration failed",
+  setupTitle: "How is your school set up?",
+  setupIntro: "Choose the option that best describes your institution.",
+  institutionType: "Institution type",
+  groupTitle: "Multi-Campus School Group",
+  groupDesc: "One school with multiple campuses or branches.",
+  singleTitle: "Single Campus School",
+  singleDesc: "One school, one location — quick and simple.",
+  groupNote: "You'll sign in as Super Admin and add each campus during setup.",
+  singleNote: "You'll sign in as Campus Admin — your single campus is created for you.",
+  continue: "Continue",
+  haveAccount: "Already have an account?",
+  logIn: "Log in",
+  kickerGroup: "Multi-Campus",
+  kickerSingle: "Single Campus",
+  createTitle: "Create your account",
+  backToType: "Back to institution type",
+  groupDetails: "Your details",
+  groupInstitution: "Your institution",
+  groupSecurity: "Security",
+  groupStrength: "Password strength",
+  fullName: "Full Name",
+  fullNamePlaceholder: "Your full name",
+  email: "Work Email",
+  phone: "Phone Number",
+  phoneHint: "Used for account recovery and parent-facing contact.",
+  groupName: "School Group Name",
+  schoolName: "School Name",
+  groupNamePlaceholder: "e.g. Beaconhouse School System",
+  schoolNamePlaceholder: "e.g. Horizon Academy",
+  country: "Institution country",
+  countryHint: "Default billing currency: {0}. Prices keep their published currency; no conversion is applied.",
+  countries: { PK: "Pakistan", SA: "Saudi Arabia", AE: "United Arab Emirates", KW: "Kuwait", OTHER: "Other" } as Record<Country, string>,
+  groupId: "School Group ID",
+  schoolId: "School ID",
+  auto: "Auto",
+  manual: "Manual",
+  regIdHint: "Printed on report cards, invoices and receipts. It cannot be changed later.",
+  generateId: "Generate a new ID",
+  password: "Password",
+  passwordPlaceholder: "Min 8 characters",
+  confirmPassword: "Confirm Password",
+  confirmPlaceholder: "Re-enter password",
+  showPassword: "Show password",
+  hidePassword: "Hide password",
+  showConfirm: "Show confirm password",
+  hideConfirm: "Hide confirm password",
+  capsLock: "Caps Lock is on",
+  agreePrefix: "I agree to the",
+  privacyPolicy: "Privacy Policy",
+  and: "and",
+  aiPolicy: "AI Governance policy",
+  agreeSuffix: ", and confirm I'm authorised to register this institution.",
+  back: "Back",
+  creating: "Creating account…",
+  create: "Create Account",
+  createdTitle: "Account created!",
+  sentPrefix: "We've sent a verification link to",
+  sentMiddle: ". Click it to activate your account, then log in to finish setting up",
+  sentEnd: ".",
+  nextTitle: "What happens next",
+  nextVerify: "Verify your email address",
+  nextGroup: "Add your campuses, session dates and working days",
+  nextSingle: "Add your campus details, session dates and working days",
+  nextInvite: "Invite staff and import your student roster",
+  goToLogin: "Go to Login",
+  privacy: "Privacy",
+  security: "Security",
+  aiGovernance: "AI Governance",
+};
+type RegisterCopy = typeof en;
+
+const copy: Record<Language, RegisterCopy> = {
+  en,
+  ar: {
+    language: "اللغة",
+    steps: ["المؤسسة", "حسابك", "التحقق"],
+    progress: "تقدّم التسجيل",
+    stepOf: "الخطوة {0} من {1}: {2}",
+    panel: {
+      school_group: {
+        headline: "أدِر كل الفروع",
+        accent: "بتسجيل دخول واحد.",
+        body: "يحتفظ كل فرع بفصوله ورسومه وموظفيه — معزولاً عن الآخرين — بينما يرى مكتب المجموعة كل ذلك في عرض موحّد.",
+        caption: "عزل على مستوى الفرع، ورؤية على مستوى المجموعة.",
+      },
+      single_campus: {
+        headline: "أعدّ مدرستك",
+        accent: "بخطة واضحة.",
+        body: "ابدأ بما يصل إلى 50 طالباً وحسابين للمعلمين وفرع واحد و100 رصيد ذكاء اصطناعي شهرياً. قارن حدود الخطة الحالية قبل التسجيل.",
+        caption: "تنتهي أرصدة الذكاء الاصطناعي غير المستخدمة عند بداية الشهر التقويمي.",
+      },
+    },
+    eyebrow: "خطّط لحسابك",
+    ticker: "نشاط توضيحي · مثال اصطناعي فقط",
+    encrypted: "مشفّر أثناء التخزين والنقل",
+    humanReviewed: "ذكاء اصطناعي يراجعه البشر",
+    strength: ["", "ضعيفة جداً", "ضعيفة", "مقبولة", "قوية", "ممتازة"],
+    requirements: ["٨ أحرف على الأقل", "حرف كبير واحد", "رقم واحد", "رمز خاص", "كلمتا المرور متطابقتان"],
+    emailError: "أدخل بريداً إلكترونياً صالحاً",
+    nameError: "أدخل اسمك الكامل",
+    schoolNameError: "يجب أن يتكون اسم المؤسسة من 3 أحرف على الأقل",
+    regIdError: "معرّف المؤسسة مطلوب.",
+    passwordError: "استوفِ جميع متطلبات كلمة المرور.",
+    confirmError: "يجب أن تتطابق كلمتا المرور.",
+    problemName: "أدخل اسمك الكامل.",
+    problemEmail: "أدخل بريداً إلكترونياً صالحاً.",
+    problemSchool: "أدخل اسم مؤسستك.",
+    problemTerms: "وافق على شروط الخدمة وسياسة الخصوصية.",
+    startFailed: "تعذر بدء التسجيل",
+    registrationFailed: "فشل التسجيل",
+    setupTitle: "كيف تُنظَّم مدرستك؟",
+    setupIntro: "اختر الخيار الذي يصف مؤسستك بشكل أفضل.",
+    institutionType: "نوع المؤسسة",
+    groupTitle: "مجموعة مدارس متعددة الفروع",
+    groupDesc: "مدرسة واحدة بعدة فروع أو أقسام.",
+    singleTitle: "مدرسة بفرع واحد",
+    singleDesc: "مدرسة واحدة في موقع واحد — سريع وبسيط.",
+    groupNote: "ستسجّل الدخول كمسؤول أعلى وتضيف كل فرع أثناء الإعداد.",
+    singleNote: "ستسجّل الدخول كمسؤول الفرع — يُنشأ فرعك الوحيد تلقائياً.",
+    continue: "متابعة",
+    haveAccount: "لديك حساب بالفعل؟",
+    logIn: "تسجيل الدخول",
+    kickerGroup: "متعدد الفروع",
+    kickerSingle: "فرع واحد",
+    createTitle: "أنشئ حسابك",
+    backToType: "العودة إلى نوع المؤسسة",
+    groupDetails: "بياناتك",
+    groupInstitution: "مؤسستك",
+    groupSecurity: "الأمان",
+    groupStrength: "قوة كلمة المرور",
+    fullName: "الاسم الكامل",
+    fullNamePlaceholder: "اسمك الكامل",
+    email: "البريد الإلكتروني للعمل",
+    phone: "رقم الهاتف",
+    phoneHint: "يُستخدم لاستعادة الحساب والتواصل مع أولياء الأمور.",
+    groupName: "اسم مجموعة المدارس",
+    schoolName: "اسم المدرسة",
+    groupNamePlaceholder: "مثال: Beaconhouse School System",
+    schoolNamePlaceholder: "مثال: Horizon Academy",
+    country: "دولة المؤسسة",
+    countryHint: "عملة الفوترة الافتراضية: {0}. تبقى الأسعار بعملتها المنشورة دون أي تحويل.",
+    countries: { PK: "باكستان", SA: "المملكة العربية السعودية", AE: "الإمارات العربية المتحدة", KW: "الكويت", OTHER: "أخرى" },
+    groupId: "معرّف مجموعة المدارس",
+    schoolId: "معرّف المدرسة",
+    auto: "تلقائي",
+    manual: "يدوي",
+    regIdHint: "يُطبع على بطاقات التقارير والفواتير والإيصالات، ولا يمكن تغييره لاحقاً.",
+    generateId: "إنشاء معرّف جديد",
+    password: "كلمة المرور",
+    passwordPlaceholder: "٨ أحرف على الأقل",
+    confirmPassword: "تأكيد كلمة المرور",
+    confirmPlaceholder: "أعد إدخال كلمة المرور",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
+    showConfirm: "إظهار تأكيد كلمة المرور",
+    hideConfirm: "إخفاء تأكيد كلمة المرور",
+    capsLock: "مفتاح الأحرف الكبيرة مفعّل",
+    agreePrefix: "أوافق على",
+    privacyPolicy: "سياسة الخصوصية",
+    and: "و",
+    aiPolicy: "سياسة حوكمة الذكاء الاصطناعي",
+    agreeSuffix: "، وأؤكد أنني مخوّل بتسجيل هذه المؤسسة.",
+    back: "رجوع",
+    creating: "جارٍ إنشاء الحساب…",
+    create: "إنشاء الحساب",
+    createdTitle: "تم إنشاء الحساب!",
+    sentPrefix: "أرسلنا رابط تحقق إلى",
+    sentMiddle: ". افتحه لتفعيل حسابك، ثم سجّل الدخول لإكمال إعداد",
+    sentEnd: ".",
+    nextTitle: "ما الخطوات التالية",
+    nextVerify: "تحقق من عنوان بريدك الإلكتروني",
+    nextGroup: "أضف فروعك وتواريخ الفصل الدراسي وأيام العمل",
+    nextSingle: "أضف بيانات فرعك وتواريخ الفصل الدراسي وأيام العمل",
+    nextInvite: "ادعُ الموظفين واستورد قائمة الطلاب",
+    goToLogin: "الذهاب لتسجيل الدخول",
+    privacy: "الخصوصية",
+    security: "الأمان",
+    aiGovernance: "حوكمة الذكاء الاصطناعي",
   },
-  single_campus: {
-    headline: "Set up your school",
-    accent: "in an afternoon.",
-    body: "Free for up to 100 students, live the same day. AI report cards, fees, attendance and WhatsApp parent updates — one login.",
-    caption: "No consultants. No six-month rollout.",
+  ur: {
+    language: "زبان",
+    steps: ["ادارہ", "آپ کا اکاؤنٹ", "تصدیق"],
+    progress: "رجسٹریشن کی پیش رفت",
+    stepOf: "مرحلہ {0} از {1}: {2}",
+    panel: {
+      school_group: {
+        headline: "ہر کیمپس چلائیں",
+        accent: "ایک ہی لاگ اِن سے۔",
+        body: "ہر شاخ اپنی کلاسیں، فیسیں اور عملہ الگ رکھتی ہے — دوسروں سے محفوظ — جبکہ گروپ آفس سب کچھ ایک جگہ دیکھتا ہے۔",
+        caption: "کیمپس کی سطح پر علیحدگی، گروپ کی سطح پر نگرانی۔",
+      },
+      single_campus: {
+        headline: "اپنا اسکول سیٹ اپ کریں",
+        accent: "ایک واضح پلان کے ساتھ۔",
+        body: "50 طلبہ، 2 اساتذہ اکاؤنٹس، ایک کیمپس اور ہر ماہ 100 اے آئی کریڈٹس سے آغاز کریں۔ رجسٹر کرنے سے پہلے موجودہ پلان کی حدود کا موازنہ کریں۔",
+        caption: "غیر استعمال شدہ اے آئی کریڈٹس کیلنڈر مہینے کے آغاز پر ختم ہو جاتے ہیں۔",
+      },
+    },
+    eyebrow: "اپنے اکاؤنٹ کی منصوبہ بندی کریں",
+    ticker: "مثالی سرگرمی · صرف فرضی مثال",
+    encrypted: "محفوظ شدہ اور منتقلی کے دوران خفیہ کردہ",
+    humanReviewed: "انسانوں کا جائزہ لیا ہوا اے آئی",
+    strength: ["", "بہت کمزور", "کمزور", "مناسب", "مضبوط", "بہترین"],
+    requirements: ["کم از کم ۸ حروف", "ایک بڑا انگریزی حرف", "ایک عدد", "ایک خاص علامت", "پاس ورڈ ایک جیسے ہیں"],
+    emailError: "درست ای میل ایڈریس درج کریں",
+    nameError: "اپنا پورا نام درج کریں",
+    schoolNameError: "ادارے کا نام کم از کم 3 حروف کا ہونا چاہیے",
+    regIdError: "ادارے کی شناختی آئی ڈی درکار ہے۔",
+    passwordError: "پاس ورڈ کی تمام شرائط پوری کریں۔",
+    confirmError: "پاس ورڈ ایک جیسے ہونے چاہییں۔",
+    problemName: "براہ کرم اپنا پورا نام درج کریں۔",
+    problemEmail: "براہ کرم درست ای میل ایڈریس درج کریں۔",
+    problemSchool: "براہ کرم اپنے ادارے کا نام درج کریں۔",
+    problemTerms: "براہ کرم سروس کی شرائط اور رازداری کی پالیسی قبول کریں۔",
+    startFailed: "رجسٹریشن شروع نہیں ہو سکی",
+    registrationFailed: "رجسٹریشن ناکام ہو گئی",
+    setupTitle: "آپ کا اسکول کیسے منظم ہے؟",
+    setupIntro: "وہ آپشن منتخب کریں جو آپ کے ادارے کو بہتر طور پر بیان کرے۔",
+    institutionType: "ادارے کی قسم",
+    groupTitle: "کثیر کیمپس اسکول گروپ",
+    groupDesc: "ایک اسکول جس کے متعدد کیمپس یا شاخیں ہیں۔",
+    singleTitle: "ایک کیمپس والا اسکول",
+    singleDesc: "ایک اسکول، ایک مقام — جلد اور آسان۔",
+    groupNote: "آپ سپر ایڈمن کے طور پر سائن اِن کریں گے اور سیٹ اپ کے دوران ہر کیمپس شامل کریں گے۔",
+    singleNote: "آپ کیمپس ایڈمن کے طور پر سائن اِن کریں گے — آپ کا واحد کیمپس خود بخود بن جائے گا۔",
+    continue: "جاری رکھیں",
+    haveAccount: "پہلے سے اکاؤنٹ ہے؟",
+    logIn: "سائن اِن",
+    kickerGroup: "کثیر کیمپس",
+    kickerSingle: "ایک کیمپس",
+    createTitle: "اپنا اکاؤنٹ بنائیں",
+    backToType: "ادارے کی قسم پر واپس جائیں",
+    groupDetails: "آپ کی تفصیلات",
+    groupInstitution: "آپ کا ادارہ",
+    groupSecurity: "سیکیورٹی",
+    groupStrength: "پاس ورڈ کی مضبوطی",
+    fullName: "پورا نام",
+    fullNamePlaceholder: "آپ کا پورا نام",
+    email: "دفتری ای میل",
+    phone: "فون نمبر",
+    phoneHint: "اکاؤنٹ کی بحالی اور والدین سے رابطے کے لیے استعمال ہوتا ہے۔",
+    groupName: "اسکول گروپ کا نام",
+    schoolName: "اسکول کا نام",
+    groupNamePlaceholder: "مثلاً Beaconhouse School System",
+    schoolNamePlaceholder: "مثلاً Horizon Academy",
+    country: "ادارے کا ملک",
+    countryHint: "بلنگ کی ڈیفالٹ کرنسی: {0}۔ قیمتیں اپنی شائع شدہ کرنسی میں رہتی ہیں؛ کوئی تبدیلی نہیں کی جاتی۔",
+    countries: { PK: "پاکستان", SA: "سعودی عرب", AE: "متحدہ عرب امارات", KW: "کویت", OTHER: "دیگر" },
+    groupId: "اسکول گروپ آئی ڈی",
+    schoolId: "اسکول آئی ڈی",
+    auto: "خودکار",
+    manual: "دستی",
+    regIdHint: "رپورٹ کارڈز، انوائسز اور رسیدوں پر چھپتی ہے۔ بعد میں تبدیل نہیں ہو سکتی۔",
+    generateId: "نئی آئی ڈی بنائیں",
+    password: "پاس ورڈ",
+    passwordPlaceholder: "کم از کم ۸ حروف",
+    confirmPassword: "پاس ورڈ کی تصدیق",
+    confirmPlaceholder: "پاس ورڈ دوبارہ درج کریں",
+    showPassword: "پاس ورڈ دکھائیں",
+    hidePassword: "پاس ورڈ چھپائیں",
+    showConfirm: "تصدیقی پاس ورڈ دکھائیں",
+    hideConfirm: "تصدیقی پاس ورڈ چھپائیں",
+    capsLock: "کیپس لاک آن ہے",
+    agreePrefix: "میں",
+    privacyPolicy: "رازداری کی پالیسی",
+    and: "اور",
+    aiPolicy: "اے آئی گورننس پالیسی",
+    agreeSuffix: " سے متفق ہوں، اور تصدیق کرتا/کرتی ہوں کہ مجھے اس ادارے کو رجسٹر کرنے کا اختیار ہے۔",
+    back: "واپس",
+    creating: "اکاؤنٹ بن رہا ہے…",
+    create: "اکاؤنٹ بنائیں",
+    createdTitle: "اکاؤنٹ بن گیا!",
+    sentPrefix: "ہم نے تصدیقی لنک بھیج دیا ہے",
+    sentMiddle: " پر۔ اپنا اکاؤنٹ فعال کرنے کے لیے اسے کھولیں، پھر سیٹ اپ مکمل کرنے کے لیے سائن اِن کریں:",
+    sentEnd: "۔",
+    nextTitle: "آگے کیا ہوگا",
+    nextVerify: "اپنے ای میل ایڈریس کی تصدیق کریں",
+    nextGroup: "اپنے کیمپس، سیشن کی تاریخیں اور کام کے دن شامل کریں",
+    nextSingle: "اپنے کیمپس کی تفصیلات، سیشن کی تاریخیں اور کام کے دن شامل کریں",
+    nextInvite: "عملے کو مدعو کریں اور طلبہ کی فہرست درآمد کریں",
+    goToLogin: "سائن اِن پر جائیں",
+    privacy: "رازداری",
+    security: "سیکیورٹی",
+    aiGovernance: "اے آئی گورننس",
   },
 };
+
+const fill = (template: string, ...values: (string | number)[]) =>
+  template.replace(/\{(\d+)\}/g, (match, index) => (index in values ? String(values[Number(index)]) : match));
 
 /** Four-character suffix, uppercase, for a generated identity code. */
 function randomSuffix() {
@@ -91,6 +415,8 @@ function generateRegId(type: RegistrationType) {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function RegisterPage() {
+  const { language, setLanguage } = useAuthLanguage();
+  const t = copy[language];
   const [step, setStep] = useState(1);
   const [type, setType] = useState<RegistrationType>('school_group');
   const [loading, setLoading] = useState(false);
@@ -100,6 +426,7 @@ export default function RegisterPage() {
   const [capsOn, setCapsOn] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const brandRef = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   // Subtle cursor-parallax on the brand panel's blobs and avatar orbit —
   // written straight to the DOM so it doesn't trigger React re-renders.
@@ -123,6 +450,7 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
     schoolName: '',
+    country: "PK",
     regId: '',
     autoId: true,
     acceptedTerms: false,
@@ -134,12 +462,12 @@ export default function RegisterPage() {
   const markTouched = (field: string) => setTouched((t) => ({ ...t, [field]: true }));
 
   const passwordRequirements = useMemo(() => [
-    { label: "Min 8 characters", met: formData.password.length >= 8 },
-    { label: "One uppercase", met: /[A-Z]/.test(formData.password) },
-    { label: "One number", met: /[0-9]/.test(formData.password) },
-    { label: "Special character", met: /[^A-Za-z0-9]/.test(formData.password) },
-    { label: "Passwords match", met: formData.password === formData.confirmPassword && formData.password !== '' },
-  ], [formData.password, formData.confirmPassword]);
+    { label: t.requirements[0], met: formData.password.length >= 8 },
+    { label: t.requirements[1], met: /[A-Z]/.test(formData.password) },
+    { label: t.requirements[2], met: /[0-9]/.test(formData.password) },
+    { label: t.requirements[3], met: /[^A-Za-z0-9]/.test(formData.password) },
+    { label: t.requirements[4], met: formData.password === formData.confirmPassword && formData.password !== '' },
+  ], [formData.password, formData.confirmPassword, t]);
 
   /**
    * Strength is scored on the four composition rules plus a length bonus, so a
@@ -150,7 +478,7 @@ export default function RegisterPage() {
     const composition = passwordRequirements.slice(0, 4).filter((r) => r.met).length;
     const lengthBonus = formData.password.length >= 14 ? 1 : 0;
     const score = formData.password ? Math.min(5, composition + lengthBonus) : 0;
-    const labels = ["", "Very weak", "Weak", "Fair", "Strong", "Excellent"];
+    const labels = t.strength;
     const tones = [
       "bg-[#cfc2d6]/30",
       "bg-rose-400",
@@ -160,17 +488,22 @@ export default function RegisterPage() {
       "bg-emerald-500",
     ];
     return { score, label: labels[score], tone: tones[score] };
-  }, [passwordRequirements, formData.password]);
+  }, [passwordRequirements, formData.password, t]);
 
-  const emailError = touched.email && formData.email && !EMAIL_PATTERN.test(formData.email)
-    ? "Enter a valid email address"
+  const emailError = touched.email && !EMAIL_PATTERN.test(formData.email)
+    ? t.emailError
     : undefined;
-  const nameError = touched.name && formData.name.trim().length > 0 && formData.name.trim().length < 3
-    ? "Enter your full name"
+  const nameError = touched.name && formData.name.trim().length < 3
+    ? t.nameError
     : undefined;
-  const schoolNameError = touched.schoolName && formData.schoolName.trim().length > 0 && formData.schoolName.trim().length < 3
-    ? "Institution name must be at least 3 characters"
+  const schoolNameError = touched.schoolName && formData.schoolName.trim().length < 3
+    ? t.schoolNameError
     : undefined;
+  const regIdError = touched.regId && formData.regId.trim().length < 3 ? t.regIdError : undefined;
+  const passwordError = touched.password && !passwordRequirements.slice(0, 4).every((rule) => rule.met)
+    ? t.passwordError : undefined;
+  const confirmPasswordError = touched.confirmPassword && (!formData.confirmPassword || formData.password !== formData.confirmPassword)
+    ? t.confirmError : undefined;
 
   const canSubmit =
     formData.name.trim().length >= 3 &&
@@ -204,18 +537,28 @@ export default function RegisterPage() {
 
   const handleStep2Submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setFormError(null);
-    setTouched({ name: true, email: true, schoolName: true, password: true, confirmPassword: true });
+    setTouched({ name: true, email: true, schoolName: true, regId: true, password: true, confirmPassword: true });
 
     if (!canSubmit) {
       const firstProblem =
-        formData.name.trim().length < 3 ? "Please enter your full name."
-        : !EMAIL_PATTERN.test(formData.email) ? "Please enter a valid email address."
-        : formData.schoolName.trim().length < 3 ? "Please enter your institution's name."
-        : formData.regId.trim().length < 3 ? "An institution ID is required."
-        : !passwordRequirements.every((r) => r.met) ? "Please meet all password requirements."
-        : "Please accept the Terms of Service and Privacy Policy.";
+        formData.name.trim().length < 3 ? t.problemName
+        : !EMAIL_PATTERN.test(formData.email) ? t.problemEmail
+        : formData.schoolName.trim().length < 3 ? t.problemSchool
+        : formData.regId.trim().length < 3 ? t.regIdError
+        : !passwordRequirements.every((r) => r.met) ? t.passwordError
+        : t.problemTerms;
       setFormError(firstProblem);
+      const firstInvalidId =
+        formData.name.trim().length < 3 ? "name"
+        : !EMAIL_PATTERN.test(formData.email) ? "email"
+        : formData.schoolName.trim().length < 3 ? "schoolName"
+        : formData.regId.trim().length < 3 ? "regId"
+        : !passwordRequirements.slice(0, 4).every((rule) => rule.met) ? "password"
+        : formData.password !== formData.confirmPassword ? "confirmPassword"
+        : "acceptedTerms";
+      e.currentTarget.querySelector<HTMLElement>(`#${firstInvalidId}`)?.focus();
       return;
     }
 
@@ -230,7 +573,7 @@ export default function RegisterPage() {
         }),
       });
       const step1 = await step1Res.json();
-      if (!step1.success) throw new Error(step1.error || "Could not start registration");
+      if (!step1.success) throw new Error(step1.error || t.startFailed);
 
       const step2Res = await fetch("/api/auth/signup-step2", {
         method: "POST",
@@ -241,24 +584,26 @@ export default function RegisterPage() {
           phone: formData.phone.trim(),
           password: formData.password,
           schoolName: formData.schoolName.trim(),
+          country: formData.country,
           regId: formData.regId.trim(),
         }),
       });
       const step2 = await step2Res.json();
-      if (!step2.success) throw new Error(step2.error || "Registration failed");
+      if (!step2.success) throw new Error(step2.error || t.registrationFailed);
       if (step2.warning) toast.warning(step2.warning, { duration: 15000 });
 
       setStep(3);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed";
+      const message = error instanceof Error ? error.message : t.registrationFailed;
       setFormError(message);
+      requestAnimationFrame(() => errorRef.current?.focus());
       toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const panel = PANEL_COPY[type];
+  const panel = t.panel[type];
 
   /**
    * Step 2 is the long one. It gets a wider shell and a two-column layout so the
@@ -270,45 +615,14 @@ export default function RegisterPage() {
 
   return (
     <main
+      lang={language}
+      dir={directionFor(language)}
       className={`sk-shell w-full min-h-screen grid grid-cols-1 bg-[#fff7fe] font-sans ${
         wide
           ? "lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)]"
           : "lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]"
       }`}
     >
-      <style>{`
-        @keyframes skDrift {
-          0%,100% { transform: translate3d(0,0,0) scale(1); }
-          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
-          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
-        }
-        @keyframes skRise {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes skShimmer {
-          from { transform: translateX(-130%) skewX(-12deg); }
-          to   { transform: translateX(130%) skewX(-12deg); }
-        }
-        @keyframes skShake {
-          0%,100% { transform: translateX(0); }
-          25%     { transform: translateX(-5px); }
-          75%     { transform: translateX(5px); }
-        }
-        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
-        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
-        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
-        .sk-parallax { transition: transform .35s ease-out; will-change: transform; }
-        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
-        .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
-        .sk-shake { animation: skShake .34s ease-in-out; }
-        /* The split moves when step 2 claims more room — glide rather than jump. */
-        .sk-shell { transition: grid-template-columns .5s cubic-bezier(.2,.7,.3,1), max-width .5s cubic-bezier(.2,.7,.3,1); }
-        @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise, .sk-shimmer, .sk-shake { animation: none !important; }
-          .sk-parallax, .sk-shell { transition: none !important; }
-        }
-      `}</style>
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
@@ -369,7 +683,7 @@ export default function RegisterPage() {
           <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
             <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
-              Start in minutes
+              {t.eyebrow}
             </span>
           </div>
 
@@ -412,13 +726,13 @@ export default function RegisterPage() {
           </div>
 
           <div className="sk-rise mt-6" style={{ animationDelay: "240ms" }}>
-            <LiveActivityTicker />
+            <LiveActivityTicker label={t.ticker} />
           </div>
         </div>
 
         <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
-          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Encrypted at rest &amp; in transit</span>
-          <span className="flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5" /> Human-reviewed AI</span>
+          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {t.encrypted}</span>
+          <span className="flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5" /> {t.humanReviewed}</span>
         </div>
       </section>
 
@@ -429,14 +743,17 @@ export default function RegisterPage() {
         }`}
       >
         <div className={`sk-shell w-full ${wide ? "max-w-[860px]" : "max-w-lg"}`}>
+          {/* Same spot as on /login: top inline-end of the form panel. */}
+          <div className={`flex justify-end ${wide ? "mb-3" : "mb-6"}`}>
+            <LanguageSelect id="register-language" label={t.language} value={language} onChange={value => { if (value) setLanguage(value); }} />
+          </div>
           {wide ? (
-            /* Logo and progress share a row on the long step. Stacked, the
-               wordmark, its rule and the rail cost ~65px of height that the
-               form needs more than the flourish does. */
-            <div className="sk-rise mb-4 flex items-center gap-5 sm:gap-7">
+            /* Share a row when there is room; stack on phones so the logo and
+               progress rail do not set a minimum page width above the viewport. */
+            <div className="sk-rise mb-4 flex flex-col items-center gap-3 sm:flex-row sm:gap-7">
               <SkooleeLogo size="1.85rem" weight="heavy" />
-              <span aria-hidden className="h-6 w-px shrink-0 bg-[#cfc2d6]/50" />
-              <StepRail step={step} className="mb-0 flex-1" />
+              <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[#cfc2d6]/50 sm:block" />
+              <StepRail step={step} labels={t.steps} label={t.progress} stepOf={t.stepOf} className="mb-0 w-full flex-1" />
             </div>
           ) : (
             <>
@@ -445,7 +762,7 @@ export default function RegisterPage() {
                 <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
               </div>
 
-              <StepRail step={step} />
+              <StepRail step={step} labels={t.steps} label={t.progress} stepOf={t.stepOf} />
             </>
           )}
 
@@ -461,40 +778,46 @@ export default function RegisterPage() {
               >
                 <div className="mb-7 text-center">
                   <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
-                    How is your school set up?
+                    {t.setupTitle}
                   </h2>
                   <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
-                    Choose the option that best describes your institution.
+                    {t.setupIntro}
                   </p>
                 </div>
 
-                <div className="space-y-3 mb-6" role="radiogroup" aria-label="Institution type">
-                  <TypeOption active={type === 'school_group'} onClick={() => handleTypeChange('school_group')} icon={Network} title="Multi-Campus School Group" desc="One school with multiple campuses or branches." />
-                  <TypeOption active={type === 'single_campus'} onClick={() => handleTypeChange('single_campus')} icon={Building2} title="Single Campus School" desc="One school, one location — quick and simple." />
+                <div className="space-y-3 mb-6" role="radiogroup" aria-label={t.institutionType} onKeyDown={(event) => {
+                  const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1
+                    : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+                  if (!delta) return;
+                  event.preventDefault();
+                  const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+                  const index = options.indexOf(document.activeElement as HTMLButtonElement);
+                  const next = options[(index + delta + options.length) % options.length];
+                  next?.focus();
+                  next?.click();
+                }}>
+                  <TypeOption active={type === 'school_group'} onClick={() => handleTypeChange('school_group')} icon={Network} title={t.groupTitle} desc={t.groupDesc} />
+                  <TypeOption active={type === 'single_campus'} onClick={() => handleTypeChange('single_campus')} icon={Building2} title={t.singleTitle} desc={t.singleDesc} />
                 </div>
 
                 <p className="mb-5 flex items-start gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-[11.5px] font-bold leading-snug text-ink-muted">
                   <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
-                  {type === 'school_group'
-                    ? "You'll sign in as Super Admin and add each campus during setup."
-                    : "You'll sign in as Campus Admin — your single campus is created for you."}
+                  {type === 'school_group' ? t.groupNote : t.singleNote}
                 </p>
 
-                <button
+                <Button
+                  type="button"
                   onClick={handleStep1}
-                  className="group relative mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985]"
+                  className="group mt-1 min-h-12 w-full"
                 >
-                  <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-                  <span className="relative z-10 flex items-center gap-2">
-                    Continue <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                </button>
+                  {t.continue} <ArrowRight aria-hidden className="rtl:rotate-180" />
+                </Button>
 
                 <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5 text-center">
                   <p className="text-sm font-semibold text-ink-muted">
-                    Already have an account?{" "}
+                    {t.haveAccount}{" "}
                     <Link href="/login" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
-                      Log in
+                      {t.logIn}
                     </Link>
                   </p>
                 </div>
@@ -513,23 +836,28 @@ export default function RegisterPage() {
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
-                      {type === 'school_group' ? 'Multi-Campus' : 'Single Campus'}
+                      {type === 'school_group' ? t.kickerGroup : t.kickerSingle}
                     </p>
-                    <h2 className="text-[1.6rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] mt-0.5 sm:text-[1.75rem]">Create your account</h2>
+                    <h2 className="text-[1.6rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] mt-0.5 sm:text-[1.75rem]">{t.createTitle}</h2>
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="icon"
                     onClick={() => setStep(1)}
-                    aria-label="Back to institution type"
-                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white"
+                    disabled={loading}
+                    aria-label={t.backToType}
+                    className="shrink-0"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
+                    <ChevronLeft aria-hidden className="rtl:rotate-180" />
+                  </Button>
                 </div>
 
                 {formError && (
                   <div
+                    ref={errorRef}
                     role="alert"
+                    tabIndex={-1}
                     className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3"
                   >
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
@@ -543,26 +871,29 @@ export default function RegisterPage() {
                     trigger columns with no room for them). The pairing is
                     deliberate: the two tall groups lead each row, so neither
                     row is padded out by a short neighbour. */}
-                <form className="@container" onSubmit={handleStep2Submit} noValidate>
+                <form className="@container" onSubmit={handleStep2Submit} aria-busy={loading} noValidate>
+                  <fieldset disabled={loading} className="min-w-0">
                   <div className="grid items-start gap-4 @2xl:grid-cols-2 @2xl:gap-x-7">
 
-                    <FieldGroup icon={UserIcon} title="Your details">
+                    <FieldGroup id="grp-your-details" icon={UserIcon} title={t.groupDetails}>
                       <div className="grid grid-cols-1 gap-4 @md:grid-cols-2">
                         <InputField
-                          id="name" label="Full Name" placeholder="Your full name" required
+                          id="name" label={t.fullName} placeholder={t.fullNamePlaceholder} required
                           autoComplete="name" error={nameError}
+                          onBlur={() => markTouched('name')}
                           value={formData.name} onChange={(v) => set('name', v)} icon={UserIcon}
                         />
                         <InputField
-                          id="email" label="Work Email" placeholder="you@school.edu.pk" required type="email"
+                          id="email" label={t.email} placeholder="you@school.edu.pk" required type="email"
                           autoComplete="email" error={emailError}
+                          onBlur={() => markTouched('email')}
                           value={formData.email} onChange={(v) => set('email', v)} icon={Mail}
                         />
                       </div>
 
                       <InputField
-                        id="phone" label="Phone Number" placeholder="+92 300 0000000" type="tel"
-                        autoComplete="tel" hint="Used for account recovery and parent-facing contact."
+                        id="phone" label={t.phone} placeholder="+92 300 0000000" type="tel"
+                        autoComplete="tel" hint={t.phoneHint}
                         value={formData.phone} onChange={(v) => set('phone', v)} icon={Phone}
                       />
                     </FieldGroup>
@@ -571,68 +902,87 @@ export default function RegisterPage() {
                         invented a name ("<your name> Academy") and a hidden ID,
                         which is not something a school can live with — both are
                         asked for here regardless of type. */}
-                    <FieldGroup icon={Building} title="Your institution">
+                    <FieldGroup id="grp-your-institution" icon={Building} title={t.groupInstitution}>
                       <InputField
                         id="schoolName"
-                        label={type === 'school_group' ? "School Group Name" : "School Name"}
-                        placeholder={type === 'school_group' ? "e.g. Beaconhouse School System" : "e.g. Horizon Academy"}
+                        label={type === 'school_group' ? t.groupName : t.schoolName}
+                        placeholder={type === 'school_group' ? t.groupNamePlaceholder : t.schoolNamePlaceholder}
                         required error={schoolNameError} autoComplete="organization"
+                        onBlur={() => markTouched('schoolName')}
                         value={formData.schoolName} onChange={(v) => set('schoolName', v)}
                         icon={Building}
                       />
+                      <FormField name="country" id="country" label={t.country} hint={fill(t.countryHint, currencyForCountry(formData.country))}>
+                        <Select
+                          id="country"
+                          value={formData.country}
+                          onChange={(event) => set("country", event.target.value as Country)}
+                        >
+                          {COUNTRIES.map((country) => <option key={country} value={country}>{t.countries[country]}</option>)}
+                        </Select>
+                      </FormField>
                       <div className="space-y-1.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-3.5">
-                        <div className="flex items-center justify-between gap-2 px-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                           <Label htmlFor="regId" className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
-                            {type === 'school_group' ? 'School Group ID' : 'School ID'}
+                            {type === 'school_group' ? t.groupId : t.schoolId}
                           </Label>
                           <div className="flex gap-1.5">
-                            <button
+                            <Button
                               type="button"
+                              size="sm"
+                              variant={formData.autoId ? "default" : "outline"}
                               onClick={() => handleAutoId(true)}
-                              className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
+                              aria-pressed={formData.autoId}
+                              className="min-w-11"
                             >
-                              Auto
-                            </button>
-                            <button
+                              {t.auto}
+                            </Button>
+                            <Button
                               type="button"
+                              size="sm"
+                              variant={!formData.autoId ? "default" : "outline"}
                               onClick={() => handleAutoId(false)}
-                              className={`cursor-pointer rounded-lg px-3 py-1 text-[9px] font-black transition-all ${!formData.autoId ? 'bg-[#8127cf] text-white shadow-sm' : 'bg-white text-ink-subtle hover:text-[#8127cf]'}`}
+                              aria-pressed={!formData.autoId}
+                              className="min-w-11"
                             >
-                              Manual
-                            </button>
+                              {t.manual}
+                            </Button>
                           </div>
                         </div>
-                        <InputGroup surfaceClassName="bg-white" className="relative flex items-center">
-                          <Hash data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-[#8127cf]/40" />
+                        <FormField name="regId" id="regId" required error={regIdError} hint={t.regIdHint}>
+                        <InputGroup surfaceClassName="bg-white">
+                          <Hash aria-hidden data-field-affix="start" className="h-4 w-4 text-[#8127cf]/40" />
                           <Input
                             id="regId"
                             readOnly={formData.autoId}
                             value={formData.regId}
                             placeholder={type === 'school_group' ? "SKL-XXXX" : "SC-XXXX"}
                             onChange={e => set('regId', e.target.value.toUpperCase())}
-                            className="h-12 w-full rounded-2xl border-0 bg-white pl-10 pr-12 font-black tracking-wide text-[#1f1a23] shadow-none focus:ring-2 focus:ring-[#8127cf]/25"
+                            onBlur={() => markTouched('regId')}
+                            className="font-bold tracking-wide"
                           />
                           {formData.autoId && (
-                            <button data-field-affix="end"
+                            <FieldAction data-field-affix="end"
                               type="button"
                               onClick={() => set('regId', generateRegId(type))}
-                              aria-label="Generate a new ID"
-                              className="absolute right-3.5 cursor-pointer text-ink-subtle transition-all hover:rotate-90 hover:text-[#8127cf]"
+                              aria-label={t.generateId}
+                              className="text-ink-subtle"
                             >
-                              <RefreshCw className="h-3.5 w-3.5" />
-                            </button>
+                              <RefreshCw aria-hidden className="h-3.5 w-3.5" />
+                            </FieldAction>
                           )}
                         </InputGroup>
-                        <p className="px-1 text-[10px] font-bold leading-snug text-ink-subtle">
-                          Printed on report cards, invoices and receipts. It cannot be changed later.
-                        </p>
+                        </FormField>
                       </div>
                     </FieldGroup>
 
-                    <FieldGroup icon={Lock} title="Security">
+                    <FieldGroup id="grp-security" icon={Lock} title={t.groupSecurity}>
                       <InputField
-                        id="password" label="Password" placeholder="Min 8 characters" required
+                        id="password" label={t.password} placeholder={t.passwordPlaceholder} required
+                        revealLabels={[t.showPassword, t.hidePassword]}
                         autoComplete="new-password"
+                        error={passwordError} onBlur={() => markTouched('password')}
+                        descriptionId="registration-password-rules"
                         type={showPass ? "text" : "password"}
                         value={formData.password} onChange={(v) => set('password', v)} icon={Lock}
                         onToggleReveal={() => setShowPass((v) => !v)}
@@ -640,8 +990,11 @@ export default function RegisterPage() {
                         onCapsChange={setCapsOn}
                       />
                       <InputField
-                        id="confirmPassword" label="Confirm Password" placeholder="Re-enter password" required
+                        id="confirmPassword" label={t.confirmPassword} placeholder={t.confirmPlaceholder} required
+                        revealLabels={[t.showConfirm, t.hideConfirm]}
                         autoComplete="new-password"
+                        error={confirmPasswordError} onBlur={() => markTouched('confirmPassword')}
+                        descriptionId="registration-password-rules"
                         type={showConfirm ? "text" : "password"}
                         value={formData.confirmPassword} onChange={(v) => set('confirmPassword', v)} icon={ShieldCheck}
                         onToggleReveal={() => setShowConfirm((v) => !v)}
@@ -650,7 +1003,7 @@ export default function RegisterPage() {
 
                       {capsOn && (
                         <p className="flex items-center gap-1.5 px-1 text-xs font-bold text-amber-600">
-                          <AlertCircle className="h-3.5 w-3.5" /> Caps Lock is on
+                          <AlertCircle className="h-3.5 w-3.5" /> {t.capsLock}
                         </p>
                       )}
                     </FieldGroup>
@@ -658,7 +1011,7 @@ export default function RegisterPage() {
                     {/* Sits beside the password fields rather than under them, so
                         the checklist is readable while the field is being typed
                         in instead of being pushed off the fold. */}
-                    <FieldGroup icon={ShieldCheck} title="Password strength">
+                    <FieldGroup id="grp-password-strength" icon={ShieldCheck} title={t.groupStrength}>
                       <div className="space-y-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex flex-1 gap-1.5" aria-hidden>
@@ -677,7 +1030,7 @@ export default function RegisterPage() {
                             {strength.label || "—"}
                           </p>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                        <div id="registration-password-rules" className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                           {passwordRequirements.map((r) => (
                             <div key={r.label} className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
                               {r.met ? <CheckCircle className="h-3.5 w-3.5 shrink-0" /> : <XCircle className="h-3.5 w-3.5 shrink-0 opacity-30" />} {r.label}
@@ -695,6 +1048,7 @@ export default function RegisterPage() {
                       <label className="group flex cursor-pointer items-start gap-2.5 px-1 select-none">
                         <span className="relative mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center">
                           <input
+                            id="acceptedTerms"
                             type="checkbox"
                             checked={formData.acceptedTerms}
                             onChange={(e) => set('acceptedTerms', e.target.checked)}
@@ -702,7 +1056,7 @@ export default function RegisterPage() {
                           />
                           <span
                             aria-hidden
-                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
+                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                               formData.acceptedTerms
                                 ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
                                 : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
@@ -717,37 +1071,38 @@ export default function RegisterPage() {
                           </span>
                         </span>
                         <span className="text-[12px] font-semibold leading-snug text-ink-muted">
-                          I agree to the{" "}
-                          <Link href="/privacy" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">Privacy Policy</Link>
-                          {" "}and{" "}
-                          <Link href="/ai-governance" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">AI Governance policy</Link>
-                          , and confirm I&apos;m authorised to register this institution.
+                          {t.agreePrefix}{" "}
+                          <Link href="/privacy" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">{t.privacyPolicy}</Link>
+                          {" "}{t.and}{" "}
+                          <Link href="/ai-governance" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">{t.aiPolicy}</Link>
+                          {t.agreeSuffix}
                         </span>
                       </label>
                       <div className="flex shrink-0 gap-3">
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="icon"
                           onClick={() => setStep(1)}
-                          aria-label="Back"
-                          className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/30 font-bold text-ink-muted transition-all hover:border-[#8127cf]/20 hover:text-[#8127cf]"
+                          aria-label={t.back}
+                          className="h-12 w-12 shrink-0"
                         >
-                          <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <button
+                          <ChevronLeft aria-hidden className="rtl:rotate-180" />
+                        </Button>
+                        <Button
                           type="submit"
                           disabled={loading}
-                          className="group relative flex h-12 flex-1 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-6 font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/35 active:scale-[0.985] disabled:cursor-wait disabled:opacity-60 @xl:flex-none @xl:w-52"
+                          aria-busy={loading}
+                          className="min-h-12 flex-1 @xl:flex-none @xl:w-52"
                         >
-                          {!loading && <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />}
-                          <span className="relative z-10 flex items-center gap-2">
-                            {loading
-                              ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>
-                              : <>Create Account <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></>}
-                          </span>
-                        </button>
+                          {loading
+                            ? <><Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> {t.creating}</>
+                            : <>{t.create} <ArrowRight aria-hidden className="rtl:rotate-180" /></>}
+                        </Button>
                       </div>
                     </div>
                   </div>
+                  </fieldset>
                 </form>
               </motion.div>
             )}
@@ -763,23 +1118,20 @@ export default function RegisterPage() {
                 <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-emerald-50 text-emerald-500 shadow-inner">
                   <CheckCircle className="h-8 w-8" />
                 </div>
-                <h2 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">Account created!</h2>
+                <h2 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">{t.createdTitle}</h2>
                 <p className="mb-6 px-2 text-sm font-semibold leading-relaxed text-ink-muted">
-                  We&apos;ve sent a verification link to{" "}
-                  <span className="font-black text-[#1f1a23]">{formData.email}</span>.
-                  Click it to activate your account, then log in to finish setting up{" "}
-                  <span className="font-black text-[#1f1a23]">{formData.schoolName}</span>.
+                  {t.sentPrefix}{" "}
+                  <bdi className="font-black text-[#1f1a23]">{formData.email}</bdi>{t.sentMiddle}{" "}
+                  <bdi className="font-black text-[#1f1a23]">{formData.schoolName}</bdi>{t.sentEnd}
                 </p>
 
                 {/* What actually happens next, so the wait is not a black box. */}
-                <div className="mb-7 space-y-2.5 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-5 text-left">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">What happens next</p>
+                <div className="mb-7 space-y-2.5 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-5 text-start">
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">{t.nextTitle}</p>
                   {[
-                    "Verify your email address",
-                    type === 'school_group'
-                      ? "Add your campuses, session dates and working days"
-                      : "Add your campus details, session dates and working days",
-                    "Invite staff and import your student roster",
+                    t.nextVerify,
+                    type === 'school_group' ? t.nextGroup : t.nextSingle,
+                    t.nextInvite,
                   ].map((line, i) => (
                     <div key={line} className="flex items-center gap-3">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-black text-[#8127cf] shadow-sm">
@@ -790,19 +1142,19 @@ export default function RegisterPage() {
                   ))}
                 </div>
 
-                <Link href="/login" className="inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 font-black text-white shadow-lg shadow-emerald-200/30 transition-all hover:shadow-xl hover:shadow-emerald-200/50">
-                  Go to Login <ArrowRight className="h-4 w-4" />
+                <Link href="/login" className={buttonVariants({ className: "min-h-12 w-full" })}>
+                  {t.goToLogin} <ArrowRight aria-hidden className="rtl:rotate-180" />
                 </Link>
               </motion.div>
             )}
           </AnimatePresence>
 
           <div className={`flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle ${wide ? "mt-4" : "mt-6"}`}>
-            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">Privacy</Link>
+            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">{t.privacy}</Link>
             <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/security" className="transition-colors hover:text-[#8127cf]">Security</Link>
+            <Link href="/security" className="transition-colors hover:text-[#8127cf]">{t.security}</Link>
             <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">AI Governance</Link>
+            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">{t.aiGovernance}</Link>
           </div>
         </div>
       </section>
@@ -811,16 +1163,16 @@ export default function RegisterPage() {
 }
 
 /** Three-stop progress rail above the card, so the flow's length is visible. */
-function StepRail({ step, className = "mb-6" }: { step: number; className?: string }) {
+function StepRail({ step, labels, label: railLabel, stepOf, className = "mb-6" }: { step: number; labels: string[]; label: string; stepOf: string; className?: string }) {
   return (
-    <div className={`flex items-center gap-2 px-1 ${className}`}>
-      {STEP_LABELS.map((label, i) => {
+    <div role="list" aria-label={railLabel} className={`flex items-center gap-2 px-1 ${className}`}>
+      {labels.map((label, i) => {
         const num = i + 1;
         const done = step > num;
         const active = step === num;
         return (
-          <React.Fragment key={label}>
-            <div className="flex items-center gap-2">
+          <React.Fragment key={i}>
+            <div role="listitem" aria-current={active ? "step" : undefined} aria-label={fill(stepOf, num, labels.length, label)} className="flex items-center gap-2">
               <span
                 className={`flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black transition-all duration-300 ${
                   done
@@ -840,7 +1192,7 @@ function StepRail({ step, className = "mb-6" }: { step: number; className?: stri
                 {label}
               </span>
             </div>
-            {num < STEP_LABELS.length && (
+            {num < labels.length && (
               <span className="h-px flex-1 rounded-full bg-[#cfc2d6]/30">
                 <span
                   className={`block h-px rounded-full bg-gradient-to-r from-[#8127cf] to-emerald-500 transition-all duration-500 ${
@@ -864,17 +1216,19 @@ function StepRail({ step, className = "mb-6" }: { step: number; className?: stri
  * column.
  */
 function FieldGroup({
+  id: headingId,
   icon: Icon,
   title,
   children,
 }: {
+  /** Explicit, language-independent heading id (a title-derived id collapses for Arabic/Urdu). */
+  id: string;
   icon: LucideIcon;
   title: string;
   children: React.ReactNode;
 }) {
   // The heading is only a visual cue unless it names the group, and side-by-side
   // columns are exactly where a screen reader loses the thread.
-  const headingId = `grp-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return (
     <section role="group" aria-labelledby={headingId} className="@container space-y-4">
       <div className="flex items-center gap-2 px-1">
@@ -888,48 +1242,48 @@ function FieldGroup({
 
 function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProps) {
   return (
-    <button
+    <Button variant="choice"
       type="button"
       role="radio"
       aria-checked={active}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
-      className={`relative group flex w-full cursor-pointer items-center gap-5 overflow-hidden rounded-2xl border-2 p-5 text-left transition-all ${active ? 'border-[#8127cf] bg-gradient-to-br from-[#fbf0fe]/80 to-white shadow-xl shadow-[#8127cf]/10' : 'border-[#cfc2d6]/20 bg-[#f3f4f9] hover:border-[#8127cf]/20 hover:bg-white'}`}
+      className="relative group flex w-full items-center justify-start gap-5 overflow-hidden p-5 text-start"
     >
       <div className={`rounded-2xl p-3 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-ink-subtle group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
         <Icon className="h-6 w-6" />
       </div>
       <div className="flex-1">
-        <h3 className="text-left text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
-        <p className="mt-1 text-left text-[11px] font-semibold leading-tight text-ink-muted">{desc}</p>
+        <h3 className="text-start text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
+        <p className="mt-1 text-start text-[11px] font-semibold leading-tight text-ink-muted">{desc}</p>
       </div>
       {active && (
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#8127cf] p-1 text-white shadow-md">
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute end-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#8127cf] p-1 text-white shadow-md">
           <CheckCircle className="h-3 w-3" />
         </motion.div>
       )}
-    </button>
+    </Button>
   );
 }
 
 function InputField({
   id, label, placeholder, value, onChange, icon: Icon, type = "text", className = "",
-  required, autoComplete, error, hint, onToggleReveal, revealed, onCapsChange,
+  required, autoComplete, error, hint, descriptionId, onBlur, onToggleReveal, revealed, onCapsChange, revealLabels,
 }: InputFieldProps & {
   onToggleReveal?: () => void;
   revealed?: boolean;
   onCapsChange?: (on: boolean) => void;
+  /** [show, hide] accessible names for the reveal action. */
+  revealLabels?: [string, string];
 }) {
   const trackCaps = onCapsChange
     ? (e: React.KeyboardEvent<HTMLInputElement>) => onCapsChange(e.getModifierState?.("CapsLock") ?? false)
     : undefined;
 
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
-        {label} {required && <span className="text-rose-500">*</span>}
-      </Label>
-      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
-        <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+    <FormField name={id} id={id} label={label} required={required} error={error} hint={hint}>
+      <InputGroup>
+        <Icon aria-hidden data-field-affix="start" className="h-4 w-4 text-ink-subtle group-focus-within:text-primary" />
         <Input
           id={id}
           type={type}
@@ -937,31 +1291,26 @@ function InputField({
           value={value}
           required={required}
           autoComplete={autoComplete}
-          aria-invalid={!!error}
+          aria-describedby={descriptionId}
           onChange={e => onChange(e.target.value)}
           onKeyUp={trackCaps}
           onKeyDown={trackCaps}
-          onBlur={onCapsChange ? () => onCapsChange(false) : undefined}
-          className={`h-12 w-full rounded-2xl border-0 pl-10 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-            error ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
-          } ${onToggleReveal ? "pr-11" : "pr-4"} ${className}`}
+          onBlur={() => { onBlur?.(); onCapsChange?.(false); }}
+          className={className}
         />
         {onToggleReveal && (
-          <button data-field-affix="end"
+          <FieldAction data-field-affix="end"
             type="button"
             onClick={onToggleReveal}
-            aria-label={revealed ? "Hide password" : "Show password"}
-            className="absolute right-3.5 cursor-pointer text-ink-subtle transition-colors hover:text-[#8127cf]"
+            aria-label={revealLabels ? revealLabels[revealed ? 1 : 0] : `${revealed ? "Hide" : "Show"} ${label.toLowerCase()}`}
+            aria-controls={id}
+            aria-pressed={Boolean(revealed)}
+            className="text-ink-subtle"
           >
-            {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+            {revealed ? <EyeOff aria-hidden className="h-4 w-4" /> : <Eye aria-hidden className="h-4 w-4" />}
+          </FieldAction>
         )}
       </InputGroup>
-      {error
-        ? <p className="px-1 text-xs font-bold text-rose-500">{error}</p>
-        : hint
-        ? <p className="px-1 text-[10px] font-bold text-ink-subtle">{hint}</p>
-        : null}
-    </div>
+    </FormField>
   );
 }

@@ -1,0 +1,16 @@
+import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import type { ConversationView, ConversationDetail, ChatMessageView } from '../../../src/lib/chat/types';
+export type { ConversationFilter, SendAttachment } from '../../../src/components/chat/chat-provider';
+const viewer = { id:'self', fullName:'Sam Khan', role:'CAMPUS_ADMIN',roleLabel:'Administrator',canCreateGroup:true,canManageSettings:true };
+const other = { id:'teacher',fullName:'Ayesha Malik',role:'TEACHER' as const,profileImageUrl:null };
+const rows: ConversationView[] = ['Ayesha Malik','Year 8 teaching team','Campus announcements'].map((title,i)=>({id:`chat-${i}`,title,kind:i===0?'DIRECT':i===1?'GROUP':'ANNOUNCEMENT',subtitle:i===0?'Mathematics teacher':'North campus',avatarUrl:null,counterpart:i===0?other:null,memberCount:i===0?2:8,unreadCount:i===0?2:0,isMuted:false,isPinned:i===0,isArchived:false,isLocked:false,canPost:true,canModerate:false,isOnline:true,lastMessageAt:'2026-10-09T09:10:00Z',lastMessagePreview:i===0?'The revised schedule is ready for review.':'Please check the updated classroom assignments.',lastMessageSenderId:'teacher',classId:null}));
+const baseMessages: ChatMessageView[] = ['Good morning! The revised schedule is ready for review.','Thanks, I will check the classroom assignments.','Please let me know if you need any changes.'].map((body,i)=>({id:`message-${i}`,conversationId:'chat-0',kind:'TEXT',body,sender:i===1?{id:'self',fullName:viewer.fullName,role:'CAMPUS_ADMIN',profileImageUrl:null}:other,replyTo:null,attachments:[],isEdited:false,isDeleted:false,createdAt:`2026-10-09T09:0${i}:00Z`,clientKey:null}));
+function useStore(){
+ const [activeId,setActiveId]=useState<string|null>(null), [filter,setFilter]=useState('all'), [search,setSearch]=useState(''), [messages,setMessages]=useState(baseMessages);
+ const closeConversation=useCallback(()=>setActiveId(null),[]); const openConversation=useCallback((id:string)=>setActiveId(id),[]);
+ const detail: ConversationDetail|null=activeId?{...rows.find(r=>r.id===activeId)!,members:[],topic:null}:null;
+ return {viewer,activeId,openConversation,closeConversation,detail,messages,filter,setFilter,search,setSearch,conversations:rows.filter(r=>(filter==='unread'?r.unreadCount>0:filter!=='archived')&&r.title.toLowerCase().includes(search.toLowerCase())),unreadTotal:2,isConnected:true,isLoadingList:false,isLoadingThread:false,error:null,clearError(){},hasOlder:false,loadOlder:async()=>{},typingUsers:[],deleteMessage:async()=>{},editMessage:async()=>{},setPreference:async()=>{},leaveConversation:async()=>{},notifyTyping(){},searchDirectory:async()=>[],startDirect:async()=>'',createGroup:async()=>'',sendMessage:async(payload:{body:string})=>{await fetch('/synthetic/chat-send',{method:'POST',body:JSON.stringify(payload)});setMessages(m=>[...m,{...baseMessages[1],id:'message-sent',body:payload.body}]);}};
+}
+const Context=createContext<ReturnType<typeof useStore>|null>(null);
+export function ChatProvider({children}:{children:ReactNode}){const value=useStore();return <Context.Provider value={value}>{children}</Context.Provider>}
+export function useChat(){const value=useContext(Context);if(!value)throw Error('Missing synthetic chat provider');return value;}

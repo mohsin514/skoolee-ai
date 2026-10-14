@@ -56,7 +56,7 @@ export default function ParentAttendancePage() {
               <ParentStat icon={CalendarCheck} label={tr("Total Days")} value={attendance.total} sub={tr("School days recorded")} tone="violet" />
             </div>
 
-            <div className="sk-rise rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]" style={{ animationDelay: "120ms" }}>
+            <div className="sk-panel sk-rise p-4" style={{ animationDelay: "120ms" }}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="text-sm font-black tracking-tight text-[#1d1b20]"><UiText>{"Recent Attendance"}</UiText></h3>
                 <span className="text-[10px] font-semibold text-ink-subtle">{tr("Recent school days: {0}", [attendance.recent.length])}

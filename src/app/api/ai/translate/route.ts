@@ -10,6 +10,7 @@ import {
   generateAIDraft,
 } from "@/lib/ai/openai";
 import { transliterateToUrdu } from "@/lib/urdu";
+import { Pseudonymizer } from "@/lib/ai/pseudonymize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,18 +44,20 @@ export async function POST(req: NextRequest) {
 
   try {
     await ensureAICreditsAvailable(user.schoolId);
+    const pseudonymizer = new Pseudonymizer();
+    const safeText = pseudonymizer.mask(text);
     const draft = await generateAIDraft({
       system:
         "You are a professional English-to-Urdu translator for school report card remarks. " +
         "Translate the given remark into natural, fluent, respectful Urdu (اردو). " +
         "Keep the meaning and tone accurate for a student's report card. " +
         "Return ONLY the Urdu translation — no quotes, labels, or explanation.",
-      prompt: `Translate the following English report card remark into Urdu:\n${text}`,
+      prompt: `Translate the following English report card remark into Urdu:\n${safeText}`,
       temperature: 0.3,
       maxTokens: 250,
     });
 
-    const translation = draft.text
+    const translation = pseudonymizer.unmask(draft.text)
       .replace(/^["'“”]+/, "")
       .replace(/["'“”]+$/, "")
       .trim();

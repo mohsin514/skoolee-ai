@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // An isolated build directory lets synthetic-data acceptance tests run beside the developer's app.
+  distDir: process.env.NEXT_BUILD_DIR || ".next",
   // Enable Turbopack for faster dev builds
   // (enabled via `next dev --turbopack`)
   turbopack: {
@@ -62,6 +64,32 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      {
+        source: "/ai/:path*",
+        // Recording still requires an explicit browser permission and user action.
+        headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(), geolocation=()" }],
+      },
+      {
+        source: "/ai/exams/:id",
+        headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), display-capture=(self), geolocation=()" }],
+      },
+      {
+        source: "/api/school-ai/workspace/:id/print",
+        // Configured headers run after route headers in this Next version.
+        // Keep candidate documents isolated from the app's script policy.
+        headers: [
+          { key: "Content-Security-Policy", value: "default-src 'none'; img-src data:; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), display-capture=()" },
+        ],
+      },
+      {
+        source: "/api/school-ai/sources/:id/file",
+        headers: [
+          { key: "Content-Security-Policy", value: "sandbox; default-src 'none'" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
       },
     ];
   },

@@ -17,6 +17,7 @@ import {
   Settings,
   Users,
   Network,
+  WalletCards,
 } from "lucide-react";
 
 const navItems = [
@@ -29,7 +30,8 @@ const navItems = [
   { href: "/dashboard/communications", label: "Communications", icon: MessageCircle },
   { href: "/messages", label: "Messages", icon: MessagesSquare },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
+  { href: "/dashboard/billing", label: "Billing & plan", icon: CreditCard },
+  { href: "/dashboard/fees", label: "Fees", icon: WalletCards },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

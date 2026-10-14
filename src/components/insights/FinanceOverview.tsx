@@ -39,6 +39,8 @@ import {
 import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, fromMinor, money } from "./palette";
+import { Button } from "@/components/ui/button";
+
 
 export interface FinanceSummary {
   kind: "ACCOUNTANT";
@@ -251,11 +253,11 @@ export function FinanceOverview({
           subtitle={tr("Invoices by status")}
           delay={180}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("invoices")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
-            ><UiText>{"Open"}</UiText></button>
+
+            ><UiText>{"Open"}</UiText></Button>
           }
           table={{
             columns: ["Status", "Invoices", "Billed", "Outstanding"],
@@ -294,11 +296,11 @@ export function FinanceOverview({
           subtitle={tr("Amount received by method, last twelve months")}
           delay={120}
           actions={
-            <button
+            <Button variant="link" size="sm"
               type="button"
               onClick={() => onNavigate("fee-reports")}
-              className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:text-[#9c48ea]"
-            ><UiText>{"Reports"}</UiText></button>
+
+            ><UiText>{"Reports"}</UiText></Button>
           }
           table={{
             columns: ["Method", "Payments", "Amount"],

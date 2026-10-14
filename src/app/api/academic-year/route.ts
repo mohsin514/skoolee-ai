@@ -1,3 +1,4 @@
+import { applyEnrollment, dateOnly } from "@/lib/students/enrollment";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { notify } from "@/lib/notifications/in-app";
@@ -204,10 +205,10 @@ export async function POST(req: NextRequest) {
           });
 
           const rollNo = newRollNo || await generateRollNo(tx, targetClass);
-          await tx.student.update({
-            where: { id: studentId },
-            data: { classId: targetClassId, rollNo },
-          });
+          const enrollment = await tx.studentEnrollment.findFirst({ where: { studentId: studentId, status: "ACTIVE", endDate: null } });
+          if (!enrollment) throw new ApiError("Current enrollment missing", 409);
+          await applyEnrollment(tx, { studentId: studentId, fromId: enrollment.id, targetClassId: targetClassId,
+            effectiveDate: dateOnly(body.effectiveDate || new Date().toISOString().slice(0,10)), rollNo, actorId: user.userId, reason: "Reviewed year-end promotion" });
 
           promoted++;
         }
@@ -267,10 +268,10 @@ export async function POST(req: NextRequest) {
           });
 
           const rollNo = await generateRollNo(tx, toClass, i);
-          await tx.student.update({
-            where: { id: student.id },
-            data: { classId: toClassId, rollNo },
-          });
+          const enrollment = await tx.studentEnrollment.findFirst({ where: { studentId: student.id, status: "ACTIVE", endDate: null } });
+          if (!enrollment) throw new ApiError("Current enrollment missing", 409);
+          await applyEnrollment(tx, { studentId: student.id, fromId: enrollment.id, targetClassId: toClassId,
+            effectiveDate: dateOnly(body.effectiveDate || new Date().toISOString().slice(0,10)), rollNo, actorId: user.userId, reason: "Reviewed year-end promotion" });
 
           promoted++;
         }

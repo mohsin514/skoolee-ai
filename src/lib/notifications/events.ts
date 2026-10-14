@@ -100,8 +100,8 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     },
   },
   CLASS_DELETED: {
-    title: (c) => "Class deleted",
-    message: (c) => `${s(c.actorName)} deleted class ${s(c.className)}`,
+    title: (c) => "Class archived",
+    message: (c) => `${s(c.actorName)} archived class ${s(c.className)}; its history is preserved`,
     icon: "BookOpen",
     link: "/admin",
     recipients: (c) => getAdminsAndPrincipal(c.schoolId, c.campusId),
@@ -132,8 +132,8 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     },
   },
   STUDENT_DELETED: {
-    title: (c) => "Student removed",
-    message: (c) => `${s(c.actorName)} removed student ${s(c.studentName)}`,
+    title: (c) => "Student archived",
+    message: (c) => `${s(c.actorName)} archived student ${s(c.studentName)}; their history is preserved`,
     icon: "GraduationCap",
     link: "/admin",
     recipients: async (c) => {

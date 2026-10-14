@@ -56,5 +56,5 @@
   .pageCard .formLayout > section { padding: 12px; }
   .pageCard .workflow { grid-template-columns: minmax(0, 1fr); }
   .pageCard .stepDetail { display: block; }
-  .pageCard .hero h1 { font-size: 1.75rem; }
+  .pageCard .hero h1 { font-size: var(--text-heading); }
 }

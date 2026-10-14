@@ -1,3 +1,4 @@
+import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -24,7 +25,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function optionalDate(value: unknown, field: string): string | null {
   if (value === undefined || value === null || value === "") return null;
   const s = String(value);
-  if (!DATE_RE.test(s)) throw new ApiError(`${field} must be YYYY-MM-DD`, 400);
+  if (!DATE_RE.test(s) || !Number.isFinite(new Date(`${s}T00:00:00Z`).getTime()) || new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) !== s) throw new ApiError(`${field} must be YYYY-MM-DD`, 400);
   return s;
 }
 
@@ -50,9 +51,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const campusId = await resolveCampusId(user, body.campusId);
+    return await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
 
     const result = await createExamSession({
-      schoolId: user.schoolId,
+      db: prisma,      schoolId: user.schoolId,
       campusId,
       userId: user.userId,
       title: String(body.title ?? ""),
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
     });
 
     return Response.json({ success: true, ...result }, { status: 201 });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-sessions] POST failed");
   }
@@ -81,7 +84,8 @@ export async function PATCH(req: NextRequest) {
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "session", id });
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
     const existing = await prisma.examSession.findFirst({ where: { id, campusId } });
     if (!existing) throw new ApiError("Exam session not found", 404);
 
@@ -97,6 +101,10 @@ export async function PATCH(req: NextRequest) {
       throw new ApiError("The end date is before the start date", 400);
     }
 
+    if (body.status !== undefined && !["PLANNING", "SCHEDULED", "SEATED", "RUNNING", "COMPLETED"].includes(String(body.status))) throw new ApiError("Invalid exam session status", 400);
+    if (body.title !== undefined && (!String(body.title).trim() || String(body.title).trim().length > 160)) throw new ApiError("A session title of up to 160 characters is required", 400);
+    const schedules = await prisma.examSchedule.findMany({ where: { campusId, exam: { sessionId: id } }, select: { date: true } });
+    if (schedules.some(item => finalStart && item.date.toISOString().slice(0, 10) < finalStart || finalEnd && item.date.toISOString().slice(0, 10) > finalEnd)) throw new ApiError("The session dates must include all scheduled papers.", 409);
     const updated = await prisma.examSession.update({
       where: { id },
       data: {
@@ -113,6 +121,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     return Response.json({ success: true, data: updated });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-sessions] PATCH failed");
   }
@@ -126,7 +135,8 @@ export async function DELETE(req: NextRequest) {
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
-    const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
+    const campusId = await resolveExamSchedulingCampus(user, req.nextUrl.searchParams.get("campusId"), { kind: "session", id });
+    return await withExamSchedulingWrite(user, campusId, "delete", async (prisma) => {
 
     const session = await prisma.examSession.findFirst({
       where: { id, campusId },
@@ -154,16 +164,18 @@ export async function DELETE(req: NextRequest) {
     );
     const empty = session.exams.filter((e) => !keptIds.has(e.id));
 
-    await prisma.$transaction(async (tx) => {
+    const tx = prisma;
+    {
       if (empty.length) {
         await tx.exam.deleteMany({ where: { id: { in: empty.map((e) => e.id) } } });
       }
       await tx.examSession.delete({ where: { id } });
-    });
+    }
 
     return Response.json({
       success: true,
       data: { id, removedExams: empty.length, keptExams: keptIds.size },
+    });
     });
   } catch (error) {
     return errorResponse(error, "[exam-sessions] DELETE failed");

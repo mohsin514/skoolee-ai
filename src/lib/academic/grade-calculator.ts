@@ -1,4 +1,5 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { roundConfigured, type AcademicModelConfiguration, type ResultPolicy, type RoundingRule, thresholdsFromConfiguration } from "@/lib/academic/model-config";
 
 export type ExamType = "QUIZ" | "CLASS_TEST" | "MID_TERM" | "FINAL" | "CUSTOM";
 
@@ -48,6 +49,11 @@ export interface WeightConfig {
   passingPercentage: number;
   weightMode: WeightMode;
   thresholds: GradeThresholds;
+  missingMarkPolicy?: ResultPolicy;
+  absentMarkPolicy?: ResultPolicy;
+  exemptMarkPolicy?: ResultPolicy;
+  roundingRule?: RoundingRule;
+  academicModelVersionId?: string | null;
 }
 
 export interface WeightedExamResult {
@@ -81,7 +87,49 @@ export interface SubjectBreakdown {
   grade: string;
 }
 
-export async function getOrCreateGradeWeightConfig(campusId: string, classId: string, academicYear: number, db: TxClient = prisma): Promise<WeightConfig> {
+function weightConfigFromAcademicModel(version: { id: string; configuration: unknown }): WeightConfig | null {
+  const configuration = version.configuration as AcademicModelConfiguration;
+  const grading = configuration?.grading;
+  if (!grading) return null;
+  return {
+    quizWeight: Number(grading.quizWeight),
+    classTestWeight: Number(grading.classTestWeight),
+    midTermWeight: Number(grading.midTermWeight),
+    finalWeight: Number(grading.finalWeight),
+    passingPercentage: Number(grading.passingPercentage),
+    weightMode: normalizeWeightMode(grading.weightMode),
+    thresholds: thresholdsFromConfiguration(configuration),
+    missingMarkPolicy: grading.missingPolicy ?? "COUNT_AS_ZERO",
+    absentMarkPolicy: grading.absentPolicy ?? "COUNT_AS_ZERO",
+    exemptMarkPolicy: grading.exemptPolicy ?? "EXCLUDE",
+    roundingRule: grading.roundingRule ?? "WHOLE",
+    academicModelVersionId: version.id,
+  };
+}
+
+export async function getOrCreateGradeWeightConfig(campusId: string, classId: string, academicYear: number, db: TxClient = prisma, academicModelVersionId?: string | null): Promise<WeightConfig> {
+  let version = academicModelVersionId
+    ? await db.academicModelVersion.findFirst({
+        where: { id: academicModelVersionId, campusId, academicYear, status: "ACTIVE" },
+        select: { id: true, configuration: true },
+      })
+    : null;
+  if (!academicModelVersionId) {
+    const activeVersions = await db.academicModelVersion.findMany({
+      where: { campusId, academicYear, status: "ACTIVE" },
+      orderBy: [{ effectiveFrom: "desc" }, { version: "desc" }],
+      select: { id: true, configuration: true },
+    });
+    version = activeVersions.find((candidate) => {
+      const configuration = candidate.configuration as unknown as AcademicModelConfiguration;
+      return configuration.classIds?.includes(classId);
+    }) ?? null;
+  }
+  if (version) {
+    const modelConfig = weightConfigFromAcademicModel(version);
+    if (modelConfig) return modelConfig;
+  }
+
   const config = await db.gradeWeightConfig.findUnique({
     where: { classId_academicYear: { classId, academicYear } },
   });
@@ -93,6 +141,11 @@ export async function getOrCreateGradeWeightConfig(campusId: string, classId: st
       finalWeight: config.finalWeight,
       passingPercentage: config.passingPercentage,
       weightMode: normalizeWeightMode(config.weightMode),
+      missingMarkPolicy: (config.missingMarkPolicy as ResultPolicy) ?? "COUNT_AS_ZERO",
+      absentMarkPolicy: (config.absentMarkPolicy as ResultPolicy) ?? "COUNT_AS_ZERO",
+      exemptMarkPolicy: (config.exemptMarkPolicy as ResultPolicy) ?? "EXCLUDE",
+      roundingRule: (config.roundingRule as RoundingRule) ?? "WHOLE",
+      academicModelVersionId: config.academicModelVersionId,
       thresholds: {
         aplus: config.gradeAplus,
         a: config.gradeA,
@@ -114,6 +167,11 @@ export function defaultWeightConfig(): WeightConfig {
     passingPercentage: 50,
     weightMode: "NORMALIZED",
     thresholds: { aplus: 90, a: 80, b: 70, c: 60, d: 50 },
+    missingMarkPolicy: "COUNT_AS_ZERO",
+    absentMarkPolicy: "COUNT_AS_ZERO",
+    exemptMarkPolicy: "EXCLUDE",
+    roundingRule: "WHOLE",
+    academicModelVersionId: null,
   };
 }
 
@@ -139,7 +197,7 @@ export function overallFromExamResults(
   if (config.weightMode === "ABSOLUTE") {
     const totalWeight = examResults.reduce((sum, r) => sum + r.weight, 0);
     if (totalWeight <= 0) return 0;
-    return Math.round(examResults.reduce((sum, r) => sum + r.contribution, 0));
+    return roundConfigured(examResults.reduce((sum, r) => sum + r.contribution, 0), config.roundingRule ?? "WHOLE");
   }
 
   // Average each exam type, then weight the type once.
@@ -161,7 +219,7 @@ export function overallFromExamResults(
 
   if (weightHeld <= 0) return 0;
   // Rescale the weight that actually happened back up to 100.
-  return Math.round((earned / weightHeld) * 100);
+  return roundConfigured((earned / weightHeld) * 100, config.roundingRule ?? "WHOLE");
 }
 
 function getWeightForExamType(examType: string, config: WeightConfig): number {
@@ -179,21 +237,22 @@ export async function calculateWeightedGrade(
   campusId: string,
   classId: string,
   academicYear: number,
-  db: TxClient = prisma
+  db: TxClient = prisma,
+  academicModelVersionId?: string | null,
 ): Promise<WeightedGradeResult> {
   const [student, config] = await Promise.all([
     db.student.findUnique({
       where: { id: studentId },
       select: { id: true, fullName: true, classId: true },
     }),
-    getOrCreateGradeWeightConfig(campusId, classId, academicYear, db),
+    getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId),
   ]);
 
   if (!student) throw new Error("Student not found");
 
   const subjects = await db.subject.findMany({
     where: { classId, campusId },
-    select: { id: true, name: true, totalMarks: true },
+      select: { id: true, name: true, totalMarks: true },
     orderBy: { name: "asc" },
   });
 
@@ -223,14 +282,25 @@ export async function calculateWeightedGrade(
     const relevantSubjects = exam.subjectId
       ? subjects.filter((s) => s.id === exam.subjectId)
       : subjects;
-    const totalMarks = relevantSubjects.reduce((sum, s) => sum + s.totalMarks, 0);
-    const obtainedMarks = relevantSubjects.reduce((sum, s) => {
-      const mark = examMarks.find((m) => m.subjectId === s.id);
-      return sum + (mark?.marksObtained || 0);
-    }, 0);
-    const percentage = totalMarks > 0 ? Math.round((obtainedMarks / totalMarks) * 100) : 0;
+    let totalMarks = 0;
+    let obtainedMarks = 0;
+    for (const subject of relevantSubjects) {
+      const mark = examMarks.find((row) => row.subjectId === subject.id);
+      const policy = !mark
+        ? config.missingMarkPolicy ?? "COUNT_AS_ZERO"
+        : mark.isAbsent
+          ? config.absentMarkPolicy ?? "COUNT_AS_ZERO"
+          : mark.isExempt
+            ? config.exemptMarkPolicy ?? "EXCLUDE"
+            : "COUNT_AS_ZERO";
+      if (policy === "BLOCK") throw new Error(`${subject.name} has ${!mark ? "a missing mark" : mark.isAbsent ? "an absent result" : "an exempt result"}; this academic model blocks calculation until it is resolved.`);
+      if (policy === "EXCLUDE") continue;
+      totalMarks += subject.totalMarks;
+      if (mark && !mark.isAbsent && !mark.isExempt) obtainedMarks += mark.marksObtained;
+    }
+    const percentage = totalMarks > 0 ? roundConfigured((obtainedMarks / totalMarks) * 100, config.roundingRule ?? "WHOLE") : 0;
     const examType = (exam.examType as ExamType) || "CLASS_TEST";
-    const weight = getWeightForExamType(exam.examType, config);
+    const weight = totalMarks > 0 ? getWeightForExamType(exam.examType, config) : 0;
 
     return {
       examId: exam.id,
@@ -248,10 +318,23 @@ export async function calculateWeightedGrade(
   const overallPercentage = overallFromExamResults(examResults, config);
 
   const subjectBreakdown: SubjectBreakdown[] = subjects.map((subject) => {
-    const subjectMarks = marks.filter((m) => m.subjectId === subject.id);
-    const obtainedMarks = subjectMarks.reduce((sum, m) => sum + m.marksObtained, 0);
-    const totalMarks = subjectMarks.reduce((sum, m) => sum + (m.subject?.totalMarks || subject.totalMarks), 0) || subject.totalMarks;
-    const percentage = totalMarks > 0 ? Math.round((obtainedMarks / totalMarks) * 100) : 0;
+    let obtainedMarks = 0;
+    let totalMarks = 0;
+    for (const exam of exams.filter((row) => !row.subjectId || row.subjectId === subject.id)) {
+      const mark = marks.find((row) => row.examId === exam.id && row.subjectId === subject.id);
+      const policy = !mark
+        ? config.missingMarkPolicy ?? "COUNT_AS_ZERO"
+        : mark.isAbsent
+          ? config.absentMarkPolicy ?? "COUNT_AS_ZERO"
+          : mark.isExempt
+            ? config.exemptMarkPolicy ?? "EXCLUDE"
+            : "COUNT_AS_ZERO";
+      if (policy === "EXCLUDE") continue;
+      if (policy === "BLOCK") throw new Error(`${subject.name} has an unresolved ${!mark ? "missing mark" : mark.isAbsent ? "absence" : "exemption"}; this academic model blocks calculation.`);
+      totalMarks += subject.totalMarks;
+      if (mark && !mark.isAbsent && !mark.isExempt) obtainedMarks += mark.marksObtained;
+    }
+    const percentage = totalMarks > 0 ? roundConfigured((obtainedMarks / totalMarks) * 100, config.roundingRule ?? "WHOLE") : 0;
     return {
       subjectId: subject.id,
       subjectName: subject.name,
@@ -353,9 +436,18 @@ export async function buildSubjectDistribution(opts: {
     const examRows = exams
       .filter((exam) => (exam.subjectId ? exam.subjectId === subject.id : exam.id !== opts.excludeExamId))
       .map((exam) => {
-        const obtainedMarks = subjectMarks.filter((m) => m.examId === exam.id).reduce((sum, m) => sum + m.marksObtained, 0);
-        const totalMarks = subject.totalMarks;
-        const percentage = totalMarks > 0 ? Math.round((obtainedMarks / totalMarks) * 100) : 0;
+        const mark = subjectMarks.find((row) => row.examId === exam.id);
+        const policy = !mark
+          ? opts.weightConfig.missingMarkPolicy ?? "COUNT_AS_ZERO"
+          : mark.isAbsent
+            ? opts.weightConfig.absentMarkPolicy ?? "COUNT_AS_ZERO"
+            : mark.isExempt
+              ? opts.weightConfig.exemptMarkPolicy ?? "EXCLUDE"
+              : "COUNT_AS_ZERO";
+        if (policy === "BLOCK") throw new Error(`${subject.name} has an unresolved ${!mark ? "missing mark" : mark.isAbsent ? "absence" : "exemption"}; this academic model blocks calculation.`);
+        const totalMarks = policy === "EXCLUDE" ? 0 : subject.totalMarks;
+        const obtainedMarks = mark && !mark.isAbsent && !mark.isExempt && policy !== "EXCLUDE" ? mark.marksObtained : 0;
+        const percentage = totalMarks > 0 ? roundConfigured((obtainedMarks / totalMarks) * 100, opts.weightConfig.roundingRule ?? "WHOLE") : 0;
         const weight = weightForExamType(exam.examType, opts.weightConfig);
         return {
           examId: exam.id,
@@ -369,10 +461,10 @@ export async function buildSubjectDistribution(opts: {
           contribution: (percentage * weight) / 100,
         };
       })
-      .filter((row) => row.weight > 0);
-    const totalTotal = subjectMarks.length > 0 ? subjectMarks.length * subject.totalMarks : subject.totalMarks;
-    const obtainedTotal = subjectMarks.reduce((sum, m) => sum + m.marksObtained, 0);
-    const percentage = totalTotal > 0 ? Math.round((obtainedTotal / totalTotal) * 100) : 0;
+      .filter((row) => row.weight > 0 && row.totalMarks > 0);
+    const totalTotal = examRows.reduce((sum, row) => sum + row.totalMarks, 0);
+    const obtainedTotal = examRows.reduce((sum, row) => sum + row.obtainedMarks, 0);
+    const percentage = totalTotal > 0 ? roundConfigured((obtainedTotal / totalTotal) * 100, opts.weightConfig.roundingRule ?? "WHOLE") : 0;
     return {
       subjectId: subject.id,
       subjectName: subject.name,

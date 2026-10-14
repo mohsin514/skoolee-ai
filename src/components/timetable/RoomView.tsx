@@ -118,7 +118,7 @@ export function RoomView({
                           {daySlots.map((u, i) => (
                             <div
                               key={i}
-                              className={`rounded-lg ${u.color.bg} ${u.color.border} border px-2 py-1`}
+                              className={`rounded-lg ${u.color.bg}  ${u.color.border} border px-2 py-1`}
                             >
                               <p className={`text-[9px] font-black leading-tight ${u.color.text}`}>
                                 P{u.period} · {u.clsLabel}

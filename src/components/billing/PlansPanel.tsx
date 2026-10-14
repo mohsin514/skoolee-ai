@@ -42,6 +42,7 @@ interface BillingSnapshot {
     aiCreditsUsed: number;
     aiCreditsLimit: number;
     stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
   };
   limits: PlanDetails;
   planEndsAt?: string | null;
@@ -55,6 +56,9 @@ interface BillingSnapshot {
   isOperational: boolean;
   defaultPlanPricing: Record<string, { price?: number | null }> | null;
   defaultPricingUpdatedAt: string | null;
+  regionalCurrency?: string;
+  priceCurrency?: string;
+  commercialContractVersion?: string;
 }
 
 const SALES_EMAIL = process.env.NEXT_PUBLIC_SALES_EMAIL || "sales@skoolee.ai";
@@ -88,13 +92,13 @@ export function PlansPanel() {
     loadData();
   }, [loadData]);
 
-  const startCheckout = async (plan: "BASIC" | "PRO") => {
+  const startCheckout = useCallback(async (plan: "BASIC" | "PRO", period = billingPeriod) => {
     setIsPlanAction(plan);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billingPeriod }),
+        body: JSON.stringify({ plan, billingPeriod: period }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Checkout failed");
@@ -113,7 +117,16 @@ export function PlansPanel() {
       toast.error(error instanceof Error ? error.message : "Checkout failed");
       setIsPlanAction(null);
     }
-  };
+  }, [billingPeriod]);
+
+  useEffect(() => {
+    const proceed = (event: Event) => {
+      const detail = (event as CustomEvent<{ plan: "BASIC" | "PRO"; billingPeriod: BillingPeriod }>).detail;
+      void startCheckout(detail.plan, detail.billingPeriod);
+    };
+    window.addEventListener("subscription-proceed-checkout", proceed);
+    return () => window.removeEventListener("subscription-proceed-checkout", proceed);
+  }, [startCheckout]);
 
   const submitPaymentNotification = async () => {
     if (!pendingPlan) return;
@@ -122,7 +135,7 @@ export function PlansPanel() {
       const res = await fetch("/api/billing/payment-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: pendingPlan, receiptRef }),
+        body: JSON.stringify({ plan: pendingPlan, billingPeriod, idempotencyKey: crypto.randomUUID(), receiptRef }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to notify");
@@ -216,6 +229,10 @@ export function PlansPanel() {
             )}
           </CardHeader>
           <CardContent className="space-y-5">
+            <p className="rounded-lg border border-[#e8e0ed] bg-white p-3 text-xs leading-5 text-ink-muted">
+              Regional default: <bdi>{billing.regionalCurrency || "USD"}</bdi>. Catalogue prices and configured checkout are in <bdi>{billing.priceCurrency || "PKR"}</bdi>; no currency conversion is applied.
+              {billing.commercialContractVersion && <> Current terms: <bdi>{billing.commercialContractVersion}</bdi>.</>}
+            </p>
             {!billing.isOperational && (
               <div className="rounded-lg border border-amber-200 bg-white/70 p-4 text-sm text-amber-800">
                 Subscription access is paused. Update billing to restore student, teacher, campus, AI, PDF, and messaging workflows.
@@ -227,8 +244,9 @@ export function PlansPanel() {
                   <RefreshCw className="h-4 w-4" /> Platform pricing updated
                 </p>
                 <p className="mt-1">
-                  From next billing cycle, your {billing.limits.name} plan rate changes to
+                  The catalogue price for {billing.limits.name} is now
                   <strong> PKR {billing.defaultPlanPricing[billing.school.plan].price?.toLocaleString()}/mo</strong>.
+                  This does not change your approved plan terms; ask the billing owner about any proposed change and its effective date.
                   {billing.defaultPricingUpdatedAt && (
                     <span className="block mt-0.5 text-xs text-sky-600/70">
                       Updated {new Date(billing.defaultPricingUpdatedAt).toLocaleDateString()}
@@ -266,14 +284,12 @@ export function PlansPanel() {
                   const active = billingPeriod === period;
                   const isAnnual = period === "annual";
                   return (
-                    <button
+                    <Button variant="choice" size="sm"
                       key={period}
                       type="button"
                       aria-pressed={active}
                       onClick={() => setBillingPeriod(period)}
-                      className={`relative flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider transition-all ${
-                        active ? "bg-[#8127cf] text-white shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-                      }`}
+                      className="relative flex justify-start items-center gap-1.5"
                     >
                       {label}
                       {isAnnual && (
@@ -285,7 +301,7 @@ export function PlansPanel() {
                           −{Math.round(ANNUAL_DISCOUNT * 100)}%
                         </span>
                       )}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -364,12 +380,12 @@ export function PlansPanel() {
                           disabled={!!isPlanAction || !canCheckout}
                           onClick={() => {
                             if (plan.type === "BASIC" || plan.type === "PRO") {
-                              startCheckout(plan.type);
+                              window.dispatchEvent(new CustomEvent("subscription-plan-review", { detail: { plan: plan.type, billingPeriod } }));
                             }
                           }}
                         >
                           {isPlanAction === plan.type ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
-                          Upgrade
+                          {billing.school.stripeSubscriptionId ? "Review change" : "Upgrade"}
                         </Button>
                       )}
                     </div>
@@ -379,7 +395,7 @@ export function PlansPanel() {
             </div>
 
             <p className="text-center text-xs font-semibold text-ink-muted">
-              Flat monthly pricing. Billing annually saves {Math.round(ANNUAL_DISCOUNT * 100)}% and final figures are confirmed on your demo call.
+              Unused AI credits expire at the calendar month reset. Billing annually saves {Math.round(ANNUAL_DISCOUNT * 100)}%; checkout prices are verified against the catalogue.
             </p>
           </CardContent>
         </Card>
@@ -394,22 +410,22 @@ export function PlansPanel() {
           onClose={() => setPaymentModalOpen(false)}
           footer={
             <div className="flex gap-2">
-              <button
+              <Button variant="outline"
                 type="button"
                 onClick={() => setPaymentModalOpen(false)}
-                className="flex-1 rounded-xl border border-[#cfc2d6]/20 px-5 py-[10px] text-sm font-black text-ink hover:bg-[#f3f4f9] transition-colors"
+                className="flex-1"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button variant="default"
                 type="button"
                 onClick={submitPaymentNotification}
                 disabled={isPlanAction !== null}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2"
               >
                 {isPlanAction ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 Notify Owner
-              </button>
+              </Button>
             </div>
           }
         >
@@ -442,7 +458,7 @@ export function PlansPanel() {
                 value={receiptRef}
                 onChange={(e) => setReceiptRef(e.target.value)}
                 placeholder="e.g. Transaction ID, receipt number"
-                className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+                className="w-full px-4 py-[10px]"
               />
             </div>
         </Modal>

@@ -21,6 +21,20 @@ export const ANNUAL_DISCOUNT = 0.2;
 /** Billing cycles offered at checkout. */
 export type BillingPeriod = "monthly" | "annual";
 
+/**
+ * Credits reset to the plan allowance at renewal. Unused credits expire; the
+ * reset job does not roll them forward. This policy is shared by pricing and
+ * release validation so copy cannot promise rollover accidentally.
+ */
+export const AI_CREDIT_POLICY = {
+  allowance: "plan-monthly",
+  unused: "expire-at-calendar-month-reset",
+  reset: "zero-used-on-calendar-month-boundary",
+} as const;
+
+/** Version for the commercial contract represented by this catalogue. */
+export const COMMERCIAL_CATALOG_VERSION = "2026-10-08.1";
+
 export const PLAN_ORDER: PlanType[] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
 
 export const PLANS: Record<PlanType, PlanDetails> = {
@@ -131,7 +145,7 @@ export const PLANS: Record<PlanType, PlanDetails> = {
 /** Monthly-equivalent price after the annual discount, or null for custom tiers. */
 export function annualMonthlyPrice(price: number | null | undefined) {
   if (price == null) return null;
-  return Math.round(price * (1 - ANNUAL_DISCOUNT));
+  return Math.round(Math.round(price * (1 - ANNUAL_DISCOUNT) * 12) / 12);
 }
 
 export function normalizePlan(plan: unknown): PlanType {

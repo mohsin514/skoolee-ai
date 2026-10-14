@@ -4,6 +4,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 
+// Application controls have no per-route migration exemptions. Specialized native
+// inputs below retain their browser contracts; ordinary controls belong in ui/.
 // Prevent newly added screens from silently bypassing the shared field system.
 test('application forms use shared fields; specialized native controls remain explicit', () => {
   const violations: string[] = [];
@@ -16,6 +18,7 @@ test('application forms use shared fields; specialized native controls remain ex
       function visit(node: ts.Node) {
         if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
           const tag = node.tagName.getText(source);
+          if (tag === 'button' || tag === 'motion.button') violations.push(`${file}: native action ${tag}`);
           if (tag === 'select' || tag === 'textarea') violations.push(`${file}: native ${tag}`);
           if (tag === 'input') {
             const type = node.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText(source) === 'type');
@@ -33,4 +36,54 @@ test('application forms use shared fields; specialized native controls remain ex
   }
   walk('src');
   assert.deepEqual(violations, []);
+});
+
+// Focus indicators come from one token in globals.css (--focus-color, --field-focus-*).
+// Screen-level focus ring/outline/border/shadow utilities fork it (double or off-hue
+// rings), so they are banned everywhere, shared primitives included. Use the
+// `focus-on-dark` / `focus-inset` utilities to adapt the shared indicator instead.
+// `!?` and the optional bare `-` also catch `focus:!border-…` and `focus:ring-${tone}`.
+const FOCUS_UTILITY = /(?<=^|\s)(?:[a-z0-9-]+(?:-\[[^\]\s]+\])?:)*(?:focus|focus-visible|focus-within):!?(?:ring|outline|border|shadow)(?:-[^\s"'`}]*)?(?=\s|$)/g;
+const RETIRED_FOCUS_HEX = /#aa8bc4|170\s+139\s+196|170\s*,\s*139\s*,\s*196/i;
+
+function sourceFiles(dir: string, out: string[] = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const file = join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(file, out);
+    else if (/\.tsx?$/.test(file)) out.push(file);
+  }
+  return out;
+}
+
+test('focus styling uses the shared token; no screen forks the focus ring', () => {
+  const violations: string[] = [];
+  for (const file of sourceFiles('src')) {
+    const text = readFileSync(file, 'utf8');
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const visit = (node: ts.Node) => {
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+        for (const match of node.text.matchAll(FOCUS_UTILITY)) {
+          const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+          violations.push(`${file}:${line}: ${match[0]}`);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    text.split('\n').forEach((line, index) => {
+      if (RETIRED_FOCUS_HEX.test(line)) violations.push(`${file}:${index + 1}: hardcoded retired focus colour`);
+    });
+  }
+  assert.deepEqual(violations, []);
+
+  const css = readFileSync('src/app/globals.css', 'utf8');
+  for (const token of ['--focus-color', '--field-focus-border', '--field-focus-ring', '--field-error-ring']) {
+    assert.match(css, new RegExp(`${token}\\s*:`), `globals.css must define ${token}`);
+  }
+});
+
+
+test('Sonner visual configuration has one shared owner', () => {
+  const owners = sourceFiles('src').filter(file => /<Toaster(?:\s|\/>)/.test(readFileSync(file, 'utf8')));
+  assert.deepEqual(owners, ['src/components/ui/app-toaster.tsx']);
 });

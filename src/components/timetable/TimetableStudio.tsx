@@ -32,10 +32,20 @@ import { ConflictPanel } from "./ConflictPanel";
 import { RoomView } from "./RoomView";
 import { SubjectPalette } from "./SubjectPalette";
 import { TeacherView } from "./TeacherView";
+import { SubstituteDuties } from "@/components/school-ai/school-operations-duties";
 import { TimetableGrid, type GridDensity } from "./TimetableGrid";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
+import { timetablePeriods } from "@/lib/timetable/view-scope";
+import { AddPeriodDialog, addPeriodCopy } from "./AddPeriodDialog";
+import { PeriodChangeReview } from "./PeriodChangeReview";
+import { planPeriodChanges, type PeriodConfiguration } from "@/lib/timetable/period-changes";
+
 
 const TIMETABLE_LAYOUT_KEY = "skoolee.timetable.layout";
 
@@ -121,6 +131,7 @@ const DAYS: GridDay[] = [
   { num: 4, short: "Thu", full: "Thursday" },
   { num: 5, short: "Fri", full: "Friday" },
   { num: 6, short: "Sat", full: "Saturday" },
+  { num: 7, short: "Sun", full: "Sunday" },
 ];
 
 const SUBJECT_COLORS: SubjectColor[] = [
@@ -284,19 +295,19 @@ function PeriodConfigModal({
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="w-28 px-3 py-2"
               />
               <span className="text-[10px] font-bold text-ink-subtle">to</span>
               <SystemInput
                 type="time"
                 value={p.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="w-28 px-3 py-2"
               />
               <SystemSelect
                 value={p.type}
                 onChange={(e) => updatePeriod(i, "type", e.target.value)}
-                className="flex-1 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 cursor-pointer"
+                className="flex-1 px-3 py-2"
               >
                 <option value="CLASS">Class</option>
                 <option value="BREAK">Break</option>
@@ -304,22 +315,22 @@ function PeriodConfigModal({
                 <option value="ASSEMBLY">Assembly</option>
                 <option value="ACTIVITY">Activity</option>
               </SystemSelect>
-              <button
+              <Button variant="destructive" size="icon"
                 type="button"
                 onClick={() => removePeriod(i)}
-                className="h-8 w-8 rounded-xl bg-white flex items-center justify-center text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+                className="flex items-center justify-center"
               >
                 <X className="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </div>
           ))}
-          <button
+          <Button variant="outline" size="sm"
             type="button"
             onClick={addPeriod}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
+            className="flex w-full items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" />Add Period
-          </button>
+          </Button>
         </div>
     </Modal>
   );
@@ -414,20 +425,20 @@ function SlotEditorModal({
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
-          <button
+          <Button variant="destructive" size="sm"
             type="button"
             onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
             <X className="w-3 h-3" />Clear
-          </button>
-          <button
+          </Button>
+          <Button variant="default" size="sm"
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
             <Check className="w-3.5 h-3.5" />Apply
-          </button>
+          </Button>
         </div>
       }
     >
@@ -437,16 +448,14 @@ function SlotEditorModal({
             <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
             <div className="flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
               {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
-                <button
+                <Button aria-pressed={slotType === type} variant="choice" size="sm"
                   key={type}
                   type="button"
                   onClick={() => setSlotType(type)}
-                  className={`flex-1 rounded-xl px-2 py-1.5 text-[9px] font-black uppercase transition-all cursor-pointer ${
-                    slotType === type ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-subtle hover:text-[#8127cf]"
-                  }`}
+                  className="flex-1"
                 >
                   {type}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -458,7 +467,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No subject —</option>
                   {subjects.map((s) => (
@@ -474,7 +483,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No teacher —</option>
                   {freeTeachers.map((t) => (
@@ -493,7 +502,7 @@ function SlotEditorModal({
                 <SystemSelect
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No room —</option>
                   {freeRooms.map((r) => (
@@ -579,7 +588,12 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [classLoading, setClassLoading] = useState(false);
+  const { language } = useLocale();
+  const scopeCopy = timetableScopeCopy(language);
+  const addCopy = addPeriodCopy(language);
+  const [addingPeriod, setAddingPeriod] = useState(false);
+  const [periodReview, setPeriodReview] = useState<PeriodConfiguration[] | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<(() => void) | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -654,7 +668,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         fetch(`/api/timetable${qp}`),
         fetch(`/api/classes${qp}`),
         fetch(`/api/staff${qp}`),
-        fetch(`/api/academic/periods?timeType=CLASS${qp}`),
+        fetch(`/api/academic/periods?timeType=CLASS${campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}`),
         fetch(`/api/academic/rooms${qp}`),
         fetch(`/api/academic/calendar${qp}`),
       ]);
@@ -686,40 +700,34 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const activeTimetable = useMemo(() => {
-    if (!selectedClassId) return null;
-    return timetables.find((t) => t.classId === selectedClassId) || null;
-  }, [timetables, selectedClassId]);
+  const scope = useTimetableScope(timetables, classes, campusId);
+  const scopeClasses = useMemo(() => {
+    const options = classes.filter(cls => cls.academicYear === scope.year || timetables.some(timetable => timetable.classId === cls.id && timetable.academicYear === scope.year));
+    for (const timetable of timetables) if (timetable.academicYear === scope.year && !options.some(cls => cls.id === timetable.classId)) options.push({ ...timetable.class, academicYear: scope.year });
+    return options;
+  }, [classes, timetables, scope.year]);
+  const activeTimetable = scope.exact.find(timetable => timetable.classId === selectedClassId) || null;
+  const changing = creating || saving || publishing;
+  const changeSelection = (change: () => void) => {
+    if (changing) return;
+    if (pendingChanges.size) { setPendingSelection(() => change); return; }
+    setEditingSlot(null); change();
+  };
+  const finishSelection = () => { setPendingChanges(new Map()); setEditingSlot(null); pendingSelection?.(); setPendingSelection(null); };
+
 
   useEffect(() => {
+    setSubjects([]);
     if (!selectedClassId || !activeTimetable) return;
-    fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : ""}`)
+    const controller = new AbortController();
+    fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : ""}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((j) => {
-        if (j.success || Array.isArray(j.data)) setSubjects(j.data || []);
+        if (!controller.signal.aborted && (j.success || Array.isArray(j.data))) setSubjects(j.data || []);
       })
       .catch(() => {});
+    return () => controller.abort();
   }, [selectedClassId, activeTimetable, campusId]);
-
-  useEffect(() => {
-    if (!selectedClassId) return;
-    const existing = timetables.find((t) => t.classId === selectedClassId);
-    if (!existing || existing.slots.length > 0) return;
-    let cancelled = false;
-    setClassLoading(true);
-    fetch(`/api/timetable?classId=${selectedClassId}${qp}`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (cancelled || !j.success) return;
-        const fetched = Array.isArray(j.data) ? j.data[0] : null;
-        if (fetched) {
-          setTimetables((prev) => prev.map((t) => (t.classId === selectedClassId ? fetched : t)));
-        }
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setClassLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedClassId, timetables, qp]);
 
   const subjectColorMap = useMemo(() => {
     const m = new Map<string, SubjectColor>();
@@ -727,26 +735,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
     return m;
   }, [subjects]);
 
-  const periods = useMemo<GridPeriod[]>(() => {
-    if (!activeTimetable) return [];
-    if (periodDefs.length > 0) {
-      return [...periodDefs]
-        .sort((a, b) => a.periodNumber - b.periodNumber)
-        .map((p) => {
-          const slot = activeTimetable.slots.find((s) => s.periodNumber === p.periodNumber);
-          return { num: p.periodNumber, start: p.startTime, end: p.endTime, type: slot?.slotType || "CLASS" };
-        });
-    }
-    const seen = new Map<number, { start: string; end: string; type: string }>();
-    for (const s of activeTimetable.slots) {
-      if (!seen.has(s.periodNumber)) {
-        seen.set(s.periodNumber, { start: s.startTime, end: s.endTime, type: s.slotType });
-      }
-    }
-    return [...seen.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([num, v]) => ({ num, ...v }));
-  }, [activeTimetable, periodDefs]);
+  const periods = useMemo(() => timetablePeriods(viewMode === "class" ? activeTimetable?.slots || [] : scope.resources.flatMap(timetable => timetable.slots), periodDefs), [viewMode, activeTimetable, scope.resources, periodDefs]);
 
   const gridSkeletonPeriods = periods.length
     ? periods
@@ -775,7 +764,6 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
     if (!selectedClassId) return;
     setCreating(true);
     try {
-      const cls = classes.find((c) => c.id === selectedClassId);
       const fromDefs =
         periodDefs.length > 0
           ? periodDefs
@@ -787,7 +775,9 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           classId: selectedClassId,
-          academicYear: cls?.academicYear || new Date().getFullYear(),
+          campusId,
+          academicYear: scope.year,
+          term: scope.term,
           periods: periodsArg || fromDefs || defaultPeriods,
         }),
       });
@@ -893,42 +883,35 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
     }
   };
 
-  const handleSavePeriodConfig = async (periodsArg: { period: number; start: string; end: string; type: string }[]) => {
-    if (!activeTimetable) return;
+  const savePeriodConfig = async (configuration: PeriodConfiguration[]): Promise<boolean> => {
+    if (!activeTimetable) return false;
     setSaving(true);
     try {
-      const slotUpdates = activeTimetable.slots.map((s) => {
-        const cfg = periodsArg.find((p) => p.period === s.periodNumber);
-        return {
-          id: s.id,
-          dayOfWeek: s.dayOfWeek,
-          periodNumber: s.periodNumber,
-          startTime: cfg?.start || s.startTime,
-          endTime: cfg?.end || s.endTime,
-          slotType: cfg?.type || s.slotType,
-          subjectId: s.subjectId,
-          teacherId: s.teacherId,
-          roomId: s.roomId,
-          roomNumber: s.roomNumber,
-        };
-      });
+      const { updates } = planPeriodChanges(activeTimetable.slots, configuration);
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slots: slotUpdates }),
+        body: JSON.stringify({ slots: updates }),
       });
       const json = await res.json();
       if (json.success) {
         toast.success("Period config saved!");
         await loadData();
-      } else {
-        toast.error(json.error || "Failed to save");
+        return true;
       }
+      toast.error(json.error || "Failed to save");
+      return false;
     } catch {
       toast.error("Failed to save period config");
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+  const handleSavePeriodConfig = (configuration: PeriodConfiguration[]) => {
+    if (!activeTimetable || pendingChanges.size > 0 || changing) return;
+    if (planPeriodChanges(activeTimetable.slots, configuration).clearing.length) setPeriodReview(configuration);
+    else void savePeriodConfig(configuration);
   };
 
   const handleDeleteTimetable = async () => {
@@ -950,7 +933,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
 
   const teacherSlotMap = useMemo(() => {
     const map = new Map<string, { classLabel: string; day: number; period: number; subject: string; start: string; end: string }[]>();
-    for (const tt of timetables) {
+    for (const tt of scope.resources) {
       const clsLabel = `${tt.class.name}${tt.class.section ? ` ${tt.class.section}` : ""}`;
       for (const s of tt.slots) {
         if (!s.teacherId) continue;
@@ -967,7 +950,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       }
     }
     return map;
-  }, [timetables]);
+  }, [scope.resources]);
 
   const selectedTeacherSlots = selectedTeacherId ? teacherSlotMap.get(selectedTeacherId) || [] : [];
 
@@ -976,27 +959,32 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
+      <TimetableScopeControls year={scope.year} term={scope.term} years={scope.years} terms={scope.terms} disabled={changing} onYear={year => changeSelection(() => { scope.setYear(year); setSelectedClassId(null); })} onTerm={term => changeSelection(() => scope.setTerm(term))} />
+      <ConfirmAction open={pendingSelection !== null} title={scopeCopy.changeTitle} description={scopeCopy.changeHint} confirmLabel={scopeCopy.discard} cancelLabel={scopeCopy.keep} onCancel={() => setPendingSelection(null)} onConfirm={finishSelection} />
+      {addingPeriod && activeTimetable && <AddPeriodDialog key={activeTimetable.id} timetableId={activeTimetable.id} slots={activeTimetable.slots} definitions={periodDefs} weekendDays={weekendDays} onClose={() => setAddingPeriod(false)} onAdded={slot => { setTimetables(previous => previous.map(timetable => timetable.id === activeTimetable.id ? { ...timetable, slots: [...timetable.slots.filter(existing => existing.id !== slot.id), slot] } : timetable)); toast.success(addCopy.saved); }} />}
       {/* Toolbar: class picker, view tabs, publish */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] p-2 shadow-sm border border-[#cfc2d6]/10">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <InputGroup surfaceClassName="bg-white" className="min-w-0">
             <SystemSelect
               value={selectedClassId || ""}
-              onChange={(e) => setSelectedClassId(e.target.value || null)}
-              className="h-11 min-w-[180px] rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
+              onChange={(e) => { const id = e.target.value || null; changeSelection(() => setSelectedClassId(id)); }}
+              disabled={changing}
+              aria-label={scopeCopy.class}
+              className="min-w-0 px-4 pr-10 appearance-none"
             >
-              <option value="">— Select class —</option>
-              {classes.map((cls) => {
-                const hasTt = timetables.some((t) => t.classId === cls.id);
-                const isPub = timetables.find((t) => t.classId === cls.id)?.status === "PUBLISHED";
+              <option value="">{scopeCopy.chooseClass}</option>
+              {scopeClasses.map((cls) => {
+                const hasTt = scope.exact.some((t) => t.classId === cls.id);
+                const isPub = scope.exact.find((t) => t.classId === cls.id)?.status === "PUBLISHED";
                 // Spelled out, not "•" / "○". The glyphs carried the
                 // published/draft distinction with no legend anywhere on the
                 // screen, so they read as a stray bullet.
                 return (
                   <option key={cls.id} value={cls.id}>
                     {cls.name}{cls.section ? ` - ${cls.section}` : ""}
-                    {hasTt ? (isPub ? " · Published" : " · Draft") : " · No timetable"}
+                    {` · ${hasTt ? (isPub ? scopeCopy.published : scopeCopy.draft) : scopeCopy.absent}`}
                   </option>
                 );
               })}
@@ -1006,57 +994,48 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
           </InputGroup>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
-            <button
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+            <Button aria-pressed={viewMode === "class"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("class")}
-              className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className="class"
             >
               <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Class
-            </button>
-            <button
+            </Button>
+            <Button aria-pressed={viewMode === "teacher"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("teacher")}
-              className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className="teacher"
             >
               <User className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Teacher
-            </button>
-            <button
+            </Button>
+            <Button aria-pressed={viewMode === "room"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("room")}
-              className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                viewMode === "room" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-              }`}
+              className="room"
             >
               <DoorOpen className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Room
-            </button>
+            </Button>
           </div>
 
-          <button
+          <Button variant={activeTimetable?.status === "PUBLISHED" ? "secondary" : "default"} size="sm"
             type="button"
             onClick={handlePublish}
-            disabled={!activeTimetable || publishing || viewMode !== "class"}
-            className={`flex h-11 items-center gap-1.5 rounded-2xl px-5 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 ${
-              activeTimetable?.status === "PUBLISHED"
-                ? "bg-amber-50 text-amber-600 hover:bg-amber-100"
-                : "bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] text-white hover:shadow-lg shadow-[#8127cf]/25"
-            }`}
+            disabled={!activeTimetable || changing || pendingChanges.size > 0 || viewMode !== "class"}
+            className="flex justify-start items-center gap-1.5"
           >
             {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {activeTimetable?.status === "PUBLISHED" ? "Unpublish" : "Publish"}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Teacher view */}
       {viewMode === "teacher" && (
+        <div className="space-y-5">
         <TeacherView
-          timetables={timetables}
+          timetables={scope.resources}
           teachers={teachers}
           periods={periods}
           visibleDays={visibleDays}
@@ -1064,12 +1043,14 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
           selectedTeacherId={selectedTeacherId}
           onSelectTeacher={setSelectedTeacherId}
         />
+        <SubstituteDuties campusId={campusId} />
+        </div>
       )}
 
       {/* Room view */}
       {viewMode === "room" && (
         <RoomView
-          timetables={timetables}
+          timetables={scope.resources}
           rooms={rooms}
           visibleDays={visibleDays}
           periods={periods}
@@ -1098,23 +1079,23 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
               </p>
               <div className="flex items-center gap-3">
-                <button
+                <Button variant="outline"
                   type="button"
                   onClick={() => { setCustomPeriods(defaultPeriods.map((p) => ({ ...p }))); setShowPeriodConfig(true); }}
-                  className="flex items-center gap-2 rounded-2xl border-2 border-[#8127cf]/20 bg-white px-6 py-3 text-sm font-black text-[#8127cf] transition-all hover:border-[#8127cf]/40 cursor-pointer"
+                  className="flex justify-start items-center gap-2"
                 >
                   <Clock className="w-4 h-4" />
                   Configure Periods
-                </button>
-                <button
+                </Button>
+                <Button variant="default"
                   type="button"
                   onClick={() => handleCreateTimetable()}
                   disabled={creating}
-                  className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-3 text-sm font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/30 cursor-pointer disabled:opacity-50"
+                  className="flex justify-start items-center gap-2"
                 >
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 h-4" />}
                   Quick Create (Default)
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -1142,7 +1123,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       30cm while it is being built. */}
                   <div className="flex items-center gap-0.5 rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] p-0.5">
                     {(["compact", "comfortable", "roomy"] as const).map((d) => (
-                      <button
+                      <Button variant="choice" size="sm"
                         key={d}
                         type="button"
                         onClick={() => setDensity(d)}
@@ -1154,15 +1135,13 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                             ? "Comfortable — subject, teacher and room"
                             : "Roomy — full names on their own lines"
                         }
-                        className={`h-8 cursor-pointer rounded-lg px-2.5 text-[9px] font-black uppercase tracking-wider transition-all ${
-                          density === d ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-                        }`}
+                        className=""
                       >
                         {d === "compact" ? "S" : d === "comfortable" ? "M" : "L"}
-                      </button>
+                      </Button>
                     ))}
                   </div>
-                  <button
+                  <Button variant="choice" size="sm"
                     type="button"
                     onClick={() => {
                       const next = !focused;
@@ -1171,60 +1150,58 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     }}
                     aria-pressed={focused}
                     title={focused ? "Show the subject and conflict panels" : "Give the grid the full width"}
-                    className={`flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[10px] font-black uppercase tracking-wider transition-all ${
-                      focused
-                        ? "bg-[#8127cf] text-white"
-                        : "bg-[#f3f4f9] text-ink-muted hover:bg-[#8127cf]/10 hover:text-[#8127cf]"
-                    }`}
+                    className="flex justify-start items-center gap-1.5"
                   >
                     {focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                     {focused ? "Exit Focus" : "Focus"}
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="secondary" size="sm"
                     type="button"
                     onClick={() => setShowLegend((v) => !v)}
                     aria-pressed={showLegend}
                     title={showLegend ? "Hide the subject legend" : "Show the subject legend"}
-                    className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf]"
+                    className="flex justify-start items-center gap-1.5"
                   >
                     <Palette className="h-3.5 w-3.5" />
                     Legend
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={activeTimetable.status !== "DRAFT" || changing || pendingChanges.size > 0} title={addCopy.draftOnly} onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button>
+                  <Button variant="secondary" size="sm"
                     type="button"
+                    disabled={changing || pendingChanges.size > 0}
                     onClick={() => {
                       const p = periods.map((pp) => ({ period: pp.num, start: pp.start, end: pp.end, type: pp.type }));
                       setCustomPeriods(p);
                       setShowPeriodConfig(true);
                     }}
-                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                    className="flex justify-start items-center gap-1.5"
                   >
                     <Clock className="h-3.5 w-3.5" />Periods
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="secondary" size="sm"
                     type="button"
                     onClick={() => window.print()}
-                    className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                    className="flex justify-start items-center gap-1.5"
                   >
                     <Printer className="h-3.5 w-3.5" />Print
-                  </button>
-                  <button
+                  </Button>
+                  <Button variant="destructive" size="sm"
                     type="button"
                     onClick={handleDeleteTimetable}
-                    className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
+                    className="flex justify-start items-center gap-1.5"
                   >
                     <Trash2 className="h-3.5 w-3.5" />Delete
-                  </button>
+                  </Button>
                   {pendingChanges.size > 0 && (
-                    <button
+                    <Button variant="default" size="sm"
                       type="button"
                       onClick={handleSaveAll}
                       disabled={saving}
-                      className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] cursor-pointer disabled:opacity-50"
+                      className="flex justify-start items-center gap-1.5"
                     >
                       {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                       Save Changes
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -1291,7 +1268,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
 
                 {/* CENTER: Timetable grid */}
                 <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
-                  {classLoading ? (
+                  {loading ? (
                     <div className="p-4 text-center text-sm font-semibold text-ink-subtle">Loading slots…</div>
                   ) : (
                     <TimetableGrid
@@ -1316,7 +1293,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   <div className="relative lg:sticky lg:top-4 lg:max-h-[78vh]">
                     <PaneToggle side="right" onClick={() => setShowConflicts(false)} label="Hide checks" />
                     <ConflictPanel
-                      timetables={timetables}
+                      timetables={scope.resources}
                       activeTimetable={activeTimetable}
                       subjects={subjects}
                       placedBySubject={placedBySubject}
@@ -1381,6 +1358,8 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         }
       `}</style>
 
+      {periodReview && activeTimetable && <PeriodChangeReview clearing={planPeriodChanges(activeTimetable.slots, periodReview).clearing} onCancel={() => { setCustomPeriods(periodReview); setPeriodReview(null); setShowPeriodConfig(true); }} onConfirm={async () => { const saved = await savePeriodConfig(periodReview); if (saved) setPeriodReview(null); return saved; }} />}
+
       {/* Period config modal */}
       {showPeriodConfig && (
         <PeriodConfigModal
@@ -1432,17 +1411,17 @@ function PaneToggle({
 }) {
   const Icon = side === "left" ? ChevronLeft : ChevronRight;
   return (
-    <button
+    <Button variant="ghost" size="icon"
       type="button"
       onClick={onClick}
       title={label}
       aria-label={label}
-      className={`absolute top-2 z-10 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#cfc2d6]/30 bg-white text-ink-subtle shadow-sm transition-colors hover:text-[#8127cf] lg:flex ${
+      className={`absolute top-2 z-10 hidden items-center justify-center lg:flex ${
         side === "left" ? "right-2" : "left-2"
       }`}
     >
       <Icon className="h-3.5 w-3.5" />
-    </button>
+    </Button>
   );
 }
 
@@ -1460,11 +1439,11 @@ function CollapsedPane({
 }) {
   const Chevron = side === "left" ? ChevronRight : ChevronLeft;
   return (
-    <button
+    <Button variant="outline"
       type="button"
       onClick={onClick}
       title={`Show ${label.toLowerCase()}`}
-      className="hidden cursor-pointer flex-col items-center gap-3 rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-b from-white to-[#faf7fc] py-4 shadow-sm transition-colors hover:border-[#8127cf]/40 lg:flex lg:sticky lg:top-4 lg:max-h-[78vh]"
+      className="hidden flex-col items-center gap-3 lg:flex lg:sticky lg:top-4 lg:max-h-[78vh]"
     >
       <Chevron className="h-4 w-4 text-ink-subtle" />
       <Icon className="h-4 w-4 text-[#8127cf]" />
@@ -1474,6 +1453,6 @@ function CollapsedPane({
       >
         {label}
       </span>
-    </button>
+    </Button>
   );
 }

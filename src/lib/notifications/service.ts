@@ -3,10 +3,11 @@ import { appendEvent } from "@/lib/queue/outbox";
 import { getLocalePackage } from "@/lib/locale/store";
 import { formatDateOnly, formatMoney, localeTag, localePackageSchema, type Language } from "@/lib/locale/package";
 import { notificationHtml } from "@/lib/locale/notification-catalog";
-import { assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
+import { authorizedGuardianCommunicationTargets, assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { canUseFeature } from "@/config/plans";
+import { normalizePlan } from "@/config/plans";
+import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
 import { sendEmailMessage } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
@@ -176,10 +177,8 @@ export function renderNotificationTemplate(template: NotificationTemplateDefinit
   };
 }
 
-function recipientForStudent(student: StudentContext, channel: NotificationChannel) {
-  if (channel === "EMAIL") return student.guardianEmail || student.parent?.email || null;
-  if (channel === "WHATSAPP") return student.guardianWhatsapp || student.parent?.phone || student.guardianPhone || null;
-  return student.guardianPhone || student.guardianWhatsapp || student.parent?.phone || null;
+async function authorizedGuardianRecipients(studentId: string, schoolId: string, channel: NotificationChannel, permission: "communication" | "learningRecords" | "attendance" | "finances" = "communication") {
+  return authorizedGuardianCommunicationTargets({ studentId, schoolId }, channel, permission);
 }
 
 export function studentBaseContext(student: StudentContext): TemplateContext {
@@ -227,7 +226,8 @@ async function findExistingByIdempotency(idempotencyKey?: string) {
 }
 
 export async function sendTemplatedCommunication(input: SendTemplateInput) {
-  await assertCommunicationTarget(input.target, input.channel);
+  const permission = input.key === "REPORT_CARD_PUBLISHED" ? "learningRecords" : input.relatedType === "INVOICE" ? "finances" : "communication";
+  await assertCommunicationTarget(input.target, input.channel, permission);
   if (input.key === "REPORT_CARD_PUBLISHED") {
     await assertPublishedCommunicationReport(input.relatedId || "", input.target.studentId);
     const version = await getPublishedVersion(input.relatedId || "");
@@ -235,7 +235,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     if (!input.createdById) throw new Error("Report delivery requires an authorized actor");
     // Callers cannot replace approved facts, document identity, approval or logical delivery identity.
     input = { ...input, approvedData: true, attachmentUrl: null,
-      idempotencyKey: `report-version:${version.id}:${input.channel}`,
+      idempotencyKey: `report-version:${version.id}:${input.channel}:${input.target.parentUserId || "unlinked"}`,
       context: { ...input.context, examTitle: report.examTitle, grade: report.grade || "-", percentage: report.percentage.toFixed(1), viewInstruction: "Please log in to the portal to view the report card." },
       metadata: { reportVersionId: version.id, documentIdentity: version.documentIdentity },
     };
@@ -283,7 +283,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     input.channel === "WHATSAPP"
       ? await prisma.school.findUnique({
           where: { id: input.target.schoolId },
-          select: { plan: true, status: true },
+          select: { plan: true, status: true, commercialContract: true },
         })
       : null;
   const subscriptionBlockedReason =
@@ -291,7 +291,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
       ? "Subscription suspended. Open billing to update your plan or payment method."
       : null;
   const planBlockedReason =
-    school && !canUseFeature(school.plan, "whatsappEnabled")
+    school && !getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).whatsappEnabled
       ? "WhatsApp messaging is not included in the current plan"
       : null;
   const dataBlockedReason =
@@ -366,6 +366,9 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     });
   }
 
+  // Consent may have changed while templates and locale were resolved.
+  await assertCommunicationTarget(input.target, input.channel, permission);
+  if (process.env.DISABLE_OUTBOUND_MESSAGES === "true") return prisma.parentCommunication.update({ where: { id: communication.id }, data: { status: "BLOCKED", failedReason: "Outbound messages are disabled" } });
   const result =
     input.channel === "WHATSAPP"
       ? await sendWhatsAppMessage({
@@ -422,29 +425,27 @@ export async function sendStudentTemplatedCommunication({
 
   const results = [];
   for (const channel of channels) {
-    const recipient = recipientForStudent(student, channel);
-    results.push(
-      await sendTemplatedCommunication({
-        key,
-        channel,
-        context: { ...baseContext, ...context },
-        target: {
-          schoolId: student.campus.schoolId,
-          campusId: student.campusId,
-          studentId: student.id,
-          parentUserId: student.parentUserId,
-          recipientName: valueFor(baseContext, "parentName"),
-          recipient,
-        },
-        createdById,
-        attachmentUrl,
-        relatedType,
-        relatedId,
-        approvedData,
-        idempotencyKey: idempotencyBase ? `${idempotencyBase}:${channel}` : undefined,
-        metadata,
-      })
-    );
+    const recipients = await authorizedGuardianRecipients(student.id, student.campus.schoolId, channel, key === "REPORT_CARD_PUBLISHED" ? "learningRecords" : relatedType === "INVOICE" ? "finances" : "communication");
+    for (const guardian of recipients) results.push(await sendTemplatedCommunication({
+      key,
+      channel,
+      context: { ...baseContext, ...context, parentName: guardian.fullName, recipientName: guardian.fullName },
+      target: {
+        schoolId: student.campus.schoolId,
+        campusId: student.campusId,
+        studentId: student.id,
+        parentUserId: guardian.guardianUserId,
+        recipientName: guardian.fullName,
+        recipient: guardian.recipient,
+      },
+      createdById,
+      attachmentUrl,
+      relatedType,
+      relatedId,
+      approvedData,
+      idempotencyKey: idempotencyBase ? `${idempotencyBase}:${channel}:${guardian.guardianUserId}` : undefined,
+      metadata,
+    }));
   }
 
   return results;

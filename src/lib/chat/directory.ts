@@ -14,6 +14,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { type UserRole } from "@/lib/roles";
+import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import {
   LEADERSHIP_ROLES,
   STAFF_ROLES,
@@ -68,12 +69,12 @@ async function familyIdsForTeacher(userId: string): Promise<string[]> {
 
   const roster = await prisma.student.findMany({
     where: { classId: { in: classIds }, status: "active" },
-    select: { parentUserId: true, studentUserId: true },
+    select: { studentUserId: true, guardianRelationships: { where: liveGuardianRelationshipWhere(userId, "communication"), select: { guardianUserId: true } } },
   });
 
   const ids = new Set<string>();
   for (const s of roster) {
-    if (s.parentUserId) ids.add(s.parentUserId);
+    for (const relationship of s.guardianRelationships) if (relationship.guardianUserId) ids.add(relationship.guardianUserId);
     if (s.studentUserId) ids.add(s.studentUserId);
   }
   return [...ids];
@@ -92,9 +93,9 @@ async function familyReach(
 
   const students = await prisma.student.findMany({
     where: isParent
-      ? { parentUserId: user.userId, status: "active" }
+      ? { status: "active", guardianRelationships: { some: liveGuardianRelationshipWhere(user.userId, "communication") } }
       : { studentUserId: user.userId },
-    select: { id: true, classId: true, parentUserId: true, studentUserId: true },
+    select: { id: true, classId: true, studentUserId: true, guardianRelationships: { where: isParent ? undefined : liveGuardianRelationshipWhere(null, "communication"), select: { guardianUserId: true } } },
   });
 
   const classIds = students.map((s) => s.classId);
@@ -131,8 +132,8 @@ async function familyReach(
   // logins, a pupil sees their guardian.
   const ownIds = new Set<string>();
   for (const s of students) {
-    const other = isParent ? s.studentUserId : s.parentUserId;
-    if (other) ownIds.add(other);
+    if (isParent && s.studentUserId) ownIds.add(s.studentUserId);
+    if (!isParent) for (const relation of s.guardianRelationships) if (relation.guardianUserId) ownIds.add(relation.guardianUserId);
   }
 
   return {
@@ -281,12 +282,15 @@ async function describeContexts(user: AuthUser, ids: string[]): Promise<Map<stri
     const roster = await prisma.student.findMany({
       where: {
         classId: { in: classIds },
-        OR: [{ parentUserId: { in: ids } }, { studentUserId: { in: ids } }],
+        OR: [
+          { guardianRelationships: { some: { guardianUserId: { in: ids }, ...liveGuardianRelationshipWhere(null, "communication") } } },
+          { studentUserId: { in: ids } },
+        ],
       },
       select: {
         fullName: true,
-        parentUserId: true,
         studentUserId: true,
+        guardianRelationships: { where: { guardianUserId: { in: ids }, ...liveGuardianRelationshipWhere(null, "communication") }, select: { guardianUserId: true } },
         class: { select: { name: true, section: true } },
       },
     });
@@ -296,8 +300,8 @@ async function describeContexts(user: AuthUser, ids: string[]): Promise<Map<stri
       if (s.studentUserId && ids.includes(s.studentUserId)) {
         out.set(s.studentUserId, label || "Your student");
       }
-      if (s.parentUserId && ids.includes(s.parentUserId)) {
-        out.set(s.parentUserId, `Guardian of ${s.fullName}${label ? ` · ${label}` : ""}`);
+      for (const relation of s.guardianRelationships) if (relation.guardianUserId && ids.includes(relation.guardianUserId)) {
+        out.set(relation.guardianUserId, `Guardian of ${s.fullName}${label ? ` · ${label}` : ""}`);
       }
     }
     return out;
@@ -307,21 +311,22 @@ async function describeContexts(user: AuthUser, ids: string[]): Promise<Map<stri
     const isParent = user.role === "PARENT";
     const students = await prisma.student.findMany({
       where: isParent
-        ? { parentUserId: user.userId, status: "active" }
+        ? { status: "active", guardianRelationships: { some: liveGuardianRelationshipWhere(user.userId, "communication") } }
         : { studentUserId: user.userId },
       select: {
         fullName: true,
         classId: true,
-        parentUserId: true,
         studentUserId: true,
+        guardianRelationships: { where: isParent ? undefined : liveGuardianRelationshipWhere(null, "communication"), select: { guardianUserId: true } },
         class: { select: { name: true, section: true, classTeacherId: true } },
       },
     });
 
     for (const s of students) {
-      const own = isParent ? s.studentUserId : s.parentUserId;
-      if (own && ids.includes(own)) {
-        out.set(own, isParent ? `Your child · ${s.fullName}` : "Your guardian");
+      if (isParent && s.studentUserId && ids.includes(s.studentUserId)) {
+        out.set(s.studentUserId, `Your child · ${s.fullName}`);
+      } else if (!isParent) for (const relation of s.guardianRelationships) if (relation.guardianUserId && ids.includes(relation.guardianUserId)) {
+        out.set(relation.guardianUserId, "Your guardian");
       }
       if (s.class?.classTeacherId && ids.includes(s.class.classTeacherId)) {
         const label = `${s.class.name}${s.class.section ? `-${s.class.section}` : ""}`;

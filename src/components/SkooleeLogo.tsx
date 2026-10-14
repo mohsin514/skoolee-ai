@@ -26,7 +26,7 @@ export default function SkooleeLogo({
       dir="ltr"
       role="img"
       aria-label="Skoolee AI"
-      className={`${styles.logo} ${weight === "heavy" ? styles.logoHeavy : ""} ${className}`}
+      className={`${styles.logo}  ${weight === "heavy" ? styles.logoHeavy : ""}  ${className}`}
       style={{
         fontSize: size,
         ["--skoolee-look-duration" as string]: `${lookDuration}s`,

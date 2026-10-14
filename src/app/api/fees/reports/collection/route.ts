@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       prisma.invoice.findMany({
         where: { currency, campusId: { in: campusIds } },
         select: {
-          studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true,
+          enrollment: true, studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true,
           student: { select: { class: { select: { id: true, name: true, section: true } } } },
         },
       }),
@@ -56,9 +56,9 @@ export async function GET(req: NextRequest) {
     }>();
 
     for (const inv of invoices) {
-      const key = inv.student.class.id;
+      const key = inv.enrollment?.classId || inv.student.class.id;
       const cls = classMap.get(key) ?? {
-        className: `${inv.student.class.name}${inv.student.class.section ? ` ${inv.student.class.section}` : ""}`,
+        className: inv.enrollment?.className || `${inv.student.class.name}${inv.student.class.section ? ` ${inv.student.class.section}` : ""}`,
         studentIds: new Set<string>(),
         totalDue: 0,
         totalPaid: 0,

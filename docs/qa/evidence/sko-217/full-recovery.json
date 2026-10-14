@@ -1,0 +1,79 @@
+{
+  "startedAt": "2026-10-08T09:11:51.425825+00:00",
+  "status": "verified-awaiting-sign-off",
+  "dataClass": "synthetic",
+  "notificationIsolation": "No app, worker or notification SDK is executed; subprocess environment excludes all provider credentials.",
+  "operatorSignOff": null,
+  "schoolReopenDecision": "Requires operator review; synthetic proof is not production readiness.",
+  "checks": [
+    {
+      "name": "clean-provisioning-and-schema-drift",
+      "passed": true
+    },
+    {
+      "name": "populated-schema-push-adoption-and-upgrade",
+      "passed": true
+    },
+    {
+      "name": "additive-migration-tables-initially-empty",
+      "passed": true
+    },
+    {
+      "name": "enrollment-backfill-complete",
+      "passed": true
+    },
+    {
+      "name": "all-record-counts-and-content-hashes",
+      "passed": true
+    },
+    {
+      "name": "invoice-balance-and-grade",
+      "passed": true
+    },
+    {
+      "name": "referenced-files-have-matching-manifest",
+      "passed": true
+    },
+    {
+      "name": "file-reconciliation:synthetic/attachment.txt",
+      "passed": true
+    },
+    {
+      "name": "interrupted-migration-rolled-back",
+      "passed": true
+    },
+    {
+      "name": "failed-migration-blocks-replay",
+      "passed": true
+    },
+    {
+      "name": "reviewed-forward-repair",
+      "passed": true
+    }
+  ],
+  "fault": null,
+  "destination": {
+    "host": "127.0.0.1",
+    "port": 55417,
+    "databases": {
+      "clean": "rehearsal_4b6829376406_clean",
+      "upgrade": "rehearsal_4b6829376406_upgrade",
+      "restored": "rehearsal_4b6829376406_restored",
+      "failure": "rehearsal_4b6829376406_failure"
+    }
+  },
+  "supportedUpgradePaths": [
+    "dev-9c5193d-schema-push-to-versioned-baseline",
+    "verified-baseline-to-head"
+  ],
+  "actualRestoredPointUtc": "2026-10-08 09:12:12.155048 UTC",
+  "backupStartedAt": "2026-10-08T09:12:12.156693+00:00",
+  "backupAgeSecondsAtRestore": 0.613672,
+  "verifiedRestoreElapsedSeconds": 18.375,
+  "restoreAttemptElapsedSeconds": 18.375,
+  "databaseBackupSha256": "3b7e03c825cc1f0c3ca2dedb15ff3adc70f8bb87e0f44ccf2b758dd7d689d12e",
+  "baselineSqlSha256": "3e653920ef9312aa574bb53cfdffc5d1d302eda10bb57613afa4296d47cae01d",
+  "elapsedSeconds": 50.969,
+  "completedAt": "2026-10-08T09:12:42.395147+00:00",
+  "diagnostics": "diagnostics.log"
+}

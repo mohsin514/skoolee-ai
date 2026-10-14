@@ -2,33 +2,26 @@
 
 import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
-import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
+import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
+import { openSettings } from "@/components/settings/settings-sections";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
-import { InputGroup } from "@/components/ui/input-group";
 
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { Modal } from "@/components/ui/modal";
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
   Award,
   Bell,
   BookOpen,
   Calendar,
   CalendarCheck,
-  CheckCircle,
   ChevronDown,
-  Eye,
-  EyeOff,
   FileText,
   GraduationCap,
-  KeyRound,
   LayoutDashboard,
   LayoutGrid,
-  Loader2,
   LogOut,
   Mail,
   MessageCircle,
@@ -36,18 +29,19 @@ import {
   Settings,
   UserCheck,
   UserRound,
-  X,
-  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { EditableProfileCard, type EditableProfile } from "@/components/profile/editable-profile-card";
+import type { EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
 import { playNotificationBell } from "@/lib/sounds/bell";
-import { Input as SystemInput } from "@/components/ui/input";
+import { Button, buttonVariants } from "@/components/ui/button";
+
+
+const accountMenuItemClass = "flex w-full justify-start items-center gap-3 text-start";
 
 const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
   Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
@@ -97,9 +91,7 @@ export function RoleHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
   const prevUnreadRef = useRef(0);
@@ -221,7 +213,7 @@ export function RoleHeader({
   return (
     <>
       <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[22px] px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
-        <div className="flex items-center gap-4">
+        <div className="hidden min-[400px]:flex items-center gap-4">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
           </div>
@@ -237,16 +229,16 @@ export function RoleHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="ms-auto min-w-0 flex items-center gap-2 sm:gap-2.5">
           <CycleBadge />
         {actions}
         <div ref={notifRef} className="relative">
-          <button
+          <Button variant="outline" size="icon"
             type="button"
             onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
             className={cn(
-              "relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12",
-              notifOpen && "bg-white text-[#8127cf] shadow-md border-[#8127cf]/20",
+              "relative flex items-center justify-center",
+              notifOpen && "border-primary",
               bellShake && "sk-shake"
             )}
             title={t("View notifications")}
@@ -255,7 +247,7 @@ export function RoleHeader({
             {unreadCount > 0 && (
               <span className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
             )}
-          </button>
+          </Button>
 
           {notifOpen && (
             <div className="animate-dropdown-enter absolute end-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
@@ -276,12 +268,12 @@ export function RoleHeader({
                   liveNotifications.map((n) => {
                     const Icon = resolveNotifIcon(n.icon);
                     return (
-                      <button
+                      <Button variant="ghost"
                         key={n.id}
                         type="button"
                         onClick={() => handleNotificationClick(n)}
                         className={cn(
-                          "w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60 text-start",
+                          "w-full flex justify-start items-start gap-3 text-start",
                           !n.isRead && "bg-[#fbf0fe]/30"
                         )}
                       >
@@ -299,40 +291,41 @@ export function RoleHeader({
                           <p className="text-xs font-medium text-ink-muted mt-0.5 leading-snug line-clamp-2">{n.message}</p>
                           <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt, language, timezone)}</p>
                         </div>
-                      </button>
+                      </Button>
                     );
                   })
                 )}
               </div>
               {unreadCount > 0 && (
                 <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
-                  <button
+                  <Button variant="secondary" size="sm"
                     type="button"
                     onClick={markAllAsRead}
-                    className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
-                  ><UiText>{"Mark all as read"}</UiText></button>
+                    className="w-full"
+                  ><UiText>{"Mark all as read"}</UiText></Button>
                 </div>
               )}
             </div>
           )}
         </div>
-        <button
+        <Button variant="outline" size="icon"
           type="button"
-          onClick={() => setSettingsOpen(true)}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12"
+          onClick={() => openSettings("profile")}
+          className="flex items-center justify-center"
           title={t("Account settings")}
+          aria-label={t("Account settings")}
         >
           <Settings className="w-[18px] h-[18px]" />
-        </button>
-        <div className="hidden h-6 w-[1px] bg-gradient-to-b from-transparent via-[#cfc2d6]/30 to-transparent sm:block" />
+        </Button>
+        <div aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-border sm:block" />
 
         <div ref={menuRef} className="relative">
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
             title={t("Account menu")}
             className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/15 bg-white/85 p-1 pe-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:bg-white hover:shadow-lg active:scale-[0.98]",
+              "flex justify-start items-center gap-0 px-1.5 sm:gap-2.5 sm:px-4 hover:-translate-y-0.5",
               menuOpen && "border-[#8127cf]/30 bg-white shadow-lg"
             )}
             aria-haspopup="menu"
@@ -344,8 +337,8 @@ export function RoleHeader({
             <div className="hidden sm:block text-start">
               <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
             </div>
-            <ChevronDown className={cn("h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
-          </button>
+            <ChevronDown className={cn("hidden sm:block h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
+          </Button>
 
           {menuOpen && (
             <div
@@ -367,35 +360,24 @@ export function RoleHeader({
               </div>
 
               <div className="p-1.5">
-                <MenuLink href="/account/security" icon={KeyRound} label="Active sessions" onClick={() => setMenuOpen(false)} />
                 <MenuLink href={dashboardHref} icon={LayoutDashboard} label="Main dashboard" onClick={() => setMenuOpen(false)} />
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
-                    setSettingsOpen(true);
+                    openSettings("profile");
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  className={accountMenuItemClass}
                   role="menuitem"
                 >
-                  <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setPasswordModalOpen(true);
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                  role="menuitem"
-                >
-                  <KeyRound className="h-4 w-4" /><UiText>{"Change password"}</UiText></button>
-                <button
+                  <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></Button>
+                <Button variant="ghost" size="sm"
                   type="button"
                   onClick={handleLogout}
-                  className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
+                  className={accountMenuItemClass}
                   role="menuitem"
                 >
-                  <LogOut className="h-4 w-4" /><UiText>{"Sign out"}</UiText></button>
+                  <LogOut className="h-4 w-4" /><UiText>{"Sign out"}</UiText></Button>
               </div>
             </div>
           )}
@@ -403,218 +385,9 @@ export function RoleHeader({
       </div>
       </header>
 
-      {settingsOpen && (
-        <Modal
-          title={t("Account Settings")}
-          eyebrow={t("Your account")}
-          subtitle={t("Manage your profile details")}
-          avatar={<AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-lg" />}
-          size="xl"
-          onClose={() => setSettingsOpen(false)}
-        >
-          <EditableProfileCard
-            initialProfile={{
-              fullName: displayName,
-              roleLabel: displayRole,
-              profileImageUrl: headerProfile?.profileImageUrl || "",
-            }}
-            onSaved={setHeaderProfile}
-          />
-          <div className="mt-6"><LocaleSettingsPanel /></div>
-        </Modal>
-      )}
-
-      {passwordModalOpen && (
-        <ChangePasswordModal
-          onClose={() => setPasswordModalOpen(false)}
-        />
-      )}
+      <SettingsModalHost onProfileSaved={setHeaderProfile} />
     </>
   );
-}
-
-function ChangePasswordModal({ onClose }: { onClose: () => void }) {
-  const t = useUiText();
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const strength = passwordStrength(newPassword);
-
-  const reqs = [
-    { label: "Min 8 characters", met: newPassword.length >= 8 },
-    { label: "One uppercase", met: /[A-Z]/.test(newPassword) },
-    { label: "One lowercase", met: /[a-z]/.test(newPassword) },
-    { label: "One number", met: /[0-9]/.test(newPassword) },
-    { label: "Special character", met: /[^A-Za-z0-9]/.test(newPassword) },
-    { label: "Passwords match", met: newPassword === confirmPassword && newPassword !== "" },
-  ];
-
-  const handleSubmit = async () => {
-    setError("");
-    if (!currentPassword) return setError("Current password is required");
-    if (!newPassword) return setError("New password is required");
-    if (newPassword.length < 8) return setError("Password must be at least 8 characters");
-    if (newPassword !== confirmPassword) return setError("Passwords do not match");
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to change password");
-      toast.success(t("Password changed successfully"));
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal
-      title={t("Change Password")}
-      eyebrow={t("Security")}
-      subtitle={t("Update your account password")}
-      icon={KeyRound}
-      tone="amber"
-      size="xs"
-      onClose={onClose}
-      dirty={Boolean(currentPassword || newPassword) && !loading}
-      dirtyMessage={t("Your new password has not been saved yet. Leave without changing it?")}
-      footer={
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
-          ><UiText>{"Cancel"}</UiText></button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-12 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white text-sm font-black flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-            {t(loading ? "Updating..." : "Update Password")}
-          </button>
-        </div>
-      }
-    >
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="current-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Current Password"}</UiText></label>
-            <SystemInput
-              type={showPasswords ? "text" : "password"}
-              id="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder={t("Enter current password")}
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="new-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"New Password"}</UiText></label>
-            <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
-              <SystemInput
-                type={showPasswords ? "text" : "password"}
-                id="new-password"
-              value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder={t("Enter new password")}
-                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pe-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
-              />
-              <button data-field-affix="end"
-                type="button"
-                onClick={() => setShowPasswords(!showPasswords)}
-                aria-label={t(showPasswords ? "Hide passwords" : "Show passwords")}
-                className="absolute end-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
-              >
-                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </InputGroup>
-            {newPassword && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex gap-1 flex-1">
-                  {[1, 2, 3, 4].map((level) => (
-                    <div
-                      key={level}
-                      className={`h-1.5 flex-1 rounded-full transition-all ${
-                        level <= strength.level
-                          ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
-                          : "bg-[#f3f4f9]"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className={`text-[9px] font-black uppercase tracking-wider ${
-                  strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
-                }`}>
-                  {t(strength.label)}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="confirm-new-password" className="mb-1.5 block ps-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Confirm New Password"}</UiText></label>
-            <SystemInput
-              type={showPasswords ? "text" : "password"}
-              id="confirm-new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder={t("Re-enter new password")}
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
-            />
-            {confirmPassword && newPassword !== confirmPassword && (
-              <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /><UiText>{"Passwords do not match"}</UiText></p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            {reqs.slice(0, 3).map((r, i) => (
-              <div key={i} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {t(r.label)}
-              </div>
-            ))}
-            {reqs.slice(3).map((r, i) => (
-              <div key={i + 3} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {t(r.label)}
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <div className="rounded-2xl bg-rose-50 border border-rose-200/40 p-3">
-              <p className="text-[10px] font-bold text-rose-700">{t(error)}</p>
-            </div>
-          )}
-        </div>
-
-    </Modal>
-  );
-}
-
-function passwordStrength(password: string): { level: number; label: string } {
-  if (!password) return { level: 0, label: "" };
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
-  if (/\d/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-
-  if (score <= 1) return { level: 1, label: "Weak" };
-  if (score <= 2) return { level: 2, label: "Fair" };
-  if (score <= 3) return { level: 3, label: "Good" };
-  return { level: 4, label: "Strong" };
 }
 
 function MenuLink({
@@ -632,7 +405,7 @@ function MenuLink({
     <Link
       href={href}
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+      className={buttonVariants({ variant: "ghost", size: "sm", className: accountMenuItemClass })}
       role="menuitem"
     >
       <Icon className="h-4 w-4" />

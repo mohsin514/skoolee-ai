@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { createVerificationToken } from "@/lib/auth/verification";
 import { sendVerificationEmail } from "@/lib/email";
+import { countrySchema, currencyForCountry } from "@/lib/locale/country";
+import { createPlanContract } from "@/config/commercial-contract";
 
 export const SignupStep1Schema = z.object({
   email: z.string().email(),
@@ -21,6 +23,7 @@ export const SignupStep2Schema = z.object({
   // it lands on the user record (staff directory, profile) and doubles as the
   // school's first contact number until onboarding overrides it.
   phone: z.string().trim().min(7, "Enter a valid phone number").optional().or(z.literal("")),
+  country: countrySchema.default("PK"),
 });
 
 export type SignupStep1Input = z.infer<typeof SignupStep1Schema>;
@@ -125,10 +128,11 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
         phone,
         city: "",
         status: "TRIAL",
+        commercialContract: createPlanContract("FREE"),
       },
     });
 
-    const createdUser = await tx.user.create({
+      const createdUser = await tx.user.create({
       data: {
         email: valid.email,
         password: hashedPassword,
@@ -142,7 +146,17 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
         onboardingComplete: false,
         isActive: false,
       },
-    });
+      });
+
+      await tx.localePolicy.create({
+        data: {
+          schoolId: school.id,
+          scopeKey: "school",
+          settings: { country: valid.country, currency: currencyForCountry(valid.country) },
+          effectiveAt: new Date(),
+          createdBy: createdUser.id,
+        },
+      });
 
     await tx.pendingRegistration.delete({ where: { email: valid.email } });
 

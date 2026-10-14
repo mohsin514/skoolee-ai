@@ -1,9 +1,10 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { FormField, FormErrorSummary } from "@/components/ui/form-field";
-import { InputGroup } from "@/components/ui/input-group";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 
 import { useState, useMemo, useCallback, useEffect, useRef, useId } from "react";
@@ -219,69 +220,61 @@ function UrduInput({
           placeholder={placeholder}
           dir="rtl"
           lang="ur"
-          className="flex-1"
+          className={"flex-1"}
         />
-        <button
+        <Button aria-label="Urdu keyboard" aria-pressed={showKeyboard} variant="choice"
           type="button"
-          className={`shrink-0 rounded-xl px-2.5 transition-all ${
-            showKeyboard
-              ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-              : "bg-[#f3f4f9] text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-          }`}
+          className="shrink-0"
           onClick={() => setShowKeyboard(!showKeyboard)}
           title="Urdu keyboard"
         >
           <Keyboard className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       {showKeyboard && (
         <div className="sk-panel absolute left-0 right-0 top-full z-50 mt-1.5 p-2.5">
           <div className="mb-1.5 flex items-center justify-between px-1">
             <span className="text-[10px] font-bold text-ink-muted">اردو کی بورڈ</span>
-            <button
+            <Button aria-label="Close Urdu keyboard" size="icon" variant="ghost"
               type="button"
-              className="rounded-lg p-0.5 text-ink-subtle hover:text-[#8127cf]"
+
               onClick={() => setShowKeyboard(false)}
             >
               <X className="h-3 w-3" />
-            </button>
+            </Button>
           </div>
           {URDU_KEYS.map((row, ri) => (
             <div key={ri} className="flex gap-0.5 mb-0.5">
               {row.map((char, ci) => (
-                <button
+                <Button variant="secondary"
                   key={ci}
                   type="button"
-                  className={`flex-1 rounded-lg py-1.5 text-sm font-semibold transition-all ${
-                    char === " "
-                      ? "bg-[#f3f4f9] text-[10px] text-ink-subtle hover:bg-[#fbf0fe]"
-                      : "bg-[#f3f4f9] text-[#1f1a23] hover:bg-[#8127cf] hover:text-white active:scale-95"
-                  }`}
+                  className="min-w-0 flex-1 px-1"
                   onClick={() => {
                     onChange(value + char);
                   }}
                 >
                   {char === " " ? "Space" : char}
-                </button>
+                </Button>
               ))}
             </div>
           ))}
           <div className="mt-0.5 flex gap-0.5">
-            <button
+            <Button variant="secondary"
               type="button"
-              className="flex-1 rounded-lg bg-[#f3f4f9] py-1.5 text-[10px] font-bold text-ink-muted hover:bg-red-50 hover:text-red-500 active:scale-95"
+              className="min-w-0 flex-1 px-1"
               onClick={() => onChange(value.slice(0, -1))}
             >
               ← Backspace
-            </button>
-            <button
+            </Button>
+            <Button variant="secondary"
               type="button"
-              className="flex-1 rounded-lg bg-[#f3f4f9] py-1.5 text-[10px] font-bold text-ink-muted hover:bg-red-50 hover:text-red-500 active:scale-95"
+              className="min-w-0 flex-1 px-1"
               onClick={() => onChange("")}
             >
               Clear
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -626,18 +619,14 @@ function StepPersonalInfo({
         <FieldGroup label="Gender">
           <div className="flex gap-2">
             {(["MALE", "FEMALE", "OTHER"] as const).map((g) => (
-              <button
+              <Button aria-pressed={form.gender === g} variant="choice"
                 key={g}
                 type="button"
-                className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${
-                  form.gender === g
-                    ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                    : "bg-[#f3f4f9] text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                }`}
+                className="flex-1"
                 onClick={() => onUpdate("gender", g)}
               >
                 {g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : "Other"}
-              </button>
+              </Button>
             ))}
           </div>
         </FieldGroup>
@@ -706,11 +695,11 @@ function StepPersonalInfo({
               value={form.rollNo}
               onChange={(e) => onUpdate("rollNo", e.target.value)}
               placeholder="NUR-Y-001"
-              className="pr-10"
+
             />
-            <button data-field-affix="end"
+            <FieldAction   data-field-affix="end"
               type="button"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+
               onClick={onRegenerateRollNo}
               title="Regenerate roll number"
             >
@@ -719,7 +708,7 @@ function StepPersonalInfo({
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-            </button>
+            </FieldAction>
           </InputGroup>
         </FieldGroup>
         <FieldGroup label="Previous School">
@@ -903,7 +892,7 @@ function GuardianPicker({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Ahmed Khan, +92 300…, guardian@example.com"
-          className="pl-9"
+
           aria-label="Search existing guardians"
         />
         {loading ? (
@@ -919,7 +908,7 @@ function GuardianPicker({
             </p>
           ) : null}
           {results.map((parent) => (
-            <button
+            <Button variant="choice"
               key={parent.id}
               type="button"
               onClick={() => {
@@ -928,7 +917,7 @@ function GuardianPicker({
                 setResults([]);
                 setOpen(false);
               }}
-              className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/30 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/40 hover:shadow-md"
+              className="block w-full p-3 text-start"
             >
               <p className="truncate text-xs font-black text-[#1f1a23]">{parent.fullName}</p>
               <p className="truncate text-[11px] font-semibold text-ink-muted">
@@ -941,7 +930,7 @@ function GuardianPicker({
                     .join(" · ")}
                 </p>
               ) : null}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}

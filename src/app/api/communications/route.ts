@@ -8,6 +8,7 @@ import {
   requireAuthUser,
 } from "@/lib/api/scope";
 import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
+import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,11 +30,17 @@ export async function GET(req: NextRequest) {
     const studentId = searchParams.get("studentId");
     const parentUserId = searchParams.get("parentUserId");
     const campusId = user.role === "SUPER_ADMIN" ? searchParams.get("campusId") : user.campusId;
+    // Announcement bodies, recipients and guardian proofs retain their live
+    // permission boundary when shown through the older communication history.
+    const historyScope = {
+      schoolId: user.schoolId,
+      ...(campusId ? { campusId } : {}),
+      ...await announcementHistoryRestriction(user),
+    };
 
     const communications = await prisma.parentCommunication.findMany({
       where: {
-        schoolId: user.schoolId,
-        ...(campusId ? { campusId } : {}),
+        ...historyScope,
         ...(status && status !== "ALL" ? { status } : {}),
         ...(channel && channel !== "ALL" ? { channel } : {}),
         ...(studentId ? { studentId } : {}),
@@ -56,10 +63,7 @@ export async function GET(req: NextRequest) {
 
     const summary = await prisma.parentCommunication.groupBy({
       by: ["status"],
-      where: {
-        schoolId: user.schoolId,
-        ...(campusId ? { campusId } : {}),
-      },
+      where: historyScope,
       _count: { _all: true },
     });
 
@@ -70,7 +74,7 @@ export async function GET(req: NextRequest) {
         acc[item.status] = item._count._all;
         return acc;
       }, {}),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[communications] GET failed");
   }

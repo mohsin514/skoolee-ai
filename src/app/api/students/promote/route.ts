@@ -1,3 +1,4 @@
+import { applyEnrollment, dateOnly } from "@/lib/students/enrollment";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { notify } from "@/lib/notifications/in-app";
@@ -20,7 +21,7 @@ import {
 // One transaction per batch: StudentClassHistory is upserted for the outgoing
 // year (idempotent via the unique [studentId, classId, academicYear] key),
 // passing students move to the destination class with a fresh roll number,
-// timeline events are written, and outstanding fees carry forward.
+// timeline events are written, and original outstanding invoices are retained.
 
 type PromoteResult = {
   studentId: string;
@@ -102,11 +103,13 @@ export async function POST(req: NextRequest) {
       if (!isNaN(num) && num > maxNum) maxNum = num;
     }
 
-    // Outstanding balances for the outgoing year that must carry into the new one.
-    const carry = await prisma.invoice.aggregate({
-      where: { studentId: { in: passingIds }, balanceDue: { gt: 0 } },
-      _sum: { balanceDue: true },
+    // The original invoices remain collectible in their original enrollment and
+    // currency. Promotion must not manufacture a second receivable or sum
+    // amounts denominated in different currencies.
+    const balances = await prisma.invoice.groupBy({
+      by: ["currency"], where: { studentId: { in: passingIds }, balanceDue: { gt: 0 } }, _sum: { balanceDue: true },
     });
+    const preservedBalances = balances.map(b => ({ currency: b.currency, minor: b._sum.balanceDue || 0 }));
 
     const promotedList: { id: string; fullName: string; rollNo: string }[] = [];
     let retainedCount = 0;
@@ -146,10 +149,10 @@ export async function POST(req: NextRequest) {
               },
             });
 
-            await tx.student.update({
-              where: { id: student.id },
-              data: { classId: toClassId, rollNo: newRoll },
-            });
+            const enrollment = await tx.studentEnrollment.findFirst({ where: { studentId: student.id, status: "ACTIVE", endDate: null } });
+            if (!enrollment) throw new ApiError("Current enrollment missing", 409);
+            await applyEnrollment(tx, { studentId: student.id, fromId: enrollment.id, targetClassId: toClassId,
+              effectiveDate: dateOnly(body.effectiveDate || new Date().toISOString().slice(0,10)), rollNo: newRoll, actorId: user.userId, reason: "Reviewed year-end promotion" });
 
             await tx.studentTimelineEvent.create({
               data: {
@@ -203,36 +206,6 @@ export async function POST(req: NextRequest) {
       { timeout: 30000 }
     );
 
-    // Fee carry-forward records (one per student, after the batch tx).
-    const carryRecords = passingStudents
-      .map((s) => s.id)
-      .filter((id) => id);
-    if (carry._sum?.balanceDue && carry._sum.balanceDue > 0 && carryRecords.length) {
-      const balances = await prisma.invoice.groupBy({
-        by: ["studentId"],
-        where: { studentId: { in: carryRecords }, balanceDue: { gt: 0 } },
-        _sum: { balanceDue: true },
-      });
-      await Promise.all(
-        balances
-          .filter((b) => b._sum.balanceDue && b._sum.balanceDue > 0)
-          .map((b) =>
-            prisma.feeCarryForward.upsert({
-              where: { studentId_toAcademicYear: { studentId: b.studentId, toAcademicYear: toClass.academicYear } },
-              create: {
-                campusId,
-                studentId: b.studentId,
-                fromAcademicYear: academicYear,
-                toAcademicYear: toClass.academicYear,
-                balance: b._sum.balanceDue || 0,
-                note: `Carried from ${academicYear} at promotion`,
-              },
-              update: { balance: b._sum.balanceDue || 0 },
-            })
-          )
-      );
-    }
-
     notify("STUDENTS_PROMOTED", {
       schoolId: user.schoolId,
       campusId,
@@ -247,9 +220,9 @@ export async function POST(req: NextRequest) {
       success: true,
       promoted: promotedList.length,
       retained: retainedCount,
-      carriedBalance: carry._sum?.balanceDue || 0,
+      preservedBalances,
       data: promotedList,
-      message: `Promoted ${promotedList.length} students${retainedCount ? `, retained ${retainedCount}` : ""}${carry._sum?.balanceDue ? ` — carried ${(carry._sum.balanceDue / 100).toLocaleString()} PKR of dues` : ""}`,
+      message: `Promoted ${promotedList.length} students${retainedCount ? `, retained ${retainedCount}` : ""}. Existing invoices remain unchanged and collectible in their original currency.`,
     });
   } catch (error) {
     return errorResponse(error, "[students/promote] POST failed");

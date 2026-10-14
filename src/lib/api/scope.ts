@@ -4,7 +4,8 @@ import { isCurrentSessionRevoked } from "@/lib/auth/session-revocation";
 import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
-import { assertPermission as assertPermissionImpl, type PermissionAction, type PermissionModule } from "@/lib/permissions";
+import { assertPermission as assertPermissionImpl, moduleFlags, type PermissionAction, type PermissionModule } from "@/lib/permissions";
+import { cookies } from "next/headers";
 
 export class ApiError extends Error {
   status: number;
@@ -75,9 +76,14 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
  * calling runUnscoped()/enterUnscoped() directly, so the bypass can never
  * be reached without the role check that precedes it.
  */
-export async function requirePlatformOwner(): Promise<AuthUser> {
+export async function requirePlatformOwner(options: { allowSupportAccess?: boolean } = {}): Promise<AuthUser> {
   const user = await requireAuthUser({ allowSuspended: true });
   if (user.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
+
+  // A scoped support session closes the general platform APIs. The small set
+  // of support routes opts in and checks the live grant before any data access.
+  const supportCookie = (await cookies()).get("skoolee_support_grant")?.value;
+  if (supportCookie && !options.allowSupportAccess) throw new ApiError("End the scoped support session before using platform administration", 403);
 
   enterUnscoped(`platform owner ${user.userId} administering all schools`);
   return user;
@@ -139,7 +145,11 @@ export function assertStaffRole(user: AuthUser) {
  * was simply never consulted here.
  */
 export async function assertFeesRead(user: AuthUser) {
-  return assertModuleRead(user, "fees");
+  assertStaffRole(user);
+  // Financial records must stop being readable as soon as a grant is revoked;
+  // the short-lived UI permission cache is not an authorization snapshot.
+  const rows = await prisma.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role, module: "fees" }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true } });
+  if (!moduleFlags(rows, user.role, "fees").canView) throw new ApiError("Insufficient permissions: fees.view", 403);
 }
 
 /**
@@ -194,7 +204,15 @@ export function canManageFrontDesk(user: AuthUser) {
 }
 
 export function canPurchaseSubscription(user: AuthUser) {
+  if (["APP_OWNER", "STUDENT", "PARENT"].includes(user.role)) return false;
   return user.isInstitutionOwner === true || user.canPurchaseSubscription === true;
+}
+
+export function canManageSubscription(user: AuthUser) {
+  // Tuition-finance roles are deliberately not subscription owners. Only the
+  // verified institutional owner or an owner-approved subscription delegate
+  // can change the institution-wide software contract.
+  return canPurchaseSubscription(user);
 }
 
 export function canManageBilling(user: AuthUser) {

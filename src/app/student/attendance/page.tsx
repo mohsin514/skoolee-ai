@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 
 import { useLocale } from "@/components/locale/LocaleProvider";
@@ -128,7 +129,7 @@ export default function StudentAttendancePage() {
           <StatCard icon={Clock} label={tr("Leave")} value={stats.leave} sub={tr("Approved leaves")} tone="amber" delay={160} />
         </div>
 
-        <div className="sk-rise rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]" style={{ animationDelay: "120ms" }}>
+        <div className="sk-panel sk-rise p-4" style={{ animationDelay: "120ms" }}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
@@ -143,25 +144,25 @@ export default function StudentAttendancePage() {
             {/* The arrows had no accessible name and no pointer cursor, and
                 their glow fired on any hover of the whole card. */}
             <div className="flex items-center gap-2">
-              <button
+              <Button variant="default" size="icon"
                 type="button"
                 onClick={() => adjustMonth(-1)}
                 aria-label={tr("Previous month")}
-                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+                className="flex items-center justify-center"
               >
                 <ChevronLeft className="h-4 w-4" />
-              </button>
+              </Button>
               <span className="min-w-[130px] text-center text-xs font-black tabular-nums text-[#1d1b20]">
                 {monthLabel}
               </span>
-              <button
+              <Button variant="default" size="icon"
                 type="button"
                 onClick={() => adjustMonth(1)}
                 aria-label={tr("Next month")}
-                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+                className="flex items-center justify-center"
               >
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -272,7 +273,7 @@ function AttendanceRow({ entry }: { entry: any }) {
   const cfg = statusConfig[entry.status] || { label: entry.status, bg: "bg-[#fbf0fe] text-[#8127cf] border-[#cfc2d6]/20", dot: "bg-[#8127cf]" };
 
   return (
-    <div className="group flex items-center justify-between gap-3 rounded-2xl bg-white px-5 py-3.5 border border-[#cfc2d6]/8 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:border-[#cfc2d6]/20">
+    <div className="sk-panel group flex items-center justify-between gap-3 px-5 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:border-[#cfc2d6]/20">
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center w-10">
           <span className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider">{dayName}</span>

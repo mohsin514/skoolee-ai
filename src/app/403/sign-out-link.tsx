@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 
 /** Signing out is a POST, so it cannot be a plain link. */
@@ -11,12 +12,12 @@ export function SignOutLink() {
   };
 
   return (
-    <button
+    <Button variant="outline"
       type="button"
       onClick={signOut}
-      className="inline-flex h-11 w-full items-center justify-center rounded-2xl border border-[#cfc2d6]/50 px-6 text-sm font-black text-ink-muted transition-colors hover:bg-[#f3f4f9]"
+      className="w-full items-center justify-center"
     >
       Sign out
-    </button>
+    </Button>
   );
 }

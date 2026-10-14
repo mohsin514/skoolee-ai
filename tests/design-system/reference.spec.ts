@@ -14,13 +14,14 @@ test('staff task → validation → draft → stale recovery → review receipt'
   await page.getByLabel('Search tasks').fill('report');
   await expect(page.getByText('1 selected · Selection does not approve records')).toBeVisible();
   await page.getByLabel('Search tasks').fill('');
-  await expect(page).toHaveScreenshot('staff-workspace.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
+  // Keep exercising recovery even when a visual baseline needs review.
+  await expect.soft(page).toHaveScreenshot('staff-workspace.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
   await page.screenshot({ path: `${evidence}/01-staff-workspace.png`, fullPage: true });
   await page.getByRole('button', { name: 'Review next', exact: true }).click();
   await page.getByRole('button', { name: 'Review changes', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Campus', exact: true })).toBeFocused();
   await expect(page.getByRole('combobox', { name: 'Campus', exact: true })).toHaveAttribute('aria-invalid', 'true');
-  await expect(page).toHaveScreenshot('form-recovery.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
+  await expect.soft(page).toHaveScreenshot('form-recovery.png', { fullPage: true, mask: [page.locator('nextjs-portal')] });
   await page.screenshot({ path: `${evidence}/02-form-recovery.png`, fullPage: true });
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByText('Example draft saved in this tab. Nothing has been published.')).toBeVisible();
@@ -145,9 +146,10 @@ test('task actions, month-end keyboard navigation and high-contrast controls', a
   await page.keyboard.press('Shift+PageDown');
   await expect(calendar.getByRole('button', { name: 'Wednesday, February 28, 2029' })).toBeFocused();
   await page.keyboard.press('Home');
-  await expect(calendar.getByRole('button', { name: 'Sunday, February 25, 2029' })).toBeFocused();
+  // The default locale starts the week on Monday (weekStartsOn: 1).
+  await expect(calendar.getByRole('button', { name: 'Monday, February 26, 2029' })).toBeFocused();
   await page.keyboard.press('End');
-  await expect(calendar.getByRole('button', { name: 'Saturday, March 3, 2029' })).toBeFocused();
+  await expect(calendar.getByRole('button', { name: 'Sunday, March 4, 2029' })).toBeFocused();
   await page.keyboard.press('Escape');
   await page.emulateMedia({ forcedColors: 'active' });
   await expect(page.getByLabel('Reference state')).toHaveCSS('appearance', 'auto');

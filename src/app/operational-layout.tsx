@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { prisma } from "@/lib/db/prisma";
+import { getDisplayLocale } from "@/lib/locale/display";
 
 export default async function OperationalLayout({ children }: { children: React.ReactNode }) {
   // Was getAuthUser(), whose null result fell through to rendering the console
@@ -26,5 +27,5 @@ export default async function OperationalLayout({ children }: { children: React.
     redirect("/subscription-suspended");
   }
 
-  return <LocaleProvider>{children}</LocaleProvider>;
+  return <LocaleProvider initialLocale={await getDisplayLocale(user)}>{children}</LocaleProvider>;
 }

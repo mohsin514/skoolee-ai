@@ -79,12 +79,38 @@ test('invitations require reviewed context and one atomic claim; expired context
 });
 test('MFA rate limit is shared in persistent store', async () => { const ticket = cookie(await login('PRINCIPAL'), 'skoolee-mfa'); let status = 0; for (let i = 0; i < 11; i++) status = (await mfa(ticket, { action: 'challenge', code: 'bad' })).status; assert.equal(status, 429); assert.ok(await raw.authAttempt.count()); });
 
-test('lost authenticator replacement requires password plus unused second factor and revokes all sessions', async () => {
+async function manage(session: string, body: unknown) { return post('/api/account/mfa', body, session); }
+test('change authenticator via manage: password + recovery code, other sessions revoked, old codes rejected', async () => {
  await raw.authAttempt.deleteMany({});
- const invalid = await post('/api/auth/mfa/replace', { password, code: 'bad' }, ownerSession); assert.equal(invalid.status, 400);
- const response = await post('/api/auth/mfa/replace', { password, code: recovery[1] }, ownerSession); assert.equal(response.status, 200, await response.clone().text());
- assert.ok(cookie(response, 'skoolee-mfa')); assert.equal((await sessionCheck(ownerSession)).status, 401);
- const user=await raw.user.findUniqueOrThrow({where:{id:accounts.get('SUPER_ADMIN')!.id}}); assert.equal(user.mfaEnabled,false); assert.equal(user.mfaSecret,null); assert.deepEqual(user.recoveryCodeHashes,[]);
+ const ownerId = accounts.get('SUPER_ADMIN')!.id;
+ const before = await raw.user.findUniqueOrThrow({ where: { id: ownerId } });
+ const otherTicket = cookie(await login('SUPER_ADMIN'), 'skoolee-mfa');
+ const otherSignIn = await mfa(otherTicket, { action: 'challenge', code: totp(revealSecret(before.mfaSecret!), Math.max(Math.floor(Date.now() / 30_000), before.mfaLastStep + 1)) }); assert.equal(otherSignIn.status, 200, await otherSignIn.clone().text());
+ const other = cookie(otherSignIn, 'skoolee_token'); assert.equal((await sessionCheck(other)).status, 200);
+ const wrong = await manage(ownerSession, { action: 'begin', mode: 'change', password: 'wrong', code: recovery[1], recovery: true }); assert.equal(wrong.status, 400); assert.equal((await wrong.json()).reason, 'password_invalid');
+ const begin = await manage(ownerSession, { action: 'begin', mode: 'change', password, code: recovery[1], recovery: true }); assert.equal(begin.status, 200, await begin.clone().text());
+ assert.equal(begin.headers.get('cache-control'), 'no-store'); const { secret } = await begin.json(); const grant = cookie(begin, 'skoolee-mfa-change'); assert.ok(grant);
+ assert.equal((await raw.user.findUniqueOrThrow({ where: { id: ownerId } })).mfaEnabled, true, 'still protected before confirm');
+ const confirm = await manage(`${ownerSession}; ${grant}`, { action: 'confirm', code: totp(secret) }); assert.equal(confirm.status, 200, await confirm.clone().text());
+ const { recoveryCodes } = await confirm.json(); assert.equal(recoveryCodes.length, 10);
+ const fresh = cookie(confirm, 'skoolee_token'); assert.ok(fresh && fresh !== 'skoolee_token='); assert.equal((await sessionCheck(fresh)).status, 200);
+ assert.equal((await sessionCheck(ownerSession)).status, 401); assert.equal((await sessionCheck(other)).status, 401);
+ const oldCode = await mfa(cookie(await login('SUPER_ADMIN'), 'skoolee-mfa'), { action: 'challenge', recovery: true, code: recovery[3] }); assert.equal(oldCode.status, 400); assert.equal((await oldCode.json()).reason, 'recovery_invalid');
+ const user = await raw.user.findUniqueOrThrow({ where: { id: ownerId } }); assert.equal(user.mfaEnabled, true); assert.equal(revealSecret(user.mfaSecret!), secret); assert.ok(user.mfaEnrolledAt); assert.equal(user.accessVersion, before.accessVersion + 1);
+ ownerSession = fresh; recovery = recoveryCodes;
+});
+test('optional role turns 2FA on then off via manage; each commit reissues a working session', async () => {
+ await raw.authAttempt.deleteMany({});
+ const first = cookie(await login('PARENT'), 'skoolee_token'); assert.equal((await sessionCheck(first)).status, 200);
+ const begin = await manage(first, { action: 'begin', mode: 'enable', password }); assert.equal(begin.status, 200, await begin.clone().text()); const { secret } = await begin.json();
+ const confirm = await manage(`${first}; ${cookie(begin, 'skoolee-mfa-change')}`, { action: 'confirm', code: totp(secret) }); assert.equal(confirm.status, 200, await confirm.clone().text());
+ const { recoveryCodes } = await confirm.json(); const second = cookie(confirm, 'skoolee_token');
+ assert.equal((await sessionCheck(second)).status, 200); assert.equal((await sessionCheck(first)).status, 401);
+ assert.equal((await login('PARENT').then(r => r.json())).mfaRequired, true, 'next sign-in asks for the code');
+ const disable = await manage(second, { action: 'disable', password, code: recoveryCodes[0], recovery: true }); assert.equal(disable.status, 200, await disable.clone().text());
+ const third = cookie(disable, 'skoolee_token'); assert.equal((await sessionCheck(third)).status, 200); assert.equal((await sessionCheck(second)).status, 401);
+ const user = await raw.user.findUniqueOrThrow({ where: { id: accounts.get('PARENT')!.id } }); assert.equal(user.mfaEnabled, false); assert.equal(user.mfaSecret, null); assert.deepEqual(user.recoveryCodeHashes, []);
+ const next = await login('PARENT'); assert.equal((await next.clone().json()).mfaRequired, undefined); assert.equal((await sessionCheck(cookie(next, 'skoolee_token'))).status, 200);
 });
 test('password change revokes previous sessions on the next request', async () => {
  const session = cookie(await login('LIBRARIAN'), 'skoolee_token');

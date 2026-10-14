@@ -3,12 +3,14 @@ import { errorResponse } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { withParentScope } from "@/lib/parent/resolve-child";
+import { AccessDenied } from "@/lib/auth/policy";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    return await withParentScope(req, async ({ studentId }) => {
+    return await withParentScope(req, async ({ studentId, permissions }) => {
+    if (!permissions.learningRecords) throw new AccessDenied("timetable");
     const student = await prisma.student.findFirst({ where: { id: studentId! }, select: { classId: true } });
     const classId = student?.classId;
     if (!classId) {

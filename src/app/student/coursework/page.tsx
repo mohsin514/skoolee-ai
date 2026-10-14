@@ -1,5 +1,6 @@
 "use client";
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { useMemo } from "react";
 import { Award, BookOpen, MapPin, TrendingUp, UserRound } from "lucide-react";
 import { Panel, PanelHeading, StatCard, StudentEmptyState } from "@/components/student/student-ui";
@@ -38,7 +39,7 @@ export default function CourseworkPage() {
         {/* Moved here when the duplicate "Schedule" page was retired — this is
             the natural home for class and enrolment details. */}
         <div className="sk-rise grid grid-cols-1 md:grid-cols-3 gap-4" style={{ animationDelay: "20ms" }}>
-          <div className="md:col-span-2 rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          <div className="sk-panel md:col-span-2 p-4">
             <div className="mb-3 flex items-center gap-2.5">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
                 <MapPin className="h-4 w-4" />
@@ -66,7 +67,7 @@ export default function CourseworkPage() {
             </div>
           </div>
 
-          <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          <div className="sk-panel p-4">
             <div className="mb-3 flex items-center gap-2.5">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <UserRound className="h-4 w-4" />
@@ -165,7 +166,7 @@ export default function CourseworkPage() {
           </div>
 
           <div className="xl:col-span-3">
-            <div className="sk-rise overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]" style={{ animationDelay: "200ms" }}>
+            <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "200ms" }}>
               <div className="flex items-center justify-between gap-3 border-b border-[#cfc2d6]/10 px-4 py-3">
                 <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">All Marks</h3>
                 {user.marks.length > 0 && (
@@ -174,32 +175,32 @@ export default function CourseworkPage() {
                   </span>
                 )}
               </div>
-              <div className="overflow-x-auto"><table className="w-full text-left min-w-[480px]">
-                <thead>
-                  <tr className="bg-[#fbf0fe]/30 text-[9px] font-semibold text-ink-subtle uppercase tracking-wider border-b border-[#cfc2d6]/10">
-                    <th className="px-4 py-3">Subject</th>
-                    <th className="px-3 py-3 text-center">Score</th>
-                    <th className="px-3 py-3 text-center">%</th>
-                    <th className="px-4 py-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#cfc2d6]/10">
+              <Table className="w-full text-left min-w-[480px]">
+                <TableHeader>
+                  <TableRow className="bg-[#fbf0fe]/30 text-[9px] font-semibold text-ink-subtle uppercase tracking-wider border-b border-[#cfc2d6]/10">
+                    <TableHead className="px-4 py-3">Subject</TableHead>
+                    <TableHead className="px-3 py-3 text-center">Score</TableHead>
+                    <TableHead className="px-3 py-3 text-center">%</TableHead>
+                    <TableHead className="px-4 py-3 text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#cfc2d6]/10">
                   {user.marks.length > 0 ? (
                     user.marks.map((mark: any) => {
                       const pct = Math.round((mark.marksObtained / (mark.subject?.totalMarks || 100)) * 100);
                       return (
-                        <tr key={mark.id} className="group transition-all duration-200 hover:bg-[#fbf0fe]/40 hover:shadow-sm cursor-default">
-                          <td className="px-4 py-3">
+                        <TableRow key={mark.id} className="group transition-all duration-200 hover:bg-[#fbf0fe]/40 hover:shadow-sm cursor-default">
+                          <TableCell className="px-4 py-3">
                             <p className="text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{mark.subject?.name}</p>
                             <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">
                               {mark.exam?.title || "Exam"}
                             </p>
-                          </td>
-                          <td className="px-3 py-3 text-center">
+                          </TableCell>
+                          <TableCell className="px-3 py-3 text-center">
                             <span className="text-sm font-bold text-[#1d1b20]">{mark.marksObtained}</span>
                             <span className="text-[10px] text-ink-subtle"> / {mark.subject?.totalMarks || 100}</span>
-                          </td>
-                          <td className="px-3 py-3 text-center">
+                          </TableCell>
+                          <TableCell className="px-3 py-3 text-center">
                             <span className={cn(
                               "inline-flex text-xs font-bold px-2.5 py-1 rounded-lg",
                               pct >= 80 ? "bg-emerald-50 text-emerald-600" :
@@ -208,8 +209,8 @@ export default function CourseworkPage() {
                             )}>
                               {pct}%
                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-right">
                             <span className={cn(
                               "rounded-lg px-3 py-1 text-[9px] font-semibold uppercase tracking-wider",
                               mark.exam?.status === "PUBLISHED" || mark.exam?.status === "COMPLETED"
@@ -220,23 +221,23 @@ export default function CourseworkPage() {
                             )}>
                               {mark.exam?.status || "Entered"}
                             </span>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                   ) : (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-12 text-center">
+                    <TableRow>
+                      <TableCell colSpan={4} className="px-4 py-12 text-center">
                         <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#8127cf]/40" />
                         <p className="text-sm font-black tracking-tight text-[#1d1b20]">No marks recorded yet</p>
                         <p className="mt-1 text-xs font-semibold text-ink-muted">
                           Marks appear here as teachers publish each exam.
                         </p>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table></div>
+                </TableBody>
+              </Table>
             </div>
           </div>
         </div>
@@ -248,7 +249,7 @@ export default function CourseworkPage() {
 
 function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teacher: string; totalMarks: number; score: number | null }) {
   return (
-    <div className="group relative rounded-2xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/20 hover:shadow-xl hover:bg-white">
+    <div className="sk-panel group relative bg-[#fbf0fe]/40 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/20 hover:shadow-xl hover:bg-white">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{name}</p>

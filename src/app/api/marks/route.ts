@@ -16,12 +16,14 @@ function canEnterMarks(role: string) {
 function markSnapshot(mark: {
   marksObtained: number;
   isAbsent?: boolean;
+  isExempt?: boolean;
   grade: string | null;
   enteredBy: string | null;
 }) {
   return {
     marksObtained: mark.marksObtained,
     isAbsent: mark.isAbsent ?? false,
+    isExempt: mark.isExempt ?? false,
     grade: mark.grade,
     enteredBy: mark.enteredBy,
   };
@@ -57,6 +59,7 @@ export async function POST(req: NextRequest) {
         campusId: true,
         classId: true,
         academicYear: true,
+        academicModelVersionId: true,
         status: true,
         isLocked: true,
         subjectId: true,
@@ -113,7 +116,10 @@ export async function POST(req: NextRequest) {
       if (!subject) {
         return Response.json({ error: "One or more subjects are outside this exam class" }, { status: 400 });
       }
-      if (!entry.isAbsent && entry.marksObtained > subject.totalMarks) {
+      if (entry.isAbsent && entry.isExempt) {
+        return Response.json({ error: "A result cannot be both absent and exempt" }, { status: 400 });
+      }
+      if (!entry.isAbsent && !entry.isExempt && entry.marksObtained > subject.totalMarks) {
         return Response.json(
           { error: `Marks cannot exceed ${subject.totalMarks}` },
           { status: 400 }
@@ -127,7 +133,7 @@ export async function POST(req: NextRequest) {
     // Per-subject grades follow the class's configured ladder, the same one
     // the report card uses — otherwise a mark shows "B" on the marks screen
     // and "A" on the report card for the identical score.
-    const thresholds = await thresholdsForClass(exam.classId, exam.academicYear);
+    const thresholds = await thresholdsForClass(exam.classId, exam.academicYear, prisma, exam.academicModelVersionId);
 
     const { savedCount, changed } = await prisma.$transaction(async (tx) => {
     const existingMarks = await tx.mark.findMany({ where: { examId } });
@@ -151,15 +157,16 @@ export async function POST(req: NextRequest) {
       // An absent pupil has no score to grade. Storing 0 with a grade of "F"
       // is what made absence indistinguishable from a genuine zero.
       const absent = entry.isAbsent === true;
-      const obtained = absent ? 0 : entry.marksObtained;
-      const grade = absent ? null : gradeForMark(obtained, subject.totalMarks, thresholds);
+      const exempt = entry.isExempt === true;
+      const obtained = absent || exempt ? 0 : entry.marksObtained;
+      const grade = absent || exempt ? null : gradeForMark(obtained, subject.totalMarks, thresholds);
       const key = `${entry.studentId}:${entry.subjectId}`;
       const oldMark = existingByKey.get(key);
 
       const mark = oldMark
         ? await tx.mark.update({
             where: { id: oldMark.id },
-            data: { marksObtained: obtained, isAbsent: absent, grade, enteredBy: user.userId },
+            data: { marksObtained: obtained, isAbsent: absent, isExempt: exempt, grade, enteredBy: user.userId },
           })
         : await tx.mark.create({
             data: {
@@ -169,6 +176,7 @@ export async function POST(req: NextRequest) {
               subjectId: entry.subjectId,
               marksObtained: obtained,
               isAbsent: absent,
+              isExempt: exempt,
               grade,
               enteredBy: user.userId,
             },
@@ -178,6 +186,7 @@ export async function POST(req: NextRequest) {
         !oldMark ||
         oldMark.marksObtained !== obtained ||
         oldMark.isAbsent !== absent ||
+        oldMark.isExempt !== exempt ||
         oldMark.grade !== grade ||
         oldMark.enteredBy !== user.userId;
 

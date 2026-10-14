@@ -3,7 +3,7 @@ import { assertPermission } from "@/lib/permissions";
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { SignJWT } from "jose";
 
 const SECRET = JWT_SECRET;
@@ -20,26 +20,36 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
     await assertPermission(user, "students", "view");
-    const { studentId } = await req.json();
-    if (typeof studentId !== "string" || !studentId) throw new AccessDenied("student", "view", user);
+    const body = await req.json();
+    const relationshipId = typeof body?.relationshipId === "string" ? body.relationshipId : null;
+    const studentId = typeof body?.studentId === "string" ? body.studentId : null;
+    if (!relationshipId && !studentId) throw new ApiError("Choose a verified guardian relationship", 400);
 
-    const student = await prisma.student.findFirst({
+    const relationships = await prisma.guardianRelationship.findMany({
       where: {
-        id: studentId,
-        ...studentScope(user),
+        ...(relationshipId ? { id: relationshipId } : { studentId: studentId! }),
+        status: "ACTIVE",
+        verifiedAt: { not: null },
+        validFrom: { lte: new Date() },
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+        student: studentScope(user),
       },
-      select: { id: true, schoolId: true, guardianWhatsapp: true, guardianPhone: true },
+      select: { id: true, studentId: true, guardianUserId: true, schoolId: true, accessVersions: { where: { effectiveFrom: { lte: new Date() }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }] }, take: 1, select: { permissions: true } } },
     });
+    if (relationships.length > 1) throw new ApiError("Choose one guardian relationship for this child", 409);
+    const relationship = relationships[0];
 
-    if (!student) {
+    if (!relationship?.guardianUserId || !relationship.accessVersions[0] || (relationship.accessVersions[0].permissions as { learningRecords?: unknown }).learningRecords !== true) {
       throw new AccessDenied("student", "view", user);
     }
 
     // The school travels in the token so parent-portal requests, which have
     // no session, can still be bound to a tenant on the way in.
     const token = await new SignJWT({
-      studentId: student.id,
-      schoolId: student.schoolId,
+      studentId: relationship.studentId,
+      relationshipId: relationship.id,
+      guardianUserId: relationship.guardianUserId,
+      schoolId: relationship.schoolId,
       type: "parent_portal",
     })
       .setProtectedHeader({ alg: "HS256" })
@@ -54,6 +64,7 @@ export async function POST(req: NextRequest) {
       success: true,
       token,
       portalUrl,
+      relationshipId: relationship.id,
       expiresIn: THIRTY_DAYS,
     });
   } catch (error) {

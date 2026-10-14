@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useMemo } from "react";
 import { CalendarDays, Clock, DoorOpen, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -71,7 +72,7 @@ export function ExamTimelineView({
 
   if (days.length === 0 && unscheduled.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
+      <div className="sk-panel flex flex-col items-center justify-center border-dashed p-16 text-center">
         <CalendarDays className="mb-3 h-10 w-10 text-ink-subtle" />
         <p className="text-sm font-bold text-ink-muted">Nothing is on the datesheet yet</p>
         <p className="mt-1 text-xs font-semibold text-ink-subtle">
@@ -143,10 +144,10 @@ export function ExamTimelineView({
                       : [];
                 return (
                   <li key={p.id}>
-                    <button
+                    <Button variant="secondary"
                       type="button"
                       onClick={() => onOpen(p.examId, "schedule")}
-                      className="flex w-full cursor-pointer flex-wrap items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-[#fbf0fe]/30"
+                      className="justify-start flex w-full flex-wrap items-center gap-3 px-5 py-3 text-left"
                     >
                       <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-black text-[#8127cf]">
                         <Clock className="h-3.5 w-3.5" />
@@ -178,7 +179,7 @@ export function ExamTimelineView({
                           <MapPin className="h-3 w-3" /> No room
                         </span>
                       )}
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
@@ -200,10 +201,10 @@ export function ExamTimelineView({
           <ul className="divide-y divide-amber-200/40">
             {unscheduled.map((e) => (
               <li key={e.id}>
-                <button
+                <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(e.id, "schedule")}
-                  className="flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-amber-100/40"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left"
                 >
                   <span>
                     <span className="block text-sm font-black text-[#1d1b20]">{e.title}</span>
@@ -214,7 +215,7 @@ export function ExamTimelineView({
                   <span className="rounded-xl bg-amber-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white">
                     Set dates
                   </span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

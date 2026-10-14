@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Shared action skins serve native buttons and semantic navigation links. */
+@custom-variant actionable-hover {
+  @media (hover: hover) {
+    &:where(:enabled, a[href]):not([aria-disabled="true"]):hover { @slot; }
+  }
+}
+@custom-variant actionable-active (&:where(:enabled, a[href]):not([aria-disabled="true"]):active);
+
 /* ─── shadcn/ui Design Tokens ───────────────────────────── */
 
 :root {
@@ -21,7 +29,8 @@
   --destructive-foreground: 0 0% 98%;
   --border: 278 17% 80%;
   --input: 278 17% 80%;
-  --ring: 273 68% 48%;
+  /* = --focus-rgb, for any third-party hsl(var(--ring)) reader. */
+  --ring: 272 30% 60%;
   --radius: 1.5rem;
   --sidebar-bg: 287 88% 97%;
   --sidebar-foreground: 273 15% 12%;
@@ -74,7 +83,7 @@
   --destructive-foreground: 0 0% 98%;
   --border: 240 3.7% 15.9%;
   --input: 240 3.7% 15.9%;
-  --ring: 263 70% 58%;
+  --ring: 272 45% 77%;
   --sidebar-bg: 240 10% 5%;
   --sidebar-foreground: 0 0% 98%;
   --sidebar-border: 240 3.7% 15.9%;
@@ -107,7 +116,22 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
+  --color-ring: var(--focus-color);
+  --color-focus: var(--focus-color);
+  --color-field-border: var(--field-border);
+  --color-field-border-hover: var(--field-border-hover);
+  --color-field-surface: var(--field-surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-subtle-hover: var(--border-subtle-hover);
+  --color-status-error-surface: var(--status-error-surface);
+  --color-status-error-border: var(--status-error-border);
+  --color-status-error-text: var(--status-error-text);
+  --color-status-warning-surface: var(--status-warning-surface);
+  --color-status-warning-border: var(--status-warning-border);
+  --color-status-warning-text: var(--status-warning-text);
   --color-sidebar-bg: hsl(var(--sidebar-bg));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
@@ -124,8 +148,10 @@
 
 /* ─── Base Styles ────────────────────────────────────────── */
 
-* {
-  border-color: hsl(var(--border));
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
 }
 
 body {
@@ -237,15 +263,15 @@ button:disabled,
 }
 
 .animate-modal-enter {
-  animation: modal-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: modal-enter var(--duration-dialog-enter) var(--ease-enter) both;
 }
 
 .animate-backdrop-enter {
-  animation: backdrop-enter 200ms ease-out both;
+  animation: backdrop-enter var(--duration-control) ease-out both;
 }
 
 .animate-dropdown-enter {
-  animation: dropdown-enter 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: dropdown-enter var(--duration-control) var(--ease-enter) both;
 }
 
 /* ─── Dialog motion ──────────────────────────────────────────
@@ -279,25 +305,23 @@ button:disabled,
 }
 
 .animate-modal-exit {
-  animation: modal-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: modal-exit var(--duration-dialog-exit) var(--ease-exit) both;
 }
 
 .animate-backdrop-exit {
-  animation: backdrop-exit 180ms ease-in both;
+  animation: backdrop-exit var(--duration-dialog-exit) ease-in both;
 }
 
 .animate-sheet-enter {
-  animation: sheet-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: sheet-enter var(--duration-sheet-enter) var(--ease-enter) both;
 }
 
 .animate-sheet-exit {
-  animation: sheet-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: sheet-exit var(--duration-dialog-exit) var(--ease-exit) both;
 }
 
-/* Vestibular triggers are the reason this exists: a sheet flying up the screen
-   is exactly the large-area movement that provokes them. Collapse the motion
-   to a cross-fade rather than removing feedback entirely, so the dialog still
-   reads as arriving and leaving. */
+/* Remove spatial motion. The global reduced-motion rule below makes these
+   fades immediate; dialog exit lifecycle remains the existing 180ms. */
 @media (prefers-reduced-motion: reduce) {
   .animate-modal-enter,
   .animate-modal-exit,
@@ -306,7 +330,6 @@ button:disabled,
   .animate-dropdown-enter,
   .animate-drawer-enter {
     animation-name: fade-in;
-    animation-duration: 120ms;
   }
 
   .animate-modal-exit,
@@ -359,6 +382,7 @@ button:disabled,
 .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
 .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
 .sk-parallax { transition: transform 0.35s ease-out; will-change: transform; }
+.sk-shell { transition: grid-template-columns 0.5s cubic-bezier(0.2, 0.7, 0.3, 1), max-width 0.5s cubic-bezier(0.2, 0.7, 0.3, 1); }
 .sk-rise { animation: skRise 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .sk-shake { animation: skShake 0.34s ease-in-out; }
 .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
@@ -459,7 +483,7 @@ button:disabled,
   /* A sparkle frozen mid-cycle would sit as a static dot in the corner of
      every card; the decoration is purely motion, so it goes entirely. */
   .sk-sparkle { display: none !important; }
-  .sk-parallax { transition: none !important; }
+  .sk-parallax, .sk-shell { transition: none !important; }
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────── */
@@ -529,50 +553,8 @@ button:disabled,
   background: hsl(var(--background));
 }
 
-.skoolee-dashboard-main table {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.skoolee-dashboard-main thead tr {
-  background: rgb(243 244 249 / 0.7);
-}
-
-.skoolee-dashboard-main th {
-  color: var(--ink-muted);
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
-.skoolee-dashboard-main tbody tr {
-  transition: background-color 160ms ease, box-shadow 160ms ease;
-}
-
-.skoolee-dashboard-main tbody tr:hover {
-  background: rgb(251 240 254 / 0.48);
-}
-
-.skoolee-dashboard-main .rounded-md {
-  border-radius: 0.75rem;
-}
-
-.skoolee-dashboard-main .rounded-lg {
-  border-radius: 1rem;
-}
-
-.skoolee-dashboard-main .rounded-xl {
-  border-radius: 1.35rem;
-}
-
-.skoolee-dashboard-main .border-border,
-.skoolee-dashboard-main .border-sidebar-border {
-  border-color: rgb(207 194 214 / 0.2);
-}
-
-.skoolee-dashboard-main .bg-muted\/30,
-.skoolee-dashboard-main .bg-muted\/50 {
-  background-color: rgb(243 244 249 / 0.62);
-}
+/* Legacy routes consume the same table, surface and radius recipes as role routes.
+   Do not override utility classes under the dashboard shell. */
 
 /* ─── Skoolee Premium Toasts ───────────────────────────── */
 
@@ -581,15 +563,20 @@ button:disabled,
   --normal-border: rgba(207, 194, 214, 0.4);
   --normal-text: #1f1a23;
 
-  box-shadow: 0 28px 70px -18px rgba(31, 26, 35, 0.28) !important;
-  border: 1px solid var(--normal-border) !important;
+  font-family: var(--font-plus-jakarta-sans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  box-shadow: var(--shadow-toast) !important;
+  /* Sonner's more specific rich-color rules own status borders and fills. */
+  border: 1px solid var(--normal-border);
   backdrop-filter: blur(14px) !important;
   padding: 18px 20px !important;
-  border-radius: 28px !important;
+  border-radius: var(--radius-panel) !important;
 }
 
 .skoolee-toast [data-icon] {
-  margin-right: 12px;
+  /* Sonner already supplies direction-aware icon spacing. */
   transform: scale(1.1);
 }
 
@@ -608,17 +595,17 @@ button:disabled,
 .skoolee-toast [data-close-button] {
   border-color: rgb(207 194 214 / 0.45) !important;
   background: white !important;
-  color: #8127cf !important;
+  color: var(--brand-1) !important;
 }
 
 .skoolee-toast [data-button] {
   border-radius: 14px !important;
-  background: #8127cf !important;
+  background: var(--brand-1) !important;
   color: white !important;
   font-weight: 900 !important;
 }
 
-[data-sonner-toaster][data-theme='light'] {
+[data-sonner-toaster][data-sonner-theme='light'] .skoolee-toast {
   --success-bg: #ecfdf5;
   --success-border: #10b981;
   --success-text: #065f46;
@@ -630,15 +617,108 @@ button:disabled,
 
 /* F61 shared interaction tokens. Use words with every status color. */
 :root {
+  /* Semantic geometry and elevation retain the existing component values. */
+  --control-min: 44px;
+  --field-min: 48px;
+  --control-large: 56px;
+  --radius-selection: 7px;
+  --radius-control-small: 12px;
+  --radius-control: 16px;
+  --radius-toolbar: 20px;
+  --radius-table: 24px;
+  --radius-panel: 28px;
+  --radius-dialog: 32px;
+  --radius-pill: 9999px;
+  --radius-workspace-mobile: 24px;
+  --radius-workspace: 32px;
+  --shadow-panel: 0 2px 4px rgb(40 23 60 / .02), 0 12px 32px -20px rgb(80 42 118 / .24);
+  --shadow-toast: 0 28px 70px -18px rgb(31 26 35 / .28);
+  --shadow-workspace: 0 2px 4px rgb(40 23 60 / .02), 0 20px 60px -30px rgb(80 42 118 / .25), inset 0 1px 0 white;
+  --duration-fast: 150ms;
+  --duration-control: 200ms;
+  --duration-dialog-enter: 280ms;
+  --duration-sheet-enter: 320ms;
+  --duration-dialog-exit: 180ms;
+  --ease-standard: cubic-bezier(.4, 0, .2, 1);
+  --ease-enter: cubic-bezier(.16, 1, .3, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
   --space-task: 1.5rem;
   --space-control: 0.75rem;
   --text-body: 0.875rem;
   --text-heading: 1.5rem;
+  /* One focus hue drives every indicator. The field border is the solid
+     token and its halo is a translucent copy of the same channels, so the
+     two can never drift apart. #aa8bc4 (the earlier muted purple) measured
+     2.92:1 on #fff and ~2.7:1 on #eff6ff/#fdf2f8, below the 3:1 non-text
+     minimum. Same hue, lightness 66% → 60%: #9b7ab8 = 3.56:1 on #fff,
+     3.41:1 on #fcfaff, 3.26:1 on #eff6ff, 3.25:1 on #fdf2f8, ≥3.2:1 on
+     #f3f4f9. The halo rises 18% → 30% so it stays visible on tinted fills. */
+  --focus-rgb: 155 122 184;
+  --focus-color: rgb(var(--focus-rgb));
   --focus-width: 2px;
+  --focus-offset: 3px;
+  --field-border: #d8cfe5;
+  --field-border-hover: #b39acb;
+  --field-surface: #fcfaff;
+  --field-surface-invalid: #fff5f5;
+  /* Rest and hover never paint inside the field: no inset tint, so hover only
+     changes the outer border (matches the production login fields). */
+  --field-shadow-rest: 0 1px 2px rgb(55 27 77 / 0.05);
+  --field-shadow-hover: var(--field-shadow-rest);
+  --field-focus-border: var(--focus-color);
+  /* Focus = slightly bolder edge (1px inset on the 1px border, no layout
+     shift) + a tight same-hue ring + a soft diffuse "smoky" glow. */
+  --field-focus-ring: inset 0 0 0 1px var(--field-focus-border), 0 0 0 3px rgb(var(--focus-rgb) / 0.22), 0 0 16px 2px rgb(var(--focus-rgb) / 0.24);
+  /* = hsl(var(--destructive)); invalid focus repeats the pattern in red. */
+  --field-error-rgb: 175 29 29;
+  --field-error-border: rgb(var(--field-error-rgb));
+  --field-error-ring: inset 0 0 0 1px var(--field-error-border), 0 0 0 3px rgb(var(--field-error-rgb) / 0.16), 0 0 16px 2px rgb(var(--field-error-rgb) / 0.16);
+  --field-icon-focus: var(--brand-1);
+  /* Neutral work surfaces and status fills for the shared primitives. Status
+     colours always travel with words; these only carry the tone. */
+  --surface-subtle: #faf7fd;
+  --surface-hover: #faf5ff;
+  --surface-selected: #f3eafa;
+  --border-subtle: #e4dced;
+  --border-subtle-hover: #d2bfdf;
+  --status-error-surface: #fef2f2;
+  --status-error-border: #fecaca;
+  --status-error-text: #7f1d1d;
+  --status-warning-surface: #fffbeb;
+  --status-warning-border: #fde68a;
+  --status-warning-text: #854d0e;
 }
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: var(--focus-width) solid hsl(var(--ring));
-  outline-offset: 3px;
+.dark {
+  --focus-rgb: 196 170 222;
+  --field-error-rgb: 208 50 50;
+  --field-border: hsl(var(--border));
+  --field-border-hover: #6b5a7d;
+  --field-surface: hsl(var(--card));
+  --field-surface-invalid: #2a1215;
+  /* Derived tokens resolve where declared; restate them so .dark works on any subtree. */
+  --focus-color: rgb(var(--focus-rgb));
+  --field-focus-border: var(--focus-color);
+  --field-focus-ring: inset 0 0 0 1px var(--field-focus-border), 0 0 0 3px rgb(var(--focus-rgb) / 0.22), 0 0 16px 2px rgb(var(--focus-rgb) / 0.24);
+  --field-error-border: rgb(var(--field-error-rgb));
+  --field-error-ring: inset 0 0 0 1px var(--field-error-border), 0 0 0 3px rgb(var(--field-error-rgb) / 0.16), 0 0 16px 2px rgb(var(--field-error-rgb) / 0.16);
+}
+/* Unlayered, so every interactive control shares one indicator. Screens adapt
+   it through custom properties (focus-on-dark, focus-inset), never by forking. */
+:where(a, button, input, select, textarea, summary, [tabindex], [contenteditable="true"]):focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+/* A card that wraps a visually hidden radio/checkbox shows the shared indicator
+   on the card, since the native control itself is not visible. */
+.sk-choice-card:has(> input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+@utility focus-on-dark {
+  --focus-color: #fff;
+}
+@utility focus-inset {
+  --focus-offset: calc(var(--focus-width) * -1);
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -671,12 +751,12 @@ button:disabled,
     padding-inline-end: 0.875rem;
     gap: 1rem;
   }
-  .sk-select::picker-icon { content: ""; width: 0.45rem; height: 0.45rem; border-inline-end: 2px solid currentColor; border-bottom: 2px solid currentColor; color: hsl(var(--primary)); rotate: 45deg; margin-inline: auto 0.25rem; transition: rotate 180ms; }
+  .sk-select::picker-icon { content: ""; width: 0.45rem; height: 0.45rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; color: hsl(var(--primary)); rotate: 45deg; margin-inline: auto 0.25rem; transition: rotate 180ms; }
   .sk-select:open::picker-icon { rotate: 225deg; }
   .sk-select::picker(select) {
     margin-block: 0.5rem;
     padding: 0.375rem;
-    border: 1px solid #e3d4ef;
+    border: 1px solid var(--border-subtle);
     border-radius: 1.25rem;
     background: white;
     box-shadow: 0 12px 40px -10px rgb(70 30 100 / 25%);
@@ -736,24 +816,22 @@ button:disabled,
   border-radius: 0.875rem;
 }
 .sk-input-group > button[data-field-affix]:hover { color: var(--color-primary); }
-.sk-input-group:has(> input:disabled) { background: var(--color-muted); opacity: 0.7; }
-.sk-input-group:has(> input[aria-invalid="true"]) { border-color: var(--color-destructive); outline-color: var(--color-destructive); }
 
 @layer components {
   /* Shared surfaces for domain cards as well as the reference compositions. */
   .sk-panel {
-    border: 1px solid #e4dced;
-    border-radius: 1.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-panel);
     background: #fff;
     color: var(--color-foreground);
-    box-shadow: 0 2px 4px rgb(40 23 60 / 2%), 0 12px 32px -20px rgb(80 42 118 / 24%);
+    box-shadow: var(--shadow-panel);
     transition: border-color 180ms, box-shadow 180ms;
   }
-  .sk-panel:hover { border-color: #d2bfdf; }
+  .sk-panel:hover { border-color: var(--border-subtle-hover); }
   .sk-toolbar {
-    border: 1px solid #e4dced;
-    border-radius: 1.25rem;
-    background: #faf7fd;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-toolbar);
+    background: var(--surface-subtle);
     padding: 0.75rem;
     gap: 0.75rem;
   }
@@ -766,33 +844,41 @@ button:disabled,
     line-height: 1.4;
   }
   .sk-data-table { width: 100%; text-align: start; font-size: 0.875rem; }
-  .sk-data-table thead { background: #faf7fd; }
+  .sk-data-table thead { background: var(--surface-subtle); }
   .sk-data-table th { text-align: inherit; color: var(--color-ink-muted); font-size: 0.75rem; font-weight: 600; text-transform: none; letter-spacing: normal; }
-  .sk-data-table tbody tr { border-bottom: 1px solid #eee7f4; transition: background-color 150ms; }
-  .sk-data-table tbody tr:hover, .sk-data-table tbody tr:focus-within { background: #faf5ff; }
-  .sk-data-table tbody tr[data-state="selected"] { background: #f3eafa; }
+  .sk-data-table tbody tr { border-bottom: 1px solid var(--border-subtle); transition: background-color var(--duration-fast); }
+  .sk-data-table tbody tr:hover, .sk-data-table tbody tr:focus-within { background: var(--surface-hover); }
+  .sk-data-table tbody tr[data-state="selected"] { background: var(--surface-selected); }
 }
 
 .sk-input-group > [data-date-field] { order: 1; flex: 1 1 0%; min-width: 0; }
 .sk-input-group > [data-date-field] > input { border: 0; background: transparent; box-shadow: none; padding-inline-start: 0.875rem; outline: none; }
-.sk-input-group:has(> [data-date-field] input:disabled) { background: var(--color-muted); opacity: 0.7; }
 .sk-input-group > button[data-field-action="text"] { width: auto; padding-inline: 0.75rem; display: inline-flex; gap: 0.375rem; }
 
 /* The group paints the only background, including icon and action slots. */
 .sk-input-group { background-image: none; }
 .sk-input-group > [data-field-affix],
 .sk-input-group > [data-field-affix]:hover,
-.sk-input-group > [data-field-affix]:focus-visible,
-.sk-input-group > input:hover,
-.sk-input-group > input:focus,
-.sk-input-group > textarea:hover,
-.sk-input-group > textarea:focus {
+.sk-input-group > [data-field-affix]:focus-visible {
   background: transparent;
   box-shadow: none;
 }
-.sk-input-group:has(input:disabled) { background-color: var(--color-muted); }
-.sk-input-group:has(input[aria-invalid="true"]) { background-color: #fff5f5; }
-.sk-input-group input:-webkit-autofill { background-clip: text; -webkit-text-fill-color: var(--color-foreground); }
+/* Chrome/Safari paint a blue autofill (and hover-preview) fill inside the
+   input. Clip it to the text and delay its colour forever so only the
+   group's own surface shows, at rest, on hover and on focus. */
+.sk-input-group input:-webkit-autofill,
+.sk-input-group input:-webkit-autofill:hover,
+.sk-input-group input:-webkit-autofill:focus,
+.sk-input-group input:autofill,
+.sk-field:-webkit-autofill,
+.sk-field:-webkit-autofill:hover,
+.sk-field:-webkit-autofill:focus {
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--color-foreground);
+  caret-color: var(--color-foreground);
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
 .sk-input-group > select {
   order: 1;
   flex: 1 1 0%;
@@ -804,34 +890,89 @@ button:disabled,
   padding-inline-start: 0.875rem;
   outline: none;
 }
-.sk-input-group:has(> select:disabled) { background-color: var(--color-muted); opacity: 0.7; }
 
-/* Standalone fields use the same single muted-purple focus boundary. */
-.sk-field:focus {
-  border-color: #aa8bc4;
+/* ─── Field focus contract ─────────────────────────────────
+   Unlayered on purpose: caller utilities live in @layer utilities and cannot
+   fork field state. Every focused boundary is a solid border plus a 3px halo
+   in the SAME hue (--field-focus-*, or --field-error-* when invalid).
+   Standalone fields own their ring; inside .sk-input-group only the group
+   paints one, and grouped children never paint border, halo or outline. */
+
+/* Rest, hover, disabled and invalid borders intentionally override caller
+   utilities. Keep state ownership here so every focus rule below still wins. */
+:where(.sk-field):not(.sk-input-group *) { border-color: var(--field-border); }
+:where(.sk-field:enabled:hover):not(.sk-input-group *) { border-color: var(--field-border-hover); }
+:where(.sk-field:disabled):not(.sk-input-group *) { border-color: hsl(var(--border)); }
+:where(.sk-field[aria-invalid="true"]):not(.sk-input-group *) { border-color: var(--field-error-border); }
+.sk-input-group { border-color: var(--field-border); }
+.sk-input-group:hover { border-color: var(--field-border-hover); }
+
+.sk-field:not(.sk-input-group *):focus,
+[data-date-field]:not(.sk-input-group *):focus-within > .sk-field {
+  border-color: var(--field-focus-border);
+  box-shadow: var(--field-focus-ring);
   outline: none;
-  box-shadow: 0 0 0 3px rgb(170 139 196 / 18%);
+}
+.sk-field[aria-invalid="true"]:not(.sk-input-group *):hover,
+.sk-field[aria-invalid="true"]:not(.sk-input-group *):focus,
+[data-date-field]:not(.sk-input-group *):focus-within > .sk-field[aria-invalid="true"] {
+  border-color: var(--field-error-border);
+}
+.sk-field[aria-invalid="true"]:not(.sk-input-group *):focus,
+[data-date-field]:not(.sk-input-group *):focus-within > .sk-field[aria-invalid="true"] {
+  box-shadow: var(--field-error-ring);
 }
 
-/* A compound field has one focus boundary, in restrained violet. */
 .sk-input-group:focus-within {
-  border-color: #aa8bc4;
+  border-color: var(--field-focus-border);
+  box-shadow: var(--field-focus-ring);
   outline: none;
-  box-shadow: 0 0 0 3px rgb(170 139 196 / 18%);
 }
-.sk-input-group > input:focus,
-.sk-input-group > select:focus,
-.sk-input-group > textarea:focus,
-.sk-input-group > [data-date-field] > input:focus {
-  border: 0;
+/* Buttons styled as a field (e.g. the teacher picker) focus like one. */
+.sk-field-trigger:focus {
+  border-color: var(--field-focus-border);
+  box-shadow: var(--field-focus-ring);
   outline: none;
+}
+/* Invalid groups keep the error fill at rest; focus adds the red halo. */
+.sk-input-group:has(> :is(input, select, textarea)[aria-invalid="true"], > [data-date-field] > input[aria-invalid="true"]) {
+  border-color: var(--field-error-border);
+  background-color: var(--field-surface-invalid);
+}
+.sk-input-group:has(> :is(input, select, textarea)[aria-invalid="true"], > [data-date-field] > input[aria-invalid="true"]):focus-within {
+  box-shadow: var(--field-error-ring);
+}
+
+.sk-input-group .sk-field,
+.sk-input-group .sk-field:hover,
+.sk-input-group .sk-field:focus {
+  border: 0;
+  background: transparent;
   box-shadow: none;
+  outline: none;
+}
+
+/* Inner actions (eye, clear, calendar) get an inset outline in the same token,
+   so keyboard users can tell them from the text without a second outer ring. */
+.sk-input-group > button[data-field-affix]:focus-visible,
+[data-date-field] > button:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+/* Disabled is solid, never faded: opacity would drop text below AA. */
+.sk-input-group:has(> :is(input, select, textarea):disabled, > [data-date-field] > input:disabled) {
+  background-color: var(--color-muted);
+  border-color: hsl(var(--border));
+  box-shadow: none;
+  color: var(--color-ink-muted);
 }
 
 .sk-input-group:focus-within > [data-field-affix],
 .sk-input-group:focus-within > [data-field-affix] svg,
 [data-date-field]:focus-within > button {
-  color: #8127cf;
+  color: var(--field-icon-focus);
 }
 
 /* Browser printing uses the same shaped Arabic DOM and values as the preview. */
@@ -840,4 +981,78 @@ button:disabled,
   body:has(#locale-print-sample) #locale-print-sample,
   body:has(#locale-print-sample) #locale-print-sample * { visibility: visible; }
   #locale-print-sample { position: absolute; inset: 0; width: 100%; padding: 20mm; border: 0; background: white; font-family: Arial, sans-serif; }
+}
+
+/* Recovery codes print alone (RecoveryCodesSheet toggles the class), also from inside a Modal portal. */
+@media print {
+  html.sk-print-recovery body * { visibility: hidden; }
+  html.sk-print-recovery [data-print-recovery], html.sk-print-recovery [data-print-recovery] * { visibility: visible; }
+  html.sk-print-recovery [data-print-recovery] { position: absolute; inset-block-start: 0; inset-inline-start: 0; }
+}
+
+/* Role navigation remains fixed below md; Sonner's own mobile breakpoint is
+   600px, so retain clearance through the entire 601–767px tablet interval. */
+@media (max-width: 767px) {
+  [data-sonner-toaster][data-y-position="bottom"][data-x-position="center"] {
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Existing mobile navigation uses py-1; preserve it while reserving the inset. */
+@utility safe-area-pb {
+  padding-bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* One animated, circular launcher for messaging across all role dashboards. */
+.chat-launcher {
+  border: 0;
+  background: linear-gradient(135deg, #6723b5, #a328b9 55%, #ba246e);
+  color: white;
+  isolation: isolate;
+  box-shadow: 0 8px 24px -6px rgba(107, 33, 168, 0.5);
+}
+.chat-launcher-background {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.chat-launcher-orb {
+  position: absolute;
+  width: 75%;
+  height: 75%;
+  border-radius: 50%;
+  filter: blur(10px);
+  animation: chatLauncherOrbit 8s ease-in-out infinite alternate;
+}
+.chat-launcher-orb:nth-child(1) { inset-inline-start: -15%; top: -15%; background: #6b35d6; }
+.chat-launcher-orb:nth-child(2) { inset-inline-end: -20%; top: 10%; background: #b832a7; animation-delay: -3s; }
+.chat-launcher-orb:nth-child(3) { inset-inline-start: 15%; bottom: -25%; background: #da387c; animation-delay: -5s; }
+.chat-launcher > span > svg { color: white; }
+@keyframes chatLauncherOrbit {
+  0% { transform: translate(-8%, -8%) scale(0.85); }
+  50% { transform: translate(20%, 12%) scale(1.15); }
+  100% { transform: translate(-5%, 25%) scale(0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-launcher-orb { animation: none; }
+}
+
+/* Visible circular ripples complement the moving gradient inside the launcher. */
+.chat-launcher-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid #a855f7;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: chatLauncherRipple 3.6s ease-out infinite;
+}
+.chat-launcher-ring-delayed { animation-delay: -1.8s; border-color: #d946a4; }
+@keyframes chatLauncherRipple {
+  0% { transform: scale(1); opacity: 0.5; }
+  80%, 100% { transform: scale(1.55); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-launcher-ring { animation: none; opacity: 0; }
 }

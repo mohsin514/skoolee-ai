@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
+import { ApiError } from "@/lib/api/scope";
 
 // ─── Conflict-prevention availability queries ───────────────────────────────
 // These power the "prevent, don't detect" UX: dropdowns only ever offer
@@ -67,6 +68,21 @@ function toAvailableRoom(room: {
   };
 }
 
+async function overlappingTimetableScope(campusId: string, excludeTimetableId?: string) {
+  if (!excludeTimetableId) return { campusId };
+  const timetable = await prisma.timetable.findFirst({ where: { id: excludeTimetableId, campusId }, select: { academicYear: true, term: true } });
+  if (!timetable) throw new ApiError("Timetable not found in this campus", 404);
+  return {
+    campusId,
+    id: { not: excludeTimetableId },
+    academicYear: timetable.academicYear,
+    ...(["TERM_1", "TERM_2", "TERM_3"].includes(timetable.term) ? { OR: [
+      { term: { in: ["ANNUAL", timetable.term] } },
+      { term: { notIn: ["ANNUAL", "TERM_1", "TERM_2", "TERM_3"] } },
+    ] } : {}),
+  };
+}
+
 /**
  * Teachers who are NOT already teaching a CLASS slot in the given
  * day/period across the campus (excluding the timetable currently being edited).
@@ -77,12 +93,10 @@ export async function getAvailableTeachers(
   periodNumber: number,
   excludeTimetableId?: string
 ): Promise<AvailableTeacher[]> {
+  const scope = await overlappingTimetableScope(campusId, excludeTimetableId);
   const busy = await prisma.timetableSlot.findMany({
     where: {
-      timetable: {
-        campusId,
-        ...(excludeTimetableId ? { id: { not: excludeTimetableId } } : {}),
-      },
+      timetable: scope,
       dayOfWeek,
       periodNumber,
       slotType: "CLASS",
@@ -93,7 +107,7 @@ export async function getAvailableTeachers(
   });
   const busyIds = busy.map((b) => b.teacherId as string);
   const teachers = await prisma.user.findMany({
-    where: { campusId, role: "TEACHER", id: { notIn: busyIds } },
+    where: { campusId, isActive: true, role: { in: ["TEACHER", "PRINCIPAL"] }, id: { notIn: busyIds } },
     select: { id: true, fullName: true },
     orderBy: { fullName: "asc" },
   });
@@ -110,12 +124,10 @@ export async function getAvailableRooms(
   periodNumber: number,
   excludeTimetableId?: string
 ): Promise<AvailableRoom[]> {
+  const scope = await overlappingTimetableScope(campusId, excludeTimetableId);
   const busy = await prisma.timetableSlot.findMany({
     where: {
-      timetable: {
-        campusId,
-        ...(excludeTimetableId ? { id: { not: excludeTimetableId } } : {}),
-      },
+      timetable: scope,
       dayOfWeek,
       periodNumber,
       roomId: { not: null },

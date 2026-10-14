@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/scope";
 import { triggerRepeatedAbsenceAlert } from "@/lib/notifications/automation";
 import { notify } from "@/lib/notifications/in-app";
+import { writeObservedAttendance } from "@/lib/school-ai/school-operations-register-write";
 import { schoolToday } from "@/lib/datetime";
 
 function dateOnly(value: string) {
@@ -130,33 +131,7 @@ export async function POST(req: NextRequest) {
 
     const cls = await getClassForAttendance(parsed.data.classId, user);
     const date = dateOnly(parsed.data.date);
-    const studentIds = parsed.data.entries.map((entry) => entry.studentId);
-    const validStudents = await prisma.student.findMany({
-      where: { id: { in: studentIds }, classId: cls.id, campusId: cls.campusId, campus: { schoolId: user.schoolId } },
-      select: { id: true },
-    });
-    const validStudentIds = new Set(validStudents.map((student) => student.id));
-
-    if (validStudentIds.size !== studentIds.length) {
-      throw new ApiError("One or more students are outside this class", 400);
-    }
-
-    const records = await prisma.$transaction(
-      parsed.data.entries.map((entry) =>
-        prisma.attendance.upsert({
-          where: { studentId_date: { studentId: entry.studentId, date } },
-          update: { status: entry.status, markedBy: user.userId, campusId: cls.campusId, classId: cls.id, markedAt: new Date() },
-          create: {
-            campusId: cls.campusId,
-            classId: cls.id,
-            studentId: entry.studentId,
-            date,
-            status: entry.status,
-            markedBy: user.userId,
-          },
-        })
-      )
-    );
+    const records = await writeObservedAttendance(user, { campusId: cls.campusId, classId: cls.id, date: parsed.data.date, entries: parsed.data.entries });
 
     const summary = {
       total: records.length,

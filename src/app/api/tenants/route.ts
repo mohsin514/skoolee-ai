@@ -8,6 +8,7 @@ import { createTenantSchema } from "@/lib/db/tenant";
 import { onboardingSchema } from "@/lib/validators/schemas";
 import { seedRolePermissions } from "@/lib/auth/seed-permissions";
 import { getAuthUser } from "@/lib/auth";
+import { createPlanContract } from "@/config/commercial-contract";
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
         city: address || "Pending", // Mapping address to city for now
         contactEmail: email || `admin@${slug}.com`,
         status: "TRIAL",
+        commercialContract: createPlanContract("FREE"),
       },
     });
 

@@ -6,6 +6,8 @@ import { reviewQueue, approveVersions, reviewExam, publishExam } from "../../src
 import { getLocalePackage } from "../../src/lib/locale/store";
 import { prisma } from "../../src/lib/db/prisma";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
+import { applySignInLanguage } from "../../src/lib/locale/sign-in-language";
+import { NextResponse } from "next/server";
 const url = process.env.DATABASE_URL || "";
 if (!url.includes("127.0.0.1:55401/sko201") && !url.includes("127.0.0.1:55410/sko210")) throw new Error("Local SKO-201 database required");
 const db = new PrismaClient();
@@ -35,6 +37,16 @@ test("persisted policy resolves exact effective boundaries, inheritance, finance
    const message = await sendTemplatedCommunication({ key: "GENERAL_ANNOUNCEMENT", channel: "EMAIL", target: { schoolId }, context: { parentName: "أحمد", announcementTitle: "TEST-014", announcementBody: "اختبار محلي", schoolName: "مدرسة" }, approvedData: true });
    assert.equal(message.status, "NO_RECIPIENT"); assert.match(message.body, /عزيزي أحمد/); assert.match(message.subject || "", /TEST-014/); assert.equal((message.metadata as { localeSnapshot: { language: string } }).localeSnapshot.language, "ar");
  });
+ // AC8a: an explicit login-page choice is the parent's notification language too (FR-L6, one column).
+ const parent = await db.user.create({ data: { id: `${schoolId}-parent`, schoolId, fullName: "Synthetic parent", email: "parent-ac8a@example.invalid", password: "synthetic", role: "PARENT", preferredLanguage: null } });
+ await runWithTenantContext({ schoolId }, async () => {
+   const response = NextResponse.json({ success: true });
+   await applySignInLanguage(parent, { language: "ur", languageSource: "explicit" }, response);
+   assert.equal(response.cookies.get("skoolee-lang")?.value, "ur");
+   const message = await sendTemplatedCommunication({ key: "GENERAL_ANNOUNCEMENT", channel: "EMAIL", target: { schoolId, parentUserId: parent.id }, context: { parentName: "Guardian-AC8a", announcementTitle: "TEST-AC8a", announcementBody: "Local", schoolName: "Local" }, approvedData: true });
+   assert.equal((message.metadata as { localeSnapshot: { language: string } }).localeSnapshot.language, "ur");
+ });
+ assert.equal((await db.user.findUniqueOrThrow({ where: { id: parent.id } })).preferredLanguage, "ur");
  await db.user.create({data:{id:"synthetic-reviewer",schoolId,campusId:`${schoolId}-a`,fullName:"Synthetic reviewer",email:"reviewer@example.invalid",password:"synthetic",role:"PRINCIPAL"}});
  const cls=await db.class.create({data:{schoolId,campusId:`${schoolId}-a`,name:"Class",academicYear:2026}});
  const student=await db.student.create({data:{schoolId,campusId:`${schoolId}-a`,classId:cls.id,fullName:"طالب علم",rollNo:"TEST-014",gender:"MALE"}});

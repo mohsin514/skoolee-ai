@@ -4,7 +4,8 @@ import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -133,15 +134,15 @@ function SortHeader({
   const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
   return (
     <TableHead>
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={() => onSort(column)}
         aria-label={`Sort by ${column}${active ? `, currently ${sortDir}ending` : ""}`}
-        className="flex cursor-pointer items-center gap-1 hover:text-primary"
+        className="justify-start px-1"
       >
         {children}
         <Icon className={`h-3 w-3 ${active ? "text-primary" : "opacity-40"}`} />
-      </button>
+      </Button>
     </TableHead>
   );
 }
@@ -232,10 +233,24 @@ export default function StudentsPage() {
     if (selected.size === 0) return;
     setBulkBusy(true);
     try {
+      if (status === "archived") {
+        const previews = await Promise.all([...selected].map(async (id) => {
+          const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`);
+          const preview = await response.json();
+          if (!response.ok) throw new Error(preview.error || "Could not calculate archive impact");
+          return preview.dependencies as Record<string, number>;
+        }));
+        const totals = previews.reduce<Record<string, number>>((all, item) => {
+          for (const [key, count] of Object.entries(item)) all[key] = (all[key] || 0) + Number(count || 0);
+          return all;
+        }, {});
+        const summary = Object.entries(totals).filter(([, count]) => count > 0).map(([key, count]) => `${count} ${key}`).join(", ") || "no linked records";
+        if (!window.confirm(`Archive ${selected.size} student${selected.size === 1 ? "" : "s"}? The selected records have ${summary}. Academic, financial and document history will remain preserved.`)) return;
+      }
       const res = await fetch("/api/students", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [...selected], status }),
+        body: JSON.stringify({ ids: [...selected], status, reason: "Archived by administrator" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Bulk update failed");
@@ -347,6 +362,9 @@ export default function StudentsPage() {
         description="Manage student records, guardians, classes, and daily attendance"
         actions={
           <div className="flex gap-2">
+            <Link href="/dashboard/guardians" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Guardians & access
+            </Link>
             <Button variant="outline" size="sm" onClick={() => setShowBulkImport(true)} disabled={classes.length === 0}>
               <Upload className="h-4 w-4" />
               Bulk Import
@@ -379,12 +397,12 @@ export default function StudentsPage() {
                     setSearchQuery(event.target.value);
                     resetPage();
                   }}
-                  className="pl-9"
+
                 />
               </InputGroup>
               <Select
                 aria-label="Filter students by class"
-                className="w-full md:w-56"
+                className={"w-full md:w-56"}
                 value={classFilter}
                 onChange={(event) => {
                   setClassFilter(event.target.value);
@@ -397,7 +415,7 @@ export default function StudentsPage() {
                 ))}
               </Select>
               <Select
-                className="w-full md:w-44"
+                className={"w-full md:w-44"}
                 value={statusFilter}
                 onChange={(event) => {
                   setStatusFilter(event.target.value as "active" | "archived");

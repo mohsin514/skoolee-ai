@@ -22,6 +22,8 @@ import { DepartmentManager } from "./department-manager";
 import { DesignationLadder } from "./designation-ladder";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import type { OrgChartData, OrgNode } from "@/lib/staff/hierarchy";
+import { Button } from "@/components/ui/button";
+
 
 type Tab = "chart" | "departments" | "ladder";
 
@@ -131,32 +133,29 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-1 gap-1 rounded-2xl bg-[#f3f4f9] p-1">
           {TABS.map((t) => (
-            <button
+            <Button aria-pressed={tab === t.key} variant="choice" size="sm"
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all",
-                tab === t.key ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-ink"
-              )}
+              className="flex flex-1 items-center justify-center gap-2"
             >
               <t.icon className="h-3.5 w-3.5" />
               {t.label}
               {t.key === "ladder" && needsLadder ? (
                 <span className="ml-1 h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="Needs setting up" />
               ) : null}
-            </button>
+            </Button>
           ))}
         </div>
-        <button
+        <Button variant="outline" size="sm"
           type="button"
           onClick={() => load(true)}
           disabled={refreshing}
-          className="flex items-center gap-1.5 rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-black text-ink-muted transition-colors hover:text-[#8127cf] disabled:opacity-50"
+          className="flex justify-start items-center gap-1.5"
         >
           <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           Refresh
-        </button>
+        </Button>
       </div>
 
       {/* ── Body ─────────────────────────────────────────── */}

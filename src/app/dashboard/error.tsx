@@ -1,5 +1,6 @@
 'use client';
 
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -19,7 +20,7 @@ export default function DashboardError({
 
   return (
     <div className="flex-1 flex items-center justify-center p-6">
-      <div className="bg-white rounded-[32px] border border-[#cfc2d6]/20 shadow-xl p-10 max-w-md text-center">
+      <div className="sk-panel p-10 max-w-md text-center">
         <div className="h-14 w-14 rounded-[20px] bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-6">
           <AlertTriangle className="w-7 h-7" />
         </div>
@@ -28,16 +29,16 @@ export default function DashboardError({
           This page encountered an error. Your data is safe.
         </p>
         <div className="flex gap-3 justify-center">
-          <button
+          <Button variant="default"
             onClick={reset}
-            className="inline-flex h-10 px-5 items-center justify-center gap-2 rounded-xl bg-[#8127cf] text-white font-bold text-sm"
+            className="items-center justify-center gap-2"
           >
             <RefreshCw className="w-4 h-4" />
             Retry
-          </button>
+          </Button>
           <Link
             href="/login"
-            className="inline-flex h-10 px-5 items-center justify-center gap-2 rounded-xl border border-[#cfc2d6]/30 text-ink font-bold text-sm"
+            className={buttonVariants({ variant: "outline", className: "gap-2" })}
           >
             <ArrowLeft className="w-4 h-4" />
             Home

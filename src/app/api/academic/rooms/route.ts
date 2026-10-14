@@ -1,3 +1,4 @@
+import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
@@ -102,29 +103,31 @@ export async function POST(req: NextRequest) {
     const roomNumber = String(body.roomNumber ?? "").trim();
     if (!roomNumber) throw new ApiError("roomNumber is required", 400);
 
-    const existing = await prisma.classRoom.findUnique({
-      where: { campusId_roomNumber: { campusId, roomNumber } },
+    return await withSchedulingResourceWrite(user, campusId, "timetable", "add", async tx => {
+      const existing = await tx.classRoom.findUnique({
+        where: { campusId_roomNumber: { campusId, roomNumber } },
+      });
+      if (existing) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
+
+      const roomType = String(body.roomType ?? "CLASSROOM");
+      if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
+
+      const room = await tx.classRoom.create({
+        data: {
+          campusId,
+          roomNumber,
+          note: text(body.note, 2000),
+          building: text(body.building),
+          floor: toInt(body.floor, 0, { min: -5, max: 60 }),
+          wing: text(body.wing, 60),
+          roomType,
+          isExamHall: Boolean(body.isExamHall) || roomType === "HALL",
+          ...layoutFrom(body),
+        },
+      });
+
+      return Response.json({ success: true, data: decorate(room) });
     });
-    if (existing) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
-
-    const roomType = String(body.roomType ?? "CLASSROOM");
-    if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
-
-    const room = await prisma.classRoom.create({
-      data: {
-        campusId,
-        roomNumber,
-        note: text(body.note, 2000),
-        building: text(body.building),
-        floor: toInt(body.floor, 0, { min: -5, max: 60 }),
-        wing: text(body.wing, 60),
-        roomType,
-        isExamHall: Boolean(body.isExamHall) || roomType === "HALL",
-        ...layoutFrom(body),
-      },
-    });
-
-    return Response.json({ success: true, data: decorate(room) });
   } catch (error) {
     return errorResponse(error, "[academic/rooms] POST failed");
   }
@@ -140,39 +143,45 @@ export async function PATCH(req: NextRequest) {
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
-    const room = await prisma.classRoom.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!room) throw new ApiError("Room not found", 404);
-
-    const roomNumber = body.roomNumber !== undefined ? String(body.roomNumber).trim() : room.roomNumber;
-    if (!roomNumber) throw new ApiError("roomNumber cannot be empty", 400);
-    if (roomNumber !== room.roomNumber) {
-      const dup = await prisma.classRoom.findUnique({
-        where: { campusId_roomNumber: { campusId: room.campusId, roomNumber } },
+    const target = await prisma.classRoom.findFirst({ where: { id, ...resourceScope(user) }, select: { campusId: true } });
+    if (!target) throw new ApiError("Resource not found in your campus", 404);
+    return await withSchedulingResourceWrite(user, target.campusId, "timetable", "edit", async tx => {
+      const room = await tx.classRoom.findFirst({
+        where: { id, ...resourceScope(user), campusId: target.campusId },
       });
-      if (dup) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
-    }
+      if (!room) throw new ApiError("Room not found", 404);
 
-    const roomType = body.roomType !== undefined ? String(body.roomType) : room.roomType;
-    if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
+      const roomNumber = body.roomNumber !== undefined ? String(body.roomNumber).trim() : room.roomNumber;
+      if (!roomNumber) throw new ApiError("roomNumber cannot be empty", 400);
+      if (roomNumber !== room.roomNumber) {
+        const dup = await tx.classRoom.findUnique({
+          where: { campusId_roomNumber: { campusId: room.campusId, roomNumber } },
+        });
+        if (dup) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
+      }
 
-    const updated = await prisma.classRoom.update({
-      where: { id },
-      data: {
-        roomNumber,
-        note: body.note !== undefined ? text(body.note, 2000) : room.note,
-        building: body.building !== undefined ? text(body.building) : room.building,
-        floor: body.floor !== undefined ? toInt(body.floor, room.floor, { min: -5, max: 60 }) : room.floor,
-        wing: body.wing !== undefined ? text(body.wing, 60) : room.wing,
-        roomType,
-        isExamHall:
-          body.isExamHall !== undefined ? Boolean(body.isExamHall) : room.isExamHall,
-        ...layoutFrom(body, room),
-      },
+      const roomType = body.roomType !== undefined ? String(body.roomType) : room.roomType;
+      if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
+
+      const layout = layoutFrom(body, room);
+      if ((["rows", "benchesPerRow", "seatsPerBench", "examSeatsPerBench", "capacity"] as const).some(key => layout[key] !== room[key]) && await tx.examSeat.count({ where: { schoolId: user.schoolId, examRoom: { roomId: id, campusId: room.campusId } } })) throw new ApiError("This room has assigned exam seats. Move its papers to another room before changing its seating layout or capacity.", 409);
+      const updated = await tx.classRoom.update({
+        where: { id },
+        data: {
+          roomNumber,
+          note: body.note !== undefined ? text(body.note, 2000) : room.note,
+          building: body.building !== undefined ? text(body.building) : room.building,
+          floor: body.floor !== undefined ? toInt(body.floor, room.floor, { min: -5, max: 60 }) : room.floor,
+          wing: body.wing !== undefined ? text(body.wing, 60) : room.wing,
+          roomType,
+          isExamHall:
+            body.isExamHall !== undefined ? Boolean(body.isExamHall) : room.isExamHall,
+          ...layout,
+        },
+      });
+
+      return Response.json({ success: true, data: decorate(updated) });
     });
-
-    return Response.json({ success: true, data: decorate(updated) });
   } catch (error) {
     return errorResponse(error, "[academic/rooms] PATCH failed");
   }
@@ -187,36 +196,40 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
 
-    const room = await prisma.classRoom.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-      select: {
-        id: true,
-        roomNumber: true,
-        _count: { select: { slots: true, examSchedules: true, examRooms: true } },
-      },
+    const target = await prisma.classRoom.findFirst({ where: { id, ...resourceScope(user) }, select: { campusId: true } });
+    if (!target) throw new ApiError("Resource not found in your campus", 404);
+    return await withSchedulingResourceWrite(user, target.campusId, "timetable", "delete", async tx => {
+      const room = await tx.classRoom.findFirst({
+        where: { id, ...resourceScope(user), campusId: target.campusId },
+        select: {
+          id: true,
+          roomNumber: true,
+          _count: { select: { slots: true, examSchedules: true, examRooms: true } },
+        },
+      });
+      if (!room) throw new ApiError("Room not found", 404);
+
+      // The usage count was already being read here and then ignored, so deleting
+      // a room that timetables and date sheets point at silently unpicked those
+      // assignments. Refuse, and say exactly what is holding the room.
+      const holds: string[] = [];
+      if (room._count.slots > 0) {
+        holds.push(`${room._count.slots} timetable slot${room._count.slots === 1 ? "" : "s"}`);
+      }
+      const examUses = room._count.examSchedules + room._count.examRooms;
+      if (examUses > 0) {
+        holds.push(`${examUses} exam paper${examUses === 1 ? "" : "s"}`);
+      }
+      if (holds.length > 0) {
+        throw new ApiError(
+          `Room ${room.roomNumber} is still in use by ${holds.join(" and ")}. Move them to another room first.`,
+          409,
+        );
+      }
+
+      await tx.classRoom.delete({ where: { id } });
+      return Response.json({ success: true, data: { id } });
     });
-    if (!room) throw new ApiError("Room not found", 404);
-
-    // The usage count was already being read here and then ignored, so deleting
-    // a room that timetables and date sheets point at silently unpicked those
-    // assignments. Refuse, and say exactly what is holding the room.
-    const holds: string[] = [];
-    if (room._count.slots > 0) {
-      holds.push(`${room._count.slots} timetable slot${room._count.slots === 1 ? "" : "s"}`);
-    }
-    const examUses = room._count.examSchedules + room._count.examRooms;
-    if (examUses > 0) {
-      holds.push(`${examUses} exam paper${examUses === 1 ? "" : "s"}`);
-    }
-    if (holds.length > 0) {
-      throw new ApiError(
-        `Room ${room.roomNumber} is still in use by ${holds.join(" and ")}. Move them to another room first.`,
-        409,
-      );
-    }
-
-    await prisma.classRoom.delete({ where: { id } });
-    return Response.json({ success: true, data: { id } });
   } catch (error) {
     return errorResponse(error, "[academic/rooms] DELETE failed");
   }

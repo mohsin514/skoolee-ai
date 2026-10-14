@@ -1,3 +1,5 @@
+import { inspectHolidayRange, inspectWeekendChange } from "@/lib/academic/calendar-write";
+import { withSchedulingResourceWrite } from "@/lib/academic/resource-write";
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -43,25 +45,22 @@ export async function PATCH(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "edit");
 
-    const campusId = await resolveCampusId(user);
     const body = await req.json();
+    const campusId = await resolveCampusId(user, body.campusId);
     const days = body.days;
     if (!Array.isArray(days) || days.length === 0 || !days.every((d: number) => DAYS.has(Number(d)))) {
       throw new ApiError("days must be a non-empty array of 1-7 (Mon..Sun)", 400);
     }
 
-    const localePolicies = await prisma.localePolicy.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", effectiveAt: { lte: new Date() }, OR: [{ campusId: null }, { campusId }] }, select: { settings: true } });
-    if (localePolicies.some((p) => p.settings && typeof p.settings === "object" && !Array.isArray(p.settings) && "weekend" in p.settings)) throw new ApiError("Weekend policy is controlled in Language and regional settings. Preview an effective-dated change there.", 409);
-    const uniqueDays = [...new Set(days.map((d) => Number(d)))];
-    await prisma.$transaction([
-      prisma.weekend.deleteMany({ where: { campusId } }),
-      prisma.weekend.createMany({
-        data: uniqueDays.map((dayOfWeek) => ({ campusId, dayOfWeek })),
-      }),
-    ]);
+    return await withSchedulingResourceWrite(user, campusId, "timetable", "edit", async tx => {
+      const uniqueDays = [...new Set(days.map((day) => Number(day)))];
+      await inspectWeekendChange(tx, { schoolId: user.schoolId, campusId }, uniqueDays);
+      await tx.weekend.deleteMany({ where: { campusId } });
+      await tx.weekend.createMany({ data: uniqueDays.map(dayOfWeek => ({ schoolId: user.schoolId, campusId, dayOfWeek })) });
 
-    const weekends = await prisma.weekend.findMany({ where: { campusId }, select: { dayOfWeek: true } });
-    return Response.json({ success: true, data: { weekends: weekends.map((w) => w.dayOfWeek).sort() } });
+      const weekends = await tx.weekend.findMany({ where: { campusId }, select: { dayOfWeek: true } });
+      return Response.json({ success: true, data: { weekends: weekends.map((w) => w.dayOfWeek).sort() } });
+    });
   } catch (error) {
     return errorResponse(error, "[academic/calendar] PATCH failed");
   }
@@ -73,8 +72,8 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "add");
 
-    const campusId = await resolveCampusId(user);
     const body = await req.json();
+    const campusId = await resolveCampusId(user, body.campusId);
     const name = String(body.name ?? "").trim();
     const fromDate = String(body.fromDate ?? "");
     const toDate = String(body.toDate ?? "");
@@ -83,16 +82,21 @@ export async function POST(req: NextRequest) {
     if (!DATE_RE.test(fromDate) || !DATE_RE.test(toDate)) throw new ApiError("fromDate/toDate must be YYYY-MM-DD", 400);
     if (fromDate > toDate) throw new ApiError("toDate must be on or after fromDate", 400);
 
-    const holiday = await prisma.holiday.create({
-      data: {
-        campusId,
-        name,
-        fromDate: new Date(`${fromDate}T00:00:00.000Z`),
-        toDate: new Date(`${toDate}T00:00:00.000Z`),
-      },
-    });
+    return await withSchedulingResourceWrite(user, campusId, "timetable", "add", async tx => {
+      const start = new Date(`${fromDate}T00:00:00Z`), end = new Date(`${toDate}T00:00:00Z`);
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start.toISOString().slice(0, 10) !== fromDate || end.toISOString().slice(0, 10) !== toDate) throw new ApiError("Choose real calendar dates.", 400);
+      await inspectHolidayRange(tx, { schoolId: user.schoolId, campusId }, start, end);
+      const holiday = await tx.holiday.create({
+        data: {
+          campusId,
+          name,
+          fromDate: new Date(`${fromDate}T00:00:00.000Z`),
+          toDate: new Date(`${toDate}T00:00:00.000Z`),
+        },
+      });
 
-    return Response.json({ success: true, data: holiday }, { status: 201 });
+      return Response.json({ success: true, data: holiday }, { status: 201 });
+    });
   } catch (error) {
     return errorResponse(error, "[academic/calendar] POST failed");
   }
@@ -109,11 +113,13 @@ export async function DELETE(req: NextRequest) {
     if (!id) throw new ApiError("id is required", 400);
 
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
-    const existing = await prisma.holiday.findFirst({ where: { id, campusId } });
-    if (!existing) throw new ApiError("Holiday not found", 404);
+    return await withSchedulingResourceWrite(user, campusId, "timetable", "delete", async tx => {
+      const existing = await tx.holiday.findFirst({ where: { id, campusId } });
+      if (!existing) throw new ApiError("Holiday not found", 404);
 
-    await prisma.holiday.delete({ where: { id } });
-    return Response.json({ success: true });
+      await tx.holiday.delete({ where: { id } });
+      return Response.json({ success: true });
+    });
   } catch (error) {
     return errorResponse(error, "[academic/calendar] DELETE failed");
   }

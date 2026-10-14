@@ -170,6 +170,7 @@ export interface Invoice {
   oneTimeFees: number;
   subtotal: number;
   discountAmount: number;
+  carryForwardAmount?: number;
   lateFeeAmount: number;
   taxAmount: number;
   totalAmount: number;

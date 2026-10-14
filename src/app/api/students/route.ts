@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
-import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { studentSchema, bulkStudentSchema } from "@/lib/validators/schemas";
 import { sendInviteEmail } from "@/lib/email";
 import {
@@ -16,6 +17,8 @@ import {
 } from "@/lib/api/scope";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { notify } from "@/lib/notifications/in-app";
+import { importReviewToken } from "@/lib/imports/review-token";
+import { assertRosterPermission } from "@/lib/imports/roster-access";
 
 type StudentInput = {
   fullName: string;
@@ -178,28 +181,26 @@ export async function GET(req: NextRequest) {
     // Teachers see only the roster of classes they teach or lead. Campus scope
     // alone hands every teacher the whole campus roster, medical notes and
     // guardian contacts included.
-    const teacherScope =
-      user.role === "TEACHER"
-        ? {
-            class: {
-              OR: [
-                { classTeacherId: user.userId },
-                { subjects: { some: { teacherId: user.userId } } },
-              ],
-            },
-          }
-        : {};
-
     const where = {
       ...scopedCampusWhere(user, campusId),
-      ...teacherScope,
+      class: {
+        is: {
+          ...(archivedOnly ? {} : { archivedAt: null }),
+          ...(user.role === "TEACHER" ? { OR: [
+            { classTeacherId: user.userId },
+            { subjects: { some: { teacherId: user.userId } } },
+          ] } : {}),
+        },
+      },
       ...(classId ? { classId } : {}),
       ...(archivedOnly
-        ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }
-        : { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } }),
+        ? { status: { in: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }
+        : { status: { notIn: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }),
       ...(search
         ? {
             OR: [
+              { id: { contains: search, mode: "insensitive" as const } },
+              { admissionNo: { contains: search, mode: "insensitive" as const } },
               { fullName: { contains: search, mode: "insensitive" as const } },
               { rollNo: { contains: search, mode: "insensitive" as const } },
               { guardianName: { contains: search, mode: "insensitive" as const } },
@@ -242,11 +243,31 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "students", "add");
-
     const body = await req.json();
+    if (typeof body?._importBatchId === "string") await assertRosterPermission(user, "add");
+    else await assertPermission(user, "students", "add");
     let students: StudentInput[];
-    if (body.students) {
+    let importBatch: Awaited<ReturnType<typeof prisma.importBatch.findFirst>> = null;
+    let importRows: Array<{ rowNumber: number; state: string; selected: boolean; proposal?: unknown; errors?: string[]; matchKey?: string | null; matchLabel?: string | null }> = [];
+    if (typeof body?._importBatchId === "string") {
+      const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
+      importBatch = await prisma.importBatch.findFirst({ where: { id: body._importBatchId, schoolId: user.schoolId, campusId } });
+      if (!importBatch || importBatch.kind !== "STUDENT_ROSTER") throw new ApiError("Student import batch not found", 404);
+      if (importBatch.state === "COMMITTED" || importBatch.state === "PARTIAL" || importBatch.state === "REVERSED") {
+        const receipt = importBatch.receipt as Prisma.JsonObject | null;
+        return Response.json({ success: true, data: [], message: `Batch ${importBatch.id} was already committed`, importBatchId: importBatch.id, importBatchState: importBatch.state, receipt, idempotent: true });
+      }
+      if (importBatch.state !== "STAGED" || importBatch.expiresAt <= new Date()) throw new ApiError("This staging batch is no longer available", 409);
+      if (body._reviewToken !== importReviewToken(importBatch)) throw new ApiError("The roster changed after your review. Refresh the preview before creating students.", 409);
+      const batchData = importBatch.data as Prisma.JsonObject;
+      importRows = Array.isArray(batchData.rows) ? batchData.rows as unknown as typeof importRows : [];
+      const selected = importRows.filter((row) => row.state === "ACCEPTED" && row.selected);
+      if (!selected.length) throw new ApiError("Select at least one validated row before committing", 400);
+      const parsed = bulkStudentSchema.safeParse({ students: selected.map((row) => row.proposal) });
+      if (!parsed.success) return validationErrorResponse(parsed.error);
+      students = parsed.data.students as StudentInput[];
+      importRows = importRows.map((row) => ({ ...row, _committing: row.state === "ACCEPTED" && row.selected } as typeof row));
+    } else if (body.students) {
       const parsed = bulkStudentSchema.safeParse(body);
       if (!parsed.success) {
         return validationErrorResponse(parsed.error);
@@ -266,6 +287,7 @@ export async function POST(req: NextRequest) {
       where: {
         id: { in: classIds },
         campus: { schoolId: user.schoolId },
+        ...(importBatch ? { status: "ACTIVE", archivedAt: null } : {}),
         ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }),
       },
       select: { id: true, campusId: true, name: true, section: true, campus: { select: { name: true } } },
@@ -322,7 +344,25 @@ export async function POST(req: NextRequest) {
 
     const created = await prisma.$transaction(
       async (tx) => {
-      const createdStudents = [];
+      const createdStudents: Awaited<ReturnType<typeof tx.student.create>>[] = [];
+      // Serialize admissions per campus, including ordinary admission requests, so
+      // a case-variant roll created after staging cannot slip past the import check.
+      const creationCampuses = [...new Set(classes.map(item => item.campusId))].sort();
+      if (creationCampuses.length) await tx.$queryRaw`SELECT id FROM campuses WHERE school_id=${user.schoolId} AND id IN (${Prisma.join(creationCampuses)}) ORDER BY id FOR UPDATE`;
+      for (const targetCampusId of creationCampuses) {
+        const rolls = students.filter(student => classesById.get(student.classId)?.campusId === targetCampusId).map(student => student.rollNo.trim().toLocaleLowerCase("en"));
+        if (new Set(rolls).size !== rolls.length) throw new ApiError("This request repeats a roll number in the campus. Correct its identity before creating students.", 409);
+        const existing = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM students WHERE school_id=${user.schoolId} AND campus_id=${targetCampusId} AND archived_at IS NULL AND lower(btrim(roll_no)) IN (${Prisma.join(rolls)}) LIMIT 1`;
+        if (existing.length) throw new ApiError(importBatch ? "A pupil with this roll number was created after preview. Refresh and reconcile the roster before creating students." : "This roll number already belongs to a pupil in the campus.", 409);
+      }
+      if (importBatch) {
+        await assertRosterPermission(user, "add", tx as TxClient);
+        await tx.$queryRaw`SELECT id FROM classes WHERE school_id=${user.schoolId} AND id IN (${Prisma.join(classIds)}) ORDER BY id FOR UPDATE`;
+        const liveClasses = await tx.class.count({ where: { id: { in: classIds }, schoolId: user.schoolId, campusId: importBatch.campusId, status: "ACTIVE", archivedAt: null } });
+        if (liveClasses !== classIds.length) throw new ApiError("A destination class changed or was archived. Refresh and correct this roster before creating students.", 409);
+        const claimed = await tx.importBatch.updateMany({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId, state: "STAGED", expiresAt: { gt: new Date() }, data: { equals: importBatch.data as Prisma.InputJsonValue } }, data: { state: "COMMITTING" } });
+        if (claimed.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
+      }
 
       for (const student of students) {
         const targetClass = classesById.get(student.classId)!;
@@ -492,11 +532,10 @@ export async function POST(req: NextRequest) {
         }
 
         const admissionYear = new Date().getFullYear();
-        // admissionNo is globally unique, so the sequence must be derived from
-        // the whole school — not just this campus. Counting per-campus made
-        // every campus's first student collide on ADM-YYYY-0001.
-        const admissionCount = await tx.student.count({});
-        const admissionNo = `ADM-${admissionYear}-${String(admissionCount + 1).padStart(4, "0")}`;
+        // Campus-scoped registrars cannot count a whole institution, and a
+        // count is unsafe under concurrent imports. Allocate a non-sequential
+        // institution identifier without reading or matching another pupil.
+        const admissionNo = `ADM-${admissionYear}-${randomUUID().replaceAll("-", "").toUpperCase()}`;
 
         // Sibling-group resolution:
         // 1. explicit siblingGroupId wins;
@@ -506,7 +545,7 @@ export async function POST(req: NextRequest) {
         let siblingGroupId: string | null = student.siblingGroupId ?? null;
         if (!siblingGroupId && parentUserId) {
           const existingChildren = await tx.student.findMany({
-            where: { parentUserId, campusId: targetClass.campusId },
+            where: { parentUserId, campusId: targetClass.campusId, consolidatedIntoId: null },
             select: { id: true, siblingGroupId: true },
             orderBy: { enrollmentDate: "asc" },
           });
@@ -525,6 +564,7 @@ export async function POST(req: NextRequest) {
           const siblingRef = await tx.student.findFirst({
             where: {
               id: student.siblingStudentId,
+              consolidatedIntoId: null,
               campusId: targetClass.campusId,
               campus: { schoolId: user.schoolId },
             },
@@ -578,6 +618,40 @@ export async function POST(req: NextRequest) {
           },
         });
 
+        // Creating or selecting an account is not consent to connect every
+        // child. Keep the legacy primary-parent column for compatibility, but
+        // create one pending child-specific invitation with no rights until
+        // staff reviews the grants and the signed-in account accepts it.
+        if (parentUserId) {
+          const account = await tx.user.findFirst({
+            where: { id: parentUserId, schoolId: user.schoolId, role: "PARENT" },
+            select: { id: true, email: true, fullName: true, phone: true },
+          });
+          if (account) {
+            const relationId = randomUUID();
+            const relationship = ["mother", "father", "step-parent", "grandparent", "legal guardian", "aunt", "uncle", "sibling", "other"].includes(student.guardianRelationship || "")
+              ? student.guardianRelationship!
+              : "other";
+            const invitedAt = new Date();
+            await tx.guardianRelationship.create({ data: {
+              id: relationId, schoolId: user.schoolId, campusId: targetClass.campusId,
+              studentId: createdStudent.id, createdByUserId: user.userId,
+              fullName: student.guardianName || account.fullName,
+              email: account.email.trim().toLocaleLowerCase("en-US"),
+              phone: student.guardianPhone || student.guardianWhatsapp || account.phone,
+              relationship, status: "INVITED", validFrom: invitedAt,
+              invitationExpiresAt: new Date(invitedAt.getTime() + 14 * 24 * 60 * 60 * 1000),
+              accessVersions: { create: { id: randomUUID(), school: { connect: { id: user.schoolId } }, permissions: {
+                learningRecords: false, attendance: false, finances: false, communication: false, pickup: false,
+                consents: { medicalTreatment: false, fieldTrips: false, mediaPublication: false, offsiteTravel: false },
+              }, effectiveFrom: invitedAt, reason: "Awaiting explicit school review of guardian permissions.", createdByUserId: user.userId } },
+              accessEvents: { create: { id: randomUUID(), school: { connect: { id: user.schoolId } }, actor: { connect: { id: user.userId } },
+                action: "INVITED", reason: "Admission created a pending child-specific guardian link; no access is granted before review and acceptance.",
+                afterState: { status: "INVITED", permissions: "pending staff review" }, effectiveAt: invitedAt } },
+            } });
+          }
+        }
+
         await tx.studentTimelineEvent.create({
           data: {
             studentId: createdStudent.id,
@@ -589,6 +663,50 @@ export async function POST(req: NextRequest) {
         });
 
         createdStudents.push(createdStudent);
+      }
+
+      if (importBatch) {
+        let committedIndex = 0;
+        const receiptRows = importRows.map((row) => {
+          const isCommitted = row.state === "ACCEPTED" && row.selected;
+          const student = isCommitted ? createdStudents[committedIndex++] : null;
+          return {
+            rowNumber: row.rowNumber,
+            state: isCommitted ? "COMMITTED" : row.state === "ACCEPTED" ? "SKIPPED" : row.state,
+            selected: Boolean(isCommitted),
+            matchKey: row.matchKey || null,
+            matchLabel: row.matchLabel || null,
+            errors: row.errors || [],
+            result: student ? { studentId: student.id, fullName: student.fullName, rollNo: student.rollNo, classId: student.classId } : undefined,
+          };
+        });
+        const committedCount = createdStudents.length;
+        const skippedCount = receiptRows.filter((row) => row.state === "SKIPPED").length;
+        const rejectedCount = receiptRows.filter((row) => row.state === "REJECTED").length;
+        const unresolvedCount = receiptRows.filter((row) => row.state === "UNRESOLVED").length;
+        const partial = skippedCount + rejectedCount + unresolvedCount > 0;
+        const receipt = {
+          batchId: importBatch.id,
+          kind: importBatch.kind,
+          committedAt: new Date().toISOString(),
+          summary: { total: receiptRows.length, committed: committedCount, created: committedCount, updated: 0, skipped: skippedCount, rejected: rejectedCount, unresolved: unresolvedCount },
+          rows: receiptRows,
+          reversal: { state: "CHECK_REQUIRED", message: "Check later pupil, grade, enrollment and invoice dependencies before reversing this batch." },
+          externalEffects: { invitations: "PENDING", note: "Invitation messages run after the roster transaction; inspect delivery in the staff invitation list." },
+        };
+        await tx.importBatch.update({ where: { id: importBatch.id }, data: {
+          state: partial ? "PARTIAL" : "COMMITTED",
+          committedAt: new Date(),
+          data: { rows: [], metadata: {}, summary: { total: receiptRows.length, accepted: committedCount, rejected: rejectedCount, skipped: skippedCount, unresolved: unresolvedCount } },
+          receipt: receipt as Prisma.InputJsonValue,
+        } });
+        await tx.auditLog.create({ data: {
+          schoolId: user.schoolId,
+          tableName: "import_batch",
+          recordId: importBatch.id,
+          newValue: { action: "COMMITTED", kind: importBatch.kind, summary: receipt.summary } as Prisma.InputJsonValue,
+          userId: user.userId,
+        } });
       }
 
       return createdStudents;
@@ -641,16 +759,31 @@ export async function POST(req: NextRequest) {
 
     const inviteCount = guardianInvites.length + studentInvites.length;
     const inviteFailures = guardianInviteFailures.length + studentInviteFailures.length;
+    const committedBatch = importBatch ? await prisma.importBatch.findFirst({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId }, select: { receipt: true, state: true } }) : null;
+    if (importBatch && committedBatch?.receipt && typeof committedBatch.receipt === "object" && !Array.isArray(committedBatch.receipt)) {
+      const receipt = committedBatch.receipt as Prisma.JsonObject;
+      const previousEffects = receipt.externalEffects && typeof receipt.externalEffects === "object" && !Array.isArray(receipt.externalEffects) ? receipt.externalEffects as Prisma.JsonObject : {};
+      const delivery = { invitations: "ATTEMPTED", guardianSent: guardianInvites.length - guardianInviteFailures.length, guardianFailures: guardianInviteFailures.length, studentSent: studentInvites.length - studentInviteFailures.length, studentFailures: studentInviteFailures.length };
+      const updatedReceipt = { ...receipt, externalEffects: { ...previousEffects, ...delivery } };
+      await prisma.$transaction(async (tx) => {
+        await tx.importBatch.update({ where: { id: importBatch.id }, data: { receipt: updatedReceipt as Prisma.InputJsonValue, ...(inviteFailures > 0 ? { state: "PARTIAL" } : {}) } });
+        await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "import_batch", recordId: importBatch.id, newValue: { action: "INVITATIONS_ATTEMPTED", ...delivery } as Prisma.InputJsonValue, userId: user.userId } });
+      });
+    }
+    const finalBatchReceipt = importBatch ? await prisma.importBatch.findFirst({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId }, select: { receipt: true } }) : null;
 
     return Response.json(
       {
         success: true,
-        data: body.students ? created : created[0],
+        data: body.students || importBatch ? created : created[0],
+        importBatchId: importBatch?.id,
+        importBatchState: importBatch ? inviteFailures > 0 || committedBatch?.state === "PARTIAL" ? "PARTIAL" : "COMMITTED" : undefined,
+        receipt: finalBatchReceipt?.receipt || committedBatch?.receipt,
         guardianInvitesSent: guardianInvites.length - guardianInviteFailures.length,
         guardianInviteFailures,
         studentInvitesSent: studentInvites.length - studentInviteFailures.length,
         studentInviteFailures,
-        message: body.students
+        message: body.students || importBatch
           ? `${created.length} students created${inviteCount ? `, ${inviteCount - inviteFailures} account invites sent` : ""}`
           : inviteCount
             ? inviteFailures
@@ -688,6 +821,29 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json();
 
+    if (body?.action === "restore") {
+      const id = typeof body.id === "string" ? body.id : "";
+      if (!id) throw new ApiError("Student id is required", 400);
+      const student = await prisma.student.findFirst({
+        where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
+        select: { id: true, status: true, archivedAt: true, campusId: true, classId: true, rollNo: true, admissionNo: true },
+      });
+      if (!student || !student.archivedAt) throw new ApiError("Archived student not found", 404);
+      const [campus, cls, rollConflict, admissionConflict] = await Promise.all([
+        prisma.campus.findFirst({ where: { id: student.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
+        prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+        prisma.student.findFirst({ where: { id: { not: id }, campusId: student.campusId, rollNo: student.rollNo, archivedAt: null }, select: { id: true, fullName: true } }),
+        student.admissionNo ? prisma.student.findFirst({ where: { id: { not: id }, schoolId: user.schoolId, admissionNo: student.admissionNo, archivedAt: null }, select: { id: true, fullName: true } }) : Promise.resolve(null),
+      ]);
+      if (!campus || !cls) throw new ApiError("Restore requires an active campus and class", 409);
+      if (rollConflict || admissionConflict) {
+        throw new ApiError("Restore conflict: the roll number or admission number is now in use. Assign a new current identifier before restoring; historical documents keep their original values.", 409);
+      }
+      await prisma.student.update({ where: { id }, data: { archivedAt: null, archiveReason: null, status: "active" } });
+      await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: true }, newValue: { archived: false }, userId: user.userId } });
+      return Response.json({ success: true, restored: true });
+    }
+
     // Bulk status change from the roster's multi-select (§22). Deliberately
     // narrow: status only. A bulk editor that could rewrite names, guardians or
     // medical notes across a selection is a much bigger blast radius than the
@@ -700,20 +856,64 @@ export async function PATCH(req: NextRequest) {
       if (!STUDENT_STATUSES.includes(status)) {
         throw new ApiError(`status must be one of: ${STUDENT_STATUSES.join(", ")}`, 400);
       }
+      if (status === "archived") await assertPermission(user, "students", "delete");
 
       // Scope first, then update only what came back — an id from another
       // campus is silently absent rather than quietly updated.
       const owned = await prisma.student.findMany({
         where: { id: { in: ids }, ...scopedCampusWhere(user, user.campusId) },
-        select: { id: true },
+        select: { id: true, schoolId: true, campusId: true, classId: true, rollNo: true, admissionNo: true, archivedAt: true, status: true },
       });
       if (owned.length !== ids.length) {
         throw new ApiError("One or more students are not in this campus", 404);
       }
 
-      const result = await prisma.student.updateMany({
-        where: { id: { in: owned.map((s) => s.id) } },
-        data: { status },
+      if (status === "active") {
+        const restoring = owned.filter((student) => student.archivedAt || student.status === "archived");
+        const rollKeys = new Set<string>();
+        const admissionKeys = new Set<string>();
+        for (const student of restoring) {
+          const rollKey = `${student.campusId}:${student.rollNo}`;
+          if (rollKeys.has(rollKey)) throw new ApiError("Restore conflict: selected students share a roll number. Assign distinct current identifiers and retry.", 409);
+          rollKeys.add(rollKey);
+          if (student.admissionNo) {
+            const admissionKey = `${student.schoolId}:${student.admissionNo}`;
+            if (admissionKeys.has(admissionKey)) throw new ApiError("Restore conflict: selected students share an admission number. Assign distinct current identifiers and retry.", 409);
+            admissionKeys.add(admissionKey);
+          }
+          const [cls, rollConflict, admissionConflict] = await Promise.all([
+            prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+            prisma.student.findFirst({ where: { id: { notIn: ids }, campusId: student.campusId, rollNo: student.rollNo, archivedAt: null }, select: { id: true } }),
+            student.admissionNo ? prisma.student.findFirst({ where: { id: { notIn: ids }, schoolId: student.schoolId, admissionNo: student.admissionNo, archivedAt: null }, select: { id: true } }) : Promise.resolve(null),
+          ]);
+          if (!cls) throw new ApiError("Restore requires an active class. Resolve the class assignment and retry.", 409);
+          if (rollConflict || admissionConflict) throw new ApiError("Restore conflict: a roll number or admission number is in use. Assign new current identifiers and retry; historical documents keep their original values.", 409);
+        }
+      }
+
+      const wasArchived = owned.filter((student) => student.archivedAt !== null || student.status === "archived");
+      const now = new Date();
+      const archiveReason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Administrative archive";
+      const changing = status === "archived"
+        ? owned.filter((student) => student.archivedAt === null)
+        : status === "active"
+          ? wasArchived
+          : owned;
+      const updateData = status === "archived"
+        ? { status, archivedAt: now, archiveReason }
+        : status === "active"
+          ? { status, archivedAt: null, archiveReason: null }
+          : { status };
+      const result = await prisma.$transaction(async (tx) => {
+        const changed = changing.length ? await tx.student.updateMany({ where: { id: { in: changing.map((s) => s.id) } }, data: updateData }) : { count: 0 };
+        const auditChanging = status === "archived" ? changing : status === "active" ? changing : [];
+        if (auditChanging.length) await tx.auditLog.createMany({ data: auditChanging.map((student) => ({
+          tableName: "student", recordId: student.id,
+          oldValue: { archived: status !== "active" },
+          newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
+          userId: user.userId,
+        })) });
+        return changed;
       });
       return Response.json({ success: true, updated: result.count, status });
     }
@@ -730,6 +930,12 @@ export async function PATCH(req: NextRequest) {
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
+    if ((updates.classId && updates.classId !== existing.classId) || updates.rollNo !== undefined) {
+      const current = await prisma.student.findFirst({ where: { id }, select: { rollNo: true } });
+      if (updates.classId !== undefined && updates.classId !== existing.classId || updates.rollNo !== undefined && updates.rollNo !== current?.rollNo) {
+        throw new ApiError("Placement and roll changes require review in the pupil enrollment history", 409);
+      }
+    }
     const data: any = {};
     for (const key of [
       "fullName",
@@ -833,7 +1039,7 @@ export async function PATCH(req: NextRequest) {
     // given, otherwise set/clear siblingGroupId directly.
     if (updates.siblingStudentId) {
       const ref = await prisma.student.findFirst({
-        where: { id: updates.siblingStudentId, campusId: existing.campusId },
+        where: { id: updates.siblingStudentId, campusId: existing.campusId, consolidatedIntoId: null },
         select: { id: true, siblingGroupId: true },
       });
       if (!ref) throw new ApiError("Sibling student not found", 404);
@@ -936,11 +1142,18 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await prisma.student.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      select: { id: true, campusId: true, fullName: true, classId: true, class: { select: { name: true, section: true } } },
+      select: { id: true, campusId: true, fullName: true, classId: true, archivedAt: true, _count: { select: { marks: true, attendance: true, reportCards: true, invoices: true, payments: true, documents: true } }, class: { select: { name: true, section: true } } },
     });
     if (!existing) throw new ApiError("Student not found", 404);
-
-    await prisma.student.delete({ where: { id } });
+    const impact = { marks: existing._count.marks, attendance: existing._count.attendance, reports: existing._count.reportCards, invoices: existing._count.invoices, payments: existing._count.payments, documents: existing._count.documents };
+    if (new URL(req.url).searchParams.get("preview") === "true") {
+      return Response.json({ success: true, action: "archive", record: existing.fullName, dependencies: impact, permanentDeletion: "blocked" });
+    }
+    if (existing.archivedAt) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
+    const { reason } = await req.json().catch(() => ({}));
+    const archiveReason = typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : "Administrative archive";
+    await prisma.student.update({ where: { id }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
+    await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
     notify("STUDENT_DELETED", {
       schoolId: user.schoolId,
       campusId: existing.campusId,
@@ -950,7 +1163,7 @@ export async function DELETE(req: NextRequest) {
       className: [existing.class?.name, existing.class?.section].filter(Boolean).join(" "),
       classId: existing.classId,
     });
-    return Response.json({ success: true });
+    return Response.json({ success: true, archived: true, dependencies: impact, message: "Student archived. Academic, financial and document history is preserved." });
   } catch (error) {
     return errorResponse(error, "[students] DELETE failed");
   }

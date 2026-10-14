@@ -7,6 +7,7 @@ export async function getStudentContext(user: AuthUser, studentId?: string) {
   const student = await prisma.student.findFirst({
     where: {
       campus: { schoolId: user.schoolId },
+      consolidatedIntoId: null,
       ...(studentId ? { id: studentId } : {}),
       ...studentScope(user),
     },

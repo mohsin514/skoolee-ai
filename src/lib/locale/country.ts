@@ -6,6 +6,10 @@ export const countrySchema = z.enum(COUNTRIES);
 export type Country = z.infer<typeof countrySchema>;
 const currencies = { PK: "PKR", SA: "SAR", AE: "AED", KW: "KWD", OTHER: "USD" } as const;
 export function currencyForCountry(country: Country) { return currencies[countrySchema.parse(country)]; }
+/** Suggested currency for a new commercial view; never converts stored prices. */
+export function defaultPricingCurrency(country: Country): typeof currencies[Country] {
+ return currencyForCountry(country);
+}
 /** Import boundary only: never infer a country from an arbitrary city name. */
 export function normalizeCountry(value: string | null | undefined): Country {
  const normalized = value?.trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");

@@ -12,6 +12,8 @@ import { Modal } from "@/components/ui/modal";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+
 
 interface ClassSummary {
   id: string;
@@ -356,7 +358,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 <div className="border-t border-[#cfc2d6]/10 p-5 bg-[#fbf0fe]/10">
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {yg.classes.map((cls) => (
-                      <div key={cls.id} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 hover:shadow-md transition-all">
+                      <div key={cls.id} className="sk-panel p-4 transition-all">
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="text-sm font-bold text-[#1d1b20]">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
@@ -385,21 +387,21 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <div className="flex gap-2">
                           {cls.status === "COMPLETED" && (
                             <>
-                              <button type="button" onClick={() => loadHistory(yg.year, cls.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] py-2 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer">
+                              <Button variant="secondary" size="sm" type="button" onClick={() => loadHistory(yg.year, cls.id)}
+                                className="flex-1 flex items-center justify-center gap-1.5">
                                 <History className="h-3.5 w-3.5" /> History
-                              </button>
-                              <button type="button" onClick={() => openPromotionWizard(cls.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 py-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 transition-all cursor-pointer">
+                              </Button>
+                              <Button variant="secondary" size="sm" type="button" onClick={() => openPromotionWizard(cls.id)}
+                                className="flex-1 flex items-center justify-center gap-1.5">
                                 <ArrowRight className="h-3.5 w-3.5" /> Promote
-                              </button>
+                              </Button>
                             </>
                           )}
                           {cls.status === "ACTIVE" && cls._count.students > 0 && (
-                            <button type="button" onClick={() => openPromotionWizard(cls.id)}
-                              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] py-2 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer">
+                            <Button variant="secondary" size="sm" type="button" onClick={() => openPromotionWizard(cls.id)}
+                              className="flex-1 flex items-center justify-center gap-1.5">
                               <ArrowRight className="h-3.5 w-3.5" /> Promote
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -532,10 +534,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {allClasses.filter((c) => c._count.students > 0).map((cls) => (
-                    <button key={cls.id} type="button" onClick={() => setPromoteSourceId(cls.id)}
-                      className={cn("text-left rounded-2xl border p-4 transition-all cursor-pointer",
-                        promoteSourceId === cls.id ? "border-[#8127cf] bg-[#fbf0fe]/50 ring-2 ring-[#8127cf]/20 shadow-md" : "border-[#cfc2d6]/10 bg-white hover:shadow-md"
-                      )}>
+                    <Button aria-pressed={promoteSourceId === cls.id} variant="choice" key={cls.id} type="button" onClick={() => setPromoteSourceId(cls.id)}
+                      className="block text-left">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h4 className="text-sm font-bold text-[#1d1b20]">{clsLabel(cls)}</h4>
                         <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
@@ -547,7 +547,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <span>Year {cls.academicYear}</span>
                         <span>{cls.classTeacher?.fullName || "No teacher"}</span>
                       </div>
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {allClasses.filter((c) => c._count.students > 0).length === 0 && (
@@ -704,8 +704,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                           next.set(g.studentId, e.target.value as StudentDecision);
                                           setStudentDecisions(next);
                                         }}
-                                        className={cn("rounded-lg border px-2 py-1 text-[10px] font-bold outline-none cursor-pointer",
-                                          decision === "promote" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
+                                        className={cn("px-2 py-1",
+                                          decision === "promote" ? "" : ""
                                         )}>
                                         <option value="promote">Promote</option>
                                         <option value="retain">Retain</option>
@@ -747,7 +747,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <label className="block mb-4">
                       <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
                       <SystemSelect value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
-                        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none cursor-pointer">
+                        className="h-14 w-full px-4">
                         <option value="">Select target class</option>
                         {activeClasses
                           .filter((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1)

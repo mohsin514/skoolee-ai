@@ -169,3 +169,26 @@ Latest visual preference: retain the single muted-purple border and add a soft 3
 ## Authenticated role/layout follow-up (2026-10-08)
 
 Added a reproducible loopback-only audit with temporary accounts for all eleven roles, desktop/tablet/phone widths, active navigation, mobile keyboard recovery, a real parent restricted to reports/attendance, and the legacy student and messages layouts. It found and corrected a mobile overflow in the shared legacy Header: title/account/actions now wrap instead of forcing a 420px page at 360px. Source-copy parity, test results, baseline lint/build blockers and coverage limits are recorded in `docs/qa/evidence/SKO-208-role-validation.md`. This supersedes the earlier inability to validate other roles locally; it does not claim all domain mutations or production acceptance.
+## Field focus contract and shared-token polish (2026-10-08)
+
+The muted-purple field focus is now one token. `--focus-rgb: 155 122 184` (#9b7ab8) drives the field border (`--field-focus-border`), its 3px halo (`--field-focus-ring`, the same channels at 30% alpha) and the global keyboard outline (`--focus-color`, also mapped to Tailwind `ring`/`focus`). The halo is a translucent copy of the border, so the two can no longer drift apart.
+
+Contrast decision: the earlier #aa8bc4 measured 2.92:1 on white and about 2.7:1 on the tinted login fills (#eff6ff, #fdf2f8), below the 3:1 non-text minimum. Same hue, lightness 66% → 60%: #9b7ab8 measures 3.56:1 on #fff, 3.41:1 on #fcfaff, 3.26:1 on #eff6ff, 3.25:1 on #fdf2f8 and at least 3.2:1 on #f3f4f9. The halo rose from 18% to 30% so it stays visible on tinted surfaces.
+
+Single-ring rule: standalone fields paint their own border and halo. Inside an InputGroup, only the group paints them (`:focus-within`). Grouped inputs, selects, textareas and date inputs never draw a border, halo or outline. Inner actions (show password, clear search, calendar trigger) show a 2px inset outline in the same token, so keyboard users can tell them apart without a second outer ring. Invalid fields repeat the same pattern in the error hue (`--field-error-rgb: 175 29 29`, 22% halo), so an error stays visible while focused. Disabled fields and groups show no halo and no opacity fade. They use a solid muted surface with muted ink. Group icons keep brand violet #8127cf on focus.
+
+Screens adjust the indicator through custom properties instead of forking it. `focus-on-dark` switches the outline to white on dark strips, and `focus-inset` moves it inside rows. Field focus rules stay unlayered, so caller utilities can't override them. FEAT-002 removed 490 stray focus ring/outline/border/shadow utilities from 73 screen files, plus about 35 in `src/components/ui`, for the roughly 525 found in the audit. A guard in `tests/design-system/adoption.test.ts` now fails on any `focus|focus-visible|focus-within:(ring|outline|border|shadow)` utility in `src`, or on the retired #aa8bc4 value.
+
+Shared-token polish: new semantic tokens (`--surface-subtle`, `--surface-hover`, `--surface-selected`, `--border-subtle`, `--border-subtle-hover`, `--status-error-*`, `--status-warning-*`, each exposed as a Tailwind colour) replace hardcoded values in `.sk-panel`, `.sk-toolbar`, `.sk-data-table`, the select picker border and the toast actions (now `var(--brand-1)`). Table, FormField/FieldError/FormErrorSummary and TaskHeader/TaskStatus consume them, and those three files contain no hex literals. Error-summary entries have a 24px minimum target and still move focus to their field. Field-error icons are 16px. TaskHeader uses `--text-heading` (24px) below `sm` and the existing 30px above it. The reference hero's phone override uses the same token. Status colours always travel with words.
+
+Known limitation (pre-existing, not changed here): the unlayered base rule `* { border-color: hsl(var(--border)); }` beats Tailwind border-colour utilities and the `@layer components` `.sk-panel`/`.sk-toolbar` border colours. Those borders therefore still render `rgb(206, 195, 213)` even though they reference the new tokens. Background and text tokens apply. Fields are covered by explicit unlayered rules. Moving the base rule into `@layer base` would re-colour borders app-wide, so it is left as a separate design decision.
+
+Verification on the local development server (Chromium, synthetic reference pages and `/login`):
+
+- 7 Node tests pass, including both adoption guards.
+- 20 Playwright scenarios pass: 10 in `field-focus.spec.ts`, 2 in application-patterns and 8 in the reference suite.
+- `form-recovery` was re-baselined after reviewing the diff. Only the error summary and the Campus error line changed.
+- Probes measured: summary fill `rgb(254, 242, 242)` with text `rgb(127, 29, 29)`; summary link 24px tall, focusing `field-campus`; attention status `rgb(255, 251, 235)`/`rgb(133, 77, 14)`; reference heading 24px at 375px.
+- `next typegen` plus `tsc --noEmit` report 0 errors. Targeted ESLint is clean. `npm run build` succeeds.
+
+This is local verification only. It is not a deployment or production accessibility certification.

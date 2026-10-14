@@ -53,7 +53,7 @@ function getSmtpConfig(): SmtpConfig {
   };
 }
 
-function hasEmailProviderConfig() {
+export function hasEmailProviderConfig() {
   if (process.env.EMAIL_DEV_MODE === "true") return true;
   if (process.env.SMTP_AUTH === "false") return Boolean(process.env.SMTP_HOST);
 

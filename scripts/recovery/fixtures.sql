@@ -6,7 +6,7 @@ INSERT INTO users (id,school_id,campus_id,email,full_name,role)
  SELECT 'role-' || role::text,'rehearsal-school','rehearsal-campus',lower(role::text) || '@example.invalid','Synthetic ' || role::text,role
  FROM unnest(enum_range(NULL::"UserRole")) role;
 INSERT INTO classes (id,school_id,campus_id,name,academic_year) VALUES ('rehearsal-class','rehearsal-school','rehearsal-campus','Fixture',2026);
-INSERT INTO students (id,school_id,campus_id,class_id,full_name,roll_no,gender) VALUES ('rehearsal-student','rehearsal-school','rehearsal-campus','rehearsal-class','Synthetic pupil','R1','MALE');
+INSERT INTO students (id,school_id,campus_id,class_id,full_name,roll_no,gender,enrollment_date) VALUES ('rehearsal-student','rehearsal-school','rehearsal-campus','rehearsal-class','Synthetic pupil','R1','MALE','2026-01-01');
 INSERT INTO subjects (id,school_id,campus_id,class_id,name) VALUES ('rehearsal-subject','rehearsal-school','rehearsal-campus','rehearsal-class','Math');
 INSERT INTO exams (id,school_id,campus_id,class_id,title,term,academic_year) VALUES ('rehearsal-exam','rehearsal-school','rehearsal-campus','rehearsal-class','Fixture','Term 1',2026);
 INSERT INTO marks (id,school_id,campus_id,exam_id,student_id,subject_id,marks_obtained) VALUES ('rehearsal-mark','rehearsal-school','rehearsal-campus','rehearsal-exam','rehearsal-student','rehearsal-subject',83);

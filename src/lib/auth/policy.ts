@@ -2,6 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { getTenantContext } from "@/lib/db/tenant-context";
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
+import { guardianStudentWhere } from "@/lib/parent/guardian-query";
 
 export const POLICY_VERSION = "2026-10-08.1";
 export const ACCESS_DENIED = "This account cannot access that record.";
@@ -27,16 +28,18 @@ export function campusScope(user: AuthUser): { schoolId: string; campusId?: stri
   return { schoolId: user.schoolId, campusId: user.campusId };
 }
 
-/** Families are related through explicit account IDs, never names or email. */
-export function studentScope(user: AuthUser): Prisma.StudentWhereInput {
+/** Families use a verified, child-specific relationship and current permission version. */
+export function studentScope(user: AuthUser, permission: "learningRecords" | "attendance" | "finances" | "communication" | "pickup" | "any" = "learningRecords"): Prisma.StudentWhereInput {
+  if (user.role === "PARENT") {
+    return guardianStudentWhere(user, permission);
+  }
   return { ...campusScope(user),
-    ...(user.role === "PARENT" ? { parentUserId: user.userId } : {}),
     ...(user.role === "STUDENT" ? { studentUserId: user.userId } : {}),
   };
 }
 
 export function reportScope(user: AuthUser): Prisma.ReportCardWhereInput {
   return { ...campusScope(user), ...(isFamily(user) ? {
-    student: studentScope(user), ...publishedReportsWhere,
+    student: studentScope(user, "learningRecords"), ...publishedReportsWhere,
   } : {}) };
 }

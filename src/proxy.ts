@@ -21,7 +21,9 @@ import {
 } from "@/lib/auth/session-cookie";
 
 const PUBLIC_PATHS = [
-  "/", "/login", "/register", "/register-split", "/sign-up",
+  "/school-capture", // Empty phone handoff shell; all capture data requires current authenticated API access.
+  "/", "/login", "/sign-in", "/register", "/register-split", "/sign-up", "/pricing",
+  "/verify-success", // Informational destination of token verification; it creates no session.
   "/accept-invite", "/forgot-password", "/protect-account", "/api/auth/mfa",
   "/api/invite/status", "/api/invite/reissue", // Scoped by a secret invitation token before sign-in.
   "/parent",
@@ -159,7 +161,7 @@ export async function proxy(req: NextRequest) {
     }
 
     const onboardingPath = role === "TEACHER" ? "/teacher-onboarding" : "/onboarding";
-    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith("/api")) {
+    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith(onboardingPath + "/") && !pathname.startsWith("/api")) {
       return NextResponse.redirect(new URL(onboardingPath, req.url));
     }
 

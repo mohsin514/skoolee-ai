@@ -172,16 +172,14 @@ export default function CommunicationsPage() {
             const active = status === item;
             const Icon = statusMeta[item].icon;
             return (
-              <button
+              <Button className="justify-start" aria-pressed={active} variant="choice"
                 key={item}
                 onClick={() => setStatus(item)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  active ? "border-primary bg-primary text-white" : "border-border hover:border-primary/40"
-                }`}
+
               >
                 <Icon className="h-3.5 w-3.5" />
                 {statusMeta[item].label}
-              </button>
+              </Button>
             );
           })}
         </div>

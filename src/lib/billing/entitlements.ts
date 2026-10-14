@@ -1,8 +1,11 @@
 import type { Prisma } from "@prisma/client";
-import { PLANS, PLAN_ORDER, canUseFeature, getPlanLimits, normalizePlan, type PlanFeature } from "@/config/plans";
+import { PLANS, PLAN_ORDER, getPlanLimits, normalizePlan, type PlanFeature } from "@/config/plans";
+import { COMMERCIAL_CONTRACT, createPlanContract, getSchoolPlanContract, type PlanContract } from "@/config/commercial-contract";
 import type { PlanDetails } from "@/types";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { PlanType } from "@/types";
+import { CURRENCIES } from "@/lib/locale/package";
+import { currencyForCountry, countrySchema } from "@/lib/locale/country";
 
 type DbClient = typeof prisma | TxClient;
 type LimitMetric = "students" | "teachers" | "campuses";
@@ -27,13 +30,6 @@ function limitLabel(metric: LimitMetric) {
   if (metric === "students") return "student";
   if (metric === "teachers") return "teacher";
   return "campus";
-}
-
-function metricLimit(plan: PlanType, metric: LimitMetric) {
-  const limits = getPlanLimits(plan);
-  if (metric === "students") return limits.maxStudents;
-  if (metric === "teachers") return limits.maxTeachers;
-  return limits.maxCampuses;
 }
 
 async function currentUsage(client: DbClient, schoolId: string, metric: LimitMetric) {
@@ -68,7 +64,7 @@ export function stripeStatusToSchoolStatus(status: string | null | undefined) {
 export async function assertSchoolOperational(schoolId: string, client: DbClient = prisma) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
-    select: { status: true },
+    select: { status: true, subscriptionLifecycleState: true, graceEndsAt: true },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
@@ -83,7 +79,16 @@ export async function assertSchoolOperational(schoolId: string, client: DbClient
     throw new BillingAccessError("School not found", 404);
   }
 
-  if (!isSchoolOperational(school.status)) {
+  const graceExpired = school.subscriptionLifecycleState === "PAST_DUE_GRACE" &&
+    Boolean(school.graceEndsAt && school.graceEndsAt <= new Date());
+  if (graceExpired) {
+    await client.school.updateMany({
+      where: { id: schoolId, subscriptionLifecycleState: "PAST_DUE_GRACE", graceEndsAt: { lte: new Date() } },
+      data: { status: "SUSPENDED", subscriptionLifecycleState: "PAST_DUE" },
+    });
+  }
+
+  if (!isSchoolOperational(school.status) || graceExpired) {
     throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
   }
 
@@ -103,23 +108,24 @@ export async function assertPlanCapacity({
 }) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
-    select: { plan: true, status: true },
+    select: { plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
-  if (!isSchoolOperational(school.status)) {
+  if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
     throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
   }
 
   const plan = normalizePlan(school.plan);
-  const limit = metricLimit(plan, metric);
+  const contract = getSchoolPlanContract(plan, school.commercialContract);
+  const limit = metric === "students" ? contract.maxStudents : metric === "teachers" ? contract.maxTeachers : contract.maxCampuses;
   if (limit < 0) return { plan, limit, current: 0 };
 
   const current = await currentUsage(client, schoolId, metric);
   if (current + increment > limit) {
     const label = limitLabel(metric);
     throw new BillingAccessError(
-      `${getPlanLimits(plan).name} allows ${limit.toLocaleString()} ${label}${limit === 1 ? "" : "s"}. Upgrade to add more.`,
+      `${contract.name} allows ${limit.toLocaleString()} ${label}${limit === 1 ? "" : "s"}. Upgrade to add more.`,
       402
     );
   }
@@ -130,17 +136,18 @@ export async function assertPlanCapacity({
 export async function assertFeatureEnabled(schoolId: string, feature: PlanFeature, client: DbClient = prisma) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
-    select: { plan: true, status: true },
+    select: { plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
-  if (!isSchoolOperational(school.status)) {
+  if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
     throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
   }
 
   const plan = normalizePlan(school.plan);
-  if (!canUseFeature(plan, feature)) {
-    throw new BillingAccessError(`${getPlanLimits(plan).name} does not include this feature. Upgrade to continue.`, 403);
+  const contract = getSchoolPlanContract(plan, school.commercialContract);
+  if (!contract[feature]) {
+    throw new BillingAccessError(`${contract.name} does not include this feature. Upgrade to continue.`, 403);
   }
 
   return { plan, feature };
@@ -154,6 +161,9 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       name: true,
       plan: true,
       status: true,
+      subscriptionLifecycleState: true,
+      cancellationEffectiveAt: true,
+      graceEndsAt: true,
       planStartedAt: true,
       planEndsAt: true,
       lastPaymentAt: true,
@@ -162,19 +172,33 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       stripeCustomerId: true,
       stripeSubscriptionId: true,
       planPricing: true,
+      commercialContract: true,
     },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
 
   const plan = normalizePlan(school.plan);
-  const limits = getPlanLimits(plan);
-  const [students, teachers, campuses, platformConfig] = await Promise.all([
+  const limits = getSchoolPlanContract(plan, school.commercialContract);
+  const [students, teachers, campuses, platformConfig, localePolicy] = await Promise.all([
     currentUsage(client, schoolId, "students"),
     currentUsage(client, schoolId, "teachers"),
     currentUsage(client, schoolId, "campuses"),
     client.platformConfig.findUnique({ where: { key: "default_plan_pricing" } }),
+    client.localePolicy.findFirst({
+      where: { schoolId, campusId: null, status: "ACTIVE", effectiveAt: { lte: new Date() } },
+      orderBy: [{ effectiveAt: "desc" }, { createdAt: "desc" }],
+      select: { settings: true },
+    }),
   ]);
+
+  const regionalSettings = localePolicy?.settings && typeof localePolicy.settings === "object" && !Array.isArray(localePolicy.settings)
+    ? localePolicy.settings as Record<string, unknown>
+    : {};
+  const locationCountry = countrySchema.safeParse(regionalSettings.country);
+  const regionalCurrency = typeof regionalSettings.currency === "string" && CURRENCIES.includes(regionalSettings.currency as typeof CURRENCIES[number])
+    ? regionalSettings.currency
+    : currencyForCountry(locationCountry.success ? locationCountry.data : "OTHER");
 
   const globalDefaults = (platformConfig?.value ?? {}) as Record<string, { price?: number | null }>;
 
@@ -182,19 +206,19 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
   const applyOverrides = (pricing: Record<string, { price?: number | null; priceLabel?: string }> | null | undefined) => {
     const merged: Record<string, PlanDetails> = {};
     for (const key of PLAN_ORDER) {
-      const base = PLANS[key];
+      const base = key === plan ? limits : PLANS[key];
       const global = globalDefaults[key];
       const custom = pricing?.[key];
       let price = base.price;
-      if (custom?.price !== undefined && custom.price !== null) {
+      if (key !== plan && custom?.price !== undefined && custom.price !== null) {
         price = custom.price;
-      } else if (global?.price !== undefined && global.price !== null) {
+      } else if (key !== plan && global?.price !== undefined && global.price !== null) {
         price = global.price;
       }
       merged[key] = {
         ...base,
         price,
-        priceLabel: custom?.priceLabel ?? (price != null ? `PKR ${price}/mo` : base.priceLabel),
+        priceLabel: key === plan ? base.priceLabel : custom?.priceLabel ?? (price != null ? `${COMMERCIAL_CONTRACT.currency} ${price}/mo` : base.priceLabel),
       };
     }
     return merged as typeof PLANS;
@@ -211,10 +235,13 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
     school: {
       ...school,
       plan,
-      aiCreditsLimit: limits.aiCredits,
+      aiCreditsLimit: school.aiCreditsLimit,
       planPricing: school.planPricing,
     },
     limits,
+    commercialContractVersion: limits.contractVersion,
+    regionalCurrency,
+    priceCurrency: limits.priceCurrency,
     usage: {
       students,
       teachers,
@@ -222,7 +249,10 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       aiCredits: school.aiCreditsUsed,
     },
     plans,
-    isOperational: isSchoolOperational(school.status),
+    isOperational: isSchoolOperational(school.status) && !(
+      school.subscriptionLifecycleState === "PAST_DUE_GRACE" &&
+      Boolean(school.graceEndsAt && school.graceEndsAt <= new Date())
+    ),
     planEndsAt: school.planEndsAt?.toISOString() ?? null,
     planStartedAt: school.planStartedAt?.toISOString() ?? null,
     lastPaymentAt: school.lastPaymentAt?.toISOString() ?? null,
@@ -243,7 +273,7 @@ export function planFromStripePriceId(priceId: string | null | undefined): PlanT
   return null;
 }
 
-export async function applySchoolPlan(schoolId: string, plan: PlanType, status: string, stripeSubscriptionId?: string | null) {
+export async function applySchoolPlan(schoolId: string, plan: PlanType, status: string, stripeSubscriptionId?: string | null, contract?: PlanContract | null) {
   const limits = getPlanLimits(plan);
 
   return prisma.school.update({
@@ -251,7 +281,10 @@ export async function applySchoolPlan(schoolId: string, plan: PlanType, status: 
     data: {
       plan,
       status,
-      aiCreditsLimit: limits.aiCredits,
+      subscriptionLifecycleState: status === "TRIAL" ? "TRIAL" : status === "ACTIVE" ? "ACTIVE" : status === "SUSPENDED" ? "PAST_DUE" : status,
+      ...(status === "ACTIVE" || status === "TRIAL" ? { graceEndsAt: null } : {}),
+      aiCreditsLimit: contract?.aiCredits ?? limits.aiCredits,
+      commercialContract: contract ?? createPlanContract(plan),
       ...(stripeSubscriptionId !== undefined ? { stripeSubscriptionId } : {}),
     },
   });
@@ -263,10 +296,10 @@ export async function applySchoolPlan(schoolId: string, plan: PlanType, status: 
  * never shortens the period the customer has already paid for. Idempotent by
  * design — safe to call from webhooks and the sandbox simulator.
  */
-export async function activatePlan(schoolId: string, plan: PlanType, client: DbClient = prisma, periodDays: number = PLAN_PERIOD_DAYS) {
+export async function activatePlan(schoolId: string, plan: PlanType, client: DbClient = prisma, periodDays: number = PLAN_PERIOD_DAYS, contract?: PlanContract | null) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
-    select: { planEndsAt: true, planStartedAt: true, plan: true, status: true },
+    select: { planEndsAt: true, planStartedAt: true, plan: true, status: true, planPricing: true },
   });
 
   if (!school) throw new BillingAccessError("School not found", 404);
@@ -275,16 +308,22 @@ export async function activatePlan(schoolId: string, plan: PlanType, client: DbC
   const base = school.planEndsAt && school.planEndsAt > now ? school.planEndsAt : now;
   const planEndsAt = new Date(base.getTime() + periodDays * 86_400_000);
   const limits = getPlanLimits(plan);
+  const pricing = school.planPricing && typeof school.planPricing === "object" ? school.planPricing as Record<string, { price?: number | null }> : null;
+  const negotiatedPrice = pricing?.[plan]?.price;
 
   return client.school.update({
     where: { id: schoolId },
     data: {
       plan,
       status: "ACTIVE",
+      subscriptionLifecycleState: "ACTIVE",
+      cancellationEffectiveAt: null,
+      graceEndsAt: null,
       planStartedAt: school.planStartedAt ?? now,
       planEndsAt,
       lastPaymentAt: now,
-      aiCreditsLimit: limits.aiCredits,
+      aiCreditsLimit: contract?.aiCredits ?? limits.aiCredits,
+      commercialContract: contract ?? createPlanContract(plan, { price: negotiatedPrice }),
     },
   });
 }

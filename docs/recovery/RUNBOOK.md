@@ -215,3 +215,25 @@ There is deliberately no production restore command or one-click replacement in
 this tooling. Never run the synthetic harness against a tunnel to production.
 
 Implementation references: [Vercel Git configuration](https://vercel.com/docs/project-configuration/git-configuration), [prebuilt deployment](https://vercel.com/docs/cli/deploy), and [local build](https://vercel.com/docs/cli/build).
+
+## School AI continuation collision (13 October 2026)
+
+The reported `P3009` on `20261012170000_school_ai_continuation` was caused by PostgreSQL `42701`: `school_ai_requests.conversation_id` already existed. A read-only catalog comparison against a clean local replay found all of that migration's columns, indexes and foreign keys present, but its ten new CHECK constraints missing and its execution-operation CHECK still on the earlier four operations. The next migration's nullable `request_language` column also existed, without its language CHECK. This is partial schema adoption, not a reason to reset a database.
+
+The repair in `scripts/recovery/school-ai-continuation-repair.sql` adds only those validations and replaces the known earlier operation CHECK. It runs in a transaction with bounded lock/statement timeouts, rejects unexpected existing CHECK definitions and lets PostgreSQL validate existing data. It is specific to the inspected predecessor state; **do not run it against a newer operation set**. Before reusing it elsewhere, compare every involved column, index and foreign key against a clean replay through `20261012170000`, verify the language column is nullable text without a default, inspect the failed migration logs, and check for existing rows violating any proposed CHECK. A different state requires a different repair.
+
+For the reported database, all violation counts were zero. The repair was rehearsed locally, including a repeat execution, then applied with a fresh schema comparison inside the transaction. The completed `20261012170000_school_ai_continuation` and `20261012171000_school_ai_request_language` migrations were reconciled using `prisma migrate resolve --applied`. No business records were deleted or rewritten. The original migration files remain unchanged. Do not run `resolve --rolled-back` followed by a blind retry: the existing columns and tables would collide again.
+
+Prisma's [v6 production recovery guidance](https://www.prisma.io/docs/orm/v6/prisma-migrate/workflows/patching-and-hotfixing#option-2-manually-complete-migration-and-resolve-as-applied) requires completing the SQL before marking it applied. A later `migrate status` showed these two migrations reconciled and the new feature migrations pending. The retained legacy `20260730000000_baseline` ledger entry belongs to the earlier baseline history; it was not deleted or fabricated. Pending feature migrations and deployment acceptance remain separate from resolving this failure.
+
+### Additional partial feature adoption
+
+The next deployment preflight also found `20261013120000_school_ai_completion`, `20261013123000_school_ai_carry_forward` and `20261013125000_school_ai_document_jobs` columns/tables already present. All five new feature tables were empty and no moderated attempt required a historical result backfill. Their complete columns, indexes and existing foreign keys matched a clean replay. Missing pieces were eleven CHECK constraints, the substitute-slot foreign key, five tenant policies/RLS flags and the immutable-result trigger; the execution CHECK still allowed six operations.
+
+`scripts/recovery/school-ai-feature-adoption-repair.sql` completes exactly that inspected state through the twelve-operation lifecycle contract. It deliberately refuses populated feature tables, existing moderated result history, unexpected constraints/policies/triggers or newer operation sets. Both first execution and repeat were rehearsed on an isolated copy. The actual application additionally compared all inspected metadata again under table locks before making changes. The configured database role had BYPASSRLS; no role privileges were changed.
+
+After repair, columns/indexes/foreign keys/CHECKs/policies/trigger were compared again with the clean replay. The completion, carry-forward, lifecycle and document-job migrations were reconciled with `migrate resolve --applied`. No pupil, attendance, result, invoice, payment or ledger data was inserted, deleted or rewritten. Remaining additive feature migrations are ordinary deployment work; resolving these existing objects prevents another duplicate-table/column failure. Never blindly mark a migration applied because a table name exists.
+
+After the verified recovery, the seven remaining additive migrations through `20261013141000_school_ai_assistant_catalog` were deployed successfully to the reported database. This completed the 45-migration local chain without resetting data. The historical archived baseline ledger entry remains preserved.
+
+Final verification: a second migrate deploy returned **No pending migrations to apply**, and a read-only Prisma comparison of that database against prisma/schema.prisma returned **No difference detected**.

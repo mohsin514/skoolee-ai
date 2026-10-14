@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { FormErrorSummary } from "@/components/ui/form-field";
@@ -98,7 +99,7 @@ export function InstitutionSettingsPanel({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-[34px] border border-[#cfc2d6]/20 bg-white p-16">
+      <div className="sk-panel flex items-center justify-center p-16">
         <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
       </div>
     );
@@ -108,7 +109,7 @@ export function InstitutionSettingsPanel({
   return (
     <div className="space-y-6">
       {/* ── School identity ── */}
-      <section className="rounded-[34px] border border-[#cfc2d6]/20 bg-white p-6 shadow-lg sm:p-7">
+      <section className="sk-panel p-6 sm:p-7">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
@@ -130,12 +131,12 @@ export function InstitutionSettingsPanel({
             </div>
           </div>
           {data.canEditSchool ? (
-            <button
+            <Button variant="default"
               type="button"
               onClick={() => setEditingSchool(true)}
-              className="flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-[#fbf0fe] px-4 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+              className="justify-start flex shrink-0 items-center gap-2 px-4"
             >
-              <Pencil className="h-3.5 w-3.5" /><UiText>{"Edit"}</UiText></button>
+              <Pencil className="h-3.5 w-3.5" /><UiText>{"Edit"}</UiText></Button>
           ) : null}
         </div>
 
@@ -157,7 +158,7 @@ export function InstitutionSettingsPanel({
       </section>
 
       {/* ── Campuses ── */}
-      <section className="rounded-[34px] border border-[#cfc2d6]/20 bg-white p-6 shadow-lg sm:p-7">
+      <section className="sk-panel p-6 sm:p-7">
         <div className="mb-5 flex items-center justify-between">
           <div>
             <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]"><UiText>{"Campuses"}</UiText></p>
@@ -194,12 +195,12 @@ export function InstitutionSettingsPanel({
                     </div>
                   </div>
                   {editable ? (
-                    <button
+                    <Button variant="default"
                       type="button"
                       onClick={() => setEditingCampus(campus)}
-                      className="flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-white px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm transition-all hover:bg-[#8127cf] hover:text-white"
+                      className="justify-start flex shrink-0 items-center gap-1.5 px-3"
                     >
-                      <Pencil className="h-3 w-3" /><UiText>{"Edit"}</UiText></button>
+                      <Pencil className="h-3 w-3" /><UiText>{"Edit"}</UiText></Button>
                   ) : (
                     <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                       <Lock className="h-3 w-3" /><UiText>{"View only"}</UiText></span>
@@ -338,7 +339,7 @@ function SchoolDialog({
               disabled
               value={form.timezone}
               onChange={(e) => set("timezone", e.target.value)}
-              className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
+              className="w-full pl-10 pr-4"
             >
               {zones.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </SystemSelect>
@@ -472,7 +473,7 @@ function CampusDialog({
               id="c-board"
               value={form.board}
               onChange={(e) => set("board", e.target.value)}
-              className="h-12 w-full cursor-pointer rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
+              className="w-full pl-10 pr-4"
             >
               {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
             </SystemSelect>
@@ -552,17 +553,17 @@ function LogoPicker({
         <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted"><UiText>{"Logo"}</UiText></p>
         <p className="mb-2.5 text-[10px] font-bold text-ink-subtle">{hint}</p>
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button variant="default"
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-[#8127cf] px-3.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#9c48ea] disabled:cursor-wait disabled:opacity-60"
+            className="justify-start flex items-center gap-2 px-3.5 disabled:cursor-wait disabled:opacity-60"
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             {uploading ? tr("Uploading") : value ? tr("Replace") : tr("Choose")}
-          </button>
+          </Button>
           {value ? (
-            <button
+            <Button variant="outline"
               type="button"
               onClick={() => {
                 if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -573,7 +574,7 @@ function LogoPicker({
               className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/30 px-3.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:border-rose-200 hover:text-rose-500 disabled:opacity-60"
             >
               <UiText>{"Remove"}</UiText>
-            </button>
+            </Button>
           ) : null}
         </div>
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
@@ -605,7 +606,7 @@ function Field({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className="h-12 w-full rounded-2xl border-0 bg-[#fbf0fe] pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 focus:ring-[#8127cf]/25"
+          className="w-full pl-10 pr-4 placeholder:text-ink-subtle"
         />
       </InputGroup>
     </div>

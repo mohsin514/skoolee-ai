@@ -16,6 +16,7 @@
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, type UserRole } from "@/lib/roles";
+import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 
 /** School leadership. Reaches everyone inside its campus scope. */
 export const LEADERSHIP_ROLES: UserRole[] = ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"];
@@ -147,7 +148,7 @@ async function teacherSharesStudent(teacherId: string, family: ChatPeer): Promis
       classId: { in: classIds },
       status: "active",
       ...(family.role === "PARENT"
-        ? { parentUserId: family.id }
+        ? { guardianRelationships: { some: liveGuardianRelationshipWhere(family.id, "communication") } }
         : { studentUserId: family.id }),
     },
     select: { id: true },
@@ -162,7 +163,7 @@ async function sharesStudentRecord(a: ChatPeer, b: ChatPeer): Promise<boolean> {
   const student = a.role === "STUDENT" ? a : b;
 
   const link = await prisma.student.findFirst({
-    where: { parentUserId: parent.id, studentUserId: student.id },
+    where: { guardianRelationships: { some: liveGuardianRelationshipWhere(parent.id, "communication") }, studentUserId: student.id },
     select: { id: true },
   });
 

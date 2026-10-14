@@ -2,6 +2,9 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { lockInvoiceGeneration } from "@/lib/fees/invoice-generation";
+import { assertBankPeriodOpen, assertCurrentAccountsPermission, deleteUnreconciledManualLedgerEntry } from "@/lib/fees/ledger-protection";
 import {
   ApiError,
   assertModuleRead,
@@ -85,35 +88,39 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
+    const entry = await schoolAiTransaction(user, async db => {
     const campusId = await resolveCampusId(user, body.campusId);
+    await lockInvoiceGeneration(db, user.schoolId, campusId);
+    await assertCurrentAccountsPermission(db, user, "canAdd");
     const kind = String(body.kind ?? "").toUpperCase();
-    const currency = body.currency || (await getLocalePackage(user.schoolId, campusId)).currency;
+    const currency = body.currency || (await getLocalePackage(user.schoolId, campusId, undefined, undefined, db)).currency;
     if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
     const amount = Number(body.amount);
     const date = new Date(body.date ?? new Date().toISOString().split("T")[0]);
 
     if (!["INCOME", "EXPENSE"].includes(kind)) throw new ApiError("kind must be INCOME or EXPENSE", 400);
-    if (!Number.isInteger(amount) || amount <= 0) throw new ApiError("amount must be a positive integer (paisa)", 400);
+    if (!Number.isInteger(amount) || amount <= 0 || amount > 2147483647) throw new ApiError("amount must be a positive integer (paisa)", 400);
     if (!body.accountId) throw new ApiError("accountId is required", 400);
     if (isNaN(date.getTime())) throw new ApiError("invalid date", 400);
 
-    const account = await prisma.chartOfAccount.findFirst({
+    const account = await db.chartOfAccount.findFirst({
       where: { id: body.accountId, campusId },
     });
     if (!account) throw new ApiError("Account not found", 404);
-    if (!["INCOME", "EXPENSE"].includes(account.type)) {
+    if (!["INCOME", "EXPENSE"].includes(account.type) || account.type !== kind) {
       throw new ApiError("Ledger entries require an INCOME or EXPENSE account", 400);
     }
 
     let bankAccountId: string | null = null;
     if (body.bankAccountId) {
-      const bank = await prisma.bankAccount.findFirst({ where: { id: body.bankAccountId, campusId } });
+      const bank = await db.bankAccount.findFirst({ where: { id: body.bankAccountId, campusId } });
       if (!bank) throw new ApiError("Bank account not found", 404);
       if (bank.currency !== currency) throw new ApiError("Bank account currency must match the ledger entry", 400);
+      await assertBankPeriodOpen(db, user.schoolId, campusId, bank.id, date);
       bankAccountId = bank.id;
     }
 
-    const entry = await prisma.ledgerEntry.create({
+    return db.ledgerEntry.create({
       data: {
         currency,
         campusId,
@@ -127,6 +134,8 @@ export async function POST(req: NextRequest) {
         note: body.note ? String(body.note).trim() : null,
         createdById: user.userId,
       },
+    });
+
     });
 
     return Response.json({ success: true, data: entry }, { status: 201 });
@@ -143,15 +152,7 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
 
-    const entry = await prisma.ledgerEntry.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!entry) throw new ApiError("Ledger entry not found", 404);
-    if (entry.paymentId) {
-      throw new ApiError("Auto-posted fee entries cannot be deleted (void the receipt instead)", 409);
-    }
-
-    await prisma.ledgerEntry.delete({ where: { id: entry.id } });
+    await deleteUnreconciledManualLedgerEntry(user, id);
     return Response.json({ success: true, message: "Entry deleted" });
   } catch (error) {
     return errorResponse(error, "accounts/ledger DELETE failed");

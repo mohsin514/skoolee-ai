@@ -8,7 +8,7 @@ export type Reference = { eventId: string; schoolId: string };
 export type Event = Reference & { kind: string; version: number; referenceId: string; actorId: string };
 type Claim = Event & { token: string; attempts: number; checkpoint: number };
 const LEASE_SECONDS = 60;
-type StopReason = "LEASE_LOST" | "CANCEL_REQUESTED" | "EXTERNAL_OUTCOME_UNCERTAIN" | "UNSUPPORTED_VERSION" | "UNKNOWN_EVENT_KIND" | "AUTHORIZATION_OR_PUBLICATION_REVOKED";
+type StopReason = "INVALID_FILE" | "PROVIDER_UNAVAILABLE" | "LEASE_LOST" | "CANCEL_REQUESTED" | "EXTERNAL_OUTCOME_UNCERTAIN" | "UNSUPPORTED_VERSION" | "UNKNOWN_EVENT_KIND" | "AUTHORIZATION_OR_PUBLICATION_REVOKED";
 export class WorkflowStopped extends Error {
   constructor(readonly reason: StopReason) { super(reason); }
 }

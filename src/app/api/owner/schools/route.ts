@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import bcrypt from "bcryptjs";
 import { PLANS } from "@/config/plans";
+import { createPlanContract } from "@/config/commercial-contract";
 import { logSuperAdminAction } from "@/lib/audit";
 import {
   assertEmailAvailable,
@@ -182,6 +183,7 @@ export async function POST(req: NextRequest) {
           contactEmail: schoolContact,
           status,
           plan,
+          commercialContract: createPlanContract(plan, { aiCredits: aiCreditsLimit }),
           aiCreditsLimit,
           regId: genRegId("SKL"),
         },

@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { pageCardSurface } from "@/components/ui/page-card";
@@ -53,6 +54,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { AdmissionForm } from "@/app/dashboard/students/admission-form";
 import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
 import { PlansPanel } from "@/components/billing/PlansPanel";
+import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
@@ -68,6 +70,7 @@ import { StudentSubnav, STUDENT_VIEWS, STUDENT_VIEW_MODULE } from "@/components/
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
 import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
+import { AcademicModelPanel } from "@/components/academic/AcademicModelPanel";
 import { RoomsManager } from "@/components/academic/RoomsManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { YearEndPanel } from "@/components/academic/YearEndPanel";
@@ -140,6 +143,7 @@ type AdminView =
   | "library"
   | "academic-hub"
   | "year-setup"
+  | "academic-model"
   | "institution"
   ;
 
@@ -155,7 +159,7 @@ const ADMIN_VIEWS: readonly AdminView[] = [
   "student-setup", "promote-archive", "leave", "permissions", "attendance",
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
   "year-cycle", "teacher-performance", "exam-cycles", "grading-rules", "billing", "report-cards",
-  "transport", "dormitory", "inventory", "library", "academic-hub", "year-setup",
+  "transport", "dormitory", "inventory", "library", "academic-hub", "year-setup", "academic-model",
   "institution",
 ];
 
@@ -193,7 +197,6 @@ function useAdminView(): [AdminView, (next: AdminView) => void] {
     if (!isAdminView(new URLSearchParams(window.location.search).get("view"))) {
       window.history.replaceState(null, "", `/admin?view=${activeView}`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The history write stays outside the state updater: updaters must be pure,
@@ -212,7 +215,7 @@ function useAdminView(): [AdminView, (next: AdminView) => void] {
 /** Shown when a section is reachable by URL but not permitted for this role. */
 function RestrictedView({ onBack }: { onBack: () => void }) {
   return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/25 bg-white p-10 text-center shadow-[0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+    <div className="sk-panel p-10 text-center">
       <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
         <Shield className="h-6 w-6" />
       </span>
@@ -220,13 +223,13 @@ function RestrictedView({ onBack }: { onBack: () => void }) {
       <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">
         Billing is managed at the school level. Ask a school administrator if you need changes to the plan.
       </p>
-      <button
+      <Button variant="default"
         type="button"
         onClick={onBack}
-        className="mt-6 rounded-2xl bg-[#8127cf] px-5 py-2.5 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+        className="mt-6"
       >
         Back to overview
-      </button>
+      </Button>
     </div>
   );
 }
@@ -691,32 +694,40 @@ export default function CampusAdminDashboard() {
     }
   };
 
-  const handleDeleteClass = (cls: any) => {
+  const handleDeleteClass = async (cls: any) => {
+    const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`);
+    const preview = await previewResponse.json();
+    if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate class impact");
+    const impacts = Object.entries(preview.dependencies || {}).filter(([, count]) => Number(count) > 0).map(([label, count]) => `${count} ${label}`).join(", ") || "no linked records";
     setConfirmAction({
-      title: `Delete ${classLabel(cls)}?`,
-      description: "This will permanently remove this class and all its subjects if no marks exist. Students must be moved first.",
-      confirmLabel: "Delete Class",
+      title: `Archive ${classLabel(cls)}?`,
+      description: `This class has ${impacts}. Archive hides it from current class lists while preserving its academic and financial history. You can restore it later.`,
+      confirmLabel: "Archive Class",
       run: async () => {
-        const res = await fetch(`/api/classes?id=${cls.id}`, { method: "DELETE" });
+        const res = await fetch(`/api/classes?id=${cls.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
         const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "Class could not be deleted");
-        toast.success("Class deleted");
+        if (!res.ok) throw new Error(result.error || "Class could not be archived");
+        toast.success("Class archived; history preserved");
         setSelectedClass(null);
         await loadData();
       },
     });
   };
 
-  const handleDeleteStudent = (student: any) => {
+  const handleDeleteStudent = async (student: any) => {
+    const previewResponse = await fetch(`/api/students?id=${encodeURIComponent(student.id)}&preview=true`);
+    const preview = await previewResponse.json();
+    if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate student impact");
+    const impacts = Object.entries(preview.dependencies || {}).filter(([, count]) => Number(count) > 0).map(([label, count]) => `${count} ${label}`).join(", ") || "no linked records";
     setConfirmAction({
-      title: `Delete ${student.fullName}?`,
-      description: "This will permanently remove this student record. This cannot be undone.",
-      confirmLabel: "Delete Student",
+      title: `Archive ${student.fullName}?`,
+      description: `This student has ${impacts}. Archive removes the student from active lists and frees the current roll number. Marks, receipts, reports, documents and audit history remain preserved.`,
+      confirmLabel: "Archive Student",
       run: async () => {
-        const res = await fetch(`/api/students?id=${student.id}`, { method: "DELETE" });
+        const res = await fetch(`/api/students?id=${student.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
         const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "Student could not be deleted");
-        toast.success("Student deleted");
+        if (!res.ok) throw new Error(result.error || "Student could not be archived");
+        toast.success("Student archived; history preserved");
         setSelectedStudent(null);
         await loadData();
       },
@@ -825,7 +836,7 @@ export default function CampusAdminDashboard() {
       const res = await fetch(`/api/reports/${reportCardId}/send`, { method: "POST" });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to send");
-      toast.success(result.message || "Report card sent");
+      if (result.jobId) { window.location.assign(`/jobs?id=${result.jobId}`); return; }
       await loadData();
     } catch (error: any) { toast.error(error.message); }
     finally { setSendingReport(null); }
@@ -881,6 +892,7 @@ export default function CampusAdminDashboard() {
       icon: BookOpen, label: "Academics", children: [
         { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", module: moduleForView("academic-hub"), onClick: () => setActiveView("academic-hub") },
         { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", module: moduleForView("year-setup"), onClick: () => setActiveView("year-setup") },
+        { icon: BookOpen, label: "Curriculum & Terms", active: activeView === "academic-model", module: moduleForView("academic-model"), onClick: () => setActiveView("academic-model") },
         { icon: School, label: "Classes & Subjects", active: activeView === "classes", module: moduleForView("classes"), onClick: () => setActiveView("classes") },
         { icon: History, label: "Academic Years", active: activeView === "year-cycle", module: moduleForView("year-cycle"), onClick: () => setActiveView("year-cycle") },
         { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", module: moduleForView("school-calendar"), onClick: () => setActiveView("school-calendar") },
@@ -964,7 +976,7 @@ export default function CampusAdminDashboard() {
   if (!data) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#faf7fc] p-6">
-        <div className="w-full max-w-sm rounded-[28px] border border-[#cfc2d6]/25 bg-white p-8 text-center shadow-[0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="sk-panel w-full max-w-sm p-8 text-center">
           <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
             <AlertTriangle className="h-6 w-6" />
           </span>
@@ -972,13 +984,13 @@ export default function CampusAdminDashboard() {
           <p className="mt-2 text-xs font-semibold leading-relaxed text-ink-muted">
             The campus data didn&apos;t come back. This is usually temporary — try again in a moment.
           </p>
-          <button
+          <Button variant="default"
             type="button"
             onClick={() => loadData()}
-            className="mt-6 w-full rounded-2xl bg-[#8127cf] px-4 py-3 text-xs font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+            className="mt-6 w-full"
           >
             Try again
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1194,6 +1206,8 @@ export default function CampusAdminDashboard() {
             <YearSetupWizard campusId={data.campusId} onComplete={() => setActiveView("academic-hub")} />
           ) : null}
 
+          {activeView === "academic-model" ? <AcademicModelPanel campusId={data.campusId} /> : null}
+
           {activeView === "timetable" ? (
             <TimetableStudio campusId={data.campusId} />
           ) : null}
@@ -1250,7 +1264,7 @@ export default function CampusAdminDashboard() {
               plan buying only — the two never mix. */}
           {activeView === "billing"
             ? canManagePlans
-              ? <PlansPanel />
+              ? <><SubscriptionLifecyclePanel /><PlansPanel /></>
               : <RestrictedView onBack={() => setActiveView(DEFAULT_VIEW)} />
             : null}
         </div>

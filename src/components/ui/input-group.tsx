@@ -6,8 +6,16 @@ import { fieldAppearance } from "./field-appearance";
 export const InputGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { surfaceClassName?: string }>(
   ({ className, surfaceClassName, ...props }, ref) => <div ref={ref} {...props} className={cn(
     className, fieldAppearance,
-    "shadow-[0_2px_3px_-2px_rgba(55,27,77,0.12)] sk-input-group group relative flex min-h-12 min-w-0 items-center hover:border-[#b39acb] focus-within:border-primary focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring",
+    "sk-input-group group relative flex min-h-12 min-w-0 items-center hover:border-field-border-hover",
     surfaceClassName,
   )} />,
 );
 InputGroup.displayName = "InputGroup";
+
+/** An inline field action keeps the group's single surface and native button semantics. */
+export const FieldAction = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
+  ({ className, type = "button", ...props }, ref) => (
+    <button ref={ref} type={type} data-field-affix="end" {...props} className={cn("shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:size-4", className)} />
+  ),
+);
+FieldAction.displayName = "FieldAction";

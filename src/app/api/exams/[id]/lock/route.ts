@@ -1,112 +1,35 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { billingAccessResponse } from "@/lib/billing/response";
+import { ApiError, errorResponse } from "@/lib/api/scope";
 import { isCampusAdminRole } from "@/lib/roles";
 import { generateReportCardsForLockedExam } from "@/lib/academic/report-cards";
+import { resolveExamSchedulingCampus, withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { notify } from "@/lib/notifications/in-app";
 
-function canLockExam(role: string) {
-  return role === "SUPER_ADMIN" || role === "PRINCIPAL" || isCampusAdminRole(role);
-}
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getAuthUser();
-    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-    const billingBlocked = await billingAccessResponse(user.schoolId);
-    if (billingBlocked) return billingBlocked;
-    if (!canLockExam(user.role)) {
-      return Response.json({ error: "Only admins/principals can lock exams" }, { status: 403 });
-    }
-
+    if (!user) throw new ApiError("Unauthorized", 401);
+    if (user.role !== "SUPER_ADMIN" && user.role !== "PRINCIPAL" && !isCampusAdminRole(user.role)) throw new ApiError("Only admins/principals can lock exams", 403);
     const { id } = await params;
-    const exam = await prisma.exam.findUnique({
-      where: { id },
-      include: {
-        class: {
-          include: {
-            students: { select: { id: true } },
-            subjects: { select: { id: true } },
-          },
-        },
-        _count: { select: { marks: true } },
-      },
+    const campusId = await resolveExamSchedulingCampus(user, null, { kind: "exam", id });
+    const { locked, generated } = await withExamSchedulingWrite(user, campusId, "edit", async tx => {
+      const exam = await tx.exam.findFirst({ where: { id, schoolId: user.schoolId, campusId }, include: { class: { include: { students: { select: { id: true } }, subjects: { select: { id: true } } } } } });
+      if (!exam) throw new ApiError("Exam not found", 404);
+      if (exam.isLocked) throw new ApiError("Exam already locked", 400);
+      if (!["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(exam.status)) throw new ApiError("This exam cannot be locked from its current state.", 409);
+      const subjects = exam.subjectId ? exam.class.subjects.filter(subject => subject.id === exam.subjectId) : exam.class.subjects;
+      const expected = exam.class.students.length * subjects.length;
+      if (!expected) throw new ApiError("Add students and subjects before locking this exam", 409);
+      const marks = await tx.mark.findMany({ where: { schoolId: user.schoolId, campusId, examId: id, studentId: { in: exam.class.students.map(student => student.id) }, subjectId: { in: subjects.map(subject => subject.id) } }, select: { studentId: true, subjectId: true } });
+      const entered = new Set(marks.map(mark => `${mark.studentId}:${mark.subjectId}`)).size;
+      if (entered < expected) throw new ApiError(`Marks entry is incomplete (${entered}/${expected})`, 409);
+      const locked = await tx.exam.update({ where: { id }, data: { isLocked: true, status: "LOCKED", lockedBy: user.userId, lockedAt: new Date(), rejectionReason: null, rejectedBy: null, rejectedAt: null }, include: { class: { select: { id: true, name: true, section: true, academicYear: true } }, locker: { select: { fullName: true } }, _count: { select: { marks: true, reportCards: true } } } });
+      // A rejection cannot interleave between locking and report creation.
+      const generated = await generateReportCardsForLockedExam(id, tx);
+      return { locked, generated: generated.generated };
     });
-
-    if (!exam) return Response.json({ error: "Exam not found" }, { status: 404 });
-    if (user.campusId && exam.campusId !== user.campusId) {
-      return Response.json({ error: "Exam is outside your campus" }, { status: 403 });
-    }
-    if (exam.isLocked) return Response.json({ error: "Exam already locked" }, { status: 400 });
-
-    const expectedMarks = exam.class.students.length * exam.class.subjects.length;
-    if (expectedMarks === 0) {
-      return Response.json({ error: "Add students and subjects before locking this exam" }, { status: 409 });
-    }
-    const studentIds = new Set(exam.class.students.map((student) => student.id));
-    const subjectIds = new Set(exam.class.subjects.map((subject) => subject.id));
-    const validMarks = await prisma.mark.findMany({
-      where: {
-        examId: id,
-        campusId: exam.campusId,
-        studentId: { in: [...studentIds] },
-        subjectId: { in: [...subjectIds] },
-      },
-      select: { studentId: true, subjectId: true },
-    });
-    const enteredPairs = new Set(validMarks.map((mark) => `${mark.studentId}:${mark.subjectId}`));
-
-    if (enteredPairs.size < expectedMarks) {
-      return Response.json(
-        { error: `Marks entry is incomplete (${enteredPairs.size}/${expectedMarks})` },
-        { status: 409 }
-      );
-    }
-
-    const locked = await prisma.exam.update({
-      where: { id },
-      data: {
-        isLocked: true,
-        status: "LOCKED",
-        lockedBy: user.userId,
-        lockedAt: new Date(),
-        // Resubmission clears the previous rejection note; rejectionCount is
-        // kept as the audit trail of how many rounds this exam took.
-        rejectionReason: null,
-        rejectedBy: null,
-        rejectedAt: null,
-      },
-      include: {
-        class: { select: { id: true, name: true, section: true, academicYear: true } },
-        locker: { select: { fullName: true } },
-        _count: { select: { marks: true, reportCards: true } },
-      },
-    });
-
-    const generated = await generateReportCardsForLockedExam(id);
-
-    notify("EXAM_LOCKED", {
-      schoolId: user.schoolId,
-      campusId: exam.campusId,
-      actorId: user.userId,
-      actorName: user.fullName,
-      examTitle: locked.title,
-      className: [locked.class?.name, locked.class?.section].filter(Boolean).join(" "),
-      classId: exam.classId,
-      reportCardsGenerated: generated.generated,
-    });
-
-    return Response.json({
-      success: true,
-      exam: { ...locked, _count: { ...locked._count, reportCards: generated.generated } },
-      reportCardsGenerated: generated.generated,
-    });
-  } catch (error) {
-    console.error("[exams/[id]/lock] POST failed", error);
-    return Response.json({ error: "Operation failed" }, { status: 500 });
-  }
+    notify("EXAM_LOCKED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, examTitle: locked.title, className: [locked.class.name, locked.class.section].filter(Boolean).join(" "), classId: locked.classId, reportCardsGenerated: generated });
+    return Response.json({ success: true, exam: { ...locked, _count: { ...locked._count, reportCards: generated } }, reportCardsGenerated: generated });
+  } catch (error) { return errorResponse(error, "Unable to lock this exam."); }
 }
