@@ -3,6 +3,7 @@ import { formatInstant, localeTag } from "@/lib/locale/package";
 import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import path from "path";
 import { getReportCardPdfPayload } from "@/lib/academic/report-cards";
+import { resolveMediaUrlAsync } from "@/lib/storage/s3";
 
 type ReportPayload = Awaited<ReturnType<typeof getReportCardPdfPayload>>;
 
@@ -319,7 +320,7 @@ function MarksDistribution({ payload }: { payload: ReportPayload }) {
   );
 }
 
-export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
+export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayload; logoUrl?: string | null }) {
   const { reportCard, subjectDistribution, overall, locale } = payload;
   const t = reportMessages[locale.language];
   const f = (n: number) => new Intl.NumberFormat(localeTag(locale)).format(n);
@@ -328,7 +329,7 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
   const exam = reportCard.exam;
   const campus = reportCard.campus as any;
   const school = campus?.school;
-  const logo = campus?.logoUrl || school?.logoUrl || null;
+  const logo = logoUrl;
   const avatarUrl = student.profileImageUrl?.startsWith("http") ? student.profileImageUrl : null;
   const displayPercentage = reportCard.percentage || 0;
   const displayGrade = reportCard.grade || "—";
@@ -421,7 +422,8 @@ export function ReportCardDocument({ payload }: { payload: ReportPayload }) {
 
 /** Capture bytes once, as part of approval. No family download reads mutable live data. */
 export async function renderApprovedSnapshot(payload: ReportPayload) {
-  return renderToBuffer(<ReportCardDocument payload={payload} />);
+  const logoUrl = await resolveMediaUrlAsync(payload.reportCard.campus?.logoUrl || payload.reportCard.campus?.school?.logoUrl || null);
+  return renderToBuffer(<ReportCardDocument payload={payload} logoUrl={logoUrl} />);
 }
 
 export async function renderReportCardPdfBuffer(reportCardId: string, versionId?: string): Promise<{ buffer: Buffer; filename: string }> {
