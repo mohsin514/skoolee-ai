@@ -1,6 +1,7 @@
 import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeCarryForward: session-end balance moved to the next academic year.
@@ -57,16 +58,20 @@ export async function POST(req: NextRequest) {
     });
     if (existing) throw new ApiError("A carry-forward already exists for this student and year", 409);
 
-    const forward = await prisma.feeCarryForward.create({
-      data: {
-        currency,
-        campusId: student.campusId,
-        studentId: body.studentId,
-        fromAcademicYear,
-        toAcademicYear,
-        balance,
-        note: body.note ?? null,
-      },
+    const forward = await prisma.$transaction(async (tx) => {
+      const created = await tx.feeCarryForward.create({
+        data: {
+          currency,
+          campusId: student.campusId,
+          studentId: body.studentId,
+          fromAcademicYear,
+          toAcademicYear,
+          balance,
+          note: body.note ?? null,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_carry_forwards", recordId: created.id, action: "CREATE", campusId: student.campusId, after: { studentId: created.studentId, fromAcademicYear, toAcademicYear, balance, currency } });
+      return created;
     });
     return Response.json({ success: true, data: forward }, { status: 201 });
   } catch (error) {
@@ -87,7 +92,10 @@ export async function DELETE(req: NextRequest) {
     });
     if (!existing) throw new ApiError("Carry-forward not found", 404);
 
-    await prisma.feeCarryForward.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.feeCarryForward.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_carry_forwards", recordId: id, action: "DELETE", campusId: existing.campusId, before: { studentId: existing.studentId, fromAcademicYear: existing.fromAcademicYear, toAcademicYear: existing.toAcademicYear, balance: existing.balance, currency: existing.currency } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/carry-forwards] DELETE failed");

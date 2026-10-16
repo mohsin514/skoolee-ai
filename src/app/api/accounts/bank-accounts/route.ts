@@ -2,6 +2,7 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   assertModuleRead,
@@ -54,17 +55,24 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.bankAccount.findFirst({ where: { campusId, name } });
     if (existing) throw new ApiError("A bank account with this name already exists", 409);
 
-    const bank = await prisma.bankAccount.create({
-      data: {
-        schoolId: user.schoolId,
-        currency,
-        campusId,
-        name,
-        bankName: body.bankName ? String(body.bankName).trim() : null,
-        accountNumber: body.accountNumber ? String(body.accountNumber).trim() : null,
-        openingBalance,
-        isActive: body.isActive !== false,
-      },
+    const bank = await prisma.$transaction(async (tx) => {
+      const created = await tx.bankAccount.create({
+        data: {
+          schoolId: user.schoolId,
+          currency,
+          campusId,
+          name,
+          bankName: body.bankName ? String(body.bankName).trim() : null,
+          accountNumber: body.accountNumber ? String(body.accountNumber).trim() : null,
+          openingBalance,
+          isActive: body.isActive !== false,
+        },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "bank_accounts", recordId: created.id, action: "CREATE", campusId: created.campusId,
+        after: { currency: created.currency, openingBalance: created.openingBalance, isActive: created.isActive },
+      });
+      return created;
     });
 
     return Response.json({ success: true, data: bank }, { status: 201 });
@@ -96,21 +104,29 @@ export async function PATCH(req: NextRequest) {
       if (dup) throw new ApiError("A bank account with this name already exists", 409);
     }
 
-    const updated = await prisma.bankAccount.update({
-      where: { id: bank.id },
-      data: {
-        name: body.name ? String(body.name).trim() : undefined,
-        bankName: body.bankName !== undefined ? (String(body.bankName).trim() || null) : undefined,
-        accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
-        openingBalance: body.openingBalance !== undefined
-          ? (() => {
-              const v = Number(body.openingBalance);
-              if (!Number.isSafeInteger(v)) throw new ApiError("Opening balance must be an integer in minor units", 400);
-              return v;
-            })()
-          : undefined,
-        isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.bankAccount.update({
+        where: { id: bank.id },
+        data: {
+          name: body.name ? String(body.name).trim() : undefined,
+          bankName: body.bankName !== undefined ? (String(body.bankName).trim() || null) : undefined,
+          accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
+          openingBalance: body.openingBalance !== undefined
+            ? (() => {
+                const v = Number(body.openingBalance);
+                if (!Number.isSafeInteger(v)) throw new ApiError("Opening balance must be an integer in minor units", 400);
+                return v;
+              })()
+            : undefined,
+          isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "bank_accounts", recordId: next.id, action: "UPDATE", campusId: next.campusId,
+        before: { openingBalance: bank.openingBalance, isActive: bank.isActive },
+        after: { openingBalance: next.openingBalance, isActive: next.isActive },
+      });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });
@@ -136,7 +152,13 @@ export async function DELETE(req: NextRequest) {
       throw new ApiError("Cannot delete: this bank account has ledger entries", 409);
     }
 
-    await prisma.bankAccount.delete({ where: { id: bank.id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.bankAccount.delete({ where: { id: bank.id } });
+      await writeAuditEvent(tx, user, {
+        table: "bank_accounts", recordId: bank.id, action: "DELETE", campusId: bank.campusId,
+        before: { currency: bank.currency, openingBalance: bank.openingBalance, isActive: bank.isActive },
+      });
+    });
     return Response.json({ success: true, message: "Bank account deleted" });
   } catch (error) {
     return errorResponse(error, "accounts/bank-accounts DELETE failed");

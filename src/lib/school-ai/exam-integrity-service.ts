@@ -1,3 +1,4 @@
+import { activeHoldWhere } from "@/lib/data-lifecycle/service";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError } from "@/lib/api/scope";
@@ -105,8 +106,12 @@ export async function purgeExpiredExamIntegrity(schoolId: string, limit = 200, n
     // its event was removed. Orphan audit copies are selected independently.
     const rows = await db.$queryRaw<Array<{ id: string }>>`SELECT id FROM school_ai_exam_integrity_events WHERE school_id = ${schoolId} AND retention_until <= ${now} ORDER BY retention_until, id LIMIT ${batch} FOR UPDATE`;
     const ids = rows.map(row => row.id);
-    const copies = await db.auditLog.findMany({ where: { schoolId, tableName: "school_ai_exam_integrity_events", retentionUntil: { lte: now } }, select: { id: true }, orderBy: [{ retentionUntil: "asc" }, { id: "asc" }], take: batch });
-    const audit = await db.auditLog.deleteMany({ where: { schoolId, tableName: "school_ai_exam_integrity_events", OR: [{ id: { in: copies.map(copy => copy.id) } }, { recordId: { in: ids } }] } });
+    // Audit copies under an active AUDIT_LOG hold stay (the database refuses to delete them anyway).
+    const holds = await db.dataLegalHold.findMany({ where: activeHoldWhere(schoolId, "AUDIT_LOG", now), select: { recordId: true } });
+    if (holds.some(hold => hold.recordId === null)) return { deletedEvents: 0, deletedAuditCopies: 0 };
+    const held = holds.flatMap(hold => hold.recordId ? [hold.recordId] : []);
+    const copies = await db.auditLog.findMany({ where: { schoolId, tableName: "school_ai_exam_integrity_events", retentionUntil: { lte: now }, id: { notIn: held } }, select: { id: true }, orderBy: [{ retentionUntil: "asc" }, { id: "asc" }], take: batch });
+    const audit = await db.auditLog.deleteMany({ where: { schoolId, tableName: "school_ai_exam_integrity_events", retentionUntil: { lte: now }, id: { notIn: held }, OR: [{ id: { in: copies.map(copy => copy.id) } }, { recordId: { in: ids } }] } });
     const events = await db.schoolAiExamIntegrityEvent.deleteMany({ where: { schoolId, id: { in: ids }, retentionUntil: { lte: now } } });
     return { deletedEvents: events.count, deletedAuditCopies: audit.count };
   }));

@@ -303,6 +303,7 @@ export async function approveVersions(
   reviewer: string,
   note?: string,
   correctionReason?: string,
+  audit?: (tx: TxClient, approved: Array<{ id: string; number: number }>) => Promise<void>,
 ) {
   if (!items.length)
     throw new ReportConflict("Select an eligible version to approve.");
@@ -367,11 +368,17 @@ export async function approveVersions(
         data: { remarksApproved: true, approvedBy: reviewer, approvedAt: now },
       });
     }
+    // Callers that audit the approval pass this so the event commits with it.
+    if (audit) await audit(tx, approved);
     return approved;
   });
 }
 
-export async function reviewExam(examId: string, reviewer: string) {
+export async function reviewExam(
+  examId: string,
+  reviewer: string,
+  audit?: (tx: TxClient, before: { status: string }, after: { status: string }) => Promise<void>,
+) {
   return versionTransaction(async (tx) => {
     const scope = await tx.exam.findUniqueOrThrow({ where: { id: examId }, select: { schoolId: true, campusId: true } });
     await lockTimetableCampus(tx, scope.schoolId, scope.campusId, true);
@@ -385,7 +392,7 @@ export async function reviewExam(examId: string, reviewer: string) {
         );
     }
     const exam = await tx.exam.findUniqueOrThrow({ where: { id: examId } });
-    return tx.exam.update({
+    const reviewed = await tx.exam.update({
       where: { id: examId },
       data: {
         status:
@@ -394,6 +401,9 @@ export async function reviewExam(examId: string, reviewer: string) {
         reviewedAt: new Date(),
       },
     });
+    // Callers that audit the review pass this so the event commits with it.
+    if (audit) await audit(tx, { status: exam.status }, { status: reviewed.status });
+    return reviewed;
   });
 }
 
@@ -401,6 +411,7 @@ export async function publishExam(
   examId: string,
   actorId: string,
   correctionReason?: string,
+  audit?: (tx: TxClient, before: { status: string }, after: { status: string; versions: number }) => Promise<void>,
 ) {
   return versionTransaction(async (tx) => {
     const scope = await tx.exam.findUniqueOrThrow({ where: { id: examId }, select: { schoolId: true, campusId: true } });
@@ -470,6 +481,7 @@ export async function publishExam(
       version: 1,
       identity: `report-published:${examId}:${contentHash(ids)}`,
     });
+    if (audit) await audit(tx, { status: exam.status }, { status: "PUBLISHED", versions: ids.length });
     return { workflowId, versions: ids, backgroundDelivery: "pending" as const };
   });
 }

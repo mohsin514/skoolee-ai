@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeesMasterLine rows: priced (type, amount) inside a fee group.
@@ -51,9 +52,13 @@ export async function POST(req: NextRequest) {
     });
     if (existing) throw new ApiError("This fee type already exists in the group", 409);
 
-    const line = await prisma.feesMasterLine.create({
-      data: { campusId, feeGroupId: body.feeGroupId, feeTypeId: body.feeTypeId, amount, dueDate: body.dueDate ? new Date(body.dueDate) : null },
-      include: { feeType: { select: { id: true, name: true, code: true } } },
+    const line = await prisma.$transaction(async (tx) => {
+      const created = await tx.feesMasterLine.create({
+        data: { campusId, feeGroupId: body.feeGroupId, feeTypeId: body.feeTypeId, amount, dueDate: body.dueDate ? new Date(body.dueDate) : null },
+        include: { feeType: { select: { id: true, name: true, code: true } } },
+      });
+      await writeAuditEvent(tx, user, { table: "fees_master_lines", recordId: created.id, action: "CREATE", campusId, after: { feeGroupId: created.feeGroupId, feeTypeId: created.feeTypeId, amount: created.amount, dueDate: created.dueDate?.toISOString() ?? null } });
+      return created;
     });
     return Response.json({ success: true, data: line }, { status: 201 });
   } catch (error) {
@@ -78,13 +83,17 @@ export async function PATCH(req: NextRequest) {
       throw new ApiError("amount must be a non-negative integer (paisa)", 400);
     }
 
-    const line = await prisma.feesMasterLine.update({
-      where: { id: body.id },
-      data: {
-        amount,
-        dueDate: body.dueDate !== undefined ? (body.dueDate ? new Date(body.dueDate) : null) : undefined,
-      },
-      include: { feeType: { select: { id: true, name: true, code: true } } },
+    const line = await prisma.$transaction(async (tx) => {
+      const next = await tx.feesMasterLine.update({
+        where: { id: body.id },
+        data: {
+          amount,
+          dueDate: body.dueDate !== undefined ? (body.dueDate ? new Date(body.dueDate) : null) : undefined,
+        },
+        include: { feeType: { select: { id: true, name: true, code: true } } },
+      });
+      await writeAuditEvent(tx, user, { table: "fees_master_lines", recordId: next.id, action: "UPDATE", campusId: existing.campusId, before: { amount: existing.amount, dueDate: existing.dueDate?.toISOString() ?? null }, after: { amount: next.amount, dueDate: next.dueDate?.toISOString() ?? null } });
+      return next;
     });
     return Response.json({ success: true, data: line });
   } catch (error) {
@@ -104,7 +113,10 @@ export async function DELETE(req: NextRequest) {
     const existing = await prisma.feesMasterLine.findFirst({ where: { id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Master line not found", 404);
 
-    await prisma.feesMasterLine.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.feesMasterLine.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fees_master_lines", recordId: id, action: "DELETE", campusId: existing.campusId, before: { feeGroupId: existing.feeGroupId, feeTypeId: existing.feeTypeId, amount: existing.amount } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/master-lines] DELETE failed");

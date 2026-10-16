@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { setDepartmentHead, setDepartmentMembership } from "@/lib/staff/hierarchy";
 
@@ -124,13 +125,20 @@ export async function POST(req: NextRequest) {
       });
       if (!member) throw new ApiError("Membership not found", 404);
       // Closed, not deleted: "who headed Science in 2024" has to stay answerable.
-      await prisma.departmentMember.update({ where: { id: memberId }, data: { endedAt: new Date() } });
-      if (member.role === "HEAD") {
-        await prisma.department.updateMany({ where: { id: member.departmentId }, data: { headId: null } });
-      }
-      await prisma.staffProfile.updateMany({
-        where: { userId: member.userId, primaryDepartmentId: member.departmentId },
-        data: { primaryDepartmentId: null },
+      await prisma.$transaction(async (tx) => {
+        const ended = await tx.departmentMember.update({ where: { id: memberId }, data: { endedAt: new Date() } });
+        if (member.role === "HEAD") {
+          await tx.department.updateMany({ where: { id: member.departmentId }, data: { headId: null } });
+        }
+        await tx.staffProfile.updateMany({
+          where: { userId: member.userId, primaryDepartmentId: member.departmentId },
+          data: { primaryDepartmentId: null },
+        });
+        await writeAuditEvent(tx, user, {
+          table: "department_members", recordId: memberId, action: "ARCHIVE",
+          before: { departmentId: member.departmentId, userId: member.userId, role: member.role },
+          after: { endedAt: ended.endedAt?.toISOString() ?? null, headCleared: member.role === "HEAD" },
+        });
       });
       return Response.json({ success: true });
     }
@@ -140,15 +148,19 @@ export async function POST(req: NextRequest) {
     const input = DepartmentInput.parse(body);
     await assertParentIsSameCampus(input.parentId, campusId);
 
-    const created = await prisma.department.create({
-      data: {
-        campusId,
-        name: input.name,
-        code: input.code || null,
-        kind: input.kind,
-        parentId: input.parentId || null,
-        description: input.description || null,
-      },
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.department.create({
+        data: {
+          campusId,
+          name: input.name,
+          code: input.code || null,
+          kind: input.kind,
+          parentId: input.parentId || null,
+          description: input.description || null,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "departments", recordId: row.id, action: "CREATE", campusId, after: { kind: row.kind, parentId: row.parentId, isActive: row.isActive } });
+      return row;
     });
 
     return Response.json({ success: true, department: created }, { status: 201 });
@@ -166,7 +178,7 @@ export async function PATCH(req: NextRequest) {
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
-    const existing = await prisma.department.findFirst({ where: { id }, select: { id: true, campusId: true } });
+    const existing = await prisma.department.findFirst({ where: { id }, select: { id: true, campusId: true, kind: true, parentId: true, isActive: true, sortOrder: true } });
     if (!existing) throw new ApiError("Department not found", 404);
 
     const input = DepartmentInput.partial().parse(body);
@@ -177,17 +189,21 @@ export async function PATCH(req: NextRequest) {
       await assertNoUnitCycle(id, input.parentId);
     }
 
-    const updated = await prisma.department.update({
-      where: { id },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.code === undefined ? {} : { code: input.code || null }),
-        ...(input.kind === undefined ? {} : { kind: input.kind }),
-        ...(input.parentId === undefined ? {} : { parentId: input.parentId || null }),
-        ...(input.description === undefined ? {} : { description: input.description || null }),
-        ...(body.isActive === undefined ? {} : { isActive: Boolean(body.isActive) }),
-        ...(body.sortOrder === undefined ? {} : { sortOrder: Number(body.sortOrder) || 0 }),
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.department.update({
+        where: { id },
+        data: {
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.code === undefined ? {} : { code: input.code || null }),
+          ...(input.kind === undefined ? {} : { kind: input.kind }),
+          ...(input.parentId === undefined ? {} : { parentId: input.parentId || null }),
+          ...(input.description === undefined ? {} : { description: input.description || null }),
+          ...(body.isActive === undefined ? {} : { isActive: Boolean(body.isActive) }),
+          ...(body.sortOrder === undefined ? {} : { sortOrder: Number(body.sortOrder) || 0 }),
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "departments", recordId: id, action: "UPDATE", campusId: existing.campusId, before: { kind: existing.kind, parentId: existing.parentId, isActive: existing.isActive, sortOrder: existing.sortOrder }, after: { kind: next.kind, parentId: next.parentId, isActive: next.isActive, sortOrder: next.sortOrder, renamed: input.name !== undefined } });
+      return next;
     });
 
     return Response.json({ success: true, department: updated });
@@ -209,6 +225,9 @@ export async function DELETE(req: NextRequest) {
       select: {
         id: true,
         name: true,
+        campusId: true,
+        kind: true,
+        isActive: true,
         _count: { select: { children: true, members: { where: { endedAt: null } } } },
       },
     });
@@ -222,7 +241,10 @@ export async function DELETE(req: NextRequest) {
     }
 
     if (department._count.members > 0) {
-      await prisma.department.update({ where: { id }, data: { isActive: false } });
+      await prisma.$transaction(async (tx) => {
+        await tx.department.update({ where: { id }, data: { isActive: false } });
+        await writeAuditEvent(tx, user, { table: "departments", recordId: id, action: "ARCHIVE", campusId: department.campusId, before: { isActive: department.isActive, members: department._count.members }, after: { isActive: false } });
+      });
       return Response.json({
         success: true,
         retired: true,
@@ -230,7 +252,10 @@ export async function DELETE(req: NextRequest) {
       });
     }
 
-    await prisma.department.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.department.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "departments", recordId: id, action: "DELETE", campusId: department.campusId, before: { kind: department.kind, isActive: department.isActive } });
+    });
     return Response.json({ success: true, retired: false });
   } catch (error) {
     return errorResponse(error, "[staff/departments] DELETE failed");

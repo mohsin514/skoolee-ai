@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   canManageOperations,
@@ -19,7 +20,7 @@ export async function PATCH(req: NextRequest) {
 
     const existing = await prisma.user.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      select: { id: true, fullName: true, phone: true },
+      select: { id: true, fullName: true, phone: true, campusId: true },
     });
     if (!existing) throw new ApiError("User not found", 404);
 
@@ -58,33 +59,41 @@ export async function PATCH(req: NextRequest) {
 
     if (!Object.keys(data).length) throw new ApiError("No valid fields to update", 400);
 
-    const updated = await prisma.user.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        profileImageUrl: true,
-        cnic: true,
-        dateOfBirth: true,
-        gender: true,
-        qualification: true,
-        specialization: true,
-        subjectSpecialties: true,
-        teachesAllSubjects: true,
-        experience: true,
-        address: true,
-        city: true,
-        province: true,
-        postalCode: true,
-        joiningDate: true,
-        emergencyContact: true,
-        emergencyPhone: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.user.update({
+        where: { id },
+        data,
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          profileImageUrl: true,
+          cnic: true,
+          dateOfBirth: true,
+          gender: true,
+          qualification: true,
+          specialization: true,
+          subjectSpecialties: true,
+          teachesAllSubjects: true,
+          experience: true,
+          address: true,
+          city: true,
+          province: true,
+          postalCode: true,
+          joiningDate: true,
+          emergencyContact: true,
+          emergencyPhone: true,
+        },
+      });
+      // Field names only: the values are personal profile data.
+      await writeAuditEvent(tx, user, {
+        table: "users", recordId: next.id, action: "UPDATE", campusId: existing.campusId,
+        after: { fieldsChanged: Object.keys(data).sort().join(","), ...(data.teachesAllSubjects !== undefined ? { teachesAllSubjects: data.teachesAllSubjects } : {}) },
+      });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });

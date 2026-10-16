@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError } from "@/lib/api/scope";
 import { assertWorkspacePermission, loadWorkspacePermissionSnapshot, assertSchoolAiAccess, assertWorkspaceSubject, getAssignedWorkspaceSubjects, isSchoolAiManager } from "./access";
 import { candidatePaper, paperDataSchema, type PaperData } from "./assessment";
@@ -104,7 +105,9 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
     if (currentCount !== input.studentIds.length) throw new ApiError("Every selected student must have an active account in this paper's class.", 403);
     const currentWindowError = validateExamWindow(startsAt, endsAt, now ?? new Date());
     if (currentWindowError) throw new ApiError(currentWindowError);
-    return tx.schoolAiExamAssignment.create({ data: { id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: "STANDARD", status: "ACTIVE" }, select: selection });
+    const created = await tx.schoolAiExamAssignment.create({ data: { id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: "STANDARD", status: "ACTIVE" }, select: selection });
+    await writeAuditEvent(tx, user, { table: "school_ai_exam_assignments", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { paperId: record.id, paperVersion: created.paperVersion, classId: created.classId, status: created.status, mode: created.mode, students: input.studentIds.length, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() } });
+    return created;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
 }
 
@@ -151,7 +154,9 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
         if (readiness?.cameraReady !== true || readiness.consentVersion !== PROCTOR_CONSENT_VERSION) throw new ApiError("Complete the camera check and recording notice before starting, or ask staff for an approved exception.", 422);
       }
       const extraMinutes = (accommodation?.extraMinutes ?? 0) + (accommodation?.breakMinutes ?? 0);
-      return tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt: attemptDeadline(currentTime, assignment.endsAt, paper.blueprint.durationMinutes + extraMinutes), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
+      const started = await tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt: attemptDeadline(currentTime, assignment.endsAt, paper.blueprint.durationMinutes + extraMinutes), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
+      await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: started.id, action: "CREATE", campusId: started.campusId, after: { assignmentId: id, studentId: student.id, status: started.status, assignmentVersion: assignment.version, deadlineAt: started.deadlineAt.toISOString() } });
+      return started;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
     const responseTime = now ?? new Date();
     if (attempt.status === "IN_PROGRESS" && responseTime >= attempt.deadlineAt) return getSchoolAiAttempt(user, id, responseTime);
@@ -207,6 +212,11 @@ export async function approveSchoolAiAccommodation(user: AuthUser, id: string, r
       const approved = { extraMinutes: input.extraMinutes, breakMinutes: input.breakMinutes ?? 0, reader: input.reader ?? false, scribe: input.scribe ?? false, largeText: input.largeText ?? false, cameraExempt: input.cameraExempt ?? false, reason: input.reason, approvedById: user.userId, approvedAt: currentTime.toISOString() };
       const updated = examAccommodationsSchema.parse({ ...accommodations, [input.studentId]: approved });
       await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, version: input.version }, data: { accommodations: json(updated), version: { increment: 1 } } });
+      // The free-text reason stays in the assignment record only.
+      const prior = accommodations[input.studentId];
+      await writeAuditEvent(tx, user, { table: "school_ai_exam_assignments", recordId: id, action: "APPROVE", campusId: current.campusId,
+        before: { version: input.version, studentId: input.studentId, extraMinutes: prior?.extraMinutes ?? 0, breakMinutes: prior?.breakMinutes ?? 0, cameraExempt: prior?.cameraExempt ?? false },
+        after: { version: input.version + 1, studentId: input.studentId, extraMinutes: approved.extraMinutes, breakMinutes: approved.breakMinutes, reader: approved.reader, scribe: approved.scribe, largeText: approved.largeText, cameraExempt: approved.cameraExempt } });
       return { version: input.version + 1, studentId: input.studentId, ...approved };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
   } catch (error) {
@@ -250,6 +260,8 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     const submit = expired || input.submit;
     const changed = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId, status: "IN_PROGRESS", sequence: attempt.sequence }, data: { responses: json(responses), sequence: expired ? attempt.sequence : input.sequence, ...(submit ? { status: "SUBMITTED", submittedAt: currentTime, scoreProposal: json(scoreObjectiveResponses(paper, responses)) } : {}) } });
     if (changed.count !== 1) throw new ApiError("Another answer version was saved first. Reload the saved attempt.", 409);
+    // Autosaves are draft answers; the event marks the final hand-in (or deadline close).
+    if (submit) await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: student.campusId, before: { status: attempt.status, sequence: attempt.sequence }, after: { status: "SUBMITTED", sequence: expired ? attempt.sequence : input.sequence, deadlineExpired: expired } });
     const saved = await tx.schoolAiExamAttempt.findFirstOrThrow({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId } });
     return { ...receipt(saved, paper, currentTime), accepted: !expired };
   }));
@@ -281,6 +293,7 @@ export async function reviewSchoolAiAttempt(user: AuthUser, assignmentId: string
     const changed = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "SUBMITTED", sequence: attempt.sequence, reviewVersion: 0 }, data: { status: "REVIEWED", reviewedAt: now, reviewedById: user.userId, reviewVersion: 1, review: json(saved) } });
     if (changed.count !== 1) throw new ApiError("This attempt was already reviewed. Refresh the marking desk.", 409);
     await tx.schoolAiExamResultRevision.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId, version: 1, review: json(saved), reason: review.note, createdById: user.userId, createdAt: now } });
+    await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "APPROVE", campusId: assignment.campusId, before: { status: attempt.status, reviewVersion: 0 }, after: { status: "REVIEWED", reviewVersion: 1, total: saved.total } });
     return { id: attempt.id, status: "REVIEWED", reviewedAt: now, reviewVersion: 1, note: "Moderation is saved. Existing gradebook and report publication are unchanged." };
   });
 }

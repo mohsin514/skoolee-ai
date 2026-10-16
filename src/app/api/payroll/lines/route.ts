@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // PATCH /api/payroll/lines
@@ -58,6 +59,11 @@ export async function PATCH(req: NextRequest) {
             createdById: user.userId,
           },
         });
+        await writeAuditEvent(tx, user, {
+          table: "payroll_lines", recordId: paid.id, action: "UPDATE", campusId,
+          before: { status: line.status, net: line.net },
+          after: { status: paid.status, net: paid.net, paymentMethodId, ledgerAccountId: account.id },
+        });
         return paid;
       });
 
@@ -73,16 +79,20 @@ export async function PATCH(req: NextRequest) {
     const deductions = body.deductions !== undefined ? parseInt(String(body.deductions), 10) || 0 : line.deductions;
     const bonus = body.bonus !== undefined ? parseInt(String(body.bonus), 10) || 0 : line.bonus;
 
-    const updated = await prisma.payrollLine.update({
-      where: { id },
-      data: {
-        basic,
-        allowances,
-        deductions,
-        bonus,
-        net: basic + allowances - deductions + bonus,
-        status: "UNPAID",
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.payrollLine.update({
+        where: { id },
+        data: {
+          basic,
+          allowances,
+          deductions,
+          bonus,
+          net: basic + allowances - deductions + bonus,
+          status: "UNPAID",
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "payroll_lines", recordId: next.id, action: "UPDATE", campusId, before: { status: line.status, basic: line.basic, allowances: line.allowances, deductions: line.deductions, bonus: line.bonus, net: line.net }, after: { status: next.status, basic: next.basic, allowances: next.allowances, deductions: next.deductions, bonus: next.bonus, net: next.net } });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });

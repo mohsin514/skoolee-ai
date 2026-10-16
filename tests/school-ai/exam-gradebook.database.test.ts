@@ -159,5 +159,5 @@ test("competing assignments cannot overwrite the same destination mark or leave 
   assert.equal(await db.mark.count({ where: { examId: f.target.id } }), 1);
   const assignments = await db.schoolAiExamAssignment.findMany({ where: { id: { in: [f.assignment.id, second.id] } } });
   assert.equal(assignments.filter(item => item.gradebookPublication !== null).length, 1);
-  assert.equal(await db.auditLog.count({ where: { schoolId, tableName: "school_ai_exam_assignments", recordId: { in: assignments.map(item => item.id) } } }), 1);
+  assert.equal(await db.auditLog.count({ where: { schoolId, tableName: "school_ai_exam_assignments", recordId: { in: assignments.map(item => item.id) }, newValue: { path: ["action"], equals: "gradebook_publication" } } }), 1);
 });

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   assertModuleRead,
@@ -47,8 +48,15 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.paymentMethodRef.findFirst({ where: { campusId, name } });
     if (existing) throw new ApiError("A payment method with this name already exists", 409);
 
-    const method = await prisma.paymentMethodRef.create({
-      data: { campusId, name, isActive: body.isActive !== false },
+    const method = await prisma.$transaction(async (tx) => {
+      const created = await tx.paymentMethodRef.create({
+        data: { campusId, name, isActive: body.isActive !== false },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "payment_method_refs", recordId: created.id, action: "CREATE", campusId: created.campusId,
+        after: { isActive: created.isActive },
+      });
+      return created;
     });
 
     return Response.json({ success: true, data: method }, { status: 201 });
@@ -77,12 +85,19 @@ export async function PATCH(req: NextRequest) {
       if (dup) throw new ApiError("A payment method with this name already exists", 409);
     }
 
-    const updated = await prisma.paymentMethodRef.update({
-      where: { id: method.id },
-      data: {
-        name: body.name ? String(body.name).trim() : undefined,
-        isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.paymentMethodRef.update({
+        where: { id: method.id },
+        data: {
+          name: body.name ? String(body.name).trim() : undefined,
+          isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "payment_method_refs", recordId: next.id, action: "UPDATE", campusId: next.campusId,
+        before: { isActive: method.isActive }, after: { isActive: next.isActive },
+      });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });
@@ -104,7 +119,13 @@ export async function DELETE(req: NextRequest) {
     });
     if (!method) throw new ApiError("Payment method not found", 404);
 
-    await prisma.paymentMethodRef.delete({ where: { id: method.id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.paymentMethodRef.delete({ where: { id: method.id } });
+      await writeAuditEvent(tx, user, {
+        table: "payment_method_refs", recordId: method.id, action: "DELETE", campusId: method.campusId,
+        before: { isActive: method.isActive },
+      });
+    });
     return Response.json({ success: true, message: "Payment method deleted" });
   } catch (error) {
     return errorResponse(error, "accounts/payment-methods DELETE failed");

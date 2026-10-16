@@ -19,6 +19,11 @@ export const RETENTION_CATEGORIES = {
 } as const;
 export type RetentionCategory = keyof typeof RETENTION_CATEGORIES;
 const categorySchema = z.enum(Object.keys(RETENTION_CATEGORIES) as [RetentionCategory, ...RetentionCategory[]]);
+// Holds may also preserve audit events (SKO-476), which leave only through their own retention.
+export const HOLD_CATEGORIES = ["AUDIT_LOG", ...Object.keys(RETENTION_CATEGORIES)] as [string, ...string[]];
+const holdCategorySchema = z.enum(HOLD_CATEGORIES);
+/** A hold counts until it is released or its expiry passes. */
+export const activeHoldWhere = (schoolId: string, category: string, now: Date) => ({ schoolId, category, releasedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] });
 const BACKUP_NOTE = "Deleted rows leave provider backups only when those backups expire under the provider retention window; backups are not edited.";
 const EXPORT_LINK_HOURS = 24;
 
@@ -60,7 +65,7 @@ async function preview(tx: TxClient, schoolId: string, category: RetentionCatego
   const cutoff = new Date(now.getTime() - schedule.retentionDays * 86_400_000);
   const [rows, holds] = await Promise.all([
     categoryRecords(tx, category, schoolId, cutoff),
-    tx.dataLegalHold.findMany({ where: { schoolId, category, releasedAt: null }, select: { recordId: true } }),
+    tx.dataLegalHold.findMany({ where: activeHoldWhere(schoolId, category, now), select: { recordId: true } }),
   ]);
   const categoryHeld = holds.some(hold => hold.recordId === null);
   const heldIds = new Set(holds.flatMap(hold => hold.recordId ? [hold.recordId] : []));
@@ -88,12 +93,15 @@ export async function setRetentionSchedule(user: AuthUser, raw: unknown) {
   });
 }
 
-export const holdInput = z.object({ category: categorySchema, recordId: z.string().min(1).max(128).optional(), reason: z.string().trim().min(5).max(500) }).strict();
+export const holdInput = z.object({ category: holdCategorySchema, recordId: z.string().min(1).max(128).optional(), reason: z.string().trim().min(5).max(500), expiresAt: z.string().datetime().optional() }).strict()
+  .refine(value => value.category !== "AUDIT_LOG" || !!value.expiresAt, { message: "An audit hold needs an expiry date.", path: ["expiresAt"] });
 export async function placeLegalHold(user: AuthUser, raw: unknown) {
   assertAdmin(user);
   const input = holdInput.parse(raw);
+  const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
+  if (expiresAt && expiresAt <= new Date()) throw new ApiError("Choose a future expiry for the hold.", 400);
   return schoolAiTransaction(user, async tx => {
-    const hold = await tx.dataLegalHold.create({ data: { schoolId: user.schoolId, category: input.category, recordId: input.recordId ?? null, reason: input.reason, placedBy: user.userId } });
+    const hold = await tx.dataLegalHold.create({ data: { schoolId: user.schoolId, category: input.category, recordId: input.recordId ?? null, reason: input.reason, placedBy: user.userId, expiresAt } });
     await audit(tx, user, "data_legal_holds", hold.id, { status: "ACTIVE" });
     return hold;
   });
@@ -235,14 +243,14 @@ export async function lifecycleOverview(user: AuthUser, env: Record<string, stri
     const visibleRequests = requests.map(({ downloadToken, ...request }) => ({ ...request, downloadToken: request.requestedBy === user.userId ? downloadToken : null }));
     // Guardians choose among their own verified children; staff enter a learner reference.
     const learners = user.role === "PARENT" ? await tx.student.findMany({ where: studentScope(user, "any"), select: { id: true, fullName: true }, orderBy: { fullName: "asc" }, take: 20 }) : [];
-    if (!admin) return { admin, inventory: null, schedules: [], holds: [], requests: visibleRequests, learners, categories: RETENTION_CATEGORIES, regions: DATA_REGIONS };
+    if (!admin) return { admin, inventory: null, schedules: [], holds: [], requests: visibleRequests, learners, categories: RETENTION_CATEGORIES, holdCategories: HOLD_CATEGORIES, regions: DATA_REGIONS };
     const [verifications, schedules, holds] = await Promise.all([
       tx.dataServiceVerification.findMany({ where: { expiresAt: { gt: now } } }),
       tx.dataRetentionSchedule.findMany({ where: { schoolId: user.schoolId }, orderBy: [{ category: "asc" }, { version: "desc" }] }),
-      tx.dataLegalHold.findMany({ where: { schoolId: user.schoolId, releasedAt: null }, orderBy: { placedAt: "desc" } }),
+      tx.dataLegalHold.findMany({ where: { schoolId: user.schoolId, releasedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] }, orderBy: { placedAt: "desc" } }),
     ]);
     const latest = Object.values(Object.fromEntries(schedules.reverse().map(row => [row.category, row])));
-    return { admin, inventory: buildProcessingInventory(env, verifications, now), schedules: latest, holds, requests: visibleRequests, learners, categories: RETENTION_CATEGORIES, regions: DATA_REGIONS };
+    return { admin, inventory: buildProcessingInventory(env, verifications, now), schedules: latest, holds, requests: visibleRequests, learners, categories: RETENTION_CATEGORIES, holdCategories: HOLD_CATEGORIES, regions: DATA_REGIONS };
   });
 }
 

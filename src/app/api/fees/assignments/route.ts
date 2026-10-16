@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeGroupAssignment: which fee group serves which class for an academic year.
@@ -47,9 +48,13 @@ export async function POST(req: NextRequest) {
     });
     if (existing) throw new ApiError("This class already has this group for the year", 409);
 
-    const assignment = await prisma.feeGroupAssignment.create({
-      data: { campusId, feeGroupId: body.feeGroupId, classId: body.classId, academicYear },
-      include: { feeGroup: { select: { id: true, name: true } }, class: { select: { id: true, name: true, section: true } } },
+    const assignment = await prisma.$transaction(async (tx) => {
+      const created = await tx.feeGroupAssignment.create({
+        data: { campusId, feeGroupId: body.feeGroupId, classId: body.classId, academicYear },
+        include: { feeGroup: { select: { id: true, name: true } }, class: { select: { id: true, name: true, section: true } } },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_group_assignments", recordId: created.id, action: "CREATE", campusId, after: { feeGroupId: created.feeGroupId, classId: created.classId, academicYear: created.academicYear } });
+      return created;
     });
     return Response.json({ success: true, data: assignment }, { status: 201 });
   } catch (error) {
@@ -68,7 +73,10 @@ export async function DELETE(req: NextRequest) {
     const existing = await prisma.feeGroupAssignment.findFirst({ where: { id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Assignment not found", 404);
 
-    await prisma.feeGroupAssignment.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.feeGroupAssignment.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_group_assignments", recordId: id, action: "DELETE", campusId: existing.campusId, before: { feeGroupId: existing.feeGroupId, classId: existing.classId, academicYear: existing.academicYear } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/assignments] DELETE failed");

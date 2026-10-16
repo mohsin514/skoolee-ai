@@ -226,6 +226,11 @@ function scopeCreateData(model: string, data: unknown, schoolId: string, context
     } else next.schoolId = schoolId;
   }
 
+  // Audit events carry the campus they were made in so campus-scoped history is
+  // complete. A writer that knows the affected record's campus sets it itself;
+  // school-level actors without a campus leave a school-wide (null) event.
+  if (model === "auditLog" && !update && next.campusId === undefined && context?.campusId) next.campusId = context.campusId;
+
   if (context) {
     const scope = campusWhere(model, context);
     if ("campusId" in scope && "campusId" in next && next.campusId !== scope.campusId) throw new AccessDenied("campus", "write", context);

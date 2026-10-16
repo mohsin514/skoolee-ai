@@ -58,7 +58,11 @@
     ".next-app3106/types/**/*.ts",
     ".next-app3106/dev/types/**/*.ts",
     ".next-app3213/types/**/*.ts",
-    ".next-app3213/dev/types/**/*.ts"
+    ".next-app3213/dev/types/**/*.ts",
+    ".next-app3310/types/**/*.ts",
+    ".next-app3310/dev/types/**/*.ts",
+    ".next-app3108/types/**/*.ts",
+    ".next-app3108/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

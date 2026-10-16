@@ -3,6 +3,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { z } from "zod";
+import { auditTablesFor } from "@/lib/audit-categories";
 
 /** Unknown legacy campus scope is visible only to the school-wide administrator. */
 export function auditHistoryScope(user: AuthUser, campusId?: string): Prisma.AuditLogWhereInput {
@@ -63,7 +64,7 @@ export async function listAuditHistory(user: AuthUser, raw: unknown, db: TxClien
     ...(input.from ? { gte: new Date(`${input.from}T00:00:00Z`) } : {}),
     ...(input.to ? { lt: new Date(Date.parse(`${input.to}T00:00:00Z`) + 86400000) } : {}),
   } } : {};
-  const where: Prisma.AuditLogWhereInput = { ...scope, ...dates, ...(input.tableName ? { tableName: input.tableName } : {}), OR: [{ retentionUntil: null }, { retentionUntil: { gt: now } }] };
+  const where: Prisma.AuditLogWhereInput = { ...scope, ...dates, ...(input.tableName ? { tableName: { in: auditTablesFor(input.tableName) } } : {}), OR: [{ retentionUntil: null }, { retentionUntil: { gt: now } }] };
   const anchor = input.cursor ? await db.auditLog.findFirst({ where: { AND: [where, { id: input.cursor }] }, select: { id: true, createdAt: true } }) : null;
   if (input.cursor && !anchor) throw new ApiError("This history page changed or expired. Refresh the history.", 409);
   const rows = await db.auditLog.findMany({ where: { AND: [where, ...(anchor ? [{ OR: [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lt: anchor.id } }] }] : [])] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: input.limit + 1 });
@@ -71,4 +72,48 @@ export async function listAuditHistory(user: AuthUser, raw: unknown, db: TxClien
   const actors = await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(page.map(row => row.userId))] } }, select: { id: true, fullName: true, role: true } });
   return { nextCursor: rows.length > input.limit ? page[page.length - 1].id : null, selectedCampusId: input.campusId ?? (user.role === "SUPER_ADMIN" ? null : user.campusId), schoolWide: user.role === "SUPER_ADMIN", campuses,
     data: page.map(row => ({ id: row.id, tableName: row.tableName, recordId: row.recordId, campusId: row.campusId, createdAt: row.createdAt.toISOString(), action: !row.oldValue ? "CREATE" : !row.newValue ? "DELETE" : "UPDATE", actor: actors.find(actor => actor.id === row.userId) ?? null, changes: minimizedAuditChanges(row.oldValue, row.newValue) })) };
+}
+
+// ─── Export ───────────────────────────────────────────────────────
+const EXPORT_LIMIT = 5000;
+export const auditExportQuery = z.object({
+  requestKey: z.string().uuid(),
+  tableName: z.string().regex(/^[a-z][a-z0-9_]{0,79}$/).optional(),
+  campusId: z.string().min(1).max(128).optional(),
+  from: day.optional(), to: day.optional(),
+}).strict().refine(value => !value.from || !value.to || value.from <= value.to, "The date range is invalid.");
+
+/** Spreadsheet apps execute cells starting with these characters. */
+function csvCell(value: string | null | undefined): string {
+  const text = value ?? "";
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+
+/**
+ * The same scope and minimization as the history list, as a dated CSV. The
+ * export is itself an audit event keyed by the client's retry key, so a lost
+ * response and a retry produce one receipt.
+ */
+export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExport: (user: AuthUser) => Promise<unknown>, db: TxClient = prisma, now = new Date()) {
+  const input = auditExportQuery.parse(raw);
+  const scope = auditHistoryScope(user, input.campusId);
+  await assertExport(user);
+  const rows: AuditHistoryEntry[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await listAuditHistory(user, { limit: 100, tableName: input.tableName, campusId: input.campusId, from: input.from, to: input.to, cursor }, db, now);
+    rows.push(...page.data);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor && rows.length < EXPORT_LIMIT);
+  const truncated = rows.length >= EXPORT_LIMIT && !!cursor;
+  const previous = await db.auditLog.findFirst({ where: { ...scope, tableName: "audit_log_exports", recordId: input.requestKey, userId: user.userId }, select: { id: true } });
+  if (!previous) {
+    await db.auditLog.create({ data: { schoolId: user.schoolId, campusId: scope.campusId as string | undefined ?? null, tableName: "audit_log_exports", recordId: input.requestKey, userId: user.userId,
+      newValue: { status: "COMPLETED", rows: rows.length, truncated, filters: { tableName: input.tableName ?? null, campusId: input.campusId ?? null, from: input.from ?? null, to: input.to ?? null } } } });
+  }
+  const header = ["time", "action", "category", "record", "campus", "actor", "actor_role", "changes"];
+  const lines = rows.slice(0, EXPORT_LIMIT).map(row => [row.createdAt, row.action, row.tableName, row.recordId, row.campusId, row.actor?.fullName, row.actor?.role,
+    row.changes.map(change => `${change.field}: ${change.before ?? "—"} → ${change.after ?? "—"}`).join("; ")].map(csvCell).join(","));
+  return { csv: [header.join(","), ...lines].join("\r\n") + "\r\n", rows: rows.length, truncated, filename: `activity-history-${now.toISOString().slice(0, 10)}.csv` };
 }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere,
   assertSharedModuleRead,
 } from "@/lib/api/scope";
@@ -38,8 +39,12 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.feeType.findUnique({ where: { campusId_code: { campusId, code } } });
     if (existing) throw new ApiError("A fee type with this code already exists", 409);
 
-    const type = await prisma.feeType.create({
-      data: { campusId, name, code, description: body.description ?? null },
+    const type = await prisma.$transaction(async (tx) => {
+      const created = await tx.feeType.create({
+        data: { campusId, name, code, description: body.description ?? null },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_types", recordId: created.id, action: "CREATE", campusId });
+      return created;
     });
     return Response.json({ success: true, data: type }, { status: 201 });
   } catch (error) {
@@ -68,13 +73,17 @@ export async function PATCH(req: NextRequest) {
     const dup = await prisma.feeType.findUnique({ where: { campusId_code: { campusId: existing.campusId, code } } });
     if (dup && dup.id !== body.id) throw new ApiError("A fee type with this code already exists", 409);
 
-    const type = await prisma.feeType.update({
-      where: { id: body.id },
-      data: {
-        name: body.name !== undefined ? String(body.name).trim() : undefined,
-        code,
-        description: body.description !== undefined ? body.description : undefined,
-      },
+    const type = await prisma.$transaction(async (tx) => {
+      const next = await tx.feeType.update({
+        where: { id: body.id },
+        data: {
+          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          code,
+          description: body.description !== undefined ? body.description : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_types", recordId: next.id, action: "UPDATE", campusId: existing.campusId, after: { renamed: next.name !== existing.name, recoded: next.code !== existing.code } });
+      return next;
     });
     return Response.json({ success: true, data: type });
   } catch (error) {
@@ -94,7 +103,10 @@ export async function DELETE(req: NextRequest) {
     const existing = await prisma.feeType.findFirst({ where: { id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Fee type not found", 404);
 
-    await prisma.feeType.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.feeType.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_types", recordId: id, action: "DELETE", campusId: existing.campusId });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/types] DELETE failed");

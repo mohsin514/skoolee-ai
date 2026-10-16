@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { getAuthUser } from "@/lib/auth";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
 
@@ -90,18 +91,22 @@ export async function POST(req: NextRequest) {
     });
 
     if (!finalExam) {
-      finalExam = await prisma.exam.create({
-        data: {
-          campusId: user.campusId,
-          classId,
-          title: `Final Grade - ${cls.name} ${cls.section || ""}`.trim(),
-          term: `Academic Year ${academicYear}`,
-          academicYear: Number(academicYear),
-          examType: "FINAL",
-          status: "PUBLISHED",
-          totalMarks: 100,
-          publishedAt: new Date(),
-        },
+      finalExam = await prisma.$transaction(async (tx) => {
+        const created = await tx.exam.create({
+          data: {
+            campusId: user.campusId!,
+            classId,
+            title: `Final Grade - ${cls.name} ${cls.section || ""}`.trim(),
+            term: `Academic Year ${academicYear}`,
+            academicYear: Number(academicYear),
+            examType: "FINAL",
+            status: "PUBLISHED",
+            totalMarks: 100,
+            publishedAt: new Date(),
+          },
+        });
+        await writeAuditEvent(tx, user, { table: "exams", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { status: created.status, examType: created.examType, academicYear: created.academicYear, totalMarks: created.totalMarks } });
+        return created;
       });
     }
 
@@ -125,7 +130,8 @@ export async function POST(req: NextRequest) {
     const totalMarks = subjects.reduce((s, sub) => s + sub.totalMarks, 0);
     const now = new Date();
 
-    const ops = grades.map((grade) => {
+    const examId = finalExam.id;
+    const writes = grades.map((grade) => {
       const shared = {
         totalMarks,
         obtainedMarks: grade.subjectBreakdown.reduce((s, sb) => s + sb.obtainedMarks, 0),
@@ -140,14 +146,20 @@ export async function POST(req: NextRequest) {
         deliveryStatus: "PENDING",
         generatedAt: now,
       };
-      const existingId = existingMap.get(grade.studentId);
-      if (existingId) {
-        return prisma.reportCard.update({ where: { id: existingId }, data: shared });
-      }
-      return prisma.reportCard.create({ data: { ...shared, campusId: user.campusId!, examId: finalExam!.id, studentId: grade.studentId } });
+      return { shared, studentId: grade.studentId, existingId: existingMap.get(grade.studentId) };
     });
 
-    await prisma.$transaction(ops);
+    await prisma.$transaction(async (tx) => {
+      for (const { shared, studentId, existingId } of writes) {
+        const card = existingId
+          ? await tx.reportCard.update({ where: { id: existingId }, data: shared })
+          : await tx.reportCard.create({ data: { ...shared, campusId: user.campusId!, examId, studentId } });
+        await writeAuditEvent(tx, user, {
+          table: "report_cards", recordId: card.id, action: existingId ? "UPDATE" : "CREATE", campusId: card.campusId,
+          after: { examId, studentId, status: card.status, totalMarks: card.totalMarks, obtainedMarks: card.obtainedMarks, percentage: card.percentage, grade: card.grade, rank: card.rank },
+        });
+      }
+    }, { timeout: 30000 });
 
     return NextResponse.json({ success: true, count: grades.length });
   } catch (error: any) {

@@ -11,6 +11,7 @@ import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 import { notify } from "@/lib/notifications/in-app";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { resolveAcademicModelVersionForTerm } from "@/lib/academic/model-service";
 import { assertPermission } from "@/lib/permissions";
 import {
@@ -243,6 +244,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await writeAuditEvent(prisma, user, {
+      table: "exams", recordId: exam.id, action: "CREATE", campusId: exam.campusId,
+      after: { status: exam.status, examType: exam.examType, academicYear: exam.academicYear, totalMarks: exam.totalMarks },
+    });
     return exam;
     }, true);
     if (result instanceof Response) return result;
@@ -319,8 +324,10 @@ export async function PATCH(req: NextRequest) {
 
     if (target === "PRINCIPAL_REVIEWED" || target === "PUBLISHED") {
       await assertPermission(user, "reports", "edit");
-      if (target === "PRINCIPAL_REVIEWED") await reviewExam(exam.id, user.userId);
-      else await publishExam(exam.id, user.userId);
+      const auditTransition = (tx: Parameters<typeof writeAuditEvent>[0], before: { status: string }, after: { status: string; versions?: number }) =>
+        writeAuditEvent(tx, user, { table: "exams", recordId: exam.id, action: target === "PRINCIPAL_REVIEWED" ? "APPROVE" : "UPDATE", campusId: exam.campusId, before, after: { status: after.status, ...(after.versions !== undefined ? { reportVersions: after.versions } : {}) } });
+      if (target === "PRINCIPAL_REVIEWED") await reviewExam(exam.id, user.userId, auditTransition);
+      else await publishExam(exam.id, user.userId, undefined, auditTransition);
       return Response.json({ success: true, exam: await prisma.exam.findUnique({ where: { id: exam.id } }) });
     }
     const updated = await withExamSchedulingWrite(user, exam.campusId, "edit", async tx => {
@@ -348,6 +355,7 @@ export async function PATCH(req: NextRequest) {
 
       const schedules = await tx.examSchedule.findMany({ where: { schoolId: user.schoolId, campusId: current.campusId, examId: current.id }, select: { id: true } });
       await validateStoredExamSchedules(tx, { schoolId: user.schoolId, campusId: current.campusId }, schedules.map(item => item.id));
+      await writeAuditEvent(tx, user, { table: "exams", recordId: current.id, action: "UPDATE", campusId: current.campusId, before: { status: current.status }, after: { status: updated.status } });
       return updated;
     }, true);
     return Response.json({ success: true, exam: updated });

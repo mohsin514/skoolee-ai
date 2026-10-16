@@ -3,6 +3,7 @@ import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
 import { studentScope } from "@/lib/auth/policy";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   assertModuleRead,
@@ -92,23 +93,27 @@ export async function POST(req: NextRequest) {
     if (!student) throw new ApiError("Student not found", 404);
     if (!matchesDocumentKey(fileKey, "student-docs", student.campusId, student.id)) throw new ApiError("Document upload does not match this record", 400);
 
-    const document = await prisma.studentDocument.create({
-      data: {
-        studentId: student.id,
-        kind: String(kind).toUpperCase(),
-        fileKey,
-        fileName,
-      },
-    });
+    const document = await prisma.$transaction(async (tx) => {
+      const created = await tx.studentDocument.create({
+        data: {
+          studentId: student.id,
+          kind: String(kind).toUpperCase(),
+          fileKey,
+          fileName,
+        },
+      });
 
-    await prisma.studentTimelineEvent.create({
-      data: {
-        studentId: student.id,
-        kind: "DOC_UPLOADED",
-        title: `Document uploaded: ${document.fileName}`,
-        detail: `Kind: ${document.kind}`,
-        actorId: user.userId,
-      },
+      await tx.studentTimelineEvent.create({
+        data: {
+          studentId: student.id,
+          kind: "DOC_UPLOADED",
+          title: `Document uploaded: ${created.fileName}`,
+          detail: `Kind: ${created.kind}`,
+          actorId: user.userId,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "student_documents", recordId: created.id, action: "CREATE", campusId: student.campusId, after: { studentId: student.id, kind: created.kind } });
+      return created;
     });
 
     return Response.json({ success: true, data: document }, { status: 201 });
@@ -131,17 +136,21 @@ export async function DELETE(req: NextRequest) {
     });
     if (!doc || !matchesDocumentKey(doc.fileKey, "student-docs", doc.student.campusId, doc.studentId)) throw new ApiError("Document not found", 404);
 
-    await prisma.studentDocument.delete({ where: { id: doc.id } });
-    await deleteFile(doc.fileKey).catch(() => {}); // best-effort S3 cleanup
-
-    await prisma.studentTimelineEvent.create({
-      data: {
-        studentId: doc.studentId,
-        kind: "NOTE",
-        title: `Document removed: ${doc.fileName}`,
-        actorId: user.userId,
-      },
+    // Row, timeline entry and audit event commit together; the object is
+    // removed only once the row is gone.
+    await prisma.$transaction(async (tx) => {
+      await tx.studentDocument.delete({ where: { id: doc.id } });
+      await tx.studentTimelineEvent.create({
+        data: {
+          studentId: doc.studentId,
+          kind: "NOTE",
+          title: `Document removed: ${doc.fileName}`,
+          actorId: user.userId,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "student_documents", recordId: doc.id, action: "DELETE", campusId: doc.student.campusId, before: { studentId: doc.studentId, kind: doc.kind } });
     });
+    await deleteFile(doc.fileKey).catch(() => {}); // best-effort S3 cleanup
 
     return Response.json({ success: true });
   } catch (error) {

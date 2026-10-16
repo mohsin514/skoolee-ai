@@ -1,6 +1,7 @@
 "use client";
 
 import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
+import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
@@ -827,7 +828,7 @@ const bottomItems: RoleNavItem[] = [];
         </ModalFrame>
       )}
       {showActivityLogModal ? (
-        <ActivityLogModal onClose={() => setShowActivityLogModal(false)} />
+        <AuditHistoryModal initialCampusId={selectedCampus?.id ?? ""} onClose={() => setShowActivityLogModal(false)} />
       ) : null}
       <ConfirmAction
         open={Boolean(confirmAction)}
@@ -1112,54 +1113,6 @@ function CampusInput({
   );
 }
 
-function ActivityLogModal({ onClose }: { onClose: () => void }) {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/audit-log?limit=50");
-        const result = await res.json();
-        if (res.ok) setLogs(result.data || []);
-      } catch {
-        setLogs([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  return (
-    <ModalFrame title="Activity Log" onClose={onClose} wide>
-      {loading ? (
-        <SkeletonList rows={5} label="Loading activity" />
-      ) : logs.length === 0 ? (
-        <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-sm font-semibold text-ink-muted">No activity recorded yet.</p>
-      ) : (
-        <div className="max-h-96 overflow-y-auto custom-scrollbar space-y-2">
-          {logs.map((log) => (
-            <div key={log.id} className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-black text-[#1f1a23]">
-                    {log.tableName.replace(/_/g, " ")} — {log.recordId?.slice(0, 8) || "N/A"}
-                  </p>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-normal text-ink-subtle">
-                    by {log.userId?.slice(0, 8) || "system"}
-                  </p>
-                </div>
-                <span className="shrink-0 text-[9px] font-bold text-ink-subtle">
-                  {new Date(log.createdAt).toLocaleString()}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </ModalFrame>
-  );
-}
 
 function SupportApprovalsPanel() {
   const t = useUiText();

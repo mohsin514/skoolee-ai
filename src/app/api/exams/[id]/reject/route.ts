@@ -5,6 +5,7 @@ import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { notify } from "@/lib/notifications/in-app";
+import { writeAuditEvent } from "@/lib/audit-events";
 
 /**
  * Send a locked exam's marks back to the teacher.
@@ -116,6 +117,11 @@ export async function POST(
           _count: { select: { marks: true, reportCards: true } },
         },
       });
+    await writeAuditEvent(prisma, user, {
+      table: "exams", recordId: id, action: "REJECT", campusId: exam.campusId,
+      before: { status: exam.status, rejectionCount: exam.rejectionCount },
+      after: { status: updated.status, isLocked: false, rejectionCount: updated.rejectionCount },
+    });
     return { exam, updated };
     });
     if (result instanceof Response) return result;

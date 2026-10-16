@@ -1,6 +1,7 @@
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
 
 export async function GET(req: NextRequest) {
@@ -41,8 +42,13 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.feeGroup.findFirst({ where: { campusId, name } });
     if (existing) throw new ApiError("A fee group with this name already exists", 409);
 
-    const group = await prisma.feeGroup.create({
-      data: { campusId, currency: (await getLocalePackage(user.schoolId, campusId)).currency, name, description: body.description ?? null },
+    const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
+    const group = await prisma.$transaction(async (tx) => {
+      const created = await tx.feeGroup.create({
+        data: { campusId, currency, name, description: body.description ?? null },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_groups", recordId: created.id, action: "CREATE", campusId, after: { currency } });
+      return created;
     });
     return Response.json({ success: true, data: group }, { status: 201 });
   } catch (error) {
@@ -61,12 +67,16 @@ export async function PATCH(req: NextRequest) {
     const existing = await prisma.feeGroup.findFirst({ where: { id: body.id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Fee group not found", 404);
 
-    const group = await prisma.feeGroup.update({
-      where: { id: body.id },
-      data: {
-        name: body.name !== undefined ? String(body.name).trim() : undefined,
-        description: body.description !== undefined ? body.description : undefined,
-      },
+    const group = await prisma.$transaction(async (tx) => {
+      const next = await tx.feeGroup.update({
+        where: { id: body.id },
+        data: {
+          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          description: body.description !== undefined ? body.description : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_groups", recordId: next.id, action: "UPDATE", campusId: existing.campusId, after: { renamed: body.name !== undefined && next.name !== existing.name } });
+      return next;
     });
     return Response.json({ success: true, data: group });
   } catch (error) {
@@ -85,7 +95,10 @@ export async function DELETE(req: NextRequest) {
     const existing = await prisma.feeGroup.findFirst({ where: { id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Fee group not found", 404);
 
-    await prisma.feeGroup.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.feeGroup.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_groups", recordId: id, action: "DELETE", campusId: existing.campusId, before: { currency: existing.currency } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/groups] DELETE failed");

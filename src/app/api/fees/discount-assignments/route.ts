@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeDiscountAssignment: attach/detach a discount to a specific student.
@@ -52,12 +53,16 @@ export async function POST(req: NextRequest) {
     });
     if (existing) throw new ApiError("Discount already assigned to this student", 409);
 
-    const assignment = await prisma.feeDiscountAssignment.create({
-      data: { discountId: body.discountId, studentId: body.studentId },
-      include: {
-        discount: { select: { id: true, name: true, type: true, value: true } },
-        student: { select: { id: true, fullName: true, rollNo: true } },
-      },
+    const assignment = await prisma.$transaction(async (tx) => {
+      const created = await tx.feeDiscountAssignment.create({
+        data: { discountId: body.discountId, studentId: body.studentId },
+        include: {
+          discount: { select: { id: true, name: true, type: true, value: true } },
+          student: { select: { id: true, fullName: true, rollNo: true } },
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_discount_assignments", recordId: created.id, action: "CREATE", campusId: discount.campusId, after: { discountId: created.discountId, studentId: created.studentId } });
+      return created;
     });
     return Response.json({ success: true, data: assignment }, { status: 201 });
   } catch (error) {
@@ -75,10 +80,14 @@ export async function DELETE(req: NextRequest) {
 
     const existing = await prisma.feeDiscountAssignment.findFirst({
       where: { id, discount: { campus: { schoolId: user.schoolId } } },
+      include: { discount: { select: { campusId: true } } },
     });
     if (!existing) throw new ApiError("Assignment not found", 404);
 
-    await prisma.feeDiscountAssignment.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.feeDiscountAssignment.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_discount_assignments", recordId: id, action: "DELETE", campusId: existing.discount.campusId, before: { discountId: existing.discountId, studentId: existing.studentId } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/discount-assignments] DELETE failed");

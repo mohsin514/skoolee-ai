@@ -16,7 +16,8 @@ type LifecycleRequest = {
 type Overview = {
   admin: boolean; inventory: Placement[] | null; requests: LifecycleRequest[];
   schedules: Array<{ category: string; retentionDays: number; version: number }>;
-  holds: Array<{ id: string; category: string; recordId: string | null; reason: string; placedAt: string }>;
+  holds: Array<{ id: string; category: string; recordId: string | null; reason: string; placedAt: string; expiresAt: string | null }>;
+  holdCategories: string[];
   learners: Array<{ id: string; fullName: string }>;
   categories: Record<string, { label: string; minimumDays: number }>; regions: Record<string, string>;
 };
@@ -45,7 +46,7 @@ export function DataLifecyclePanel({ userId }: { userId: string }) {
   const [busy, setBusy] = useState(false);
   const [days, setDays] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
-  const [hold, setHold] = useState({ category: "NOTIFICATIONS", recordId: "", reason: "" });
+  const [hold, setHold] = useState({ category: "NOTIFICATIONS", recordId: "", reason: "", expiresOn: "" });
   const [releaseReasons, setReleaseReasons] = useState<Record<string, string>>({});
   const [plan, setPlan] = useState({ targetRegion: "ap-south-1", reason: "" });
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -123,15 +124,16 @@ export function DataLifecyclePanel({ userId }: { userId: string }) {
           </div>
         </li>;
       })}</ul>
-      <form className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1.4fr_1.4fr_auto] lg:items-end" onSubmit={event => { event.preventDefault(); run(() => call("/api/data-lifecycle", { method: "POST", body: JSON.stringify({ action: "hold", category: hold.category, reason: hold.reason, ...(hold.recordId.trim() ? { recordId: hold.recordId.trim() } : {}) }) })); }}>
-        <label className="grid gap-1 text-sm font-semibold">{t.category}<Select value={hold.category} onChange={event => setHold({ ...hold, category: event.target.value })}>{Object.keys(data.categories).map(id => <option key={id} value={id}>{categoryLabel(id)}</option>)}</Select></label>
+      <form className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.2fr_1.2fr_auto] lg:items-end" onSubmit={event => { event.preventDefault(); run(() => call("/api/data-lifecycle", { method: "POST", body: JSON.stringify({ action: "hold", category: hold.category, reason: hold.reason, ...(hold.recordId.trim() ? { recordId: hold.recordId.trim() } : {}), ...(hold.expiresOn ? { expiresAt: new Date(`${hold.expiresOn}T23:59:59Z`).toISOString() } : {}) }) })); }}>
+        <label className="grid gap-1 text-sm font-semibold">{t.category}<Select value={hold.category} onChange={event => setHold({ ...hold, category: event.target.value })}>{(data.holdCategories ?? Object.keys(data.categories)).map(id => <option key={id} value={id}>{categoryLabel(id)}</option>)}</Select></label>
+        <label className="grid gap-1 text-sm font-semibold">{t.holdExpires}<Input type="date" required={hold.category === "AUDIT_LOG"} min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)} value={hold.expiresOn} onChange={event => setHold({ ...hold, expiresOn: event.target.value })} />{hold.category === "AUDIT_LOG" && <span className="text-xs font-normal text-slate-600">{t.holdExpiresHelp}</span>}</label>
         <label className="grid gap-1 text-sm font-semibold">{t.recordOptional}<Input dir="ltr" value={hold.recordId} onChange={event => setHold({ ...hold, recordId: event.target.value })} /></label>
         <label className="grid gap-1 text-sm font-semibold">{t.reason}<Input required minLength={5} value={hold.reason} onChange={event => setHold({ ...hold, reason: event.target.value })} /></label>
         <Button type="submit" disabled={busy}>{t.placeHold}</Button>
       </form>
       <h3 className="font-semibold">{t.holdsTitle}</h3>
       {data.holds.length === 0 ? <p className="text-sm text-slate-600">{t.noHolds}</p> : <ul className="space-y-2">{data.holds.map(item => <li key={item.id} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-        <p className="text-sm"><span className="font-semibold">{categoryLabel(item.category)}</span> · {item.recordId ? <bdi dir="ltr">{item.recordId}</bdi> : t.wholeCategory}<span className="block text-slate-600">{item.reason} · {date(item.placedAt)}</span></p>
+        <p className="text-sm"><span className="font-semibold">{categoryLabel(item.category)}</span> · {item.recordId ? <bdi dir="ltr">{item.recordId}</bdi> : t.wholeCategory}<span className="block text-slate-600">{item.reason} · {date(item.placedAt)}{item.expiresAt ? <> · {t.expires} {date(item.expiresAt)}</> : null}</span></p>
         <label className="grid gap-1 text-sm font-semibold">{t.releaseReason}<Input value={releaseReasons[item.id] ?? ""} onChange={event => setReleaseReasons({ ...releaseReasons, [item.id]: event.target.value })} /></label>
         <Button type="button" variant="outline" disabled={busy || (releaseReasons[item.id] ?? "").trim().length < 5} onClick={() => run(() => call("/api/data-lifecycle", { method: "POST", body: JSON.stringify({ action: "release", holdId: item.id, reason: releaseReasons[item.id] }) }))}>{t.release}</Button>
       </li>)}</ul>}

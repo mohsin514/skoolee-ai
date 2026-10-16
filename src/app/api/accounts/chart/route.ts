@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   assertModuleRead,
@@ -55,8 +56,15 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.chartOfAccount.findFirst({ where: { campusId, name } });
     if (existing) throw new ApiError("An account with this name already exists", 409);
 
-    const account = await prisma.chartOfAccount.create({
-      data: { campusId, name, type, isSystem: false },
+    const account = await prisma.$transaction(async (tx) => {
+      const created = await tx.chartOfAccount.create({
+        data: { campusId, name, type, isSystem: false },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "chart_of_accounts", recordId: created.id, action: "CREATE", campusId: created.campusId,
+        after: { type: created.type, isSystem: created.isSystem },
+      });
+      return created;
     });
 
     return Response.json({ success: true, data: account }, { status: 201 });
@@ -89,13 +97,21 @@ export async function PATCH(req: NextRequest) {
       if (dup) throw new ApiError("An account with this name already exists", 409);
     }
 
-    const updated = await prisma.chartOfAccount.update({
-      where: { id: account.id },
-      data: {
-        name: body.name ? String(body.name).trim() : undefined,
-        type: body.type ? type : undefined,
-        isSystem: typeof body.isSystem === "boolean" ? body.isSystem : undefined,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.chartOfAccount.update({
+        where: { id: account.id },
+        data: {
+          name: body.name ? String(body.name).trim() : undefined,
+          type: body.type ? type : undefined,
+          isSystem: typeof body.isSystem === "boolean" ? body.isSystem : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "chart_of_accounts", recordId: next.id, action: "UPDATE", campusId: next.campusId,
+        before: { type: account.type, isSystem: account.isSystem },
+        after: { type: next.type, isSystem: next.isSystem },
+      });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });
@@ -125,7 +141,13 @@ export async function DELETE(req: NextRequest) {
       // system accounts can be removed only when they have no entries
     }
 
-    await prisma.chartOfAccount.delete({ where: { id: account.id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.chartOfAccount.delete({ where: { id: account.id } });
+      await writeAuditEvent(tx, user, {
+        table: "chart_of_accounts", recordId: account.id, action: "DELETE", campusId: account.campusId,
+        before: { type: account.type, isSystem: account.isSystem },
+      });
+    });
     return Response.json({ success: true, message: "Account deleted" });
   } catch (error) {
     return errorResponse(error, "accounts/chart DELETE failed");

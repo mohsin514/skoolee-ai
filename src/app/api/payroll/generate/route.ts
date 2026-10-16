@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { computePayrollLine, proRateFactor, unpaidLeaveDeductionForMonth } from "@/lib/payroll";
 
@@ -36,13 +37,18 @@ export async function POST(req: NextRequest) {
       }
       const staff = await collectStaff(campusId, role);
       const lines = await buildLines(campusId, month, year, staff);
-      await prisma.$transaction([
-        prisma.payrollLine.deleteMany({ where: { payrollRunId: existing.id } }),
-        prisma.payrollLine.createMany({
+      await prisma.$transaction(async (tx) => {
+        await tx.payrollLine.deleteMany({ where: { payrollRunId: existing.id } });
+        await tx.payrollLine.createMany({
           data: lines.map((l) => ({ ...l, payrollRunId: existing.id })),
-        }),
-        prisma.payrollRun.update({ where: { id: existing.id }, data: { status: "DRAFT", generatedById: user.userId, generatedAt: new Date() } }),
-      ]);
+        });
+        await tx.payrollRun.update({ where: { id: existing.id }, data: { status: "DRAFT", generatedById: user.userId, generatedAt: new Date() } });
+        await writeAuditEvent(tx, user, {
+          table: "payroll_runs", recordId: existing.id, action: "UPDATE", campusId,
+          before: { status: existing.status, lines: existing.lines.length, totalNet: existing.lines.reduce((sum, l) => sum + l.net, 0) },
+          after: { status: "DRAFT", month, year, lines: lines.length, totalNet: lines.reduce((sum, l) => sum + l.net, 0), regenerated: true },
+        });
+      });
       const refreshed = await prisma.payrollRun.findUnique({
         where: { id: existing.id },
         include: { lines: { include: { user: { select: { id: true, fullName: true, role: true } } } } },
@@ -53,17 +59,21 @@ export async function POST(req: NextRequest) {
     const staff = await collectStaff(campusId, role);
     const lines = await buildLines(campusId, month, year, staff);
 
-    const run = await prisma.payrollRun.create({
-      data: {
-        campusId,
-        month,
-        year,
-        status: "DRAFT",
-        generatedById: user.userId,
-        generatedAt: new Date(),
-        lines: { create: lines },
-      },
-      include: { lines: { include: { user: { select: { id: true, fullName: true, role: true } } } } },
+    const run = await prisma.$transaction(async (tx) => {
+      const created = await tx.payrollRun.create({
+        data: {
+          campusId,
+          month,
+          year,
+          status: "DRAFT",
+          generatedById: user.userId,
+          generatedAt: new Date(),
+          lines: { create: lines },
+        },
+        include: { lines: { include: { user: { select: { id: true, fullName: true, role: true } } } } },
+      });
+      await writeAuditEvent(tx, user, { table: "payroll_runs", recordId: created.id, action: "CREATE", campusId, after: { status: created.status, month, year, lines: created.lines.length, totalNet: created.lines.reduce((sum, l) => sum + l.net, 0) } });
+      return created;
     });
 
     return Response.json({ success: true, data: run, regenerated: false });

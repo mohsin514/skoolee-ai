@@ -1,6 +1,7 @@
 import { campusScope } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 // Staff payroll / bank records (Module 8).
@@ -133,17 +134,29 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    const profile = await prisma.staffProfile.upsert({
-      where: { userId },
-      create: { userId, ...data },
-      update: data,
-    });
-
-    if (events.length > 0) {
-      await prisma.staffTimelineEvent.createMany({
-        data: events.map((e) => ({ ...e, userId, actorId: user.userId })),
+    const profile = await prisma.$transaction(async (tx) => {
+      const saved = await tx.staffProfile.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
       });
-    }
+
+      if (events.length > 0) {
+        await tx.staffTimelineEvent.createMany({
+          data: events.map((e) => ({ ...e, userId, actorId: user.userId })),
+        });
+      }
+      // Field names, contract type and salary only; bank details and labels stay out.
+      await writeAuditEvent(tx, user, {
+        table: "staff_profiles", recordId: saved.id, action: existing ? "UPDATE" : "CREATE",
+        ...(existing ? { before: { contractType: current.contractType, basicSalary: current.basicSalary } } : {}),
+        after: {
+          userId, fieldsChanged: Object.keys(data).sort().join(","), contractType: saved.contractType ?? null, basicSalary: saved.basicSalary,
+          bankDetailsChanged: ["bankAccountName", "bankAccountNumber", "bankName"].some((field) => inBody(field) && changed(current[field as keyof typeof current], data[field])),
+        },
+      });
+      return saved;
+    });
 
     return Response.json({ success: true, data: profile, events: events.length });
   } catch (error) {

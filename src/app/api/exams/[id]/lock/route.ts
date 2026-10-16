@@ -5,6 +5,7 @@ import { isCampusAdminRole } from "@/lib/roles";
 import { generateReportCardsForLockedExam } from "@/lib/academic/report-cards";
 import { resolveExamSchedulingCampus, withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { notify } from "@/lib/notifications/in-app";
+import { writeAuditEvent } from "@/lib/audit-events";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -27,6 +28,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       const locked = await tx.exam.update({ where: { id }, data: { isLocked: true, status: "LOCKED", lockedBy: user.userId, lockedAt: new Date(), rejectionReason: null, rejectedBy: null, rejectedAt: null }, include: { class: { select: { id: true, name: true, section: true, academicYear: true } }, locker: { select: { fullName: true } }, _count: { select: { marks: true, reportCards: true } } } });
       // A rejection cannot interleave between locking and report creation.
       const generated = await generateReportCardsForLockedExam(id, tx);
+      await writeAuditEvent(tx, user, { table: "exams", recordId: id, action: "LOCK", campusId, before: { status: exam.status, isLocked: exam.isLocked }, after: { status: locked.status, isLocked: true, reportCardsGenerated: generated.generated } });
       return { locked, generated: generated.generated };
     });
     notify("EXAM_LOCKED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, examTitle: locked.title, className: [locked.class.name, locked.class.section].filter(Boolean).join(" "), classId: locked.classId, reportCardsGenerated: generated });

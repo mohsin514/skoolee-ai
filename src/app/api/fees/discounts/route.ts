@@ -1,6 +1,7 @@
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeDiscount: named discount, PERCENT (value 0-100) or FLAT (paisa).
@@ -55,9 +56,13 @@ export async function POST(req: NextRequest) {
 
     const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
     if ((body.currency || "PKR") !== currency) throw new ApiError("Currency changed. Reload discount form.", 409);
-    const discount = await prisma.feeDiscount.create({
-      data: { campusId, currency, name, code, type, value, categoryId: body.categoryId ?? null },
-      include: { category: { select: { id: true, name: true } } },
+    const discount = await prisma.$transaction(async (tx) => {
+      const created = await tx.feeDiscount.create({
+        data: { campusId, currency, name, code, type, value, categoryId: body.categoryId ?? null },
+        include: { category: { select: { id: true, name: true } } },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: created.id, action: "CREATE", campusId, after: { type, value, currency, categoryId: created.categoryId } });
+      return created;
     });
     return Response.json({ success: true, data: discount }, { status: 201 });
   } catch (error) {
@@ -88,15 +93,19 @@ export async function PATCH(req: NextRequest) {
       if (!category) throw new ApiError("Category not found", 404);
     }
 
-    const discount = await prisma.feeDiscount.update({
-      where: { id: body.id },
-      data: {
-        name: body.name !== undefined ? String(body.name).trim() : undefined,
-        type,
-        value,
-        categoryId: body.categoryId !== undefined ? body.categoryId || null : undefined,
-      },
-      include: { category: { select: { id: true, name: true } } },
+    const discount = await prisma.$transaction(async (tx) => {
+      const next = await tx.feeDiscount.update({
+        where: { id: body.id },
+        data: {
+          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          type,
+          value,
+          categoryId: body.categoryId !== undefined ? body.categoryId || null : undefined,
+        },
+        include: { category: { select: { id: true, name: true } } },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: next.id, action: "UPDATE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, categoryId: existing.categoryId }, after: { type: next.type, value: next.value, categoryId: next.categoryId } });
+      return next;
     });
     return Response.json({ success: true, data: discount });
   } catch (error) {
@@ -115,7 +124,10 @@ export async function DELETE(req: NextRequest) {
     const existing = await prisma.feeDiscount.findFirst({ where: { id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Discount not found", 404);
 
-    await prisma.feeDiscount.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.feeDiscount.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: id, action: "DELETE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, currency: existing.currency, categoryId: existing.categoryId } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/discounts] DELETE failed");

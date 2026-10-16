@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertSharedModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createSafePayOrder } from "@/lib/payments/safepay";
 import { studentScope } from "@/lib/auth/policy";
@@ -39,15 +40,19 @@ export async function POST(req: NextRequest) {
     if (invoice.currency !== "PKR") throw new ApiError("This payment gateway supports PKR invoices only. Use a matching offline payment method.", 400);
 
     const orderRef = `SKLFEE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
-    const order = await prisma.onlinePaymentOrder.create({
-      data: {
-        campusId: invoice.student.campusId,
-        invoiceId: invoice.id,
-        studentId: invoice.studentId,
-        amount: invoice.balanceDue,
-        orderRef,
-        gateway: "SAFEPAY",
-      },
+    const order = await prisma.$transaction(async (tx) => {
+      const created = await tx.onlinePaymentOrder.create({
+        data: {
+          campusId: invoice.student.campusId,
+          invoiceId: invoice.id,
+          studentId: invoice.studentId,
+          amount: invoice.balanceDue,
+          orderRef,
+          gateway: "SAFEPAY",
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "online_payment_orders", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { invoiceId: created.invoiceId, studentId: created.studentId, amount: created.amount, gateway: created.gateway, status: created.status } });
+      return created;
     });
 
     const appBase = req.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -75,9 +80,12 @@ export async function POST(req: NextRequest) {
       );
 
       if (!result.success || !result.redirectUrl) {
-        await prisma.onlinePaymentOrder.update({
-          where: { id: order.id },
-          data: { status: "FAILED" },
+        await prisma.$transaction(async (tx) => {
+          await tx.onlinePaymentOrder.update({
+            where: { id: order.id },
+            data: { status: "FAILED" },
+          });
+          await writeAuditEvent(tx, user, { table: "online_payment_orders", recordId: order.id, action: "UPDATE", campusId: order.campusId, before: { status: order.status }, after: { status: "FAILED" } });
         });
         throw new ApiError(result.error || "SafePay order creation failed", 502);
       }

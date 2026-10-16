@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   requireAuthUser,
   assertPermission,
@@ -73,6 +74,10 @@ export async function PATCH(
         user.userId,
         data.reviewerNote,
         data.correctionReason,
+        (tx, approved) => writeAuditEvent(tx, user, {
+          table: "report_cards", recordId: id, action: "APPROVE", campusId: report.campusId,
+          after: { versionId: approved[0]?.id ?? data.versionId ?? null, versionNumber: approved[0]?.number ?? null },
+        }),
       );
     } else {
       if (data.requestCorrection && !reviewer)
@@ -127,6 +132,16 @@ export async function PATCH(
             where: { id: v.id },
             data: { reviewerNote: data.reviewerNote },
           });
+        // Only which parts changed and the resulting version; remark text stays out.
+        await writeAuditEvent(tx, user, {
+          table: "report_cards", recordId: id, action: data.requestCorrection ? "REJECT" : "UPDATE", campusId: report.campusId,
+          before: { remarksApproved: report.remarksApproved, reportLanguage: report.reportLanguage },
+          after: {
+            versionId: v.id, versionNumber: v.number, remarksEdited: editing, correctionRequested: Boolean(data.requestCorrection),
+            reviewerNoteSet: data.reviewerNote !== undefined && reviewer && !v.publishedAt,
+            ...(data.reportLanguage ? { reportLanguage: data.reportLanguage } : {}),
+          },
+        });
       });
     }
     return Response.json({

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { applyInstitutionPreset } from "@/lib/staff/hierarchy";
 import { INSTITUTION_PRESETS, isInstitutionType } from "@/lib/staff/hierarchy-presets";
@@ -90,18 +91,22 @@ export async function POST(req: NextRequest) {
     const input = DesignationInput.parse(body);
     await assertHeadIsUnique(user.schoolId, input.isInstitutionHead, null);
 
-    const created = await prisma.staffDesignation.create({
-      data: {
-        name: input.name,
-        shortName: input.shortName || null,
-        level: input.level,
-        track: input.track,
-        canHeadDepartment: input.canHeadDepartment,
-        isInstitutionHead: input.isInstitutionHead,
-        promotesToId: input.promotesToId || null,
-        minYearsInRank: input.minYearsInRank ?? null,
-        description: input.description || null,
-      },
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.staffDesignation.create({
+        data: {
+          name: input.name,
+          shortName: input.shortName || null,
+          level: input.level,
+          track: input.track,
+          canHeadDepartment: input.canHeadDepartment,
+          isInstitutionHead: input.isInstitutionHead,
+          promotesToId: input.promotesToId || null,
+          minYearsInRank: input.minYearsInRank ?? null,
+          description: input.description || null,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "staff_designations", recordId: row.id, action: "CREATE", after: { level: row.level, track: row.track, canHeadDepartment: row.canHeadDepartment, isInstitutionHead: row.isInstitutionHead, promotesToId: row.promotesToId, isActive: row.isActive } });
+      return row;
     });
 
     return Response.json({ success: true, designation: created }, { status: 201 });
@@ -119,40 +124,48 @@ export async function PATCH(req: NextRequest) {
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
-    const existing = await prisma.staffDesignation.findFirst({ where: { id }, select: { id: true } });
+    const existing = await prisma.staffDesignation.findFirst({ where: { id }, select: { id: true, level: true, track: true, canHeadDepartment: true, isInstitutionHead: true, promotesToId: true, isActive: true } });
     if (!existing) throw new ApiError("Designation not found", 404);
 
     const input = DesignationInput.partial().parse(body);
     if (input.promotesToId === id) throw new ApiError("A rank cannot promote into itself", 400);
     if (input.isInstitutionHead) await assertHeadIsUnique(user.schoolId, true, id);
 
-    const updated = await prisma.staffDesignation.update({
-      where: { id },
-      data: {
-        ...(input.name === undefined ? {} : { name: input.name }),
-        ...(input.shortName === undefined ? {} : { shortName: input.shortName || null }),
-        ...(input.level === undefined ? {} : { level: input.level }),
-        ...(input.track === undefined ? {} : { track: input.track }),
-        ...(input.canHeadDepartment === undefined ? {} : { canHeadDepartment: input.canHeadDepartment }),
-        ...(input.isInstitutionHead === undefined ? {} : { isInstitutionHead: input.isInstitutionHead }),
-        ...(input.promotesToId === undefined ? {} : { promotesToId: input.promotesToId || null }),
-        ...(input.minYearsInRank === undefined ? {} : { minYearsInRank: input.minYearsInRank ?? null }),
-        ...(input.description === undefined ? {} : { description: input.description || null }),
-        ...(body.isActive === undefined ? {} : { isActive: Boolean(body.isActive) }),
-      },
-    });
-
-    // The level is cached on every profile that holds this rank so the chart can
-    // sort without loading the ladder — re-levelling has to carry through.
-    if (input.level !== undefined || input.name !== undefined) {
-      await prisma.staffProfile.updateMany({
-        where: { designationId: id },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.staffDesignation.update({
+        where: { id },
         data: {
-          ...(input.level === undefined ? {} : { seniorityLevel: input.level }),
-          ...(input.name === undefined ? {} : { designation: input.name }),
+          ...(input.name === undefined ? {} : { name: input.name }),
+          ...(input.shortName === undefined ? {} : { shortName: input.shortName || null }),
+          ...(input.level === undefined ? {} : { level: input.level }),
+          ...(input.track === undefined ? {} : { track: input.track }),
+          ...(input.canHeadDepartment === undefined ? {} : { canHeadDepartment: input.canHeadDepartment }),
+          ...(input.isInstitutionHead === undefined ? {} : { isInstitutionHead: input.isInstitutionHead }),
+          ...(input.promotesToId === undefined ? {} : { promotesToId: input.promotesToId || null }),
+          ...(input.minYearsInRank === undefined ? {} : { minYearsInRank: input.minYearsInRank ?? null }),
+          ...(input.description === undefined ? {} : { description: input.description || null }),
+          ...(body.isActive === undefined ? {} : { isActive: Boolean(body.isActive) }),
         },
       });
-    }
+
+      // The level is cached on every profile that holds this rank so the chart can
+      // sort without loading the ladder — re-levelling has to carry through.
+      if (input.level !== undefined || input.name !== undefined) {
+        await tx.staffProfile.updateMany({
+          where: { designationId: id },
+          data: {
+            ...(input.level === undefined ? {} : { seniorityLevel: input.level }),
+            ...(input.name === undefined ? {} : { designation: input.name }),
+          },
+        });
+      }
+      await writeAuditEvent(tx, user, {
+        table: "staff_designations", recordId: id, action: "UPDATE",
+        before: { level: existing.level, track: existing.track, canHeadDepartment: existing.canHeadDepartment, isInstitutionHead: existing.isInstitutionHead, promotesToId: existing.promotesToId, isActive: existing.isActive },
+        after: { level: next.level, track: next.track, canHeadDepartment: next.canHeadDepartment, isInstitutionHead: next.isInstitutionHead, promotesToId: next.promotesToId, isActive: next.isActive, renamed: input.name !== undefined },
+      });
+      return next;
+    });
 
     return Response.json({ success: true, designation: updated });
   } catch (error) {
@@ -170,7 +183,7 @@ export async function DELETE(req: NextRequest) {
 
     const designation = await prisma.staffDesignation.findFirst({
       where: { id },
-      select: { id: true, name: true, _count: { select: { staffProfiles: true } } },
+      select: { id: true, name: true, level: true, isActive: true, _count: { select: { staffProfiles: true } } },
     });
     if (!designation) throw new ApiError("Designation not found", 404);
 
@@ -178,7 +191,10 @@ export async function DELETE(req: NextRequest) {
     // position and orphan their history. Retiring it keeps both intact and
     // simply stops it being offered for new appointments.
     if (designation._count.staffProfiles > 0) {
-      await prisma.staffDesignation.update({ where: { id }, data: { isActive: false } });
+      await prisma.$transaction(async (tx) => {
+        await tx.staffDesignation.update({ where: { id }, data: { isActive: false } });
+        await writeAuditEvent(tx, user, { table: "staff_designations", recordId: id, action: "ARCHIVE", before: { isActive: designation.isActive, holders: designation._count.staffProfiles }, after: { isActive: false } });
+      });
       return Response.json({
         success: true,
         retired: true,
@@ -186,7 +202,10 @@ export async function DELETE(req: NextRequest) {
       });
     }
 
-    await prisma.staffDesignation.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.staffDesignation.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "staff_designations", recordId: id, action: "DELETE", before: { level: designation.level, isActive: designation.isActive } });
+    });
     return Response.json({ success: true, retired: false });
   } catch (error) {
     return errorResponse(error, "[staff/designations] DELETE failed");

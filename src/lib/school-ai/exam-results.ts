@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { isDeepStrictEqual } from "node:util";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
@@ -51,6 +52,8 @@ export async function regradeExamAttempt(user: AuthUser, assignmentId: string, r
   const updated = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, campusId: assignment.campusId, status: "REVIEWED", reviewVersion: input.version }, data: { review: json(review), reviewVersion: version, reviewedById: user.userId, reviewedAt: new Date() } });
   if (updated.count !== 1) throw new ApiError("Another result revision was saved first. Reload before editing.", 409);
   await tx.schoolAiExamResultRevision.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, version, review: json(review), reason: input.reason, createdById: user.userId } });
+  const previousTotal = (attempt.review as { total?: unknown } | null)?.total;
+  await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: assignment.campusId, before: { reviewVersion: input.version, total: typeof previousTotal === "number" ? previousTotal : null }, after: { reviewVersion: version, total: review.total } });
   // A correction resolves only the upheld requests against the reviewed predecessor.
   await tx.schoolAiExamAppeal.updateMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, attemptId: attempt.id, resultVersion: input.version, status: { in: ["OPEN", "UPHELD"] } }, data: { status: "RESOLVED", resolution: input.reason, version: { increment: 1 }, resolvedAt: new Date(), resolvedById: user.userId } });
   return { attemptId: attempt.id, version, review };
@@ -71,6 +74,7 @@ export async function appealExamResult(user: AuthUser, assignmentId: string, raw
    return { id: existing.id, status: existing.status, version: existing.version };
   }
   const created = await tx.schoolAiExamAppeal.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, studentId: student.id, userId: user.userId, resultVersion: input.version, reason: input.reason } });
+  await writeAuditEvent(tx, user, { table: "school_ai_exam_appeals", recordId: created.id, action: "CREATE", campusId: assignment.campusId, after: { assignmentId, attemptId: attempt.id, resultVersion: input.version, status: created.status, version: created.version } });
   return { id: created.id, status: created.status, version: created.version };
  });
 }
@@ -86,6 +90,7 @@ export async function resolveExamAppeal(user: AuthUser, assignmentId: string, ra
   if (!attempt) throw new ApiError("The result has a newer revision. Read it before resolving this historical request.", 409);
   const updated = await tx.schoolAiExamAppeal.updateMany({ where: { id: appeal.id, schoolId: user.schoolId, version: input.version, status: "OPEN" }, data: { status: input.status, resolution: input.resolution, resolvedById: user.userId, resolvedAt: new Date(), version: { increment: 1 } } });
   if (updated.count !== 1) throw new ApiError("Another decision was saved first.", 409);
+  await writeAuditEvent(tx, user, { table: "school_ai_exam_appeals", recordId: appeal.id, action: input.status === "DISMISSED" ? "REJECT" : "APPROVE", campusId: assignment.campusId, before: { status: appeal.status, version: input.version }, after: { status: input.status, version: input.version + 1, attemptId: appeal.attemptId, resultVersion: appeal.resultVersion } });
   return { id: appeal.id, status: input.status, version: input.version + 1 };
  });
 }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { PERMISSION_MODULES, defaultFlagsForRole, isFixedPermissionRole } from "@/lib/permissions";
 import { USER_ROLES } from "@/lib/roles";
@@ -89,7 +90,13 @@ export async function PATCH(req: NextRequest) {
       if (flags.canView === false) next.canAdd = next.canEdit = next.canDelete = false;
       if (!next.canView && (next.canAdd || next.canEdit || next.canDelete)) throw new ApiError("Enable View before granting another action.", 400);
       const data = { canView: next.canView, canAdd: next.canAdd, canEdit: next.canEdit, canDelete: next.canDelete };
-      return tx.rolePermission.upsert({ where, create: { schoolId: user.schoolId, role, module: targetModule, ...data }, update: data });
+      const saved = await tx.rolePermission.upsert({ where, create: { schoolId: user.schoolId, role, module: targetModule, ...data }, update: data });
+      await writeAuditEvent(tx, user, {
+        table: "role_permissions", recordId: saved.id, action: existing ? "UPDATE" : "CREATE",
+        ...(existing ? { before: { role, module: targetModule, canView: existing.canView, canAdd: existing.canAdd, canEdit: existing.canEdit, canDelete: existing.canDelete } } : {}),
+        after: { role, module: targetModule, ...data },
+      });
+      return saved;
     });
     return Response.json({ success: true, data: updated }, { headers: privateHeaders });
   } catch (error) {
