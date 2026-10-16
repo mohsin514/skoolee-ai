@@ -15,7 +15,7 @@ import type { FinanceOperationProposal, FinanceOperationsPreview } from "../../s
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PG55438.");
 const db = new PrismaClient(), schoolIds: string[] = [];
-after(async () => { await db.paymentAllocation.deleteMany({ where: { schoolId: { in: schoolIds } } }); await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });
+after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });
 async function fixture() {
   const schoolId = `finance-ai-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), userId = randomUUID(), studentId = randomUUID(); schoolIds.push(schoolId);
   await db.school.create({ data: { id: schoolId, name: "Synthetic finance school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Test", status: "ACTIVE", correctionSeparateApprover: false } });
@@ -31,7 +31,7 @@ async function fixture() {
   return { schoolId, campusId, classId, studentId, invoice, account, bank, user };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
-async function school(run: (f: Fixture) => Promise<void>) { const f = await fixture(); try { await run(f); } finally { await db.paymentAllocation.deleteMany({ where: { schoolId: f.schoolId } }); await db.school.delete({ where: { id: f.schoolId } }); } }
+async function school(run: (f: Fixture) => Promise<void>) { const f = await fixture(); try { await run(f); } finally { await db.school.delete({ where: { id: f.schoolId } }); } }
 const base = { operation: "finance.apply_operation" as const, currency: "PKR" as const, reason: "Verified synthetic evidence" };
 const payment = (f: Fixture, amount = 10000): FinanceOperationProposal => ({ ...base, action: "PAYMENT", invoiceId: f.invoice.id, amount, date: "2026-10-13", method: "CASH", reference: randomUUID() });
 async function approved(f: Fixture, proposal: FinanceOperationProposal, reviewer = f.user) { const record = await createWorkspaceRecord(f.user, { kind: "WORKFLOW", campusId: f.campusId, title: proposal.action, idempotencyKey: randomUUID(), data: { goal: "Reviewed finance", steps: [{ id: "finance", title: "Review exact effects", status: "ready", module: "accounts" }], sourceIds: [], missingInformation: [], proposal } }); return updateWorkspaceRecord(reviewer, record.id, { action: "approve", version: record.version }); }

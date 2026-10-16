@@ -14,8 +14,12 @@ import { assertExamReservations } from "../../src/lib/academic/exam-bookings";
 import { writeObservedAttendance } from "../../src/lib/school-ai/school-operations-register-write";
 import { riskModules } from "../../src/lib/school-ai/school-operations-risk";
 import { inspectRiskEvidence } from "../../src/lib/school-ai/school-operations-risk-service";
+import { calendarDateIn } from "../../src/lib/datetime";
+import { getLocalePackage } from "../../src/lib/locale/store";
 import { writeAcademicCycle } from "../../src/lib/school-ai/school-operations-cycle-write";
 
+// Result-risk evidence is dated in the campus timezone, not UTC.
+const schoolToday = async (f: { user: AuthUser; schoolId: string; campusId: string }) => calendarDateIn((await schoolAiTransaction(f.user, tx => getLocalePackage(f.schoolId, f.campusId, new Date(), undefined, tx))).timezone);
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI PostgreSQL fixture.");
 const db = new PrismaClient(); after(async () => { await db.$disconnect(); await prisma.$disconnect(); });
@@ -154,7 +158,7 @@ test("lesson risk detects approved leave and clears only when dated available co
   const proposal = substitute(f, board.slots[0].id), record = await approved(f, proposal); await apply(f, record, await preview(f, record, proposal)); const after = await inspectRiskEvidence(f.user, scope); assert.equal(after.count, 0); assert.notEqual(before.evidenceHash, after.evidenceHash);
 }));
 test("current result risk reports factual unreleased exams and cannot resolve an empty year", () => school(async f => {
-  const cycle = await db.academicCycle.create({ data: { schoolId: f.schoolId, campusId: f.campusId, academicYear: 2026, label: "2026 results", status: "ACTIVE" } }), date = new Date().toISOString().slice(0, 10), scope = { campusId: f.campusId, indicator: "UNRELEASED_RESULTS" as const, scopeId: cycle.id, date };
+  const cycle = await db.academicCycle.create({ data: { schoolId: f.schoolId, campusId: f.campusId, academicYear: 2026, label: "2026 results", status: "ACTIVE" } }), date = await schoolToday(f), scope = { campusId: f.campusId, indicator: "UNRELEASED_RESULTS" as const, scopeId: cycle.id, date };
   const empty = await inspectRiskEvidence(f.user, scope); assert.equal(empty.total, 0);
   const proposal: SchoolOperationsProposal = { operation: "operations.record_risk_decision", indicator: scope.indicator, scopeId: scope.scopeId, date, evidenceHash: empty.evidenceHash, ownerId: f.actorId, dueDate: date, decision: "RESOLVE", note: "Checked whether the configured year contains released results." }, record = await approved(f, proposal); await assert.rejects(() => preview(f, record, proposal), { code: "SCHOOL_OPERATIONS_RISK_UNRESOLVED" });
   await db.exam.create({ data: { schoolId: f.schoolId, campusId: f.campusId, academicYear: 2026, title: "Final term results", status: "MARKS_ENTRY", examType: "FINAL", term: "TERM_1", classId: f.classId } });
@@ -162,7 +166,7 @@ test("current result risk reports factual unreleased exams and cannot resolve an
 }));
 test("editing a risk record to another indicator cannot expose the original receipt after old-domain revocation", () => school(async f => {
   await pupil(f); const evidence = await inspectRiskEvidence(f.user, { campusId: f.campusId, indicator: "ATTENDANCE_GAPS", scopeId: f.classId, date: "2026-10-05" }), proposal: SchoolOperationsProposal = { operation: "operations.record_risk_decision", indicator: "ATTENDANCE_GAPS", scopeId: f.classId, date: "2026-10-05", evidenceHash: evidence.evidenceHash, ownerId: f.actorId, dueDate: "2099-10-05", decision: "ACTION", note: "Review missing classroom register observations." }, record = await approved(f, proposal), p = await preview(f, record, proposal); await apply(f, record, p);
-  const cycle = await db.academicCycle.create({ data: { schoolId: f.schoolId, campusId: f.campusId, academicYear: 2026, label: "Risk test year", status: "ACTIVE" } }), date = new Date().toISOString().slice(0, 10), results = await inspectRiskEvidence(f.user, { campusId: f.campusId, indicator: "UNRELEASED_RESULTS", scopeId: cycle.id, date });
+  const cycle = await db.academicCycle.create({ data: { schoolId: f.schoolId, campusId: f.campusId, academicYear: 2026, label: "Risk test year", status: "ACTIVE" } }), date = await schoolToday(f), results = await inspectRiskEvidence(f.user, { campusId: f.campusId, indicator: "UNRELEASED_RESULTS", scopeId: cycle.id, date });
   await updateWorkspaceRecord(f.user, record.id, { version: record.version, action: "save", data: { ...record.data, proposal: { ...proposal, indicator: "UNRELEASED_RESULTS", scopeId: cycle.id, date, evidenceHash: results.evidenceHash } } });
   await db.rolePermission.create({ data: { schoolId: f.schoolId, role: "CAMPUS_ADMIN", module: "students", canView: false, canAdd: false, canEdit: false } });
   await assert.rejects(() => apply(f, record, p), { status: 403 }); assert.deepEqual(await listSchoolAiExecutions(f.user, record.id), []);

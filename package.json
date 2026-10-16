@@ -32,6 +32,7 @@
     "test:commercial": "node --import tsx --test tests/commercial/contract.test.ts",
     "test:commercial:db": "node --import tsx --test tests/commercial/contract.database.test.ts",
     "check:commercial": "tsx scripts/check-commercial-contract.ts",
+    "check:ai-release": "tsx scripts/check-ai-release.ts",
     "test:mfa": "node --import tsx --test tests/mfa/*.test.ts",
     "test:locale": "node --import tsx --test tests/locale/package.test.ts",
     "test:locale:db": "node --import tsx --test tests/locale/database.test.ts",

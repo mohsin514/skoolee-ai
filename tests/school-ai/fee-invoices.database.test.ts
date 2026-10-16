@@ -141,7 +141,7 @@ test("a prior-campus invoice survives transfer and excludes a new-campus monthly
   await db.academicCycle.create({ data: { schoolId: f.schoolId, campusId: movedCampus, label: "2026", academicYear: 2026, status: "ACTIVE" } });
   await db.studentEnrollment.updateMany({ where: { studentId: f.studentId }, data: { endDate: new Date("2026-10-15Z"), status: "TRANSFERRED" } });
   await db.studentEnrollment.create({ data: { schoolId: f.schoolId, studentId: f.studentId, campusId: movedCampus, classId: movedClass, campusName: "Destination campus", className: "Destination grade", curriculum: "Synthetic", academicYear: 2026, rollNo: "1", startDate: new Date("2026-10-15Z"), origin: "REVIEWED" } });
-  await db.student.update({ where: { id: f.studentId }, data: { campusId: movedCampus, classId: movedClass, categoryId: null } });
+  await db.$transaction(async tx => { await tx.$executeRaw`SELECT set_config('app.enrollment_reviewed', ${f.studentId}, true)`; await tx.student.update({ where: { id: f.studentId }, data: { campusId: movedCampus, classId: movedClass, categoryId: null } }); });
   await db.user.update({ where: { id: f.user.userId }, data: { campusId: movedCampus } });
   const group = await db.feeGroup.create({ data: { schoolId: f.schoolId, campusId: movedCampus, name: "New campus fees", currency: "PKR" } });
   const type = await db.feeType.create({ data: { schoolId: f.schoolId, campusId: movedCampus, name: "New tuition", code: "MONTHLY_TUITION" } });

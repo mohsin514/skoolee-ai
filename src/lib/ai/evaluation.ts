@@ -51,3 +51,46 @@ export function evaluateOutboundPayload(messages: Array<{ role: string; content:
     return { allowed: false, identifierCount: identifiers.length };
   }
 }
+
+// ─── Promotion gate ──────────────────────────────────────────────
+// A model or prompt version may be promoted only with a recorded evaluation
+// of this exact candidate against this exact dataset. Language and answer-key
+// cases need an educator's review; privacy cases are re-checked here against
+// the live egress scanner so a scanner regression also blocks promotion.
+
+export const AI_EVALUATION_DATASET_VERSION = "seed-2026-10-v1";
+const EDUCATOR_REVIEWED: ReadonlySet<AIEvaluationCase["category"]> = new Set(["arabic-quality", "urdu-quality", "answer-key"]);
+
+export interface AIPromotionCandidate { model: string; promptVersion: string; policyVersion: string }
+
+export interface AIReleaseEvaluation extends AIPromotionCandidate {
+  datasetVersion: string;
+  reviewedBy: string[];
+  reviewedAt: string;
+  results: Array<{ caseId: string; passed: boolean; educatorReviewed: boolean }>;
+}
+
+export function assessAIPromotion(
+  candidate: AIPromotionCandidate,
+  evaluation: AIReleaseEvaluation | null,
+  cases: readonly AIEvaluationCase[] = AI_EVALUATION_CASES,
+): { approved: boolean; blockers: string[] } {
+  const blockers: string[] = [];
+  for (const testCase of cases.filter(item => item.category === "privacy")) {
+    if (evaluateOutboundPayload([{ role: "user", content: testCase.input }]).allowed) blockers.push(`Egress scanner no longer blocks privacy case ${testCase.id}.`);
+  }
+  if (!evaluation) return { approved: false, blockers: [...blockers, "No recorded evaluation for this candidate."] };
+  for (const key of ["model", "promptVersion", "policyVersion"] as const) {
+    if (evaluation[key] !== candidate[key]) blockers.push(`Evaluation was recorded for ${key} "${evaluation[key]}", not "${candidate[key]}".`);
+  }
+  if (evaluation.datasetVersion !== AI_EVALUATION_DATASET_VERSION) blockers.push(`Evaluation used dataset ${evaluation.datasetVersion}, not ${AI_EVALUATION_DATASET_VERSION}.`);
+  if (!evaluation.reviewedBy.length || !Number.isFinite(Date.parse(evaluation.reviewedAt))) blockers.push("Evaluation has no named reviewer and review time.");
+  const results = new Map(evaluation.results.map(result => [result.caseId, result]));
+  for (const testCase of cases) {
+    const result = results.get(testCase.id);
+    if (!result) blockers.push(`Case ${testCase.id} has no result.`);
+    else if (!result.passed) blockers.push(`Case ${testCase.id} failed.`);
+    else if (EDUCATOR_REVIEWED.has(testCase.category) && !result.educatorReviewed) blockers.push(`Case ${testCase.id} needs educator review.`);
+  }
+  return { approved: blockers.length === 0, blockers };
+}

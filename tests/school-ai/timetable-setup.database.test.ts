@@ -316,7 +316,7 @@ test("timetable options reuse only active records in the authorized campus", asy
 });
 test("live weekend policies reject non-working days and invalidate previews when the calendar changes", async () => {
   const f = await fixture(), record = await approved(f), checked = await preview(f, record);
-  const policy = await db.localePolicy.create({ data: { schoolId, campusId: f.campusId, scopeKey: `campus:${f.campusId}`, status: "ACTIVE", effectiveAt: new Date(Date.now() - 1000), settings: { weekend: [2] }, createdBy: f.user.userId } });
+  const policy = await db.localePolicy.create({ data: { schoolId, campusId: f.campusId, scopeKey: f.campusId, status: "ACTIVE", effectiveAt: new Date(Date.now() - 1000), settings: { weekend: [2] }, createdBy: f.user.userId } });
   assert.deepEqual((await getTimetableSetupOptions(f.user, f.campusId)).weekendDays, [2]);
   await assert.rejects(() => apply(f, record, checked.previewHash), { code: "STALE_EXECUTION_PREVIEW" });
   await db.localePolicy.update({ where: { id: policy.id }, data: { settings: { weekend: [1] } } });

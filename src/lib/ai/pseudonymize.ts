@@ -145,12 +145,25 @@ const CNIC_RE = /\b\d{5}[\s-]?\d{7}[\s-]?\d\b/g;
 const INTERNATIONAL_PHONE_RE = /(?:\+\d{1,3}[\s().-]?(?:\d[\s().-]?){7,14}\d|\b00\d{1,3}[\s().-]?(?:\d[\s().-]?){7,14}\d)/g;
 const NATIONAL_PHONE_RE = /\b0\d{9,14}\b/g;
 const GENERIC_NATIONAL_ID_RE = /\b\d{10,18}\b/g;
+// Gulf local mobiles are usually written in 3-3-4 groups: 050 123 4567.
+const GROUPED_LOCAL_PHONE_RE = /\b0\d{2}[\s-]\d{3}[\s-]?\d{4}\b/g;
+// Emirates ID: 784-YYYY-NNNNNNN-N.
+const EMIRATES_ID_RE = /\b784[\s-]?\d{4}[\s-]?\d{7}[\s-]?\d\b/g;
+// IBAN (SA/AE/PK/KW and others), with or without 4-character grouping.
+const IBAN_RE = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?\b/g;
+
+// Arabic-Indic (٠-٩) and Extended Arabic-Indic/Urdu (۰-۹) digits are not
+// folded by NFKC, so identifiers written in them would bypass every pattern.
+function asciiDigits(text: string): string {
+  return text.replace(/[٠-٩۰-۹]/g, d => String((d.charCodeAt(0) & 0xf)));
+}
 
 /** Returns a de-duplicated list of PII-looking substrings found in `text`. */
 export function scanForPII(text: string): string[] {
   const hits = new Set<string>();
-  for (const re of [EMAIL_RE, INTERNATIONAL_PHONE_RE, NATIONAL_PHONE_RE, PK_PHONE_RE, CNIC_RE, GENERIC_NATIONAL_ID_RE]) {
-    for (const m of text.matchAll(re)) hits.add(m[0]);
+  const normalized = asciiDigits(text.normalize("NFKC"));
+  for (const re of [EMAIL_RE, INTERNATIONAL_PHONE_RE, NATIONAL_PHONE_RE, GROUPED_LOCAL_PHONE_RE, PK_PHONE_RE, CNIC_RE, EMIRATES_ID_RE, IBAN_RE, GENERIC_NATIONAL_ID_RE]) {
+    for (const m of normalized.matchAll(re)) hits.add(m[0]);
   }
   return [...hits];
 }
