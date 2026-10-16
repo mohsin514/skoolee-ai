@@ -1,6 +1,10 @@
 import { arabicNavigationUi, urduNavigationUi } from "./navigation-ui-messages";
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 export const arabicUi: Record<string, string> = {
+  "Uploading": "جارٍ الرفع",
+  "Logo uploaded": "تم رفع الشعار",
+  "Upload failed": "فشل الرفع",
+  "Could not prepare upload": "تعذر تجهيز الرفع",
   "Carry Forward": "الرصيد أو الائتمان السابق",
   "Edit fee item": "تعديل بند الرسوم",
   "Delete fee item": "حذف بند الرسوم",
@@ -366,6 +370,10 @@ export const arabicUi: Record<string, string> = {
 };
 
 export const urduUi: Record<string, string> = {
+  "Uploading": "اپ لوڈ ہو رہا ہے",
+  "Logo uploaded": "لوگو اپ لوڈ ہو گیا",
+  "Upload failed": "اپ لوڈ ناکام ہو گیا",
+  "Could not prepare upload": "اپ لوڈ کی تیاری نہیں ہو سکی",
   "Carry Forward": "سابقہ بقایا یا کریڈٹ",
   "Edit fee item": "فیس کی مد میں ترمیم",
   "Delete fee item": "فیس کی مد حذف کریں",
