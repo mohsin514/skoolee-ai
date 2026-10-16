@@ -4,7 +4,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, ApiError } from "@/lib/api/scope";
 import {
-  assertOnboardingOwner,
   checkoutAmount,
   createCheckoutIntent,
   onboardingCheckoutSchema,
@@ -12,6 +11,8 @@ import {
   periodPrice,
 } from "@/lib/billing/checkout-intents";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
+import { assertSetupPurchaser, setupTenantContext } from "@/lib/onboarding/setup-service";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { COMMERCIAL_CONTRACT, encodePlanContractMetadata } from "@/config/commercial-contract";
 import { COMMERCIAL_CATALOG_VERSION, type BillingPeriod } from "@/config/plans";
 import { getPaymentConfig } from "@/lib/payments/gateway";
@@ -25,7 +26,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    assertOnboardingOwner(user);
+    await runWithTenantContext(setupTenantContext(user), () => assertSetupPurchaser(user));
     const billing = await getBillingSnapshot(user.schoolId);
     const details = Object.fromEntries(
       Object.entries(billing.plans).map(([key, plan]) => [key, {
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
   let activeIntentId: string | null = null;
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    assertOnboardingOwner(user);
+    await runWithTenantContext(setupTenantContext(user), () => assertSetupPurchaser(user));
 
     const parsed = onboardingCheckoutSchema.safeParse(await req.json());
     if (!parsed.success) {

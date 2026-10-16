@@ -88,7 +88,7 @@ function CheckoutStatus() {
     ["FAILED", "CANCELLED"].includes(intent.status) ||
     (intent.provider !== "BANK_TRANSFER" && ["PENDING", "PENDING_SETTLEMENT"].includes(intent.status) && !intent.checkoutUrl)
   );
-  const resumeStep = intent?.returnStep || "campuses";
+  const resumeStep = intent?.returnStep || "package";
 
   const isRtl = language === "ar" || language === "ur";
   return (

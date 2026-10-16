@@ -2,101 +2,69 @@
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
-import { useFormDraft } from "@/lib/hooks/use-form-draft";
-import { FormErrorSummary } from "@/components/ui/form-field";
-import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
-
-import React, { useCallback, useEffect, useMemo, useState, useId } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
-  Building, GraduationCap, MapPin,
-  Plus, CheckCircle2,
-  ChevronRight, ChevronLeft, Loader2,
-  Shield, Hash,
-  Trash2, LucideIcon, LogOut, Phone, School, Users,
-  Globe, Mail, Upload, ImageIcon, CalendarDays, Tag, UserRound,
-  CalendarRange, Clock, Sparkles, AlertCircle, RefreshCw, Pencil,
+  Building, GraduationCap, MapPin, Plus, CheckCircle2, ChevronRight, ChevronLeft, Loader2,
+  Hash, Trash2, LucideIcon, LogOut, Phone, School, Users, Globe, Mail, Upload, ImageIcon,
+  CalendarDays, Tag, UserRound, CalendarRange, Clock, Sparkles, AlertCircle, RefreshCw, Pencil,
+  Package, Layers, ClipboardCheck, UserPlus, ShieldCheck, Lock,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import {
+  assignOnboardingDelegate,
   finishOnboarding,
   getOnboardingSession,
-  type OnboardingCampusInput,
+  revokeOnboardingDelegate,
+  saveOnboardingStep,
 } from '@/app/actions/completeOnboarding';
+import type { SetupView } from "@/lib/onboarding/setup-service";
+import {
+  campusesForCompletion,
+  reachableSteps,
+  resumeStep,
+  setupFlow,
+  splitByCapacity,
+  unresolvedOptionalWork,
+  validateCampusDraft,
+  validateStep,
+  type AdoptionMode,
+  type CampusDraft,
+  type InstitutionType,
+  type SchoolDraft,
+  type SetupDraft,
+  type SetupStepId,
+  type StepErrors,
+} from "@/lib/onboarding/setup-state";
 import { logout } from '@/app/actions/auth/logout';
 import { toast } from 'sonner';
-import { getPlanLimits } from '@/config/plans';
 import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from '@/config/boards';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dashboardPathForRole } from "@/lib/roles";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { resolveMediaUrl } from "@/lib/storage/s3";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
+import { fill, isRtlLanguage, onboardingCopy, type OnboardingCopy } from "./copy";
 
 // ─────────────────────────────────────────────────────────────────
-// The wizard is keyed by step *id*, not by number. A standalone school
-// skips the campus step, and the old numeric scheme meant every branch
-// had to remember that "step 3" was screen 2 for half the users.
+// The wizard renders the server's setup state (SKO-391). Every Continue
+// saves to the institution's setup record, so progress follows the owner
+// across sign-out, devices, checkout and an authorised handover. The step
+// list comes from the saved institution *type*, never from the role.
 // ─────────────────────────────────────────────────────────────────
-type StepId = 'identity' | 'campuses' | 'academic' | 'review';
 
-const STEP_META: Record<StepId, { title: string; desc: string }> = {
-  identity: { title: "School Details", desc: "Name, branding & contact" },
-  campuses: { title: "Add Campuses", desc: "Set up your branches" },
-  academic: { title: "Academic Setup", desc: "Session & working days" },
-  review: { title: "Review & Finish", desc: "Confirm and launch" },
+const STEP_ICONS: Record<SetupStepId, LucideIcon> = {
+  structure: Layers, identity: Building, package: Package, campuses: Users, academic: CalendarRange, review: ClipboardCheck,
 };
 
-interface InputFieldProps {
-  error?: string;
-  label: string;
-  value: string;
-  onChange: (val: string) => void;
-  placeholder: string;
-  icon: LucideIcon;
-  isArea?: boolean;
-  required?: boolean;
-  readonly?: boolean;
-  type?: string;
-  inputMode?: 'text' | 'numeric' | 'tel' | 'email' | 'url' | 'search' | 'none' | 'decimal';
-}
-
-interface SummaryItemProps {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-}
-
-interface CampusDraft extends OnboardingCampusInput {
-  id: string;
-  autoId: boolean;
-}
-
-
 /** ISO weekday numbering — 1 = Monday … 7 = Sunday, matching the Weekend model. */
-const WEEK_DAYS: { num: number; short: string; long: string }[] = [
-  { num: 1, short: "Mon", long: "Monday" },
-  { num: 2, short: "Tue", long: "Tuesday" },
-  { num: 3, short: "Wed", long: "Wednesday" },
-  { num: 4, short: "Thu", long: "Thursday" },
-  { num: 5, short: "Fri", long: "Friday" },
-  { num: 6, short: "Sat", long: "Saturday" },
-  { num: 7, short: "Sun", long: "Sunday" },
-];
+const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 7];
 
 const TIMEZONES = [
   { value: "Asia/Karachi", label: "Pakistan — Asia/Karachi (PKT)" },
@@ -114,144 +82,174 @@ const generateId = (prefix: string) =>
   `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
 /** "2026-27" from 2026 — the label a school actually writes on a report card. */
-const sessionLabelFor = (year: number) =>
-  `${year}-${String((year + 1) % 100).padStart(2, "0")}`;
+const sessionLabelFor = (year: number) => `${year}-${String((year + 1) % 100).padStart(2, "0")}`;
 
-const emptyCampus = (): Omit<CampusDraft, 'id'> => ({
-  name: '',
-  city: '',
-  address: '',
-  phone: '',
-  email: '',
-  website: '',
-  principalName: '',
-  regId: generateId('BR'),
-  autoId: true,
-  board: DEFAULT_EXAM_BOARD,
+type CampusForm = Omit<CampusDraft, "key">;
+const emptyCampus = (): CampusForm => ({
+  name: '', city: '', address: '', phone: '', email: '', website: '', principalName: '',
+  regId: generateId('BR'), autoId: true, board: DEFAULT_EXAM_BOARD,
 });
 
-export default function OnboardingWizard() {
-  const router = useRouter();
-  const [step, setStep] = useState<StepId>('identity');
-  const [loading, setLoading] = useState(false);
-  const [logoUploading, setLogoUploading] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [session, setSession] = useState<{ role?: string; email?: string; phone?: string | null; school?: { name?: string; city?: string; contactEmail?: string; phone?: string | null; regId?: string; plan?: string } } | null>(null);
+function weekdayName(day: number, language: string, style: "short" | "long") {
+  // 2024-01-01 is a Monday; ISO 1 = Monday.
+  const date = new Date(Date.UTC(2024, 0, day));
+  return new Intl.DateTimeFormat(language, { weekday: style, timeZone: "UTC" }).format(date);
+}
 
-  const isStandalone = session?.role === 'ADMIN';
-  const flow: StepId[] = useMemo(
-    () => (isStandalone ? ['identity', 'academic', 'review'] : ['identity', 'campuses', 'academic', 'review']),
-    [isStandalone],
-  );
+type LoadState = { kind: "loading" } | { kind: "ready" } | { kind: "noAccess" } | { kind: "error" };
+
+export default function OnboardingWizard() {
+  const [load, setLoad] = useState<LoadState>({ kind: "loading" });
+  const [view, setView] = useState<SetupView | null>(null);
+  const [draft, setDraft] = useState<SetupDraft | null>(null);
+  const [type, setType] = useState<InstitutionType>("STANDALONE");
+  const [mode, setMode] = useState<AdoptionMode | null>(null);
+  const [step, setStep] = useState<SetupStepId>("structure");
+  const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [errors, setErrors] = useState<StepErrors>({});
+  const [banner, setBanner] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ activated: number; drafts: number } | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [newCampus, setNewCampus] = useState<CampusForm>(emptyCampus);
+  const [campusErrors, setCampusErrors] = useState<StepErrors>({});
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [campusToDelete, setCampusToDelete] = useState<CampusDraft | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  const firstRender = useRef(true);
+
+  const language = view?.language || "en";
+  const t = onboardingCopy(language);
+  const rtl = isRtlLanguage(language);
+
+  const applyView = useCallback((next: SetupView, requested?: string | null) => {
+    setView(next);
+    const nextDraft = { ...next.draft, school: { ...next.draft.school } };
+    // The browser's zone is only an opening guess for a brand-new setup.
+    if (!nextDraft.school.timezone) {
+      const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      nextDraft.school.timezone = TIMEZONES.some((z) => z.value === detected) ? detected : "Asia/Karachi";
+    }
+    setDraft(nextDraft);
+    setType(next.institutionType);
+    setMode(next.adoptionMode);
+    setStep(resumeStep(next.flow, next.completedSteps, next.currentStep, requested));
+  }, []);
+
+  const reload = useCallback(async () => {
+    setLoad({ kind: "loading" });
+    try {
+      const res = await getOnboardingSession();
+      if ("view" in res) {
+        applyView(res.view, new URLSearchParams(window.location.search).get("step"));
+        setLoad({ kind: "ready" });
+      } else if ("redirect" in res) {
+        window.location.replace(dashboardPathForRole(res.role));
+      } else if ("signedOut" in res) {
+        window.location.replace("/login");
+      } else if ("noAccess" in res) {
+        setLoad({ kind: "noAccess" });
+      } else {
+        setLoad({ kind: "error" });
+      }
+    } catch {
+      setLoad({ kind: "error" });
+    }
+  }, [applyView]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  const flow = useMemo(() => setupFlow(type), [type]);
+  const completed = view?.completedSteps ?? [];
+  const reachable = useMemo(() => reachableSteps(flow, completed), [flow, completed]);
   const stepIndex = Math.max(0, flow.indexOf(step));
   const progress = ((stepIndex + 1) / flow.length) * 100;
 
-  const thisYear = new Date().getFullYear();
+  // Local edits not yet acknowledged by the server.
+  const dirty = Boolean(view && draft) && JSON.stringify({ draft, type, mode }) !== JSON.stringify({ draft: view!.draft, type: view!.institutionType, mode: view!.adoptionMode });
+  useUnsavedGuard(dirty && !success);
 
-  const [schoolData, setSchoolData] = useState({
-    name: '',
-    city: '',
-    address: '',
-    email: '',
-    phone: '',
-    website: '',
-    logoUrl: '',
-    establishedYear: '',
-    tagline: '',
-    regId: '',
-    autoId: true,
-    // ── Academic setup ──────────────────────────────────────────
-    // Not cosmetic: without an ACTIVE cycle the app falls back to the
-    // calendar year and files marks under a year nobody is looking at,
-    // and without weekend rows exam scheduling books papers on a Sunday.
-    timezone: 'Asia/Karachi',
-    academicYear: String(thisYear),
-    sessionLabel: sessionLabelFor(thisYear),
-    sessionStart: '',
-    sessionEnd: '',
-    /** Days the campus is CLOSED. Sunday off is the common default here. */
-    weekends: [7] as number[],
-  });
-
-  const [baseline, setBaseline] = useState(schoolData);
-  const [campuses, setCampuses] = useState<CampusDraft[]>([]);
-  const [newCampus, setNewCampus] = useState<Omit<CampusDraft, 'id'>>(emptyCampus);
-
-  const [baselineCampus] = useState(newCampus);
-
-  const [editingCampusId, setEditingCampusId] = useState<string | null>(null);
-  const [campusToDelete, setCampusToDelete] = useState<CampusDraft | null>(null);
-
-  const recovery = useFormDraft({ record: "onboarding:school", schema: 1,
-    values: { ...schoolData, campuses, newCampus }, baseline: { ...baseline, campuses: [] as CampusDraft[], newCampus: baselineCampus },
-    fields: ["name", "city", "address", "phone", "website", "establishedYear", "tagline", "regId", "autoId", "timezone", "academicYear", "sessionLabel", "sessionStart", "sessionEnd", "weekends", "campuses", "newCampus"],
-    structures: { campuses: ["id", "name", "city", "address", "phone", "email", "website", "principalName", "regId", "autoId", "board"], newCampus: ["name", "city", "address", "phone", "email", "website", "principalName", "regId", "autoId", "board"] },
-    enabled: !!session, section: step, apply: ({ campuses: savedCampuses, newCampus: savedCampus, ...next }, savedStep) => {
-      setSchoolData(next); setCampuses(savedCampuses); setNewCampus(savedCampus);
-      if (savedStep && flow.includes(savedStep as StepId)) setStep(savedStep as StepId);
-    },
-  });
+  // Move focus to the new step's heading so screen readers announce it.
   useEffect(() => {
-    if (!session) return;
-    const requestedStep = new URLSearchParams(window.location.search).get("step");
-    if (requestedStep && flow.includes(requestedStep as StepId)) setStep(requestedStep as StepId);
-  }, [session, flow]);
+    if (firstRender.current) { firstRender.current = false; return; }
+    headingRef.current?.focus();
+  }, [step]);
 
-  useEffect(() => {
-    const loadSession = async () => {
-      const res = await getOnboardingSession();
+  const hasErrors = Object.keys(errors).length > 0;
+  useEffect(() => { if (hasErrors) summaryRef.current?.focus(); }, [hasErrors, errors]);
 
-      if (res && 'user' in res && res.user) {
-        const user = res.user;
-        setSession(user);
-        const initial = {
-          ...schoolData,
+  const setSchool = (patch: Partial<SchoolDraft>) => setDraft((prev) => prev ? { ...prev, school: { ...prev.school, ...patch } } : prev);
 
-          name: user?.school?.name || '',
-          city: user?.school?.city || '',
-          email: user?.school?.contactEmail || user?.email || '',
-          // Captured at signup — carry it forward rather than making the owner
-          // type their number a second time.
-          phone: user?.school?.phone || user?.phone || '',
-          regId: user?.school?.regId || generateId('SKL'),
-          // Trust the browser's zone as the opening guess, but only when it is
-          // one we actually offer — otherwise leave the Pakistan default.
-          timezone: (() => {
-            const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            return TIMEZONES.some((t) => t.value === detected) ? detected : schoolData.timezone;
-          })(),
-        };
-        setSchoolData(initial);
-        setBaseline(initial);
+  /** Saves to the institution's setup record. Returns the acknowledged state or null. */
+  const persist = async (opts: { step: SetupStepId; complete: boolean; nextStep?: SetupStepId; draft?: SetupDraft; type?: InstitutionType; mode?: AdoptionMode | null }) => {
+    if (!view || !draft) return null;
+    setSaving(true);
+    setBanner(null);
+    try {
+      const res = await saveOnboardingStep({
+        expectedVersion: view.version,
+        step: opts.step,
+        complete: opts.complete,
+        nextStep: opts.nextStep,
+        institutionType: opts.type ?? type,
+        adoptionMode: opts.mode === undefined ? mode : opts.mode,
+        draft: opts.draft ?? draft,
+      });
+      if (res.ok) {
+        applyView(res.view, opts.nextStep ?? opts.step);
+        setErrors({});
+        return res.view;
       }
-    };
-
-    loadSession();
-  }, []);
-
-  // When navigating back to identity step in standalone mode, restore campus settings
-  useEffect(() => {
-    if (isStandalone && step === 'identity' && campuses.length > 0) {
-      const existingCampus = campuses[0];
-      setNewCampus(prev => ({
-        ...prev,
-        regId: existingCampus.regId,
-        autoId: existingCampus.autoId,
-      }));
+      if (res.errors) setErrors(res.errors);
+      if (res.view) { applyView(res.view); setBanner(t.conflict); }
+      else setBanner(res.denied ? t.denied : res.message);
+      return null;
+    } catch {
+      setBanner(t.loadFailed);
+      return null;
+    } finally {
+      setSaving(false);
     }
-  }, [step, isStandalone, campuses]);
+  };
+
+  const continueFrom = async (current: SetupStepId) => {
+    if (!draft) return;
+    const local = validateStep(current, { institutionType: type, adoptionMode: mode, draft });
+    if (Object.keys(local).length) { setErrors(local); return; }
+    const next = flow[flow.indexOf(current) + 1];
+    await persist({ step: current, complete: true, nextStep: next });
+  };
+
+  const goTo = async (target: SetupStepId) => {
+    if (!reachable.includes(target) || target === step) return;
+    setErrors({});
+    if (dirty) await persist({ step, complete: false, nextStep: target });
+    else setStep(target);
+  };
+
+  const goBack = () => { if (stepIndex > 0) void goTo(flow[stepIndex - 1]); };
+
+  const handleLogout = async () => {
+    clearDeviceDrafts();
+    await logout();
+    // A full-document navigation discards the client router cache, so Back
+    // cannot repaint this half-finished setup after sign-out.
+    window.location.href = '/login';
+  };
+
+  const saveAndExit = async () => {
+    if (dirty) {
+      const saved = await persist({ step, complete: false });
+      if (!saved) return;
+    }
+    await handleLogout();
+  };
 
   const handleLogoFile = async (file?: File) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file");
-      return;
-    }
-    if (file.size > 1_500_000) {
-      toast.error("Use a logo image under 1.5 MB");
-      return;
-    }
-
+    if (!file.type.startsWith("image/")) { toast.error(t.logoType); return; }
+    if (file.size > 1_500_000) { toast.error(t.logoSize); return; }
     setLogoUploading(true);
     try {
       const presignRes = await fetch("/api/uploads/presign", {
@@ -260,16 +258,12 @@ export default function OnboardingWizard() {
         body: JSON.stringify({ kind: "school-logo", fileName: file.name, contentType: file.type, sizeBytes: file.size }),
       });
       const presignData = await presignRes.json();
-      if (!presignRes.ok || !presignData?.data?.key || !presignData?.data?.uploadUrl) {
-        throw new Error(presignData?.error || "Could not prepare upload");
-      }
+      if (!presignRes.ok || !presignData?.data?.key || !presignData?.data?.uploadUrl) throw new Error(presignData?.error || "Could not prepare upload");
       const { key, uploadUrl } = presignData.data;
-
       const putRes = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
       if (!putRes.ok) throw new Error("Upload failed");
-
-      setSchoolData((prev) => ({ ...prev, logoUrl: key }));
-      toast.success("Logo uploaded");
+      setSchool({ logoUrl: key });
+      toast.success(t.logoUploaded);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {
@@ -277,1049 +271,835 @@ export default function OnboardingWizard() {
     }
   };
 
-  const handleSchoolIdToggle = (auto: boolean) => {
-    setSchoolData(prev => ({
-      ...prev,
-      autoId: auto,
-      regId: auto ? generateId('SKL') : prev.regId
-    }));
-  };
-
-  const handleCampusIdToggle = (auto: boolean) => {
-    setNewCampus(prev => ({
-      ...prev,
-      autoId: auto,
-      regId: auto ? generateId('BR') : (prev.autoId ? '' : prev.regId)
-    }));
-  };
-
-  /** Toggle a day between working and closed, refusing to close the whole week. */
-  const toggleWorkingDay = useCallback((day: number) => {
-    setSchoolData((prev) => {
-      const closed = prev.weekends.includes(day);
-      const next = closed
-        ? prev.weekends.filter((d) => d !== day)
-        : [...prev.weekends, day].sort((a, b) => a - b);
-      if (next.length >= 7) {
-        toast.error("A campus needs at least one working day.");
-        return prev;
-      }
-      return { ...prev, weekends: next };
-    });
-  }, []);
-
-  const setAcademicYear = (raw: string) => {
-    const year = raw.replace(/[^\d]/g, '').slice(0, 4);
-    setSchoolData((prev) => {
-      const numeric = Number(year);
-      // Keep the label in step with the year while it still looks auto-derived,
-      // so a hand-typed label like "Session A" is never overwritten.
-      const labelWasDerived = prev.sessionLabel === sessionLabelFor(Number(prev.academicYear));
-      return {
-        ...prev,
-        academicYear: year,
-        sessionLabel: labelWasDerived && numeric >= 2000 ? sessionLabelFor(numeric) : prev.sessionLabel,
-      };
-    });
-  };
-
-  const addCampus = () => {
-    if (!newCampus.name || !newCampus.city || !newCampus.regId) {
-      toast.error("Please fill in Campus Name, City, and Campus ID.");
-      return;
-    }
-
-    // Validate email format if provided
-    if (newCampus.email && newCampus.email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(newCampus.email.trim())) {
-        toast.error("Please enter a valid email address.");
-        return;
-      }
-    }
-
-    // Validate phone number format if provided
-    if (newCampus.phone && newCampus.phone.trim()) {
-      // Remove all non-digit characters to count actual digits
-      const digits = newCampus.phone.replace(/\D/g, '');
-      if (digits.length < 7) {
-        toast.error("Phone number is too short to be valid.");
-        return;
-      }
-      if (digits.length > 15) {
-        toast.error("Phone number is too long to be valid.");
-        return;
-      }
-    }
-
-    // Check for duplicate Campus ID (exclude the campus being edited)
-    if (campuses.some((c) => c.regId.toUpperCase() === newCampus.regId.toUpperCase() && c.id !== editingCampusId)) {
-      toast.error("That Campus ID is already used by another campus.");
-      return;
-    }
-
-    if (editingCampusId) {
-      // Update existing campus
-      setCampuses(campuses.map(c => c.id === editingCampusId ? { ...newCampus, id: editingCampusId } : c));
-      setEditingCampusId(null);
-      setNewCampus(emptyCampus());
-      toast.success(`${newCampus.name} updated.`);
-    } else {
-      // Add new campus
-      setCampuses([...campuses, { ...newCampus, id: Date.now().toString() }]);
-      setNewCampus(emptyCampus());
-      if (campusLimit >= 0 && campuses.length + 1 > campusLimit) {
-        toast.warning(`${newCampus.name} saved as a draft. Your current package covers ${campusLimit} campus${campusLimit === 1 ? '' : 'es'}; compare packages before launching.`);
-      } else {
-        toast.success(`${newCampus.name} added.`);
-      }
-    }
-  };
-
-  const editCampus = (campus: CampusDraft) => {
-    setNewCampus({
-      name: campus.name,
-      city: campus.city,
-      address: campus.address,
-      phone: campus.phone,
-      email: campus.email,
-      website: campus.website,
-      principalName: campus.principalName,
-      regId: campus.regId,
-      autoId: campus.autoId,
-      board: campus.board,
-    });
-    setEditingCampusId(campus.id);
-    // Scroll to the form
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const cancelEdit = () => {
-    setEditingCampusId(null);
+  // ── Campus drafts (group only). Each change is saved at once so a draft is never lost. ──
+  const saveCampus = async () => {
+    if (!draft) return;
+    const key = editingKey ?? (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : generateId("campus"));
+    const candidate: CampusDraft = { ...newCampus, key };
+    const problems = validateCampusDraft(candidate, draft.campuses);
+    setCampusErrors(problems);
+    if (Object.keys(problems).length) return;
+    const campuses = editingKey ? draft.campuses.map((c) => (c.key === editingKey ? candidate : c)) : [...draft.campuses, candidate];
+    const nextDraft = { ...draft, campuses };
+    const saved = await persist({ step: "campuses", complete: false, draft: nextDraft });
+    if (!saved) return;
+    const index = campuses.findIndex((c) => c.key === key);
+    const overLimitNow = saved.plan.maxCampuses >= 0 && index + 1 > saved.plan.maxCampuses;
+    if (overLimitNow && !editingKey) toast.warning(fill(t.draftCampusNote, candidate.name));
+    else toast.success(fill(t.campusSaved, candidate.name));
+    setEditingKey(null);
     setNewCampus(emptyCampus());
   };
 
-  const confirmDeleteCampus = () => {
-    if (campusToDelete) {
-      setCampuses(campuses.filter(x => x.id !== campusToDelete.id));
-      toast.success(`${campusToDelete.name} deleted.`);
-      setCampusToDelete(null);
+  const editCampus = (campus: CampusDraft) => {
+    const { key, ...rest } = campus;
+    setNewCampus(rest);
+    setEditingKey(key);
+    setCampusErrors({});
+    document.getElementById("field-campusName")?.focus();
+  };
+
+  const confirmDeleteCampus = async () => {
+    if (!draft || !campusToDelete) return;
+    const removed = campusToDelete;
+    setCampusToDelete(null);
+    const saved = await persist({ step: "campuses", complete: false, draft: { ...draft, campuses: draft.campuses.filter((c) => c.key !== removed.key) } });
+    if (saved) toast.success(fill(t.campusDeleted, removed.name));
+  };
+
+  const handleActivate = async () => {
+    if (!view) return;
+    let version = view.version;
+    if (dirty) {
+      const saved = await persist({ step: "review", complete: false });
+      if (!saved) return;
+      version = saved.version;
     }
-  };
-
-  const handleLogout = async () => {
-    clearDeviceDrafts();
-    await logout();
-
-    // A full-document navigation, not router.push. The App Router keeps a
-    // client-side cache of rendered segments, and a soft navigation leaves it
-    // intact — so Back could paint this half-finished onboarding flow, with the
-    // school details already typed into it, after the user had signed out.
-    // Replacing the document discards that cache along with all component
-    // state. This is what every other sign-out control in the app does; this
-    // was the one that did not.
-    window.location.href = '/login';
-  };
-
-  const goTo = (target: StepId) => {
-    if (flow.indexOf(target) <= stepIndex) setStep(target);
-  };
-
-  const goBack = () => {
-    if (stepIndex > 0) setStep(flow[stepIndex - 1]);
-  };
-
-  const handleProceedFromIdentity = () => {
-    setFormErrors({});
-    if (!schoolData.name.trim() || !schoolData.city.trim()) {
-      setFormErrors({ ...(!schoolData.name.trim() ? { name: "School name is required." } : {}), ...(!schoolData.city.trim() ? { city: "City is required." } : {}) });
-      toast.error("School name and city are required.");
-      return;
-    }
-
-    if (isStandalone) {
-      // Validate Campus ID is provided
-      const campusRegId = campuses.length > 0 ? campuses[0].regId : (newCampus.regId || schoolData.regId);
-      const campusAutoId = campuses.length > 0 ? campuses[0].autoId : (newCampus.autoId);
-
-      if (!campusRegId) {
-        toast.error("Campus ID is required.");
+    setActivating(true);
+    setBanner(null);
+    try {
+      const res = await finishOnboarding(version);
+      if (res.success) {
+        setSuccess({ activated: res.activated, drafts: res.drafts });
+        const target = mode === "EXAM_STUDIO" ? "/ai?setup=1" : dashboardPathForRole(res.role);
+        setTimeout(() => { window.location.href = target; }, 1200);
         return;
       }
-
-      // A single-campus school still needs a Campus row: every class, student
-      // and timetable hangs off one, so it is created from the school's own
-      // details rather than asked for twice.
-      setCampuses([{
-        id: 'primary-node',
-        name: schoolData.name,
-        city: schoolData.city,
-        address: schoolData.address,
-        phone: schoolData.phone,
-        email: schoolData.email,
-        website: schoolData.website,
-        principalName: '',
-        regId: campusRegId,
-        autoId: campusAutoId,
-        board: DEFAULT_EXAM_BOARD,
-      }]);
-    }
-    setStep('academic');
-  };
-
-  const handleProceedFromAcademic = () => {
-    const year = Number(schoolData.academicYear);
-    if (!year || year < 2000 || year > thisYear + 5) {
-      setFormErrors({ academic: "Enter a valid academic year." });
-      toast.error("Enter a valid academic year.");
-      return;
-    }
-    if (!schoolData.sessionLabel.trim()) {
-      setFormErrors({ academic: "Give the session a name, e.g. 2026-27." });
-      toast.error("Give the session a name, e.g. 2026-27.");
-      return;
-    }
-    if (schoolData.sessionStart && schoolData.sessionEnd && schoolData.sessionEnd <= schoolData.sessionStart) {
-      setFormErrors({ academic: "The session must end after it starts." });
-      toast.error("The session must end after it starts.");
-      return;
-    }
-    setFormErrors({});
-    setStep('review');
-  };
-
-  // Campuses beyond the selected package stay as drafts; launch waits for a package that fits.
-  const campusLimit = (() => { try { return getPlanLimits(session?.school?.plan).maxCampuses; } catch { return -1; } })();
-  const overCampusLimit = campusLimit >= 0 && campuses.length > campusLimit;
-  const comparePackagesHref = `/onboarding/package?returnStep=${encodeURIComponent(step)}&campuses=${Math.max(1, campuses.length)}`;
-
-  const handleFinalLaunch = async () => {
-    if (overCampusLimit) {
-      toast.error(`Your current package covers ${campusLimit} campus${campusLimit === 1 ? '' : 'es'}. Choose a package that fits ${campuses.length} campuses, or remove a draft campus, before launching.`);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await finishOnboarding(schoolData, campuses);
-      if (res.success) {
-        recovery.markSaved();
-        toast.success("Setup complete! Opening your dashboard...");
-        router.push("/ai?setup=1");
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Setup failed");
+      if (res.errors) setErrors(res.errors);
+      if (res.view) applyView(res.view, "review");
+      if (!res.view && !res.errors) setBanner(res.denied ? t.denied : res.message);
+    } catch {
+      setBanner(t.loadFailed);
     } finally {
-      setLoading(false);
+      setActivating(false);
     }
   };
 
-  const workingDays = WEEK_DAYS.filter((d) => !schoolData.weekends.includes(d.num));
-  const offDays = WEEK_DAYS.filter((d) => schoolData.weekends.includes(d.num));
+  // ── Loading / no-access / error states ──
+  if (load.kind === "loading" || (load.kind === "ready" && (!view || !draft))) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#fff7fe] gap-4" role="status" aria-live="polite">
+        <Loader2 className="h-8 w-8 text-[#8127cf] animate-spin" aria-hidden="true" />
+        <p className="text-xs font-bold text-ink">{t.loading}</p>
+      </div>
+    );
+  }
+  if (load.kind === "noAccess" || load.kind === "error") {
+    const copy = onboardingCopy(typeof document !== "undefined" ? document.documentElement.lang : "en");
+    return (
+      <main className="min-h-screen bg-[#fff7fe] flex items-center justify-center p-6">
+        <div className="sk-panel max-w-md w-full p-8 space-y-4 text-center">
+          <Lock className="mx-auto h-8 w-8 text-[#8127cf]" aria-hidden="true" />
+          <h1 className="text-xl font-black text-ink">{load.kind === "noAccess" ? copy.noAccessTitle : copy.retry}</h1>
+          <p className="text-sm text-ink-muted">{load.kind === "noAccess" ? copy.noAccessBody : copy.loadFailed}</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {load.kind === "error" && <Button onClick={() => void reload()}>{copy.retry}</Button>}
+            <Button variant="outline" onClick={handleLogout}><LogOut className="h-4 w-4" /> {copy.signOut}</Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
-  if (!session) return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-[#fff7fe] gap-4">
-      <Loader2 className="h-8 w-8 text-[#8127cf] animate-spin" />
-      <p className="text-xs font-bold text-ink">Loading your setup...</p>
-    </div>
-  );
+  const v = view!;
+  const d = draft!;
+  const s = d.school;
+  const isGroup = type === "GROUP";
+  const limit = v.plan.maxCampuses;
+  const planned = campusesForCompletion(type, d);
+  const split = splitByCapacity(planned, limit);
+  const overLimit = split.drafts.length > 0;
+  const comparePackagesHref = `/onboarding/package?returnStep=${encodeURIComponent(step)}&campuses=${Math.max(1, planned.length)}`;
+  const offDays = WEEK_DAYS.filter((day) => s.weekends.includes(day));
+  const workingDays = WEEK_DAYS.filter((day) => !s.weekends.includes(day));
+  const thisYear = new Date().getFullYear();
+  const typeChanged = type !== v.institutionType;
+  const failed = v.status === "FAILED" && v.lastError;
+  const listSeparator = rtl ? "، " : ", ";
+
+  const toggleWorkingDay = (day: number) => {
+    const closed = s.weekends.includes(day);
+    const next = closed ? s.weekends.filter((x) => x !== day) : [...s.weekends, day].sort((a, b) => a - b);
+    if (next.length >= 7) { toast.error(t.errors["weekends.allClosed"]); return; }
+    setSchool({ weekends: next });
+  };
+
+  const setAcademicYear = (raw: string) => {
+    const year = raw.replace(/[^\d]/g, '').slice(0, 4);
+    const numeric = Number(year);
+    // Keep the label in step with the year while it still looks auto-derived.
+    const labelWasDerived = s.sessionLabel === sessionLabelFor(Number(s.academicYear));
+    setSchool({ academicYear: year, sessionLabel: labelWasDerived && numeric >= 2000 ? sessionLabelFor(numeric) : s.sessionLabel });
+  };
+
+  const errorEntries = Object.entries(errors);
+  const focusError = (field: string) => {
+    const campusKey = field.startsWith("campus:") ? field.slice(7) : null;
+    const target = campusKey ? document.getElementById(`campus-${campusKey}`) : document.getElementById(`field-${field}`);
+    target?.focus();
+    target?.scrollIntoView({ block: "center" });
+  };
 
   return (
-    <div className="min-h-screen bg-[#fff7fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
-
+    <div lang={language} dir={rtl ? "rtl" : "ltr"} className="min-h-screen bg-[#fff7fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
 
       {/* ─── SIDEBAR (desktop) ─── */}
-      <aside className="w-72 bg-white/50 backdrop-blur-md border-r border-[#cfc2d6]/30 hidden lg:flex flex-col p-8 fixed h-full z-50">
+      <aside className="w-72 bg-white/50 backdrop-blur-md border-e border-[#cfc2d6]/30 hidden lg:flex flex-col p-8 fixed h-full z-50 overflow-y-auto">
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-1">
-            <SkooleeLogo size="1.4rem" />
-          </div>
-          <p className="text-[10px] font-bold text-ink-muted uppercase tracking-normal leading-none">Setup Wizard</p>
+          <SkooleeLogo size="1.4rem" />
+          <p className="text-[10px] font-bold text-ink-muted uppercase tracking-normal leading-none mt-1">{t.wizard}</p>
         </div>
-
-        {/* Overall progress — how much of the wizard is behind you. */}
         <div className="mb-8">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Step {stepIndex + 1} of {flow.length}
-            </span>
-            <span className="text-[9px] font-black text-[#8127cf]">{Math.round(progress)}%</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
+            <span className="text-[10px] font-black text-[#8127cf]">{Math.round(progress)}%</span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#cfc2d6]/25">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#cfc2d6]/25" aria-hidden="true">
+            <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
-
-        <nav className="flex-1 space-y-3">
-          {flow.map((id, i) => (
-            <StepNav
-              key={id}
-              active={step === id}
-              done={stepIndex > i}
-              num={i + 1}
-              title={STEP_META[id].title}
-              desc={STEP_META[id].desc}
-              disabled={i > stepIndex}
-              onClick={() => goTo(id)}
-            />
-          ))}
+        <nav aria-label={t.wizard}>
+          <ol className="flex-1 space-y-3">
+            {flow.map((id, i) => (
+              <li key={id}>
+                <StepNav
+                  t={t}
+                  icon={STEP_ICONS[id]}
+                  active={step === id}
+                  done={completed.includes(id)}
+                  num={i + 1}
+                  title={t.steps[id].title}
+                  desc={t.steps[id].desc}
+                  disabled={!reachable.includes(id) || saving}
+                  onClick={() => void goTo(id)}
+                />
+              </li>
+            ))}
+          </ol>
         </nav>
-
-        <Button variant="destructive" onClick={handleLogout} className="mt-auto items-center gap-4 group justify-start">
-          <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /> <span>Sign Out</span>
+        <Button variant="destructive" onClick={handleLogout} className="mt-auto items-center gap-4 justify-start">
+          <LogOut className="w-5 h-5" /> <span>{t.signOut}</span>
         </Button>
       </aside>
 
-      <main className="flex-1 lg:ml-72 min-h-screen flex flex-col bg-[#fbf0fe]/50">
-
+      <main className="flex-1 lg:ms-72 min-h-screen min-w-0 flex flex-col bg-[#fbf0fe]/50">
         {/* ─── MOBILE STEP BAR ─── */}
-        <div className="lg:hidden px-6 pt-6 pb-2">
-          <div className="flex items-center gap-3 mb-4">
+        <div className="lg:hidden px-4 pt-5 pb-2">
+          <div className="flex items-center justify-between gap-3 mb-3">
             <SkooleeLogo size="1.2rem" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
           </div>
-          <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-[#cfc2d6]/25">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+          <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-[#cfc2d6]/25" aria-hidden="true">
+            <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {flow.map((id, i) => {
-              const isActive = step === id;
-              const isDone = stepIndex > i;
-              return (
-                <Button aria-pressed={isActive} variant="choice"
-                  key={id}
-                  type="button"
-                  onClick={() => goTo(id)}
-                  className="shrink-0 rounded-full justify-start"
-                >
-                  {isDone ? <CheckCircle2 className="h-3 w-3" /> : null}
-                  {STEP_META[id].title}
-                </Button>
-              );
-            })}
-          </div>
+          <nav aria-label={t.wizard}>
+            <ol className="flex items-center gap-2 overflow-x-auto pb-1">
+              {flow.map((id) => (
+                <li key={id} className="relative shrink-0">
+                  <Button variant="choice" size="sm" type="button"
+                    aria-current={step === id ? "step" : undefined}
+                    disabled={!reachable.includes(id) || saving}
+                    onClick={() => void goTo(id)}
+                    className="rounded-full"
+                  >
+                    {completed.includes(id) ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : null}
+                    {t.steps[id].title}
+                    <span className="sr-only">({completed.includes(id) ? t.stepState.done : step === id ? t.stepState.current : reachable.includes(id) ? "" : t.stepState.locked})</span>
+                  </Button>
+                </li>
+              ))}
+            </ol>
+          </nav>
         </div>
 
-        <header className="px-6 md:px-10 py-5 flex items-center justify-between bg-white/50 backdrop-blur-md sticky top-0 z-40 border-b border-[#cfc2d6]/10">
-          <div className="flex items-center gap-2 text-[10px] font-black text-[#8127cf] uppercase tracking-normal">
-            <School className="w-3.5 h-3.5" />
-            {isStandalone ? 'Single Campus Setup' : 'Multi-Campus Setup'}
+        <header className="px-4 md:px-10 py-4 flex flex-wrap items-center justify-between gap-3 bg-white/50 backdrop-blur-md sticky top-0 z-40 border-b border-[#cfc2d6]/10">
+          {/* Structure stays visible for the whole journey. */}
+          <div className="flex min-w-0 items-center gap-2 text-[11px] font-black text-[#8127cf]" data-testid="structure-summary">
+            <School className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{t.types[type].short}{mode ? ` · ${t.modes[mode].short}` : ""}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href={comparePackagesHref}
-              className={buttonVariants({ variant: "outline", className: "" })}
-            >
-              Compare packages
-            </Link>
-            {stepIndex > 0 && (
-              <Button variant="ghost" onClick={goBack} >Go Back</Button>
-            )}
-            <Button variant="ghost" onClick={handleLogout} >Sign Out</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-ink-muted" role="status" aria-live="polite">
+              {saving ? t.saving : !dirty ? <><CheckCircle2 className="inline h-3 w-3 text-emerald-600" aria-hidden="true" /> {t.savedAt}</> : null}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => void saveAndExit()} disabled={saving || activating}>{t.saveExit}</Button>
+            <Button variant="ghost" size="sm" className="lg:hidden" onClick={handleLogout}>{t.signOut}</Button>
           </div>
         </header>
 
-        <div className="p-6 md:p-12 flex-1 flex flex-col items-center">
+        <div className="p-4 md:p-10 flex-1 flex flex-col items-center">
+          <div className="w-full max-w-4xl space-y-5">
+            {v.actor.kind === "delegate" && (
+              <p role="note" className="rounded-2xl border border-[#cfc2d6]/40 bg-white p-4 text-sm font-semibold text-ink">
+                <ShieldCheck className="me-2 inline h-4 w-4 text-[#8127cf]" aria-hidden="true" />
+                {t.delegateBanner} {v.actor.canPurchase ? t.delegateBannerBuy : t.delegateBannerNoBuy}
+              </p>
+            )}
+            {banner && (
+              <p role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">{banner}</p>
+            )}
+            {errorEntries.length > 0 && (
+              <div ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby="error-summary-title" className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text outline-none focus-visible:ring-2 focus-visible:ring-destructive">
+                <p id="error-summary-title" className="flex items-center gap-1.5 text-sm font-bold"><AlertCircle aria-hidden="true" className="h-3.5 w-3.5" />{t.errorSummary(errorEntries.length)}</p>
+                <ul className="mt-1.5 flex flex-col gap-0.5">
+                  {errorEntries.map(([field, code]) => (
+                    <li key={field}>
+                      <button type="button" onClick={() => focusError(field)} className="min-h-6 text-start text-sm font-semibold underline underline-offset-2">
+                        {field.startsWith("campus:") ? `${d.campuses.find((c) => `campus:${c.key}` === field)?.name || t.campusName}: ` : ""}{t.errors[code] ?? code}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          <div className="w-full max-w-4xl">
-            <DraftRecovery recordLabel="School onboarding" draft={recovery} saving={loading} excluded="Logo files are not stored in device drafts." />
-            <FormErrorSummary errors={formErrors} onFocusField={() => document.querySelector<HTMLInputElement>("[aria-invalid=true],main input")?.focus()} />
-            <AnimatePresence mode="wait">
-              {/* ═══ STEP: School Details ═══ */}
-              {step === 'identity' && (
-                <motion.div key="identity" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
-                  <div className="sk-panel sk-rise p-6 md:p-10 relative overflow-hidden">
-
-                    <div className="flex items-center gap-6 mb-10">
-                      <div className="w-16 h-16 bg-[#fbf0fe] rounded-2xl flex items-center justify-center text-[#8127cf] shadow-inner shrink-0">
-                        <Building className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl md:text-3xl font-black text-[#1f1a23] tracking-normal leading-none">
-                          {isStandalone ? "Your School" : "School Group Details"}
-                        </h2>
-                        <p className="text-ink-muted font-semibold text-sm mt-1.5">
-                          {isStandalone ? "Enter your school's name and location to get started." : "Set up your school group's identity. You'll add campuses next."}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-10">
-                      <div className="space-y-6">
-                        <div className="bg-white rounded-[28px] border-2 border-dashed border-[#8127cf]/25 p-6 flex items-center gap-5 hover:border-[#8127cf]/40 transition-colors">
-                          <div className="w-20 h-20 rounded-2xl bg-[#fbf0fe] border border-[#cfc2d6]/10 shadow-sm overflow-hidden flex items-center justify-center flex-shrink-0">
-                            {(() => {
-                              const logoSrc = resolveMediaUrl(schoolData.logoUrl);
-                              return logoSrc ? (
-                                <Image src={logoSrc} alt="Institution logo" width={80} height={80} className="w-full h-full object-cover" unoptimized />
-                              ) : (
-                                <ImageIcon className="w-8 h-8 text-[#8127cf]/40" />
-                              );
-                            })()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black text-ink-muted uppercase tracking-normal mb-1">Institution Logo</p>
-                            <p className="text-[9px] font-bold text-ink-subtle mb-3">PNG or JPG under 1.5 MB. Shown on report cards, emails and receipts.</p>
-                            <div className="flex items-center gap-2">
-                              <label className={`h-10 px-4 bg-[#8127cf] text-white rounded-xl font-black text-[10px] uppercase tracking-normal flex items-center gap-2 hover:bg-[#9c48ea] ${logoUploading ? "cursor-wait opacity-60" : "cursor-pointer"} shadow-lg shadow-[#8127cf]/20 transition-all`}>
-                                {logoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                {logoUploading ? "Uploading" : "Choose Logo"}
-                                <input type="file" accept="image/*" className="hidden" onChange={e => handleLogoFile(e.target.files?.[0])} disabled={logoUploading} />
-                              </label>
-                              {schoolData.logoUrl && (
-                                <Button variant="outline" onClick={() => setSchoolData({ ...schoolData, logoUrl: '' })} disabled={logoUploading}>Remove</Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <InputField error={formErrors.name} label={isStandalone ? "School Name" : "School Group Name"} value={schoolData.name} onChange={(v: string) => setSchoolData({ ...schoolData, name: v })} placeholder="e.g. Horizon Academy" icon={GraduationCap} required />
-                        <InputField label="Tagline / Motto" value={schoolData.tagline} onChange={(v: string) => setSchoolData({ ...schoolData, tagline: v })} placeholder="e.g. Knowledge is Power (optional)" icon={Tag} />
-                        <InputField error={formErrors.city} label="City" value={schoolData.city} onChange={(v: string) => setSchoolData({ ...schoolData, city: v })} placeholder="e.g. Lahore" icon={MapPin} required />
-                        <InputField label="Address" value={schoolData.address} onChange={(v: string) => setSchoolData({ ...schoolData, address: v })} placeholder="Street address (optional)" icon={MapPin} isArea />
-                      </div>
-
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-5">
-                          <InputField
-                            label="Phone Number"
-                            value={schoolData.phone}
-                            onChange={(v: string) => {
-                              // Basic phone validation: allow digits, spaces, +, -, and parentheses
-                              const cleaned = v.replace(/[^\d\s+\-()]/g, '');
-                              setSchoolData({ ...schoolData, phone: cleaned });
-                            }}
-                            placeholder="+92 300 0000000"
-                            icon={Phone}
-                            type="tel"
-                          />
-                          <InputField
-                            label="Est. Year"
-                            value={schoolData.establishedYear}
-                            onChange={(v: string) => {
-                              // Allow year input and validation
-                              const year = v.replace(/[^\d]/g, '').slice(0, 4);
-                              setSchoolData({ ...schoolData, establishedYear: year });
-                            }}
-                            placeholder="e.g. 1998"
-                            icon={CalendarDays}
-                            type="number"
-                            inputMode="numeric"
-                          />
-                        </div>
-                        <InputField label="Website" value={schoolData.website} onChange={(v: string) => setSchoolData({ ...schoolData, website: v })} placeholder="e.g. www.school.edu.pk (optional)" icon={Globe} />
-                        <div className="bg-[#fbf0fe] p-6 md:p-8 rounded-[32px] border border-[#cfc2d6]/20">
-                          <div className="flex items-center justify-between mb-5">
-                            <Label className="text-[10px] font-black text-[#8127cf] uppercase tracking-normal pl-1">{isStandalone ? 'Campus ID' : 'School ID'}</Label>
-                            <div className="bg-white rounded-lg p-1 flex border border-[#cfc2d6]/10 shadow-sm">
-                              <Button aria-pressed={isStandalone ? newCampus.autoId : schoolData.autoId} variant="choice" onClick={() => isStandalone ? handleCampusIdToggle(true) : handleSchoolIdToggle(true)} >Auto</Button>
-                              <Button aria-pressed={isStandalone ? !newCampus.autoId : !schoolData.autoId} variant="choice" onClick={() => isStandalone ? handleCampusIdToggle(false) : handleSchoolIdToggle(false)} >Manual</Button>
-                            </div>
-                          </div>
-                          <Input
-                            value={isStandalone ? newCampus.regId : schoolData.regId}
-                            onChange={e => isStandalone ? setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() }) : setSchoolData({ ...schoolData, regId: e.target.value.toUpperCase() })}
-                            readOnly={isStandalone ? newCampus.autoId : schoolData.autoId}
-                            className={"text-center"}
-                          />
-                          <p className="text-[10px] text-ink-subtle mt-4 pl-1 font-bold">A unique identifier for your {isStandalone ? 'campus' : 'school group'}.</p>
-                        </div>
-
-                        <div className="p-5 bg-emerald-50 rounded-[24px] border border-emerald-100 flex items-center gap-4">
-                          <Shield className="w-7 h-7 text-emerald-500 shrink-0" />
-                          <div>
-                            <p className="text-[9px] font-black text-emerald-900 uppercase tracking-normal leading-none mb-1">Secure Session</p>
-                            <p className="text-[9px] font-bold text-emerald-600/70 leading-none">Your account is verified and ready.</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-12 flex justify-end">
-                      <Button variant="dark" onClick={handleProceedFromIdentity} className="items-center gap-3 group justify-start">
-                        {isStandalone ? "Next: Academic Setup" : "Next: Add Campuses"} <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </Button>
-                    </div>
+            {/* ═══ STEP: Institution type & adoption mode ═══ */}
+            {step === 'structure' && (
+              <section className="sk-panel sk-rise p-5 md:p-10 space-y-8" aria-labelledby="step-heading">
+                <StepHeading refEl={headingRef} icon={Layers} title={t.structureTitle} intro={t.structureIntro} />
+                <fieldset className="space-y-3" id="field-adoptionMode" tabIndex={-1}>
+                  <legend className="mb-3 text-sm font-black text-ink">{t.modeQuestion}</legend>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(["EXAM_STUDIO", "FULL_OPERATIONS"] as const).map((option) => (
+                      <ChoiceCard key={option} name="adoptionMode" checked={mode === option} onSelect={() => { setMode(option); setErrors({}); }}
+                        title={t.modes[option].label} desc={t.modes[option].desc} />
+                    ))}
                   </div>
-                </motion.div>
-              )}
-
-              {/* ═══ STEP: Add Campuses (multi-campus only) ═══ */}
-              {step === 'campuses' && (
-                <motion.div key="campuses" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid lg:grid-cols-5 gap-8">
-                  <div className="lg:col-span-3 space-y-6">
-                    <div className="sk-panel sk-rise p-6 md:p-10">
-                      <div className="flex items-center gap-4 mb-8">
-                        <div className="w-12 h-12 bg-[#fbf0fe] rounded-xl flex items-center justify-center text-[#8127cf] shrink-0">
-                          <Building className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal">
-                            {editingCampusId ? "Edit Campus" : "Add Your Campuses"}
-                          </h2>
-                          <p className="text-xs font-semibold text-ink-muted mt-0.5">
-                            {editingCampusId ? "Update the campus details below." : "Add each branch or campus of your school group."}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-5">
-                        <InputField label="Campus Name" value={newCampus.name} onChange={(v: string) => setNewCampus({ ...newCampus, name: v })} placeholder="e.g. Main Campus, West Branch" icon={Building} required />
-                        <div className="grid grid-cols-2 gap-5">
-                          <InputField label="City" value={newCampus.city} onChange={(v: string) => setNewCampus({ ...newCampus, city: v })} placeholder="City" icon={MapPin} required />
-                          <InputField label="Phone" value={newCampus.phone ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, phone: v })} placeholder="Phone number" icon={Phone} />
-                        </div>
-                        <InputField label="Address" value={newCampus.address ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, address: v })} placeholder="Full street address" icon={MapPin} isArea />
-                        <div className="grid grid-cols-2 gap-5">
-                          <InputField label="Campus Email" value={newCampus.email ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, email: v })} placeholder="campus@school.edu.pk" icon={Mail} />
-                          <InputField label="Website" value={newCampus.website ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, website: v })} placeholder="Website (optional)" icon={Globe} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-5">
-                          <InputField label="Head of Campus" value={newCampus.principalName ?? ''} onChange={(v: string) => setNewCampus({ ...newCampus, principalName: v })} placeholder="Principal / director name" icon={UserRound} />
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Board</Label>
-                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
-                              <GraduationCap data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                              <SystemSelect
-                                value={newCampus.board || DEFAULT_EXAM_BOARD}
-                                onChange={e => setNewCampus({ ...newCampus, board: e.target.value })}
-                                className={"w-full"}
-                              >
-                                {EXAM_BOARDS.map(b => <option key={b} value={b}>{b}</option>)}
-                              </SystemSelect>
-                            </InputGroup>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-5 items-end pt-2">
-                          <div className="space-y-1.5">
-                            <div className="flex justify-between items-center px-1 mb-1">
-                              <Label className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal pl-1">Campus ID</Label>
-                              <div className="flex bg-[#f3f4f9] p-0.5 rounded-lg border border-[#cfc2d6]/10 scale-90 origin-right shadow-sm">
-                                <Button aria-pressed={newCampus.autoId} variant="choice"
-                                  onClick={() => handleCampusIdToggle(true)}
-                                  type="button"
-
-                                >
-                                  Auto
-                                </Button>
-                                <Button aria-pressed={!newCampus.autoId} variant="choice"
-                                  onClick={() => handleCampusIdToggle(false)}
-                                  type="button"
-
-                                >
-                                  Edit
-                                </Button>
-                              </div>
-                            </div>
-                            <Input
-                              value={newCampus.regId}
-                              readOnly={newCampus.autoId}
-                              onChange={e => setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() })}
-                              placeholder="BR-XXXX"
-                              className={"text-center"}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            {editingCampusId && (
-                              <Button variant="secondary" onClick={cancelEdit} className="items-center justify-center gap-2">
-                                Cancel
-                              </Button>
-                            )}
-                            <Button variant="default" onClick={addCampus} className="flex-1 items-center justify-center gap-2">
-                              {editingCampusId ? (
-                                <>
-                                  <CheckCircle2 className="w-4 h-4" /> Update Campus
-                                </>
-                              ) : (
-                                <>
-                                  <Plus className="w-4 h-4" /> Add Campus
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between px-2">
-                      <Button variant="outline" onClick={goBack} className="items-center gap-2 justify-start">
-                        <ChevronLeft className="w-4 h-4" /> Back
-                      </Button>
-                      <Button variant="dark" onClick={() => setStep('academic')} disabled={campuses.length === 0} className="items-center gap-3 group justify-start">
-                        Next: Academic Setup <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </Button>
-                    </div>
+                </fieldset>
+                <fieldset className="space-y-3">
+                  <legend className="mb-3 text-sm font-black text-ink">{t.typeQuestion}</legend>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(["STANDALONE", "GROUP"] as const).map((option) => (
+                      <ChoiceCard key={option} name="institutionType" checked={type === option} onSelect={() => setType(option)}
+                        title={t.types[option].label} desc={t.types[option].example} />
+                    ))}
                   </div>
-
-                  <div className="lg:col-span-2">
-                    <div className="sk-panel sk-rise p-8 h-full min-h-[450px] flex flex-col relative" style={{ animationDelay: "160ms" }}>
-                      <div className="flex items-center justify-between mb-6 pb-5 border-b border-gray-50 text-[#1f1a23]">
-                        <h3 className="text-[10px] font-black uppercase tracking-normal flex items-center gap-2">
-                          <Users className="w-4 h-4 text-[#8127cf]" /> Your Campuses
-                        </h3>
-                        <span className="text-[9px] font-black text-[#8127cf] bg-[#fbf0fe] px-3 py-1 rounded-full uppercase tracking-normal">{campuses.length} Added</span>
-                      </div>
-                      {overCampusLimit && (
-                        <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                          <p>Your current package covers {campusLimit} campus{campusLimit === 1 ? '' : 'es'}. The other {campuses.length - campusLimit} {campuses.length - campusLimit === 1 ? 'is' : 'are'} kept as draft{campuses.length - campusLimit === 1 ? '' : 's'} and will be created once you choose a package that fits.</p>
-                          <Link href={comparePackagesHref} className={buttonVariants({ variant: "link", className: "mt-1 h-auto p-0" })}>Compare packages</Link>
-                        </div>
-                      )}
-
-                      <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                        {campuses.map((c, i) => (
-                          <div
-                            key={c.id}
-                            className={`p-4 rounded-[20px] border flex items-center justify-between group transition-all shadow-sm ${
-                              editingCampusId === c.id
-                                ? 'bg-[#8127cf]/10 border-[#8127cf]/30'
-                                : 'bg-[#fbf0fe]/50 border-transparent hover:bg-white hover:border-[#8127cf]/10'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-[#8127cf] font-black text-[10px] shadow-sm">{i + 1}</div>
-                              <div>
-                                <p className="text-xs font-black text-[#1f1a23] leading-none mb-1">
-                                  {c.name}
-                                  {editingCampusId === c.id && (
-                                    <span className="ml-2 text-[8px] font-black text-[#8127cf] uppercase tracking-wider bg-[#8127cf]/10 px-2 py-0.5 rounded">
-                                      Editing
-                                    </span>
-                                  )}
-                                </p>
-                                <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal">{c.city} &middot; {c.regId}</p>
-                                {(c.phone || c.email || c.principalName) && (
-                                  <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-normal mt-0.5 truncate max-w-[180px]">{c.principalName}{c.principalName ? " · " : ""}{c.phone}{c.phone ? " · " : ""}{c.email}</p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button variant="secondary"
-                                onClick={() => editCampus(c)}
-
-                                title="Edit campus"
-                                disabled={editingCampusId === c.id}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button variant="destructive"
-                                onClick={() => setCampusToDelete(c)}
-
-                                title="Delete campus"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                        {campuses.length === 0 && (
-                          <div className="h-full flex flex-col items-center justify-center text-center opacity-30 pt-16">
-                            <Building className="w-12 h-12 mb-3" />
-                            <p className="text-[9px] font-black uppercase tracking-normal">No campuses added yet</p>
-                            <p className="text-[8px] font-bold text-ink-subtle mt-1">Fill in the form and click &ldquo;Add Campus&rdquo;</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                </fieldset>
+                {typeChanged && (
+                  <div role="status" className="rounded-2xl border border-[#cfc2d6]/50 bg-[#fbf0fe] p-4 text-sm text-ink space-y-1" data-testid="shape-preview">
+                    <p className="font-black">{fill(t.shapePreviewTitle, t.types[type].label)}</p>
+                    <p>{type === "STANDALONE" ? fill(t.shapeToStandalone, d.campuses.length) : t.shapeToGroup}</p>
+                    <p>{fill(t.shapeCapacity, t.campusCount(limit))}</p>
+                    <p>{t.shapeReopen}</p>
                   </div>
-                </motion.div>
-              )}
+                )}
+                <StepActions t={t} onContinue={() => void continueFrom("structure")} busy={saving} />
+              </section>
+            )}
 
-              {/* ═══ STEP: Academic Setup ═══
-                  The Academic Hub grades a year as "set up" on three facts: an
-                  ACTIVE cycle, defined periods, and weekend days. Two of the
-                  three are settled right here so a brand-new school does not
-                  land on a dashboard already telling it what it forgot. */}
-              {step === 'academic' && (
-                <motion.div key="academic" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-                  <div className="sk-panel sk-rise p-6 md:p-10">
-                    <div className="flex items-center gap-6 mb-9">
-                      <div className="w-16 h-16 bg-[#fbf0fe] rounded-2xl flex items-center justify-center text-[#8127cf] shadow-inner shrink-0">
-                        <CalendarRange className="w-8 h-8" />
+            {/* ═══ STEP: Institution details ═══ */}
+            {step === 'identity' && (
+              <section className="sk-panel sk-rise p-5 md:p-10" aria-labelledby="step-heading">
+                <StepHeading refEl={headingRef} icon={Building} title={isGroup ? t.identityTitleGroup : t.identityTitleSchool} intro={isGroup ? t.identityIntroGroup : t.identityIntroSchool} />
+                <div className="grid md:grid-cols-2 gap-8 mt-8">
+                  <div className="space-y-5">
+                    <div className="bg-white rounded-[24px] border-2 border-dashed border-[#8127cf]/25 p-5 flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl bg-[#fbf0fe] overflow-hidden flex items-center justify-center shrink-0">
+                        {resolveMediaUrl(s.logoUrl)
+                          ? <Image src={resolveMediaUrl(s.logoUrl)!} alt={t.logo} width={64} height={64} className="w-full h-full object-cover" unoptimized />
+                          : <ImageIcon className="w-7 h-7 text-[#8127cf]/40" aria-hidden="true" />}
                       </div>
-                      <div>
-                        <h2 className="text-2xl md:text-3xl font-black text-[#1f1a23] tracking-normal leading-none">Academic Setup</h2>
-                        <p className="text-ink-muted font-semibold text-sm mt-1.5">
-                          Your first session and weekly rhythm. Everything else — marks, attendance, exams — is filed against these.
-                        </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-black text-ink-muted uppercase mb-1">{t.logo} <span className="font-semibold normal-case">({t.optional})</span></p>
+                        <p className="text-[11px] font-semibold text-ink-subtle mb-3">{t.logoHint}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className={buttonVariants({ size: "sm", className: logoUploading ? "cursor-wait opacity-60" : "cursor-pointer" })}>
+                            {logoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                            {logoUploading ? t.uploading : t.chooseLogo}
+                            <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleLogoFile(e.target.files?.[0])} disabled={logoUploading} />
+                          </label>
+                          {s.logoUrl && <Button variant="outline" size="sm" onClick={() => setSchool({ logoUrl: "" })} disabled={logoUploading}>{t.remove}</Button>}
+                        </div>
                       </div>
                     </div>
-
-                    <div className="grid md:grid-cols-2 gap-10">
-                      {/* ── Session ── */}
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-3.5 h-3.5 text-[#8127cf]" />
-                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">Current session</p>
+                    <InputField field="name" error={errors.name && t.errors[errors.name]} label={isGroup ? t.groupName : t.schoolName} value={s.name} onChange={(val) => setSchool({ name: val })} placeholder="Horizon Academy" icon={GraduationCap} required />
+                    <InputField field="tagline" label={t.tagline} value={s.tagline} onChange={(val) => setSchool({ tagline: val })} placeholder={t.optional} icon={Tag} />
+                    <InputField field="city" error={errors.city && t.errors[errors.city]} label={t.city} value={s.city} onChange={(val) => setSchool({ city: val })} placeholder="Lahore" icon={MapPin} required />
+                    <InputField field="address" label={t.address} value={s.address} onChange={(val) => setSchool({ address: val })} placeholder={t.optional} icon={MapPin} isArea />
+                  </div>
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <InputField field="phone" error={errors.phone && t.errors[errors.phone]} label={t.phone} value={s.phone} onChange={(val) => setSchool({ phone: val.replace(/[^\d\s+\-()]/g, '') })} placeholder="+92 300 0000000" icon={Phone} type="tel" />
+                      <InputField field="establishedYear" error={errors.establishedYear && t.errors[errors.establishedYear]} label={t.established} value={s.establishedYear} onChange={(val) => setSchool({ establishedYear: val.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="1998" icon={CalendarDays} inputMode="numeric" />
+                    </div>
+                    <InputField field="website" label={t.website} value={s.website} onChange={(val) => setSchool({ website: val })} placeholder="www.school.edu.pk" icon={Globe} type="url" />
+                    <InputField field="email" label={t.contactEmail} value={s.email} onChange={() => undefined} placeholder="" icon={Mail} type="email" readonly />
+                    <div className="bg-[#fbf0fe] p-5 rounded-[24px] border border-[#cfc2d6]/20">
+                      <div className="flex items-center justify-between mb-4 gap-3">
+                        <Label htmlFor="field-regId" className="text-[11px] font-black text-[#8127cf] uppercase">{isGroup ? t.schoolId : t.campusId}</Label>
+                        <div className="bg-white rounded-lg p-1 flex gap-1 border border-[#cfc2d6]/10" role="group" aria-label={isGroup ? t.schoolId : t.campusId}>
+                          <Button size="sm" aria-pressed={isGroup ? s.autoId : s.primaryCampusAutoId} variant="choice" onClick={() => isGroup ? setSchool({ autoId: true, regId: generateId('SKL') }) : setSchool({ primaryCampusAutoId: true, primaryCampusRegId: generateId('BR') })}>{t.auto}</Button>
+                          <Button size="sm" aria-pressed={isGroup ? !s.autoId : !s.primaryCampusAutoId} variant="choice" onClick={() => isGroup ? setSchool({ autoId: false }) : setSchool({ primaryCampusAutoId: false })}>{t.manual}</Button>
                         </div>
+                      </div>
+                      <Input id="field-regId" dir="ltr" aria-invalid={!!errors.regId} aria-describedby="regId-hint"
+                        value={isGroup ? s.regId : s.primaryCampusRegId}
+                        onChange={(e) => isGroup ? setSchool({ regId: e.target.value.toUpperCase() }) : setSchool({ primaryCampusRegId: e.target.value.toUpperCase() })}
+                        readOnly={isGroup ? s.autoId : s.primaryCampusAutoId}
+                        className="text-center" />
+                      <p id="regId-hint" className="text-[11px] text-ink-subtle mt-3 font-bold">{isGroup ? t.idHintGroup : t.idHintCampus}</p>
+                      {errors.regId && <p role="alert" className="text-sm text-destructive mt-1">{t.errors[errors.regId]}</p>}
+                    </div>
+                    {!isGroup && (
+                      <p className="flex items-start gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 p-4 text-[12px] font-bold text-emerald-900">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" /> {t.primaryCampusNote}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <StepActions t={t} onBack={goBack} onContinue={() => void continueFrom("identity")} busy={saving} />
+              </section>
+            )}
 
-                        <div className="grid grid-cols-2 gap-5">
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
-                              Academic Year <span className="text-rose-500">*</span>
-                            </Label>
-                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
-                              <CalendarDays data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                              <Input
-                                value={schoolData.academicYear}
-                                onChange={e => setAcademicYear(e.target.value)}
-                                placeholder={String(thisYear)}
-                                inputMode="numeric"
-                                className={"w-full"}
-                              />
-                            </InputGroup>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">
-                              Session Name <span className="text-rose-500">*</span>
-                            </Label>
-                            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative group flex items-center">
-                              <Tag data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                              <Input
-                                value={schoolData.sessionLabel}
-                                onChange={e => setSchoolData({ ...schoolData, sessionLabel: e.target.value })}
-                                placeholder={sessionLabelFor(thisYear)}
-                                className={"w-full"}
-                              />
-                              <FieldAction   data-field-affix="end"
-                                type="button"
-                                aria-label="Reset session name"
-                                onClick={() => setSchoolData({ ...schoolData, sessionLabel: sessionLabelFor(Number(schoolData.academicYear) || thisYear) })}
+            {/* ═══ STEP: Package ═══ */}
+            {step === 'package' && (
+              <section className="sk-panel sk-rise p-5 md:p-10 space-y-6" aria-labelledby="step-heading">
+                <StepHeading refEl={headingRef} icon={Package} title={t.packageTitle} intro={t.packageIntro} />
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <SummaryItem icon={Package} label={t.currentPackage} value={v.plan.name} />
+                  <SummaryItem icon={Building} label={t.activatedCapacity} value={fill(t.covers, t.campusCount(limit))} />
+                  <SummaryItem icon={Users} label={t.campuses} value={fill(t.planned, planned.length)} />
+                </div>
+                {overLimit && (
+                  <p role="status" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{fill(t.overLimit, split.drafts.length)}</p>
+                )}
+                <p className="text-sm text-ink-muted">{v.actor.canPurchase ? t.noPaymentNeeded : t.purchaseNotDelegated}</p>
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <Button variant="outline" onClick={goBack} className="gap-2"><ChevronLeft className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {v.actor.canPurchase && (
+                      <Link href={comparePackagesHref} className={buttonVariants({ variant: "outline" })}>{t.comparePackages}</Link>
+                    )}
+                    <Button variant="dark" onClick={() => void continueFrom("package")} disabled={saving} className="gap-2">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{fill(t.continueWith, v.plan.name)} <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            )}
 
-                              >
-                                <RefreshCw className="w-3.5 h-3.5" />
-                              </FieldAction>
-                            </InputGroup>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start gap-2.5 rounded-2xl bg-[#fbf0fe] px-4 py-3">
-                          <AlertCircle className="mt-0.5 w-3.5 h-3.5 shrink-0 text-[#8127cf]" />
-                          <p className="text-[10px] font-bold leading-snug text-ink-muted">
-                            A session labelled {sessionLabelFor(Number(schoolData.academicYear) || thisYear)} often starts in {Number(schoolData.academicYear) || thisYear}{" "}and ends the year after — so the academic year is asked for separately from today&apos;s date.
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-5">
-                          <InputField
-                            label="Session Starts" type="date" icon={CalendarDays}
-                            value={schoolData.sessionStart} placeholder=""
-                            onChange={(v) => setSchoolData({ ...schoolData, sessionStart: v })}
-                          />
-                          <InputField
-                            label="Session Ends" type="date" icon={CalendarDays}
-                            value={schoolData.sessionEnd} placeholder=""
-                            onChange={(v) => setSchoolData({ ...schoolData, sessionEnd: v })}
-                          />
-                        </div>
-
+            {/* ═══ STEP: Campuses (group only) ═══ */}
+            {step === 'campuses' && (
+              <section className="grid lg:grid-cols-5 gap-6" aria-labelledby="step-heading">
+                <div className="lg:col-span-3 space-y-5">
+                  <div className="sk-panel sk-rise p-5 md:p-8">
+                    <StepHeading refEl={headingRef} icon={Building} title={editingKey ? t.editCampus : t.campusesTitle} intro={t.campusesIntro} />
+                    <div className="space-y-4 mt-6">
+                      <InputField field="campusName" error={campusErrors.campusName && t.errors[campusErrors.campusName]} label={t.campusName} value={newCampus.name} onChange={(val) => setNewCampus({ ...newCampus, name: val })} placeholder="North Campus" icon={Building} required />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <InputField field="campusCity" error={campusErrors.campusCity && t.errors[campusErrors.campusCity]} label={t.city} value={newCampus.city} onChange={(val) => setNewCampus({ ...newCampus, city: val })} placeholder="Lahore" icon={MapPin} required />
+                        <InputField field="campusPhone" error={campusErrors.campusPhone && t.errors[campusErrors.campusPhone]} label={t.phone} value={newCampus.phone} onChange={(val) => setNewCampus({ ...newCampus, phone: val })} placeholder="+92 42 0000000" icon={Phone} type="tel" />
+                      </div>
+                      <InputField field="campusAddress" label={t.address} value={newCampus.address} onChange={(val) => setNewCampus({ ...newCampus, address: val })} placeholder={t.optional} icon={MapPin} isArea />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <InputField field="campusEmail" error={campusErrors.campusEmail && t.errors[campusErrors.campusEmail]} label={t.campusEmail} value={newCampus.email} onChange={(val) => setNewCampus({ ...newCampus, email: val })} placeholder="campus@school.edu.pk" icon={Mail} type="email" />
+                        <InputField field="campusPrincipal" label={t.headOfCampus} value={newCampus.principalName} onChange={(val) => setNewCampus({ ...newCampus, principalName: val })} placeholder={t.optional} icon={UserRound} />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] font-black text-ink-subtle uppercase tracking-normal ml-1">Time Zone</Label>
-                          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
-                            <Clock data-field-affix="start" className="absolute left-4 w-4 h-4 text-ink-subtle group-focus-within:text-[#8127cf] transition-colors pointer-events-none" />
-                            <SystemSelect
-                              value={schoolData.timezone}
-                              onChange={e => setSchoolData({ ...schoolData, timezone: e.target.value })}
-                              className={"w-full"}
-                            >
-                              {TIMEZONES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          <Label htmlFor="field-campusBoard" className="sk-field-label">{t.board}</Label>
+                          <InputGroup className="min-w-0">
+                            <GraduationCap data-field-affix="start" className="h-4 w-4" />
+                            <SystemSelect id="field-campusBoard" value={newCampus.board || DEFAULT_EXAM_BOARD} onChange={(e) => setNewCampus({ ...newCampus, board: e.target.value })} className="w-full">
+                              {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
                             </SystemSelect>
                           </InputGroup>
-                          <p className="text-[10px] font-bold text-ink-subtle ml-1">
-                            Decides which calendar day an attendance mark or fee cutoff falls on.
-                          </p>
                         </div>
-                      </div>
-
-                      {/* ── Working week ── */}
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2">
-                          <CalendarRange className="w-3.5 h-3.5 text-[#8127cf]" />
-                          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">Working week</p>
-                        </div>
-
-                        <p className="text-[11px] font-semibold leading-relaxed text-ink-muted -mt-2">
-                          Tap a day to close it. Closed days are greyed out on attendance and timetable grids, and exam scheduling refuses to book a paper on one.
-                        </p>
-
-                        <div className="grid grid-cols-7 gap-1.5 md:gap-2">
-                          {WEEK_DAYS.map((d) => {
-                            const off = schoolData.weekends.includes(d.num);
-                            return (
-                              <Button variant="choice"
-                                key={d.num}
-                                type="button"
-                                onClick={() => toggleWorkingDay(d.num)}
-                                aria-pressed={!off}
-                                aria-label={`${d.long} — ${off ? "closed" : "working day"}`}
-                                className="min-w-0 flex-col px-1 py-3 justify-start"
-                              >
-                                <span className="text-[10px] font-black uppercase tracking-wider">{d.short}</span>
-                                <span className={`h-1.5 w-1.5 rounded-full transition-colors ${off ? "bg-[#cfc2d6]" : "bg-[#8127cf]"}`} />
-                              </Button>
-                            );
-                          })}
-                        </div>
-
-                        <div className="rounded-[28px] border border-[#cfc2d6]/20 bg-[#fbf0fe] p-6 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">Week at a glance</p>
-                            <span className="rounded-full bg-white px-3 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm">
-                              {workingDays.length} working {workingDays.length === 1 ? "day" : "days"}
-                            </span>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-start gap-3">
-                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#8127cf] text-white shadow-sm">
-                                <CheckCircle2 className="h-3 w-3" />
-                              </span>
-                              <p className="text-[11px] font-bold leading-snug text-[#1f1a23]">
-                                Open: {workingDays.map((d) => d.short).join(", ") || "—"}
-                              </p>
-                            </div>
-                            <div className="flex items-start gap-3">
-                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white text-ink-subtle shadow-sm">
-                                <Clock className="h-3 w-3" />
-                              </span>
-                              <p className="text-[11px] font-bold leading-snug text-ink-muted">
-                                Closed: {offDays.map((d) => d.long).join(", ") || "No weekend set"}
-                              </p>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center gap-2">
+                            <Label htmlFor="field-campusRegId" className="sk-field-label">{t.campusId}</Label>
+                            <div className="flex gap-1" role="group" aria-label={t.campusId}>
+                              <Button size="sm" aria-pressed={newCampus.autoId} variant="choice" onClick={() => setNewCampus({ ...newCampus, autoId: true, regId: generateId('BR') })}>{t.auto}</Button>
+                              <Button size="sm" aria-pressed={!newCampus.autoId} variant="choice" onClick={() => setNewCampus({ ...newCampus, autoId: false })}>{t.manual}</Button>
                             </div>
                           </div>
-                          <p className="border-t border-[#cfc2d6]/20 pt-3 text-[10px] font-bold leading-snug text-ink-subtle">
-                            Applied to {isStandalone ? "your campus" : `all ${campuses.length} campus${campuses.length === 1 ? "" : "es"}`}. Individual campuses can override this later from Academic → Calendar.
-                          </p>
+                          <Input id="field-campusRegId" dir="ltr" aria-invalid={!!campusErrors.campusRegId} value={newCampus.regId} readOnly={newCampus.autoId}
+                            onChange={(e) => setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() })} placeholder="BR-XXXX" className="text-center" />
+                          {campusErrors.campusRegId && <p role="alert" className="text-sm text-destructive">{t.errors[campusErrors.campusRegId]}</p>}
                         </div>
                       </div>
-                    </div>
-
-                    <div className="mt-11 flex items-center justify-between">
-                      <Button variant="outline" onClick={goBack} className="items-center gap-2 justify-start">
-                        <ChevronLeft className="w-4 h-4" /> Back
-                      </Button>
-                      <Button variant="dark" onClick={handleProceedFromAcademic} className="items-center gap-3 group justify-start">
-                        Review &amp; Finish <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                      </Button>
+                      <div className="flex flex-wrap justify-end gap-2 pt-2">
+                        {editingKey && <Button variant="secondary" onClick={() => { setEditingKey(null); setNewCampus(emptyCampus()); setCampusErrors({}); }}>{t.cancel}</Button>}
+                        <Button onClick={() => void saveCampus()} disabled={saving} className="gap-2">
+                          {editingKey ? <><CheckCircle2 className="w-4 h-4" /> {t.updateCampus}</> : <><Plus className="w-4 h-4" /> {t.addCampus}</>}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </motion.div>
-              )}
+                  <StepActions t={t} onBack={goBack} onContinue={() => void continueFrom("campuses")} busy={saving} disabled={d.campuses.length === 0} />
+                </div>
 
-              {/* ═══ STEP: Review & Finish ═══ */}
-              {step === 'review' && (
-                <motion.div key="review" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-2xl mx-auto text-center space-y-9 py-4">
-                  <div className="w-20 h-20 bg-emerald-50 rounded-[32px] flex items-center justify-center text-emerald-500 mx-auto shadow-2xl">
-                    <CheckCircle2 className="w-10 h-10" />
-                  </div>
-
-                  <div className="space-y-3">
-                    <h2 className="text-3xl md:text-4xl font-black text-[#1f1a23] tracking-normal">All Set!</h2>
-                    <p className="text-base font-semibold text-ink-muted max-w-sm mx-auto">Review your details below and launch your dashboard.</p>
-                  </div>
-
-                  <div className="sk-panel sk-rise p-6 md:p-8 text-left space-y-3 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none"><Building className="w-32 h-32" /></div>
-                    {(resolveMediaUrl(schoolData.logoUrl) || schoolData.tagline) && (
-                      <div className="flex items-center gap-4 mb-6 relative z-10">
-                        {(() => {
-                          const logoSrc = resolveMediaUrl(schoolData.logoUrl);
-                          return logoSrc ? (
-                            <div className="w-14 h-14 rounded-xl overflow-hidden border border-[#cfc2d6]/10 shadow-sm flex-shrink-0 bg-[#fbf0fe]">
-                              <Image src={logoSrc} alt="Institution logo" width={56} height={56} className="w-full h-full object-cover" unoptimized />
-                            </div>
-                          ) : null;
-                        })()}
-                        {schoolData.tagline && (
-                          <p className="text-[11px] font-bold text-ink-muted italic">&ldquo;{schoolData.tagline}&rdquo;</p>
-                        )}
+                <div className="lg:col-span-2">
+                  <div className="sk-panel sk-rise p-5 md:p-6 flex flex-col">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-50 gap-2">
+                      <h3 className="text-[11px] font-black uppercase flex items-center gap-2"><Users className="w-4 h-4 text-[#8127cf]" aria-hidden="true" /> {t.yourCampuses}</h3>
+                      <span className="text-[10px] font-black text-[#8127cf] bg-[#fbf0fe] px-3 py-1 rounded-full">{fill(t.added, d.campuses.length)}</span>
+                    </div>
+                    {overLimit && (
+                      <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                        <p>{fill(t.overLimit, split.drafts.length)}</p>
+                        {v.actor.canPurchase && <Link href={comparePackagesHref} className={buttonVariants({ variant: "link", className: "mt-1 h-auto min-h-0 p-0" })}>{t.comparePackages}</Link>}
                       </div>
                     )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 relative z-10">
-                      <SummaryItem icon={Building} label={isStandalone ? "School" : "School Group"} value={schoolData.name} />
-                      <SummaryItem icon={Hash} label={isStandalone ? "Campus ID" : "School ID"} value={isStandalone ? (campuses[0]?.regId ?? '') : schoolData.regId} />
-                      <SummaryItem icon={Users} label="Structure" value={isStandalone ? "Single Campus" : `${campuses.length} Campus${campuses.length === 1 ? '' : 'es'}`} />
-                      <SummaryItem icon={MapPin} label="City" value={schoolData.city} />
-                      <SummaryItem icon={Mail} label="Contact Email" value={schoolData.email} />
-                      <SummaryItem icon={Phone} label="Phone" value={schoolData.phone} />
-                      <SummaryItem icon={Globe} label="Website" value={schoolData.website} />
-                      <SummaryItem icon={CalendarDays} label="Established" value={schoolData.establishedYear} />
-                    </div>
-
-                    {/* The academic block gets its own panel: it is the part that
-                        decides how the rest of the product behaves on day one. */}
-                    <div className="mt-6 pt-6 border-t border-[#cfc2d6]/10 relative z-10">
-                      <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal mb-3">Academic setup</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                        <SummaryItem icon={CalendarRange} label="Session" value={`${schoolData.sessionLabel} (AY ${schoolData.academicYear})`} />
-                        <SummaryItem icon={Clock} label="Time Zone" value={schoolData.timezone} />
-                        <SummaryItem
-                          icon={CalendarDays}
-                          label="Session Dates"
-                          value={schoolData.sessionStart ? `${schoolData.sessionStart}${schoolData.sessionEnd ? ` → ${schoolData.sessionEnd}` : ''}` : 'Starts today'}
-                        />
-                        <SummaryItem
-                          icon={CheckCircle2}
-                          label="Weekly Off"
-                          value={offDays.map((d) => d.short).join(", ") || "None"}
-                        />
-                      </div>
-                    </div>
-
-                    {!isStandalone && campuses.length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-[#cfc2d6]/10 relative z-10">
-                        <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal mb-3">Campuses</p>
-                        <div className="space-y-2">
-                          {campuses.map((c, i) => (
-                            <div key={c.id} className="flex items-center gap-3 p-3 bg-[#fbf0fe]/50 rounded-xl">
-                              <div className="w-6 h-6 rounded-md bg-[#8127cf]/10 flex items-center justify-center text-[#8127cf] font-black text-[9px]">{i + 1}</div>
-                              <div className="flex-1">
-                                <p className="text-xs font-black text-[#1f1a23] leading-none">{c.name}</p>
-                                <p className="text-[8px] font-bold text-ink-subtle mt-0.5">{c.city} &middot; {c.regId}</p>
-                                {(c.phone || c.email) && (
-                                  <p className="text-[8px] font-bold text-ink-subtle mt-0.5">{c.phone}{c.phone && c.email ? " · " : ""}{c.email}</p>
-                                )}
-                              </div>
+                    <ul className="space-y-3" aria-label={t.yourCampuses}>
+                      {d.campuses.map((c, i) => {
+                        const isDraft = limit >= 0 && i >= limit;
+                        return (
+                          <li key={c.key} id={`campus-${c.key}`} tabIndex={-1} className={`p-4 rounded-[18px] border flex items-start justify-between gap-3 ${editingKey === c.key ? 'bg-[#8127cf]/10 border-[#8127cf]/30' : 'bg-[#fbf0fe]/50 border-transparent'} ${errors[`campus:${c.key}`] ? 'border-destructive' : ''}`}>
+                            <div className="min-w-0">
+                              <p className="text-sm font-black text-ink leading-tight break-words">{c.name}</p>
+                              <p className="text-[11px] font-bold text-ink-subtle mt-1"><span>{c.city}</span> · <bdi dir="ltr">{c.regId}</bdi></p>
+                              <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
                             </div>
-                          ))}
-                        </div>
+                            <div className="flex shrink-0 gap-1">
+                              <Button variant="secondary" size="icon" onClick={() => editCampus(c)} aria-label={`${t.editCampus}: ${c.name}`} disabled={editingKey === c.key}><Pencil className="w-4 h-4" /></Button>
+                              <Button variant="outline" size="icon" onClick={() => setCampusToDelete(c)} aria-label={`${t.deleteCampus}: ${c.name}`}><Trash2 className="w-4 h-4" /></Button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {d.campuses.length === 0 && (
+                      <div className="flex flex-col items-center justify-center text-center text-ink-subtle py-12">
+                        <Building className="w-10 h-10 mb-2" aria-hidden="true" />
+                        <p className="text-xs font-black">{t.noCampuses}</p>
                       </div>
                     )}
                   </div>
+                </div>
+              </section>
+            )}
 
-                  {overCampusLimit && (
-                    <p id="launch-capacity-note" role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                      {campuses.length} campuses are planned but your current package covers {campusLimit}. <Link href={comparePackagesHref} className="font-bold underline">Compare packages</Link> or remove a draft campus to launch.
+            {/* ═══ STEP: Academic defaults ═══ */}
+            {step === 'academic' && (
+              <section className="sk-panel sk-rise p-5 md:p-10" aria-labelledby="step-heading">
+                <StepHeading refEl={headingRef} icon={CalendarRange} title={t.academicTitle} intro={t.academicIntro} />
+                <div className="grid md:grid-cols-2 gap-8 mt-8">
+                  <div className="space-y-5">
+                    <p className="flex items-center gap-2 text-[11px] font-black uppercase text-[#8127cf]"><Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> {t.currentSession}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <InputField field="academicYear" error={errors.academicYear && t.errors[errors.academicYear]} label={t.academicYear} value={s.academicYear} onChange={setAcademicYear} placeholder={String(thisYear)} icon={CalendarDays} inputMode="numeric" required />
+                      <div className="space-y-1.5">
+                        <Label htmlFor="field-sessionLabel" className="sk-field-label">{t.sessionName} <span className="text-rose-500">*</span></Label>
+                        <InputGroup>
+                          <Tag data-field-affix="start" className="h-4 w-4" />
+                          <Input id="field-sessionLabel" aria-required aria-invalid={!!errors.sessionLabel} value={s.sessionLabel} onChange={(e) => setSchool({ sessionLabel: e.target.value })} placeholder={sessionLabelFor(thisYear)} className="w-full" />
+                          <FieldAction data-field-affix="end" type="button" aria-label={t.resetSessionName} onClick={() => setSchool({ sessionLabel: sessionLabelFor(Number(s.academicYear) || thisYear) })}>
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </FieldAction>
+                        </InputGroup>
+                        {errors.sessionLabel && <p role="alert" className="text-sm text-destructive">{t.errors[errors.sessionLabel]}</p>}
+                      </div>
+                    </div>
+                    <p className="flex items-start gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-[11px] font-bold text-ink-muted">
+                      <AlertCircle className="mt-0.5 w-3.5 h-3.5 shrink-0 text-[#8127cf]" aria-hidden="true" />
+                      {fill(t.sessionHint, sessionLabelFor(Number(s.academicYear) || thisYear), Number(s.academicYear) || thisYear)}
                     </p>
-                  )}
-                  <div className="flex items-center gap-4 pt-2">
-                    <Button variant="outline"
-                      onClick={goBack}
-                      disabled={loading}
-                      className="w-16 shrink-0 items-center justify-center"
-                      aria-label="Back"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </Button>
-                    <Button variant="default"
-                      onClick={handleFinalLaunch}
-                      disabled={loading}
-                      aria-describedby={overCampusLimit ? "launch-capacity-note" : undefined}
-                      className="flex-1 items-center justify-center gap-4 group"
-                    >
-                      {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Launch Dashboard <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" /></>}
-                    </Button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <InputField field="sessionStart" label={t.sessionStarts} type="date" icon={CalendarDays} value={s.sessionStart} placeholder="" onChange={(val) => setSchool({ sessionStart: val })} />
+                      <InputField field="sessionEnd" error={errors.sessionEnd && t.errors[errors.sessionEnd]} label={t.sessionEnds} type="date" icon={CalendarDays} value={s.sessionEnd} placeholder="" onChange={(val) => setSchool({ sessionEnd: val })} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="field-timezone" className="sk-field-label">{t.timezone}</Label>
+                      <InputGroup className="min-w-0">
+                        <Clock data-field-affix="start" className="h-4 w-4" />
+                        <SystemSelect id="field-timezone" dir="ltr" value={s.timezone} onChange={(e) => setSchool({ timezone: e.target.value })} className="w-full" aria-describedby="timezone-hint">
+                          {TIMEZONES.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
+                        </SystemSelect>
+                      </InputGroup>
+                      <p id="timezone-hint" className="text-[11px] font-bold text-ink-subtle">{t.timezoneHint}</p>
+                    </div>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                  <div className="space-y-5">
+                    <p className="flex items-center gap-2 text-[11px] font-black uppercase text-[#8127cf]"><CalendarRange className="w-3.5 h-3.5" aria-hidden="true" /> {t.workingWeek}</p>
+                    <p className="text-[12px] font-semibold text-ink-muted">{t.workingWeekHint}</p>
+                    <div className="grid grid-cols-7 gap-1.5" id="field-weekends" tabIndex={-1}>
+                      {WEEK_DAYS.map((day) => {
+                        const off = s.weekends.includes(day);
+                        return (
+                          <Button variant="choice" key={day} type="button" onClick={() => toggleWorkingDay(day)} aria-pressed={!off}
+                            aria-label={`${weekdayName(day, language, "long")} — ${off ? t.dayClosed : t.dayWorking}`}
+                            className="min-w-0 flex-col px-0.5 py-3">
+                            <span className="text-[10px] font-black">{weekdayName(day, language, "short")}</span>
+                            <span className={`h-1.5 w-1.5 rounded-full ${off ? "bg-[#cfc2d6]" : "bg-[#8127cf]"}`} aria-hidden="true" />
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    <div className="rounded-[24px] border border-[#cfc2d6]/20 bg-[#fbf0fe] p-5 space-y-2">
+                      <p className="text-[11px] font-black text-[#8127cf]">{t.workingDays(workingDays.length)}</p>
+                      <p className="text-[12px] font-bold text-ink">{t.open}: {workingDays.map((day) => weekdayName(day, language, "short")).join(listSeparator) || "—"}</p>
+                      <p className="text-[12px] font-bold text-ink-muted">{t.closed}: {offDays.map((day) => weekdayName(day, language, "long")).join(listSeparator) || t.noWeekend}</p>
+                      <p className="border-t border-[#cfc2d6]/20 pt-2 text-[11px] font-bold text-ink-subtle">{t.appliedTo}</p>
+                    </div>
+                  </div>
+                </div>
+                <StepActions t={t} onBack={goBack} onContinue={() => void continueFrom("academic")} busy={saving} />
+              </section>
+            )}
 
+            {/* ═══ STEP: Review & activate ═══ */}
+            {step === 'review' && (
+              <section className="space-y-5" aria-labelledby="step-heading">
+                <div className="sk-panel sk-rise p-5 md:p-8 space-y-6">
+                  <StepHeading refEl={headingRef} icon={ClipboardCheck} title={t.reviewTitle} intro={t.reviewIntro} />
+                  {success && (
+                    <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+                      <p className="font-black">{t.successTitle}</p>
+                      <p className="text-sm">{fill(t.successBody, success.activated, success.drafts)} {t.openingWorkspace}</p>
+                    </div>
+                  )}
+                  {failed && !success && (
+                    <div role="alert" className="rounded-2xl border border-status-error-border bg-status-error-surface p-4 text-status-error-text space-y-2" data-testid="setup-failure">
+                      <p className="font-black">{t.failedTitle}</p>
+                      <p className="text-sm">{v.lastError}</p>
+                      <p className="text-sm">{t.failedBody}</p>
+                      {v.failedStep && v.failedStep !== "review" && flow.includes(v.failedStep as SetupStepId) && (
+                        <Button variant="outline" size="sm" onClick={() => void goTo(v.failedStep as SetupStepId)}>{fill(t.goToStep, t.steps[v.failedStep as SetupStepId].title)}</Button>
+                      )}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <SummaryItem icon={Layers} label={t.institutionType} value={t.types[type].label} />
+                    <SummaryItem icon={Sparkles} label={t.adoptionMode} value={mode ? t.modes[mode].short : "—"} />
+                    <SummaryItem icon={Package} label={t.currentPackage} value={v.plan.name} />
+                    <SummaryItem icon={Building} label={t.activatedCapacity} value={fill(t.capacityValue, split.activate.length, limit < 0 ? "∞" : limit)} />
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-3">{t.identity}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <SummaryItem icon={Building} label={isGroup ? t.groupName : t.schoolName} value={s.name} />
+                      <SummaryItem icon={Hash} label={isGroup ? t.schoolId : t.campusId} value={isGroup ? s.regId : s.primaryCampusRegId} ltr />
+                      <SummaryItem icon={MapPin} label={t.city} value={s.city} />
+                      <SummaryItem icon={Mail} label={t.contactEmail} value={s.email} ltr />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-3">{t.academicDefaults}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <SummaryItem icon={CalendarRange} label={t.session} value={`${s.sessionLabel} (${s.academicYear})`} ltr />
+                      <SummaryItem icon={Clock} label={t.timezone} value={s.timezone} ltr />
+                      <SummaryItem icon={CalendarDays} label={t.sessionDates} value={s.sessionStart ? `${s.sessionStart}${s.sessionEnd ? ` → ${s.sessionEnd}` : ''}` : t.startsToday} ltr={Boolean(s.sessionStart)} />
+                      <SummaryItem icon={CheckCircle2} label={t.weeklyOff} value={offDays.map((day) => weekdayName(day, language, "short")).join(listSeparator) || t.none} />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-3">{t.campuses}</h3>
+                    <ul className="grid gap-2 sm:grid-cols-2" data-testid="review-campuses">
+                      {planned.map((c, i) => {
+                        const isDraft = i >= split.activate.length;
+                        return (
+                          <li key={c.key} className="flex items-start justify-between gap-3 rounded-xl bg-[#fbf0fe]/60 p-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-black break-words">{isGroup ? c.name : t.primaryCampus}</p>
+                              <p className="text-[11px] font-bold text-ink-subtle">{c.city} · <bdi dir="ltr">{c.regId}</bdi></p>
+                            </div>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-[#cfc2d6]/30 p-4">
+                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-2">{t.authoritative}</h3>
+                    <p className="text-sm text-ink">{mode === "EXAM_STUDIO" ? t.authoritativeExam : t.authoritativeFull}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-2">{t.unresolved}</h3>
+                    <ul className="list-disc ps-5 text-sm text-ink-muted space-y-1" data-testid="optional-work">
+                      {unresolvedOptionalWork(type, mode, d).map((key) => <li key={key}>{t.optionalWork[key]}</li>)}
+                    </ul>
+                  </div>
+                </div>
+                {overLimit && (
+                  <p id="launch-capacity-note" role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    {fill(t.activateNote, split.activate.length, split.drafts.length)}
+                  </p>
+                )}
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+                  <Button variant="outline" onClick={goBack} disabled={activating || Boolean(success)} className="gap-2"><ChevronLeft className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button>
+                  {overLimit && v.actor.canPurchase && (
+                    <Link href={comparePackagesHref} className={buttonVariants({ variant: "outline" })}>{t.changePackage}</Link>
+                  )}
+                  <Button size="lg" onClick={() => void handleActivate()} disabled={activating || saving || Boolean(success)} aria-describedby={overLimit ? "launch-capacity-note" : undefined} className="flex-1 gap-3">
+                    {activating ? <><Loader2 className="w-5 h-5 animate-spin" /> {t.activating}</> : <>{overLimit ? t.activateEligible : t.activate} <ChevronRight className="w-5 h-5 rtl:rotate-180" /></>}
+                  </Button>
+                </div>
+              </section>
+            )}
+
+            {(v.actor.canDelegate || v.delegate) && v.actor.kind === "owner" && !success && (
+              <HandoverPanel t={t} view={v} onChange={(next) => applyView(next, step)} />
+            )}
+          </div>
         </div>
       </main>
 
-      {/* ═══ DELETE CONFIRMATION DIALOG ═══ */}
       <Dialog open={!!campusToDelete} onOpenChange={(open) => !open && setCampusToDelete(null)}>
         <DialogContent size="sm">
           <DialogHeader>
-            <DialogTitle>Delete Campus?</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete <strong>{campusToDelete?.name}</strong>? This action cannot be undone.
-            </DialogDescription>
+            <DialogTitle>{t.deleteCampusTitle}</DialogTitle>
+            <DialogDescription>{fill(t.deleteCampusBody, campusToDelete?.name ?? "")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline"
-              onClick={() => setCampusToDelete(null)}
-
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive"
-              onClick={confirmDeleteCampus}
-
-            >
-              Delete Campus
-            </Button>
+            <Button variant="outline" onClick={() => setCampusToDelete(null)}>{t.cancel}</Button>
+            <Button variant="destructive" onClick={() => void confirmDeleteCampus()}>{t.deleteCampus}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
 
-function StepNav({ active, done, num, title, desc, disabled, onClick }: {
-  active: boolean;
-  done: boolean;
-  num: number;
-  title: string;
-  desc: string;
-  disabled?: boolean;
-  onClick?: () => void;
+function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupView; onChange: (view: SetupView) => void }) {
+  const [open, setOpen] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ fullName: "", email: "", canPurchaseSubscription: false });
+  const [formErrors, setFormErrors] = useState<StepErrors>({});
+  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
+  const delegate = view.delegate;
+
+  const submit = async () => {
+    setBusy(true);
+    setFormErrors({});
+    const res = await assignOnboardingDelegate(form);
+    setBusy(false);
+    if (!res.ok) {
+      if (res.errors) setFormErrors(res.errors); else toast.error(res.message);
+      return;
+    }
+    onChange(res.view);
+    setOpen(false);
+    setIssued({ email: res.email, password: res.temporaryPassword });
+    setForm({ fullName: "", email: "", canPurchaseSubscription: false });
+  };
+
+  const revoke = async () => {
+    setBusy(true);
+    const res = await revokeOnboardingDelegate();
+    setBusy(false);
+    setConfirmRevoke(false);
+    if (res.ok) { onChange(res.view); toast.success(t.revoked); } else toast.error(res.message);
+  };
+
+  return (
+    <section className="sk-panel p-5 md:p-6 space-y-3" aria-labelledby="handover-title" data-testid="handover-panel">
+      <h2 id="handover-title" className="flex items-center gap-2 text-sm font-black text-ink"><UserPlus className="h-4 w-4 text-[#8127cf]" aria-hidden="true" /> {t.handoverTitle}</h2>
+      {delegate ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-ink">
+            <span className="font-bold">{t.delegateLabel}:</span> {delegate.fullName} (<bdi dir="ltr">{delegate.email}</bdi>) · {delegate.canPurchaseSubscription ? t.canBuy : t.cannotBuy}
+            {delegate.pendingFirstSignIn ? ` · ${t.pendingFirstSignIn}` : ""}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setConfirmRevoke(true)}>{t.revoke}</Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-ink-muted">{t.handoverIntro}</p>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}><UserPlus className="h-4 w-4" /> {t.handover}</Button>
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{t.handover}</DialogTitle>
+            <DialogDescription>{t.handoverIntro}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <InputField field="delegateName" error={formErrors.delegateName && t.errors[formErrors.delegateName]} label={t.delegateName} value={form.fullName} onChange={(val) => setForm({ ...form, fullName: val })} placeholder="" icon={UserRound} required />
+            <InputField field="delegateEmail" error={formErrors.delegateEmail && t.errors[formErrors.delegateEmail]} label={t.delegateEmail} value={form.email} onChange={(val) => setForm({ ...form, email: val })} placeholder="name@school.edu" icon={Mail} type="email" required />
+            <label className="flex items-start gap-3 text-sm text-ink">
+              <input type="checkbox" className="mt-1 h-4 w-4" checked={form.canPurchaseSubscription} onChange={(e) => setForm({ ...form, canPurchaseSubscription: e.target.checked })} />
+              {t.allowPurchase}
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>{t.cancel}</Button>
+            <Button onClick={() => void submit()} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{t.sendHandover}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!issued} onOpenChange={(o) => !o && setIssued(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{t.tempPasswordTitle}</DialogTitle>
+            <DialogDescription>{fill(t.tempPasswordBody, issued?.email ?? "")}</DialogDescription>
+          </DialogHeader>
+          <p dir="ltr" className="rounded-xl bg-[#fbf0fe] p-3 text-center font-mono text-base font-bold select-all" data-testid="temporary-password">{issued?.password}</p>
+          <DialogFooter><Button onClick={() => setIssued(null)}>{t.done}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmRevoke} onOpenChange={setConfirmRevoke}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>{t.revokeTitle}</DialogTitle>
+            <DialogDescription>{fill(t.revokeBody, delegate?.fullName ?? "")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmRevoke(false)}>{t.cancel}</Button>
+            <Button variant="destructive" onClick={() => void revoke()} disabled={busy}>{t.revoke}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+function StepHeading({ refEl, icon: Icon, title, intro }: { refEl: React.RefObject<HTMLHeadingElement | null>; icon: LucideIcon; title: string; intro: string }) {
+  return (
+    <div className="flex items-center gap-4">
+      <div className="w-12 h-12 md:w-14 md:h-14 bg-[#fbf0fe] rounded-2xl flex items-center justify-center text-[#8127cf] shrink-0">
+        <Icon className="w-6 h-6" aria-hidden="true" />
+      </div>
+      <div className="min-w-0">
+        <h1 id="step-heading" ref={refEl} tabIndex={-1} className="text-xl md:text-3xl font-black text-ink leading-tight outline-none">{title}</h1>
+        <p className="text-ink-muted font-semibold text-sm mt-1">{intro}</p>
+      </div>
+    </div>
+  );
+}
+
+function StepActions({ t, onBack, onContinue, busy, disabled }: { t: OnboardingCopy; onBack?: () => void; onContinue: () => void; busy: boolean; disabled?: boolean }) {
+  return (
+    <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {onBack ? <Button variant="outline" onClick={onBack} disabled={busy} className="gap-2"><ChevronLeft className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button> : <span />}
+      <Button variant="dark" onClick={onContinue} disabled={busy || disabled} className="gap-2">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{t.continue} <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+      </Button>
+    </div>
+  );
+}
+
+function ChoiceCard({ name, checked, onSelect, title, desc }: { name: string; checked: boolean; onSelect: () => void; title: string; desc: string }) {
+  const id = useId();
+  return (
+    <label htmlFor={id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${checked ? "border-[#8127cf] bg-[#f6ecff]" : "border-[#e3d5f0] bg-white hover:border-[#cdb2e6]"}`}>
+      <input id={id} type="radio" name={name} checked={checked} onChange={onSelect} className="mt-1 h-4 w-4 accent-[#8127cf]" />
+      <span className="min-w-0">
+        <span className="block text-sm font-black text-ink">{title}</span>
+        <span className="mt-1 block text-[12px] font-semibold text-ink-muted">{desc}</span>
+      </span>
+    </label>
+  );
+}
+
+function StepNav({ t, icon: Icon, active, done, num, title, desc, disabled, onClick }: {
+  t: OnboardingCopy; icon: LucideIcon; active: boolean; done: boolean; num: number; title: string; desc: string; disabled?: boolean; onClick?: () => void;
 }) {
   return (
-    <Button aria-pressed={active} variant="choice"
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="relative w-full justify-start gap-4 p-5 text-start"
-    >
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500 shadow-md shrink-0 ${active ? 'bg-[#8127cf] text-white scale-110' : done ? 'bg-emerald-500 text-white' : 'bg-[#f3f4f9] text-ink-subtle'}`}>
-        {done ? <CheckCircle2 className="w-5 h-5" /> : num}
+    <Button aria-current={active ? "step" : undefined} variant="choice" type="button" disabled={disabled} onClick={onClick} className="relative w-full justify-start gap-3 p-4 text-start">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${active ? 'bg-[#8127cf] text-white' : done ? 'bg-emerald-600 text-white' : 'bg-[#f3f4f9] text-ink-subtle'}`} aria-hidden="true">
+        {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
       </div>
-      <div className="overflow-hidden">
-        <h4 className={`text-sm font-black text-[#1f1a23] leading-none mb-1.5 truncate ${!active && !done && 'opacity-40'}`}>{title}</h4>
-        <p className={`text-[10px] font-bold text-ink-muted tracking-normal truncate ${!active && 'opacity-40'}`}>{desc}</p>
+      <div className="min-w-0">
+        <span className="block text-sm font-black text-ink leading-none mb-1 truncate">{num}. {title}</span>
+        <span className="block text-[11px] font-bold text-ink-muted truncate">{desc}</span>
+        <span className="sr-only">({done ? t.stepState.done : active ? t.stepState.current : disabled ? t.stepState.locked : ""})</span>
       </div>
     </Button>
   );
 }
 
-function InputField({ error, label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: InputFieldProps) {
-  const id = useId();
+function InputField({ field, error, label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: {
+  field: string; error?: string; label: string; value: string; onChange: (val: string) => void; placeholder: string; icon: LucideIcon;
+  isArea?: boolean; required?: boolean; readonly?: boolean; type?: string;
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email' | 'url' | 'search' | 'none' | 'decimal';
+}) {
+  const id = `field-${field}`;
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" data-form-field={field}>
       <Label htmlFor={id} className="sk-field-label">
-        {label} {required && <span className="text-rose-500">*</span>}
+        {label} {required && <span className="text-rose-500" aria-hidden="true">*</span>}
       </Label>
       <InputGroup>
         {type !== "date" && <Icon data-field-affix="start" className="h-4 w-4" />}
         {isArea ? (
           <SystemTextarea id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-            className={"w-full min-h-[100px] resize-none"}
-          />
+            value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full min-h-[90px] resize-none" />
         ) : (
-          <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} dir={["email", "tel", "url"].includes(type) ? "ltr" : undefined}
-            type={type}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-            readOnly={readonly}
-            inputMode={inputMode}
-            className={`w-full ${readonly ? "" : ""} `}
-          />
+          <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}
+            dir={["email", "tel", "url", "date"].includes(type) ? "ltr" : undefined}
+            type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} readOnly={readonly} inputMode={inputMode} className="w-full" />
         )}
       </InputGroup>
-      {error && <p id={`${id}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
+      {error && <p id={`${id}-error`} className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }
 
-function SummaryItem({ icon: Icon, label, value }: SummaryItemProps) {
+function SummaryItem({ icon: Icon, label, value, ltr }: { icon: LucideIcon; label: string; value: string; ltr?: boolean }) {
   return (
-    <div className="flex items-center gap-4 p-4 md:p-5 bg-[#fbf0fe]/50 rounded-[24px] border border-white/50 shadow-sm">
-      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-[#8127cf] shadow-sm flex-shrink-0">
-        <Icon className="w-5 h-5" />
+    <div className="flex items-center gap-3 p-3 md:p-4 bg-[#fbf0fe]/50 rounded-[20px] border border-white/50 min-w-0">
+      <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-[#8127cf] shrink-0">
+        <Icon className="w-4 h-4" aria-hidden="true" />
       </div>
-      <div className="overflow-hidden">
-        <p className="text-[9px] font-black text-ink-subtle uppercase tracking-normal mb-1">{label}</p>
-        <p className="text-xs font-black text-[#1f1a23] truncate pr-2">{value || '...'}</p>
+      <div className="min-w-0">
+        <p className="text-[10px] font-black text-ink-subtle uppercase mb-0.5">{label}</p>
+        <p className="text-sm font-black text-ink break-words">{ltr ? <bdi dir="ltr">{value || '—'}</bdi> : (value || '—')}</p>
       </div>
     </div>
   );

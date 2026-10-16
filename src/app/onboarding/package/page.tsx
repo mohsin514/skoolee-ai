@@ -41,7 +41,7 @@ const order: Plan["type"][] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
 function PackageChoice() {
   const params = useSearchParams();
   const router = useRouter();
-  const returnStep = params.get("returnStep") || "campuses";
+  const returnStep = params.get("returnStep") || "package";
   const initialCampuses = Number(params.get("campuses") || "1");
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
   const [period, setPeriod] = useState<"monthly" | "annual">("monthly");
@@ -56,8 +56,8 @@ function PackageChoice() {
   const isRtl = language === "ar" || language === "ur";
   const copy = getPackageCopy(language);
   const resume = useMemo(() => {
-    const allowed = ["identity", "campuses", "academic", "review"];
-    return allowed.includes(returnStep) ? returnStep : "campuses";
+    const allowed = ["structure", "identity", "package", "campuses", "academic", "review"];
+    return allowed.includes(returnStep) ? returnStep : "package";
   }, [returnStep]);
 
   const load = useCallback(async () => {

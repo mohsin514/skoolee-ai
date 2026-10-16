@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser, canPurchaseSubscription } from "@/lib/api/scope";
-import { assertOnboardingOwner } from "@/lib/billing/checkout-intents";
+import { assertSetupPurchaser, setupTenantContext } from "@/lib/onboarding/setup-service";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +17,10 @@ export async function GET(req: NextRequest) {
     });
     if (!intent) throw new ApiError("Checkout was not found.", 404);
 
-    if (!user.isInstitutionOwner && !canPurchaseSubscription(user)) {
+    if (!user.onboardingComplete) await runWithTenantContext(setupTenantContext(user), () => assertSetupPurchaser(user));
+    else if (!user.isInstitutionOwner && !canPurchaseSubscription(user)) {
       throw new ApiError("Subscription purchasing is not delegated to this account.", 403);
     }
-    if (!user.onboardingComplete) assertOnboardingOwner(user);
     if (intent.userId !== user.userId && !canPurchaseSubscription(user)) {
       throw new ApiError("This checkout belongs to another buyer.", 403);
     }

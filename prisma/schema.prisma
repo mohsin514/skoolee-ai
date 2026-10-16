@@ -58,6 +58,7 @@ model School {
   workflowEffects      WorkflowEffect[]
   importBatches        ImportBatch[]
   checkoutIntents      OnboardingCheckoutIntent[]
+  institutionSetup     InstitutionSetup?
   subscriptionRequests SubscriptionRequest[]
   registrationKind String @default("UNVERIFIED") @map("registration_kind")
   id                   String    @id @default(uuid())
@@ -283,6 +284,37 @@ model WorkflowEffect {
   completedAt DateTime? @map("completed_at")
   @@unique([jobId, identity])
   @@map("workflow_effects")
+}
+
+// Durable owner setup state (SKO-391). One row per institution, so progress
+// survives refresh, sign-out, another device and an authorised handover.
+// Campus drafts stay here until completion creates real campuses inside one
+// transaction; over-limit drafts remain here after completion.
+model InstitutionSetup {
+  id              String    @id @default(uuid())
+  schoolId        String    @unique @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  institutionType String    @map("institution_type") // STANDALONE, GROUP
+  adoptionMode    String?   @map("adoption_mode") // EXAM_STUDIO, FULL_OPERATIONS
+  currentStep     String    @default("structure") @map("current_step")
+  completedSteps  String[]  @default([]) @map("completed_steps")
+  draft           Json      @default("{}")
+  version         Int       @default(0)
+  status          String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETING, FAILED, COMPLETED
+  failedStep      String?   @map("failed_step")
+  lastError       String?   @map("last_error") @db.Text
+  attempts        Int       @default(0)
+  result          Json?
+  delegateUserId  String?   @map("delegate_user_id")
+  delegatedById   String?   @map("delegated_by_id")
+  delegatedAt     DateTime? @map("delegated_at")
+  updatedById     String?   @map("updated_by_id")
+  completedById   String?   @map("completed_by_id")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("institution_setups")
 }
 
 // Durable subscription checkout state. Provider redirects and browser return

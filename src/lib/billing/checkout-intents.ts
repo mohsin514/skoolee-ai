@@ -12,7 +12,7 @@ export const onboardingCheckoutSchema = z.object({
   billingPeriod: z.enum(["monthly", "annual"]).default("monthly"),
   expectedCampuses: z.number().int().min(1).max(1000),
   expectedEnrollment: z.number().int().min(0).max(10_000_000),
-  returnStep: z.enum(["identity", "campuses", "academic", "review"]).default("campuses"),
+  returnStep: z.enum(["structure", "identity", "package", "campuses", "academic", "review"]).default("package"),
   idempotencyKey: z.string().min(16).max(120),
 });
 export type OnboardingCheckoutInput = z.infer<typeof onboardingCheckoutSchema>;

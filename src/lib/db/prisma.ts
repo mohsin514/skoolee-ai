@@ -476,7 +476,7 @@ rlsClient = prisma as unknown as RlsCapableClient;
  * this instead of `prisma.$transaction` — otherwise the guard would try to open
  * a nested transaction for every query inside the outer one.
  */
-export function tenantTransaction<T>(fn: (tx: TxClient) => Promise<T>): Promise<T> {
+export function tenantTransaction<T>(fn: (tx: TxClient) => Promise<T>, options?: { timeout?: number; maxWait?: number }): Promise<T> {
   const schoolId = requireSchoolId();
   const context = getTenantContext();
 
@@ -484,6 +484,6 @@ export function tenantTransaction<T>(fn: (tx: TxClient) => Promise<T>): Promise<
     prisma.$transaction(async (tx) => {
       if (RLS_ENABLED) await applySchoolGuc(tx, schoolId);
       return fn(tx as TxClient);
-    })
+    }, options)
   );
 }
