@@ -213,6 +213,9 @@ model School {
   departmentMembers       DepartmentMember[]
   staffAppointments       StaffAppointment[]
   staffReportingLines     StaffReportingLine[]
+  dataRetentionSchedules  DataRetentionSchedule[]
+  dataLegalHolds          DataLegalHold[]
+  dataLifecycleRequests   DataLifecycleRequest[]
 
   @@map("schools")
 }
@@ -4425,4 +4428,81 @@ model SchoolAiExposureEntry {
   @@index([schoolId, campusId, itemGroupId, examDate(sort: Desc)], map: "school_ai_exposure_entries_group_idx")
   @@index([schoolId, campusId, paperId, paperVersion], map: "school_ai_exposure_entries_paper_idx")
   @@map("school_ai_exposure_entries")
+}
+
+// ─── Data lifecycle (SKO-447) ─────────────────────────────────────
+// Versioned retention per record category: a change adds a version, it never edits history.
+model DataRetentionSchedule {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  category      String
+  retentionDays Int      @map("retention_days")
+  version       Int
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([schoolId, category, version])
+  @@map("data_retention_schedules")
+}
+
+// A hold preserves a whole category or one record until an authorized release.
+model DataLegalHold {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  category      String
+  recordId      String?   @map("record_id")
+  reason        String
+  placedBy      String    @map("placed_by")
+  placedAt      DateTime  @default(now()) @map("placed_at")
+  releasedBy    String?   @map("released_by")
+  releasedAt    DateTime? @map("released_at")
+  releaseReason String?   @map("release_reason")
+
+  @@index([schoolId, category, releasedAt])
+  @@map("data_legal_holds")
+}
+
+// Export, retention deletion and placement-migration requests with separate review.
+model DataLifecycleRequest {
+  id                String    @id @default(uuid())
+  schoolId          String    @map("school_id")
+  school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId          String?   @map("campus_id")
+  kind              String
+  status            String    @default("REQUESTED")
+  category          String?
+  studentId         String?   @map("student_id")
+  targetRegion      String?   @map("target_region")
+  reason            String
+  requestedBy       String    @map("requested_by")
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  reviewedBy        String?   @map("reviewed_by")
+  reviewedAt        DateTime? @map("reviewed_at")
+  reviewNote        String?   @map("review_note")
+  version           Int       @default(1)
+  plan              Json?
+  receipt           Json?
+  artifact          Json?
+  downloadToken     String?   @unique @map("download_token")
+  downloadExpiresAt DateTime? @map("download_expires_at")
+  completedAt       DateTime? @map("completed_at")
+
+  @@index([schoolId, status, requestedAt])
+  @@map("data_lifecycle_requests")
+}
+
+// Platform evidence that a service actually runs in a region; without it a location is only "configured".
+model DataServiceVerification {
+  id         String   @id @default(uuid())
+  service    String
+  region     String
+  evidence   String
+  verifiedBy String   @map("verified_by")
+  verifiedAt DateTime @default(now()) @map("verified_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@index([service, region, expiresAt])
+  @@map("data_service_verifications")
 }

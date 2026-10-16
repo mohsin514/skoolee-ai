@@ -37,6 +37,9 @@ export const TENANT_MODELS = new Set<string>([
   "conversationMember",
   "correction",
   "correctionNote",
+  "dataLegalHold",
+  "dataLifecycleRequest",
+  "dataRetentionSchedule",
   "deliveryReceipt",
   "department",
   "departmentMember",
@@ -108,9 +111,9 @@ export const TENANT_MODELS = new Set<string>([
   "schoolAiExamAppeal",
   "schoolAiExamAssignment",
   "schoolAiExamAttempt",
-  "schoolAiExamIntegrityEvent",
   "schoolAiExamFormRelease",
   "schoolAiExamFormSet",
+  "schoolAiExamIntegrityEvent",
   "schoolAiExamResultRevision",
   "schoolAiExecution",
   "schoolAiExposureEntry",
@@ -159,6 +162,7 @@ export const TENANT_MODELS = new Set<string>([
 
 export const GLOBAL_MODELS = new Set<string>([
   "authAttempt",
+  "dataServiceVerification",
   "passwordReset",
   "pendingRegistration",
   "platformConfig",
