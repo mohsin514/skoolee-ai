@@ -16,6 +16,8 @@ import { RoleSidebar, type RoleNavItem, type SidebarEntry } from "./RoleSidebar"
 const SIDEBAR_KEY = "skoolee.sidebar.collapsed";
 
 interface RoleShellProps {
+  /** Family reading flows use one document scroll surface on narrow screens. */
+  mobileDocumentFlow?: boolean;
   navigationAccess?: NavigationAccess | null;
   navigationAccessFallback?: ReactNode;
   tagline?: string;
@@ -38,6 +40,7 @@ export function RoleShell(props: RoleShellProps) {
 }
 
 function RoleShellContent({
+  mobileDocumentFlow = false,
   navigationAccessFallback,
   tagline,
   navItems,
@@ -67,6 +70,7 @@ function RoleShellContent({
   const activeItems = navItems.flatMap((item) => "children" in item ? item.children : [item]).filter((item) => item.active);
   const checkingAccess = access.status === "loading";
   const denied = access.status !== "ready" || !access.allowsHref(pathname) || activeItems.some((item) => item.available === false || !access.allows(item.module));
+  const mobileMessagesAvailable = access.status === "ready" && [...navItems.flatMap(item => "children" in item ? item.children : [item]), ...(bottomItems ?? [])].some(item => item.href === "/messages" && item.available !== false && access.allows(item.module));
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -113,7 +117,7 @@ function RoleShellContent({
 
   return (
     <ChatProvider>
-      <div className="min-h-dvh bg-background flex font-sans text-foreground selection:bg-[#8127cf]/30">
+      <div data-role-shell className="min-h-dvh bg-background flex font-sans text-foreground selection:bg-[#8127cf]/30">
         <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:p-3"><UiText>Skip to content</UiText></a>
         {checkingAccess && <aside aria-hidden="true" className={cn("fixed inset-y-0 start-0 hidden flex-col gap-3 border-e border-border bg-card p-4 md:flex", collapsed ? "w-[72px]" : "w-64")}><SkeletonBar className="mb-4 h-11 w-full" />{Array.from({ length: navItems.length || 8 }, (_, i) => <SkeletonBar key={i} className="h-11 w-full" delay={i * 60} />)}</aside>}
         <div style={{ display: checkingAccess ? "none" : "contents" }}><RoleSidebar
@@ -128,7 +132,8 @@ function RoleShellContent({
           id="workspace-content"
           tabIndex={-1}
           className={cn(
-            "flex-1 min-w-0 p-3 md:p-5 pb-20 md:pb-5 flex flex-col h-dvh overflow-hidden transition-none md:transition-[margin] duration-300 ease-out",
+            "flex-1 min-w-0 p-[12px] md:p-5 pb-[calc(var(--mobile-nav-height,5rem)+12px)] md:pb-5 flex flex-col transition-none md:transition-[margin] duration-300 ease-out",
+            mobileDocumentFlow ? "h-auto min-h-dvh overflow-visible md:h-dvh md:min-h-0 md:overflow-hidden" : "h-dvh overflow-hidden",
             collapsed ? "md:ms-[72px]" : "md:ms-64",
             className,
           )}
@@ -152,7 +157,7 @@ function RoleShellContent({
         {/* Mounted here rather than in each dashboard: every role console
             renders this shell, so one placement gives all ten roles messaging,
             and one provider means one EventSource per tab, not one per screen. */}
-        <ChatDock />
+        <ChatDock mobileMessagesAvailable={mobileMessagesAvailable} />
       </div>
     </ChatProvider>
   );

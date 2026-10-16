@@ -27,12 +27,12 @@ export const examReviewSchema = z.object({
   note: z.string().trim().min(1).max(4000),
 }).strict();
 
-export const startExamSchema = z.object({ version: z.number().int().positive() }).strict();
+export const startExamSchema = z.object({ version: z.number().int().positive(), cameraReady: z.boolean().optional(), consentVersion: z.string().max(100).optional() }).strict();
 export const examAccommodationSchema = z.object({
   extraMinutes: z.number().int().min(0).max(240),
   reason: z.string().trim().min(1).max(1000),
   breakMinutes: z.number().int().min(0).max(120).optional(),
-  reader: z.boolean().optional(), scribe: z.boolean().optional(), largeText: z.boolean().optional(),
+  reader: z.boolean().optional(), scribe: z.boolean().optional(), largeText: z.boolean().optional(), cameraExempt: z.boolean().optional(),
   approvedById: id,
   approvedAt: z.string().datetime(),
 }).strict();
@@ -43,7 +43,7 @@ export const approveExamAccommodationSchema = z.object({
   extraMinutes: z.number().int().min(0).max(240),
   reason: z.string().trim().min(1).max(1000),
   breakMinutes: z.number().int().min(0).max(120).optional(),
-  reader: z.boolean().optional(), scribe: z.boolean().optional(), largeText: z.boolean().optional(),
+  reader: z.boolean().optional(), scribe: z.boolean().optional(), largeText: z.boolean().optional(), cameraExempt: z.boolean().optional(),
 }).strict();
 
 export type ExamResponses = z.infer<typeof responsesSchema>;

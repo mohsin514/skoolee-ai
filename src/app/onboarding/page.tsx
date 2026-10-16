@@ -183,6 +183,7 @@ export default function OnboardingWizard() {
   const recovery = useFormDraft({ record: "onboarding:school", schema: 1,
     values: { ...schoolData, campuses, newCampus }, baseline: { ...baseline, campuses: [] as CampusDraft[], newCampus: baselineCampus },
     fields: ["name", "city", "address", "phone", "website", "establishedYear", "tagline", "regId", "autoId", "timezone", "academicYear", "sessionLabel", "sessionStart", "sessionEnd", "weekends", "campuses", "newCampus"],
+    structures: { campuses: ["id", "name", "city", "address", "phone", "email", "website", "principalName", "regId", "autoId", "board"], newCampus: ["name", "city", "address", "phone", "email", "website", "principalName", "regId", "autoId", "board"] },
     enabled: !!session, section: step, apply: ({ campuses: savedCampuses, newCampus: savedCampus, ...next }, savedStep) => {
       setSchoolData(next); setCampuses(savedCampuses); setNewCampus(savedCampus);
       if (savedStep && flow.includes(savedStep as StepId)) setStep(savedStep as StepId);
@@ -605,7 +606,7 @@ export default function OnboardingWizard() {
         <div className="p-6 md:p-12 flex-1 flex flex-col items-center">
 
           <div className="w-full max-w-4xl">
-            <DraftRecovery draft={recovery} saving={loading} excluded="Logo files are not stored in device drafts." />
+            <DraftRecovery recordLabel="School onboarding" draft={recovery} saving={loading} excluded="Logo files are not stored in device drafts." />
             <FormErrorSummary errors={formErrors} onFocusField={() => document.querySelector<HTMLInputElement>("[aria-invalid=true],main input")?.focus()} />
             <AnimatePresence mode="wait">
               {/* ═══ STEP: School Details ═══ */}

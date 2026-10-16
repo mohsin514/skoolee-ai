@@ -14,7 +14,14 @@ export async function resolveCurrentPrincipal(claims: { userId: string; schoolId
   }));
   if (!account || (claims.role !== undefined && account.role !== normalizeUserRole(claims.role))) return null;
   if (claims.role !== undefined && account.accessVersion !== (claims.accessVersion ?? 0)) return null;
-  if (claims.role !== undefined && ((requiresMfa(account) && !account.mfaEnabled) || (needsMfaChallenge(account) && claims.mfaVerified !== true))) return null;
+  // A second factor is a property of a signed *session*. Session claims always
+  // carry the account's access version, so `getAuthUser`, the tenant guard and
+  // `proxy` keep challenging exactly as before, including the requirement that a
+  // privileged role has actually enrolled a factor. Identity/ownership probes
+  // pass a role without a version (they are not authenticating a browser
+  // session); requiring MFA there turned a membership lookup into an MFA gate
+  // and denied freshly invited administrators before they could enrol.
+  if (claims.role !== undefined && claims.accessVersion !== undefined && ((requiresMfa(account) && !account.mfaEnabled) || (needsMfaChallenge(account) && claims.mfaVerified !== true))) return null;
   if (account.campus && account.campus.schoolId !== account.schoolId) return null;
   if (account.school.status === "DELETED") return null;
   return { isInstitutionOwner: account.isInstitutionOwner, canPurchaseSubscription: account.canPurchaseSubscription, canManageMemberships: account.canManageMemberships, accessVersion: account.accessVersion, userId: account.id, schoolId: account.schoolId, campusId: account.campusId,

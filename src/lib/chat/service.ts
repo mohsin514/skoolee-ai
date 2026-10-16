@@ -17,7 +17,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { getDownloadUrl } from "@/lib/storage/s3";
+import { conversationInclude, requireMembership, assertCurrentConversationAccess, currentClassMembers, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -109,7 +109,7 @@ async function serialiseMessage(row: MessageRow): Promise<ChatMessageView> {
           fileName: a.fileName,
           contentType: a.contentType,
           sizeBytes: a.sizeBytes,
-          url: await getDownloadUrl(a.storageKey, 3600).catch(() => null),
+          url: `/api/chat/attachments/${encodeURIComponent(a.id)}`,
         }))
       );
 
@@ -140,24 +140,6 @@ async function serialiseMessage(row: MessageRow): Promise<ChatMessageView> {
     clientKey: row.clientKey,
   };
 }
-
-const conversationInclude = {
-  members: {
-    where: { leftAt: null },
-    select: {
-      userId: true,
-      memberRole: true,
-      unreadCount: true,
-      lastReadAt: true,
-      isMuted: true,
-      isPinned: true,
-      isArchived: true,
-      user: { select: { id: true, fullName: true, role: true, profileImageUrl: true } },
-    },
-  },
-} satisfies Prisma.ConversationInclude;
-
-type ConversationRow = Prisma.ConversationGetPayload<{ include: typeof conversationInclude }>;
 
 function memberOf(row: ConversationRow, userId: string) {
   return row.members.find((m) => m.userId === userId);
@@ -229,53 +211,6 @@ function serialiseConversation(
 
 // ─── Access ──────────────────────────────────────────────────────
 
-/**
- * Loads a conversation the caller is actually in. Anything else — a thread in
- * their school they were never added to, or one they have left — is a 404
- * rather than a 403, so the endpoint cannot be used to probe which
- * conversations exist.
- */
-async function requireMembership(user: AuthUser, conversationId: string) {
-  const loaded = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    include: conversationInclude,
-  });
-
-  if (!loaded) throw new ApiError("Conversation not found", 404);
-  const row = await currentClassMembers(loaded);
-
-  const me = memberOf(row, user.userId);
-  if (!me) {
-    // Leadership can moderate any thread in their school, but they still have
-    // to be a member to read one — a principal browsing arbitrary private
-    // conversations is surveillance, not moderation.
-    throw new ApiError("Conversation not found", 404);
-  }
-
-  return { row, me };
-}
-
-/** Remove guardians whose current child grant no longer permits messaging. */
-async function currentClassMembers(row: ConversationRow): Promise<ConversationRow> {
-  if (row.kind !== "CLASS") return row;
-  if (!row.classId) return { ...row, members: row.members.filter((member) => member.user.role !== "PARENT") };
-  const parentIds = row.members.filter((member) => member.user.role === "PARENT").map((member) => member.userId);
-  if (!parentIds.length) return row;
-  const activeLinks = await prisma.guardianRelationship.findMany({
-    where: {
-      schoolId: row.schoolId,
-      guardianUserId: { in: parentIds },
-      guardian: { role: "PARENT", isActive: true },
-      student: { classId: row.classId, status: "active" },
-      ...liveGuardianRelationshipWhere(null, "communication"),
-    },
-    select: { guardianUserId: true },
-    distinct: ["guardianUserId"],
-  });
-  const activeIds = new Set(activeLinks.flatMap((link) => link.guardianUserId ? [link.guardianUserId] : []));
-  return { ...row, members: row.members.filter((member) => member.user.role !== "PARENT" || activeIds.has(member.userId)) };
-}
-
 /** The people a message should be delivered to. */
 function recipientIds(row: ConversationRow, excludeUserId?: string) {
   return row.members.map((m) => m.userId).filter((id) => id !== excludeUserId);
@@ -337,8 +272,11 @@ export async function listConversations(
   // pinned-then-recent order the membership query established.
   const byId = new Map(rows.map((r) => [r.id, r]));
   const loaded = ids.map((id) => byId.get(id)).filter((r): r is ConversationRow => Boolean(r));
-  const checked = await Promise.all(loaded.map(currentClassMembers));
-  const ordered = checked.filter((row) => memberOf(row, user.userId));
+  const checked = await Promise.all(loaded.map(async row => {
+    try { return (await assertCurrentConversationAccess(user, row)).row; }
+    catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
+  }));
+  const ordered = checked.filter((row): row is ConversationRow => row !== null);
 
   const online = await whoIsOnline(
     ordered.flatMap((r) => r.members.map((m) => m.userId)).filter((id) => id !== user.userId)

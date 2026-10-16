@@ -31,6 +31,18 @@ test("reuse preserves immutable source pointers, explicitly rebinds valid curren
   assert.deepEqual(mergeLockedQuestions([], result.questions), result.questions);
   assert.doesNotMatch(JSON.stringify(candidatePaper(result)), /reusedFrom|bankMetadata|sourceRefs|correctOptionId/);
 });
+test("reusing a multiple-choice item remaps every answer-key option to the copied option IDs", () => {
+  const { source, input, curriculum } = setup();
+  const original = source.paper.questions[0];
+  const multi = { ...original, type: "MULTIPLE_CHOICE" as const, correctOptionId: null, correctOptionIds: original.options.slice(0, 2).map(option => option.id) };
+  source.paper.questions[0] = multi;
+  input.source.questionId = multi.id;
+  input.paper.blueprint.sections[0].type = "MULTIPLE_CHOICE";
+  const copied = reuseBankQuestion(input, source, curriculum, "copied-multi").questions[0];
+  assert.deepEqual(copied.correctOptionIds, [copied.options[0].id, copied.options[1].id]);
+  assert.ok(copied.correctOptionIds?.every(id => copied.options.some(option => option.id === id)));
+  assert.notDeepEqual(copied.correctOptionIds, multi.correctOptionIds);
+});
 test("reuse rejects pinned replacements, duplicate prompts/IDs, full slots and blueprint mismatch", () => {
   const { source, input, curriculum } = setup();
   const pinned = { ...structuredClone(source.paper.questions[0]), locked: true };

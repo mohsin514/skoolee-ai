@@ -1,3 +1,4 @@
+import { arabicNavigationUi, urduNavigationUi } from "./navigation-ui-messages";
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 export const arabicUi: Record<string, string> = {
   "Carry Forward": "الرصيد أو الائتمان السابق",
@@ -772,7 +773,8 @@ const reportedMissing = new Set<string>();
 export function translateUi(source: string, language: "en" | "ar" | "ur") {
   const catalog = language === "ar" ? arabicUi : language === "ur" ? urduUi : undefined;
   const workflow = language === "ar" ? arabicWorkflowUi : language === "ur" ? urduWorkflowUi : undefined;
-  const value = catalog?.[source] ?? workflow?.[source] ?? (language === "en" ? undefined : academicModelUi[language][source] ?? academicModelUiExtra[language][source]);
+  const navigation = language === "ar" ? arabicNavigationUi : language === "ur" ? urduNavigationUi : undefined;
+  const value = navigation?.[source] ?? catalog?.[source] ?? workflow?.[source] ?? (language === "en" ? undefined : academicModelUi[language][source] ?? academicModelUiExtra[language][source]);
   if (language !== "en" && value === undefined && /[a-zA-Z]{2}/.test(source) && process.env.NODE_ENV !== "production") {
     const key = `${language}:${source}`;
     if (!reportedMissing.has(key)) { reportedMissing.add(key); console.warn(`[locale:missing] ${key}`); }

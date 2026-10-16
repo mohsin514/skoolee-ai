@@ -7,6 +7,9 @@ import { z } from "zod";
 import { SchoolAiError, assertSchoolAiAccess, assertWorkspacePermission, assertWorkspaceSubject, isSchoolAiManager, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, type WorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema, paperDataSchema, type PaperData } from "./assessment";
 import { bankFiltersSchema, bankQuestionMatches, bankReuseSchema, bankSourceSchema, reuseBankQuestion, type BankEntry } from "./question-bank";
+import { mergeBankReuseEligibility, type BankReuseEligibility } from "./question-bank-exposure";
+import { bankEligibilityFromFacts, loadBankExposureFacts } from "./question-bank-exposure-service";
+import { schoolAiTransaction } from "./transaction";
 
 const cursorSchema = z.object({ revisionId: z.string().min(1).max(120), index: z.number().int().min(0).max(100) }).strict();
 const encodeCursor = (revisionId: string, index: number) => Buffer.from(JSON.stringify({ revisionId, index })).toString("base64url");
@@ -19,6 +22,8 @@ function context<T>(user: AuthUser, fn: () => Promise<T>) {
   return runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role, unscoped: false }, fn);
 }
 async function bankAccess(user: AuthUser, db: TxClient = prisma, grants?: WorkspacePermissionSnapshot) {
+  const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, role: user.role, isActive: true, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) }, select: { accessVersion: true } });
+  if (!actor || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new SchoolAiError("Your question-bank access changed. Sign in again before continuing.", 403, "ACCESS_CHANGED");
   const permissions = grants ?? await loadWorkspacePermissionSnapshot(user, db);
   await assertSchoolAiAccess(user, "view", permissions);
   await assertWorkspacePermission(user, "exams", "view", permissions);
@@ -40,14 +45,39 @@ async function approvedSource(user: AuthUser, source: z.infer<typeof bankSourceS
   if (!curriculumRevision) throw new SchoolAiError("The approved source curriculum version is unavailable.", 409);
   const curriculum = curriculumDataSchema.parse(curriculumRevision.data);
   if (curriculum.subjectId !== paper.subjectId || curriculum.classId !== paper.classId) throw new SchoolAiError("The approved source scope does not match.", 409);
-  return { paperId: current.id, paperVersion: revision.version, paper, curriculum, question, campusId: current.campusId, approvedAt: revision.createdAt.toISOString(), title: revision.title };
+  return { paperId: current.id, paperVersion: revision.version, paper, curriculum, question, campusId: current.campusId, sourceStatus: current.status, approvedAt: revision.createdAt.toISOString(), title: revision.title };
 }
-function entry(source: Awaited<ReturnType<typeof approvedSource>>): BankEntry {
-  return { source: { paperId: source.paperId, paperVersion: source.paperVersion, questionId: source.question.id }, paperTitle: source.title, approvedAt: source.approvedAt, campusId: source.campusId, language: source.paper.language, subjectId: source.paper.subjectId, classId: source.paper.classId, curriculumId: source.paper.curriculumId, curriculumVersion: source.paper.curriculumVersion, question: source.question, outcomes: source.question.outcomeIds.map((id) => {
+export type EligibleBankEntry = BankEntry & { eligibility: BankReuseEligibility };
+function entry(source: Awaited<ReturnType<typeof approvedSource>>, eligibility: BankReuseEligibility): EligibleBankEntry {
+  return { eligibility, source: { paperId: source.paperId, paperVersion: source.paperVersion, questionId: source.question.id }, paperTitle: source.title, approvedAt: source.approvedAt, campusId: source.campusId, language: source.paper.language, subjectId: source.paper.subjectId, classId: source.paper.classId, curriculumId: source.paper.curriculumId, curriculumVersion: source.paper.curriculumVersion, question: source.question, outcomes: source.question.outcomeIds.map((id) => {
     const outcome = source.curriculum.outcomes.find((item) => item.id === id)!;
     const material = source.curriculum.sources.find((item) => item.id === outcome.sourceId)!;
     return { id, title: outcome.title, sourceTitle: material.title, sourceReference: material.reference, page: outcome.sourcePage };
   }) };
+}
+
+/** Caches only within one read/transaction. The save path always gets a fresh exposure snapshot. */
+function eligibilityReader(user: AuthUser, db: TxClient, permissions: WorkspacePermissionSnapshot, now: Date) {
+  const facts = new Map<string, ReturnType<typeof loadBankExposureFacts>>();
+  const decisions = new Map<string, BankReuseEligibility>();
+  const read = async (source: Awaited<ReturnType<typeof approvedSource>>, ancestors: readonly string[] = []): Promise<BankReuseEligibility> => {
+    const paperKey = `${source.paperId}:${source.paperVersion}`, itemKey = `${paperKey}:${source.question.id}`;
+    if (ancestors.includes(itemKey) || ancestors.length >= 16) throw new SchoolAiError("The source lineage needs review before reuse. Choose another reviewed question.", 409, "BANK_LINEAGE_UNAVAILABLE");
+    const cached = decisions.get(itemKey); if (cached) return cached;
+    if (!facts.has(paperKey)) facts.set(paperKey, loadBankExposureFacts(db, user.schoolId, source, now));
+    let result = bankEligibilityFromFacts(source, source.question.id, await facts.get(paperKey)!, now);
+    if (source.question.reusedFrom) {
+      const origin = source.question.reusedFrom;
+      const parent = await approvedSource(user, { paperId: origin.paperId, paperVersion: origin.paperVersion, questionId: origin.questionId }, db, permissions, true);
+      if (parent.campusId !== source.campusId || parent.paper.subjectId !== source.paper.subjectId || parent.paper.classId !== source.paper.classId) throw new SchoolAiError("The source lineage no longer matches this teaching scope.", 403, "BANK_LINEAGE_UNAVAILABLE");
+      result = mergeBankReuseEligibility(result, await read(parent, [...ancestors, itemKey]));
+    }
+    decisions.set(itemKey, result); return result;
+  };
+  return read;
+}
+function assertReusable(eligibility: BankReuseEligibility) {
+  if (eligibility.reuse === "BLOCKED") throw new SchoolAiError("This source has a recorded reuse restriction. Review its exposure and release details, or choose another reviewed question. Your draft has not been changed.", 409, `BANK_REUSE_${eligibility.reasons[0]}`);
 }
 export async function listQuestionBank(user: AuthUser, raw: unknown) {
   return context(user, async () => {
@@ -56,10 +86,11 @@ export async function listQuestionBank(user: AuthUser, raw: unknown) {
     const campusId = await resolveWorkspaceCampus(user, filters.campusId);
     await assertWorkspaceSubject(user, campusId, filters);
     const cursor = decodeCursor(filters.cursor);
-    const where: Prisma.SchoolAiRevisionWhereInput = { schoolId: user.schoolId, campusId, status: "APPROVED", AND: [{ data: { path: ["subjectId"], equals: filters.subjectId } }, { data: { path: ["classId"], equals: filters.classId } }, ...(filters.language ? [{ data: { path: ["language"], equals: filters.language } }] : [])], record: { kind: "PAPER", status: { not: "ARCHIVED" }, ...(user.role === "TEACHER" ? { createdById: user.userId, subjectId: filters.subjectId, classId: filters.classId } : {}) } };
+    const where: Prisma.SchoolAiRevisionWhereInput = { schoolId: user.schoolId, campusId, status: "APPROVED", AND: [{ data: { path: ["subjectId"], equals: filters.subjectId } }, { data: { path: ["classId"], equals: filters.classId } }, ...(filters.language ? [{ data: { path: ["language"], equals: filters.language } }] : [])], record: { kind: "PAPER", ...(user.role === "TEACHER" ? { createdById: user.userId, subjectId: filters.subjectId, classId: filters.classId } : {}) } };
     if (cursor && !await prisma.schoolAiRevision.findFirst({ where: { ...where, id: cursor.revisionId }, select: { id: true } })) throw new SchoolAiError("The question-bank page is no longer available.", 404);
     const revisions = await prisma.schoolAiRevision.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 11, ...(cursor ? { cursor: { id: cursor.revisionId } } : {}) });
-    const items: BankEntry[] = [];
+    const items: EligibleBankEntry[] = [];
+    const readEligibility = eligibilityReader(user, prisma, permissions, new Date());
     for (const revision of revisions.slice(0, 10)) {
       const paper = paperDataSchema.parse(revision.data);
       if (paper.subjectId !== filters.subjectId || paper.classId !== filters.classId) continue;
@@ -68,8 +99,9 @@ export async function listQuestionBank(user: AuthUser, raw: unknown) {
       for (let index = start; index < paper.questions.length; index++) {
         const question = paper.questions[index];
         if (!bankQuestionMatches(question, paper, filters)) continue;
-        revisionSource ??= await approvedSource(user, { paperId: revision.recordId, paperVersion: revision.version, questionId: question.id }, prisma, permissions);
-        items.push(entry({ ...revisionSource, question }));
+        revisionSource ??= await approvedSource(user, { paperId: revision.recordId, paperVersion: revision.version, questionId: question.id }, prisma, permissions, true);
+        const source = { ...revisionSource, question };
+        items.push(entry(source, await readEligibility(source)));
         if (items.length === 20) return { items, nextCursor: encodeCursor(revision.id, index + 1) };
       }
     }
@@ -78,30 +110,36 @@ export async function listQuestionBank(user: AuthUser, raw: unknown) {
 }
 
 export async function prepareQuestionReuse(user: AuthUser, raw: unknown) {
-  return context(user, async () => {
-    const permissions = await bankAccess(user);
+  return schoolAiTransaction(user, db => prepareQuestionReuseInTransaction(user, raw, db));
+}
+
+/** The preview is not a reservation; repository provenance validation repeats the guard on save. */
+export async function prepareQuestionReuseInTransaction(user: AuthUser, raw: unknown, db: TxClient, now = new Date()) {
+    const permissions = await bankAccess(user, db);
     await assertSchoolAiAccess(user, "add", permissions); await assertWorkspacePermission(user, "exams", "add", permissions);
     const input = bankReuseSchema.parse(raw);
-    const source = await approvedSource(user, input.source, prisma, permissions);
-    const { getWorkspaceRecord } = await import("./repository");
-    const record = await getWorkspaceRecord(user, input.paper.curriculumId);
-    if (record.kind !== "CURRICULUM" || record.status !== "APPROVED" || record.version !== input.paper.curriculumVersion || record.campusId !== source.campusId) throw new SchoolAiError("Choose the current approved curriculum from the same campus before reusing a question.", 409);
+    const source = await approvedSource(user, input.source, db, permissions, true);
+    assertReusable(await eligibilityReader(user, db, permissions, now)(source));
+    const record = await db.schoolAiRecord.findFirst({ where: { id: input.paper.curriculumId, schoolId: user.schoolId, campusId: source.campusId, kind: "CURRICULUM", status: "APPROVED", version: input.paper.curriculumVersion } });
+    if (!record) throw new SchoolAiError("Choose the current approved curriculum from the same campus before reusing a question.", 409);
     const curriculum = curriculumDataSchema.parse(record.data);
-    await assertWorkspaceSubject(user, record.campusId, curriculum);
+    await assertWorkspaceSubject(user, record.campusId, curriculum, db);
     try { return { paper: reuseBankQuestion(input, source, curriculum, randomUUID()) }; }
     catch (error) { throw new SchoolAiError(error instanceof Error ? error.message : "Review the question mapping before reuse.", 422); }
-  });
 }
 
 /** Repository hook: clients cannot label an invented or inaccessible source as approved provenance. */
 export async function validatePaperBankProvenance(user: AuthUser, paper: PaperData, campusId: string | null, db: TxClient, permissions: WorkspacePermissionSnapshot) {
   const sources = new Map<string, Awaited<ReturnType<typeof approvedSource>>>();
+  const readEligibility = eligibilityReader(user, db, permissions, new Date());
   for (const question of paper.questions) if (question.reusedFrom) {
     const origin = question.reusedFrom;
     const key = `${origin.paperId}:${origin.paperVersion}`;
     const source = sources.get(key) ?? await approvedSource(user, { paperId: origin.paperId, paperVersion: origin.paperVersion, questionId: origin.questionId }, db, permissions, true);
     sources.set(key, source);
-    if (!source.paper.questions.some((item) => item.id === origin.questionId)) throw new SchoolAiError("The approved source question was not found.", 404);
+    const original = source.paper.questions.find((item) => item.id === origin.questionId);
+    if (!original) throw new SchoolAiError("The approved source question was not found.", 404);
     if (source.campusId !== campusId || source.paper.subjectId !== paper.subjectId || source.paper.classId !== paper.classId || origin.curriculumId !== source.paper.curriculumId || origin.curriculumVersion !== source.paper.curriculumVersion) throw new SchoolAiError("Question provenance must identify its actual approved source and curriculum scope.", 403);
+    assertReusable(await readEligibility({ ...source, question: original }));
   }
 }

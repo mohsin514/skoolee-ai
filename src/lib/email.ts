@@ -6,6 +6,8 @@ import { PasswordResetEmail } from "./email/templates/PasswordResetEmail";
 import { VerifyEmail } from "./email/templates/VerifyEmail";
 import { sendSmtpMail, type SmtpConfig } from "./email/smtp";
 import { roleLabel } from "@/lib/roles";
+import { emailProviderReadiness } from "./email/readiness";
+export { emailProviderReadiness } from "./email/readiness";
 
 const DEFAULT_FROM_EMAIL = "mohsin.ali14993@gmail.com";
 
@@ -54,11 +56,7 @@ function getSmtpConfig(): SmtpConfig {
 }
 
 export function hasEmailProviderConfig() {
-  if (process.env.EMAIL_DEV_MODE === "true") return true;
-  if (process.env.SMTP_AUTH === "false") return Boolean(process.env.SMTP_HOST);
-
-  const config = getSmtpConfig();
-  return Boolean(config.host && config.user && config.pass);
+  return emailProviderReadiness().configured;
 }
 
 async function renderTemplate(template: ReactElement) {
@@ -78,9 +76,12 @@ async function deliverEmail({
   text: string;
   fromName?: string;
 }) {
+  if (process.env.DISABLE_OUTBOUND_MESSAGES === "true") {
+    return { success: false, error: "Outbound email is disabled for this environment." };
+  }
   if (process.env.EMAIL_DEV_MODE === "true") {
-    console.log(`[EMAIL DEV MODE] ${subject}: ${to}`);
-    return { success: true, bypass: true, messageId: undefined };
+    console.log("[EMAIL DEV MODE] Delivery bypassed; no provider message was sent.");
+    return { success: false, bypass: true, messageId: undefined, error: "Email delivery is bypassed in development; no provider message was sent." };
   }
 
   if (!hasEmailProviderConfig()) {
@@ -167,9 +168,9 @@ export async function sendVerificationEmail(email: string, userId: string, token
     return result;
   } catch (err) {
     console.error("[EMAIL EXCEPTION]", err);
-    if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Verification Link: ${getBaseUrl()}/api/auth/verify?token=${token}`);
-      return { success: true };
+    if (emailProviderReadiness().mode === "development" && process.env.NODE_ENV !== "production") {
+      console.log("[EMAIL DEV MODE] Verification delivery bypassed; no provider message was sent.");
+      return { success: true, bypass: true };
     }
     throw err;
   }
@@ -216,10 +217,6 @@ export async function sendInviteEmail(email: string, role: string, campusName: s
     return result;
   } catch (err) {
     console.error("[EMAIL EXCEPTION]", err);
-    if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Invite Link: ${normalizeBaseUrl(baseUrl)}/accept-invite?token=${encodeURIComponent(token)}`);
-      return { success: true };
-    }
     throw err;
   }
 }
@@ -242,9 +239,9 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 
     return result;
   } catch (err) {
-    if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Reset Link: ${getBaseUrl()}/forgot-password?token=${token}`);
-      return { success: true };
+    if (emailProviderReadiness().mode === "development") {
+      console.log("[EMAIL DEV MODE] Password-reset delivery bypassed; no provider message was sent.");
+      return { success: false, bypass: true, error: "Email delivery is bypassed in development; no provider message was sent." };
     }
     throw err;
   }

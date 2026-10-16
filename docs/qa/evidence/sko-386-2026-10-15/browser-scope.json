@@ -1,0 +1,12 @@
+{
+  "environment": "Isolated loopback synthetic database and actual app",
+  "schoolId": "sko386-ac82fba0-b354-4366-8538-6ce01599ff9d",
+  "campusId": "83de3249-c158-4e4c-83d4-09180b59d332",
+  "jobs": {
+    "recovery": "9a904f9c-3bf4-464e-a25a-2fb4f55c2e20",
+    "unknown": "f0f87dfc-453b-4555-9df7-49e05958d096",
+    "queued": "fad7a5d6-a03a-40f7-ad99-cd9e4d893626",
+    "pdf": "ad2ea33b-2715-451c-8194-cb77740b5f4f",
+    "import": "9e115a34-0442-46fe-874d-90c1597a227f"
+  }
+}

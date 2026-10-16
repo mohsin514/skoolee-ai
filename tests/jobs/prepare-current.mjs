@@ -1,0 +1,15 @@
+import { execFileSync } from "node:child_process";
+import { cpSync, mkdtempSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { jobsDestination } from "./local-destination.mjs";
+const target = jobsDestination();
+if (process.env.JOBS_ALLOW_RESET !== "synthetic-only") throw new Error("Explicit synthetic reset acknowledgement required");
+const env = { PATH: process.env.PATH, HOME: process.env.HOME, PGHOST: target.host, PGPORT: target.port, PGUSER: target.user, PGCONNECT_TIMEOUT: "5", DATABASE_URL: target.url, DIRECT_URL: target.url };
+execFileSync("dropdb", ["--if-exists", target.database], { env, stdio: "inherit" });
+execFileSync("createdb", [target.database], { env, stdio: "inherit" });
+const execution = mkdtempSync(join(tmpdir(), "sko386-jobs-migrations-"));
+mkdirSync(join(execution, "prisma"));
+cpSync("prisma/schema.prisma", join(execution, "prisma/schema.prisma"));
+cpSync("prisma/migrations", join(execution, "prisma/migrations"), { recursive: true });
+execFileSync(resolve("node_modules/.bin/prisma"), ["migrate", "deploy", "--schema", join(execution, "prisma/schema.prisma")], { cwd: execution, env, stdio: "inherit" });

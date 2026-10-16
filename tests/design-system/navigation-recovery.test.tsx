@@ -1,7 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { NavigationAccessNotice, NavigationAccessProvider, useNavigationAccess } from '../../src/components/nav/NavigationAccess';
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
+// Match Next's client boundary: locale actions are server references in the app,
+// and must not execute during a pure shared-component rendering test.
+const require = createRequire(import.meta.url);
+const { buildSync } = createRequire(require.resolve('tsx'))('esbuild');
+const compiled = buildSync({ entryPoints: [resolve('src/components/nav/NavigationAccess.tsx')], bundle: true, write: false, platform: 'node', format: 'cjs', packages: 'external', alias: { '@/app/actions/locale': resolve('tests/design-system/foundation-b/locale-action.ts') } }).outputFiles[0].text;
+const loaded = { exports: {} as typeof import('../../src/components/nav/NavigationAccess') };
+new Function('module', 'exports', 'require', compiled)(loaded, loaded.exports, require);
+const { NavigationAccessNotice, NavigationAccessProvider, useNavigationAccess } = loaded.exports;
 
 function ProtectedPortal({ failed }: { failed: boolean }) {
   const access = useNavigationAccess();

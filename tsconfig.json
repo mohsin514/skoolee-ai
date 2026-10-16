@@ -38,7 +38,27 @@
     ".next/school-ai-tests/types/**/*.ts",
     ".next/school-ai-tests/dev/types/**/*.ts",
     ".next/school-ai-live-qa/types/**/*.ts",
-    ".next/school-ai-live-qa/dev/types/**/*.ts"
+    ".next/school-ai-live-qa/dev/types/**/*.ts",
+    ".next-sko386/types/**/*.ts",
+    ".next-sko386/dev/types/**/*.ts",
+    ".next-sko386-prod/types/**/*.ts",
+    ".next-sko386-prod/dev/types/**/*.ts",
+    ".next-app3219/types/**/*.ts",
+    ".next-app3219/dev/types/**/*.ts",
+    ".next-app3107/types/**/*.ts",
+    ".next-app3107/dev/types/**/*.ts",
+    ".next-app3296/types/**/*.ts",
+    ".next-app3296/dev/types/**/*.ts",
+    ".next-app3216/types/**/*.ts",
+    ".next-app3216/dev/types/**/*.ts",
+    ".next-app3209/types/**/*.ts",
+    ".next-app3209/dev/types/**/*.ts",
+    ".next-app3015/types/**/*.ts",
+    ".next-app3015/dev/types/**/*.ts",
+    ".next-app3106/types/**/*.ts",
+    ".next-app3106/dev/types/**/*.ts",
+    ".next-app3213/types/**/*.ts",
+    ".next-app3213/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

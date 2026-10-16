@@ -11,7 +11,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { headers } from "next/headers";
-import { sendInviteEmail } from "@/lib/email";
+import { emailProviderReadiness, sendInviteEmail } from "@/lib/email";
 import { assertPlanCapacity, assertSchoolOperational } from "@/lib/billing/entitlements";
 import { notify } from "@/lib/notifications/in-app";
 import { InviteSchema } from "@/lib/staff/invitation-schema";
@@ -109,7 +109,14 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
     await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "sent", lastDeliveryAt: new Date() } });
   } catch {
     await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "failed", lastDeliveryAt: new Date() } });
-    throw new ApiError("Invitation saved, but email could not be delivered. Use Resend Invite to try again.", 503);
+    // A disabled or development-provider environment can never deliver mail and
+    // is used for synthetic/preview verification. The invitation is already
+    // saved and its link is returned below, so that must not be reported as a
+    // failed invitation. A real provider outage still fails loudly.
+    const readiness = emailProviderReadiness();
+    if (readiness.mode !== "disabled" && readiness.mode !== "development") {
+      throw new ApiError("Invitation saved, but email could not be delivered. Use Resend Invite to try again.", 503);
+    }
   }
 
   const inviteLink = `${baseUrl}/accept-invite?token=${token}`;

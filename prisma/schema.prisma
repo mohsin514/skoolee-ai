@@ -43,6 +43,9 @@ model School {
   schoolAiRevisions SchoolAiRevision[]
   schoolAiExamAssignments SchoolAiExamAssignment[]
   schoolAiExamAttempts SchoolAiExamAttempt[]
+  schoolAiExamFormSets SchoolAiExamFormSet[]
+  schoolAiExamFormReleases SchoolAiExamFormRelease[]
+  schoolAiExposureEntries SchoolAiExposureEntry[]
   activityJobs ActivityJob[]
   deliveryReceipts DeliveryReceipt[]
   correctionSeparateApprover Boolean @default(true) @map("correction_separate_approver")
@@ -77,6 +80,7 @@ model School {
   lastStripeEventCreated Int? @map("last_stripe_event_created")
   lastPaymentAt        DateTime? @map("last_payment_at") // last successful SafePay charge
   aiCreditsUsed        Int       @default(0) @map("ai_credits_used")
+  aiCreditsReserved    Int       @default(0) @map("ai_credits_reserved")
   aiCreditsLimit       Int       @default(100) @map("ai_credits_limit")
   stripeCustomerId     String?   @unique @map("stripe_customer_id")
   stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
@@ -386,6 +390,9 @@ model Campus {
   schoolAiRevisions SchoolAiRevision[]
   schoolAiExamAssignments SchoolAiExamAssignment[]
   schoolAiExamAttempts SchoolAiExamAttempt[]
+  schoolAiExamFormSets SchoolAiExamFormSet[]
+  schoolAiExamFormReleases SchoolAiExamFormRelease[]
+  schoolAiExposureEntries SchoolAiExposureEntry[]
   activityJobs ActivityJob[]
   corrections Correction[]
   localeDelegatedFields String[] @default([]) @map("locale_delegated_fields")
@@ -2642,6 +2649,7 @@ model StaffInvitation {
 model AuditLog {
   id        String   @id @default(uuid())
   schoolId  String   @default("") @map("school_id")
+  campusId  String?  @map("campus_id")
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   tableName String   @map("table_name")
   recordId  String   @map("record_id")
@@ -2650,8 +2658,11 @@ model AuditLog {
   userId    String   @map("user_id")
   ipAddress String?  @map("ip_address")
   createdAt DateTime @default(now()) @map("created_at")
+  retentionUntil DateTime? @map("retention_until")
 
   @@index([schoolId])
+  @@index([schoolId, campusId, createdAt(sort: Desc)])
+  @@index([schoolId, retentionUntil], map: "audit_logs_retention_idx")
   @@map("audit_logs")
 }
 
@@ -3882,6 +3893,7 @@ model SchoolAiRevision {
 }
 
 model SchoolAiExamAssignment {
+  integrityEvents SchoolAiExamIntegrityEvent[]
   proctorPolicy Json @default("{}") @map("proctor_policy")
   proctorSessions SchoolAiProctorSession[]
   id           String @id @default(uuid())
@@ -3894,6 +3906,10 @@ model SchoolAiExamAssignment {
   paper        SchoolAiRecord @relation(fields: [paperId, schoolId], references: [id, schoolId], onDelete: Restrict)
   paperVersion Int @map("paper_version")
   paperSnapshot Json @map("paper_snapshot")
+  // Form_Set grouping. Null for a single-form exam; no foreign key, because an
+  // assignment may outlive the form set that produced it.
+  formSetId    String? @map("form_set_id")
+  formLabel    String @default("A") @map("form_label")
   createdById  String @map("created_by_id")
   title        String
   startsAt     DateTime @map("starts_at")
@@ -3915,6 +3931,7 @@ model SchoolAiExamAssignment {
 }
 
 model SchoolAiExamAttempt {
+  integrityEvents SchoolAiExamIntegrityEvent[]
   proctorSessions SchoolAiProctorSession[]
   reviewVersion Int @default(0) @map("review_version")
   resultRevisions SchoolAiExamResultRevision[]
@@ -3947,6 +3964,34 @@ model SchoolAiExamAttempt {
   @@map("school_ai_exam_attempts")
 }
 
+
+// Unverified browser observations; never an automatic misconduct or mark decision.
+model SchoolAiExamIntegrityEvent {
+  id String @id @default(uuid())
+  schoolId String @map("school_id")
+  campusId String @map("campus_id")
+  assignmentId String @map("assignment_id")
+  assignment SchoolAiExamAssignment @relation(fields: [assignmentId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade, map: "school_ai_integrity_assignment_scope_fkey")
+  attemptId String @map("attempt_id")
+  attempt SchoolAiExamAttempt @relation(fields: [attemptId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade, map: "school_ai_integrity_attempt_scope_fkey")
+  userId String @map("user_id")
+  clientEventId String @map("client_event_id")
+  kind String
+  observedAt DateTime @map("observed_at")
+  receivedAt DateTime @default(now()) @map("received_at")
+  retentionUntil DateTime @map("retention_until")
+  details Json @default("{}")
+  version Int @default(1)
+  decision String @default("PENDING")
+  reviewReason String? @map("review_reason")
+  reviewedById String? @map("reviewed_by_id")
+  reviewedAt DateTime? @map("reviewed_at")
+
+  @@unique([attemptId, clientEventId])
+  @@index([schoolId, campusId, assignmentId, receivedAt], map: "school_ai_integrity_scope_received_idx")
+  @@index([schoolId, retentionUntil], map: "school_ai_integrity_retention_idx")
+  @@map("school_ai_exam_integrity_events")
+}
 
 // One atomic tool effect per approved artifact version. Retries replay this durable receipt.
 model SchoolAiExecution {
@@ -3995,6 +4040,8 @@ model SchoolAiRequest {
   status           String @default("PENDING")
   claimToken       String? @map("claim_token")
   leaseExpiresAt   DateTime? @map("lease_expires_at")
+  reservedCredits Int @default(0) @map("reserved_credits")
+  dispatchedAt DateTime? @map("dispatched_at")
   attempts         Int @default(1)
   reply            String?
   recordId         String? @map("record_id")
@@ -4301,4 +4348,81 @@ model SchoolAiProctorClip {
   @@unique([sessionId, sequence])
   @@index([schoolId, status, createdAt])
   @@map("school_ai_proctor_clips")
+}
+
+// ─── AI EXAM STUDIO: form sets, sealed releases and exposure ──
+// A Form_Set groups the parallel forms (A..D) generated from one blueprint so
+// allocation and exposure can reason about the whole sitting rather than a
+// single paper. `SchoolAiExamFormAllocation` arrives with the Exam Room
+// migration and adds the matching back-relation then.
+model SchoolAiExamFormSet {
+  id            String   @id @default(uuid())
+  schoolId      String   @default("") @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String   @map("campus_id")
+  campus        Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  briefRecordId String   @map("brief_record_id")
+  blueprintHash String   @map("blueprint_hash")
+  maxForms      Int      @default(4) @map("max_forms")
+  status        String   @default("DRAFT")
+  version       Int      @default(1)
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  releases      SchoolAiExamFormRelease[]
+
+  @@unique([id, schoolId, campusId])
+  @@index([schoolId, campusId, status, updatedAt], map: "school_ai_exam_form_sets_scope_status_updated_at_idx")
+  @@map("school_ai_exam_form_sets")
+}
+
+// A Released_Form is sealed: the row records the content hash an independent
+// verifier recomputes, so the form set is restricted from deletion while any
+// release still cites it.
+model SchoolAiExamFormRelease {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  campus       Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  formSetId    String   @map("form_set_id")
+  formSet      SchoolAiExamFormSet @relation(fields: [formSetId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Restrict, map: "school_ai_exam_form_releases_form_set_scope_fkey")
+  paperId      String   @map("paper_id")
+  paperVersion Int      @map("paper_version")
+  formLabel    String   @map("form_label")
+  language     String
+  contentHash  String   @map("content_hash")
+  hashScheme   Int      @default(1) @map("hash_scheme")
+  rehearsalId  String   @map("rehearsal_id")
+  releasedById String   @map("released_by_id")
+  releasedAt   DateTime @default(now()) @map("released_at")
+
+  @@unique([formSetId, formLabel, language], map: "school_ai_exam_form_releases_form_set_label_language_key")
+  @@unique([paperId, paperVersion, language], map: "school_ai_exam_form_releases_paper_version_language_key")
+  @@index([schoolId, campusId, contentHash], map: "school_ai_exam_form_releases_scope_content_hash_idx")
+  @@map("school_ai_exam_form_releases")
+}
+
+// One row per item placed in front of a cohort, so an author adding an item can
+// see where its group has already been seen.
+model SchoolAiExposureEntry {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  campus       Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  itemGroupId  String   @map("item_group_id")
+  questionId   String   @map("question_id")
+  itemRevision Int      @map("item_revision")
+  paperId      String   @map("paper_id")
+  paperVersion Int      @map("paper_version")
+  formSetId    String?  @map("form_set_id")
+  formLabel    String   @map("form_label")
+  cohortIds    Json     @map("cohort_ids")
+  examDate     DateTime @map("exam_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, itemGroupId, examDate(sort: Desc)], map: "school_ai_exposure_entries_group_idx")
+  @@index([schoolId, campusId, paperId, paperVersion], map: "school_ai_exposure_entries_paper_idx")
+  @@map("school_ai_exposure_entries")
 }

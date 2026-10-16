@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { before, after, test, type TestContext } from "node:test";
+import { before, beforeEach, after, test, type TestContext } from "node:test";
 import { randomUUID } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
@@ -55,6 +55,10 @@ before(async () => {
   paper = await updateWorkspaceRecord(admin, paper.id, { version: paper.version, action: "approve" }); paperId = paper.id; paperVersion = paper.version;
 });
 after(async () => { await raw.school.deleteMany({ where: { id: schoolId } }); await raw.$disconnect(); await prisma.$disconnect(); });
+beforeEach(async () => {
+  // Each scenario owns its active attempt; cross-assignment conflicts are tested within a case.
+  await raw.schoolAiExamAttempt.updateMany({ where: { schoolId, status: "IN_PROGRESS" }, data: { status: "SUBMITTED", submittedAt: now } });
+});
 
 test("assignment requires an approved paper, valid roster and configured mode; identical retry returns one assignment", async () => {
   const key = randomUUID(); const a = await createExam({ idempotencyKey: key }); const b = await createExam({ idempotencyKey: key }); assert.equal(a.id, b.id); assert.equal(a.paperVersion, paperVersion);
@@ -179,22 +183,24 @@ test("simultaneous approval and start cannot alter time after attempt creation",
   assert.equal(attempt!.deadlineAt.getTime() - now.getTime(), metadata.durationMinutes * 60000);
   await assert.rejects(() => ctx(admin, () => approveSchoolAiAccommodation(admin, exam.id, { version: metadata.version, studentId, extraMinutes: 0, reason: "Cannot shorten" }, now)), { status: 409 });
 });
-test("concurrent independent exams and duplicate starts converge without lost attempts or extended deadlines", async () => {
+test("concurrent independent exams and duplicate starts admit one active exam per learner without extending deadlines", async () => {
   const exams = await Promise.all(Array.from({ length: 4 }, () => createExam()));
-  const starts = await Promise.all(exams.map(async exam => Promise.all([
+  const starts = await Promise.allSettled(exams.flatMap(exam => [
     ctx(student, () => startSchoolAiExam(student, exam.id, now, 1)),
     ctx(student, () => startSchoolAiExam(student, exam.id, now, 1)),
     ctx(secondStudent, () => startSchoolAiExam(secondStudent, exam.id, now, 1)),
-  ])));
-  for (const [first, duplicate, second] of starts) {
-    assert.equal(first!.id, duplicate!.id);
-    assert.notEqual(first!.id, second!.id);
-    for (const attempt of [first!, duplicate!, second!]) {
-      assert.equal(attempt.startedAt.toISOString(), now.toISOString());
-      assert.equal(attempt.deadlineAt.toISOString(), "2026-10-12T10:30:00.000Z");
-    }
+  ]));
+  const attempts = await raw.schoolAiExamAttempt.findMany({ where: { schoolId, assignmentId: { in: exams.map(exam => exam.id) } } });
+  assert.equal(attempts.length, 2);
+  assert.equal(new Set(attempts.map(attempt => attempt.userId)).size, 2);
+  for (const attempt of attempts) {
+    assert.equal(attempt.startedAt.toISOString(), now.toISOString());
+    assert.equal(attempt.deadlineAt.toISOString(), "2026-10-12T10:30:00.000Z");
   }
-  assert.equal(await raw.schoolAiExamAttempt.count({ where: { schoolId, assignmentId: { in: exams.map(exam => exam.id) } } }), 8);
+  for (const outcome of starts) {
+    if (outcome.status === "fulfilled") assert.ok(attempts.some(attempt => attempt.id === outcome.value!.id));
+    else assert.equal(outcome.reason.status, 409);
+  }
 });
 test("a start rolled back past closing rereads the production clock and creates no attempt", async t => {
   const exam = await createExam({ endsAt: "2026-10-12T10:01:00Z" });

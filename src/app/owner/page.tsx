@@ -1,4 +1,6 @@
 "use client";
+
+import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -75,6 +77,7 @@ import { formatSupportInstant } from "@/lib/owner/support-ui";
 import { SubscriptionRequestReview } from "@/components/owner/SubscriptionRequestReview";
 
 type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments" | "support" | "subscription-requests";
+const WORKSPACE_VIEWS: readonly OwnerView[] = ["schools", "users", "audit", "sessions", "billing", "pricing", "payments", "support", "subscription-requests"];
 
 function planLabel(plan: string) {
   return getPlanLimits(plan).name;
@@ -261,7 +264,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default function OwnerDashboard() {
-  const [activeView, setActiveView] = useState<OwnerView>("schools");
+  const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "schools");
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 

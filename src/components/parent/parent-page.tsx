@@ -86,7 +86,7 @@ export function ParentPage({
 }) {
   const t = toneOf(tone);
   return (
-    <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")} >
+    <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-none flex-col overflow-visible md:min-h-0 md:flex-1 md:overflow-hidden")} >
       <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
         <span
           aria-hidden
@@ -97,21 +97,21 @@ export function ParentPage({
           className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full blur-2xl"
           style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
         />
-        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="relative flex flex-wrap items-center justify-between gap-x-[12px] gap-y-[8px] px-[12px] py-[12px] sm:px-5">
+          <div className="flex min-w-0 items-center gap-[12px]">
             {avatar ? (
-              <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-[0_4px_12px_-2px_rgba(129,39,207,0.3)]">
+              <span className="h-[40px] w-[40px] shrink-0 overflow-hidden rounded-xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-[0_4px_12px_-2px_rgba(129,39,207,0.3)]">
                 {avatar}
               </span>
             ) : (
-              <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
+              <span className={cn("flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
                 style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}>
                 <Icon className="h-4 w-4" />
               </span>
             )}
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h1 className="break-words text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h1 className="[overflow-wrap:anywhere] text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
                   {title}
                 </h1>
                 <span className={cn("hidden shrink-0 truncate text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
@@ -119,7 +119,7 @@ export function ParentPage({
                 </span>
               </div>
               {summary ? (
-                <p className="break-words text-sm font-semibold leading-tight text-ink-muted">
+                <p className="[overflow-wrap:anywhere] text-sm font-semibold leading-tight text-ink-muted">
                   {summary}
                 </p>
               ) : null}
@@ -134,7 +134,7 @@ export function ParentPage({
 
       <div
         className={cn(
-          "custom-scrollbar flex-1 overflow-y-auto bg-[#fbf0fe]/20 p-4 sm:p-5",
+          "custom-scrollbar flex-none overflow-visible bg-[#fbf0fe]/20 p-[12px] sm:p-5 md:min-h-0 md:flex-1 md:overflow-y-auto",
           contentClassName,
         )}
       >

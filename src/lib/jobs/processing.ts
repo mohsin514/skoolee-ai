@@ -12,6 +12,7 @@ import { renderReportCardPdfBuffer } from "@/lib/academic/pdf";
 import { processBankImport } from "./bank-import";
 import { authorizeJob, createJob, jobTransaction } from "./service";
 import { ApiError } from "@/lib/api/scope";
+import { assertPermission } from "@/lib/permissions";
 
 export async function startPdfJob(
   user: AuthUser,
@@ -22,13 +23,13 @@ export async function startPdfJob(
     include: { student: { select: { fullName: true } } },
     orderBy: { id: "asc" },
   });
-  if (reports.some((r) => !r.publishedVersionId))
+  if (!reports.length || reports.some((r) => !r.publishedVersionId))
     throw new ApiError(
       "Publish approved reports before generating this batch.",
       409,
     );
   const identity = createHash("sha256")
-    .update(reports.map((r) => r.publishedVersionId).join(":"))
+    .update([exam.id, ...reports.map((r) => r.publishedVersionId)].join(":"))
     .digest("hex");
   return jobTransaction(user, async (tx) => {
     const jobId = await createJob(tx, {
@@ -127,21 +128,12 @@ export async function processingWorkflow(ctx: WorkflowContext) {
         const job = await prisma.activityJob.findUniqueOrThrow({
           where: { id: item.job_id },
         });
-        await authorizeJob(
-          actor,
-          {
-            id: job.id,
-            school_id: job.schoolId,
-            campus_id: job.campusId,
-            class_id: job.classId,
-            kind: job.kind,
-            source_id: job.sourceId,
-            source_label: job.sourceLabel,
-            created_at: job.createdAt,
-            cancel_requested_at: job.cancelRequestedAt,
-          },
-          true,
-        );
+        const boundaryJob = {
+          id: job.id, school_id: job.schoolId, campus_id: job.campusId, class_id: job.classId,
+          kind: job.kind, source_id: job.sourceId, source_label: job.sourceLabel,
+          created_at: job.createdAt, cancel_requested_at: job.cancelRequestedAt,
+        };
+        await authorizeJob(actor, boundaryJob, true);
         if (ctx.kind === "ACTIVITY_PDF") {
           // Rendering can be repeated after a crash; it uses the exact immutable approved snapshot.
           const { buffer } = await renderReportCardPdfBuffer(
@@ -149,10 +141,14 @@ export async function processingWorkflow(ctx: WorkflowContext) {
             item.version_id,
           );
           await ctx.effect(`pdf:${item.id}`, async (tx) => {
+            await authorizeJob(actor, boundaryJob, true, tx as TxClient);
             await tx.$executeRaw`UPDATE activity_items SET state='completed',updated_at=now(),result=${JSON.stringify({ bytes: buffer.length, url: `/api/reports/download?reportCardId=${item.reference_id}&versionId=${item.version_id}` })}::jsonb WHERE id=${item.id} AND school_id=${ctx.schoolId}`;
           });
         } else {
           await ctx.effect(`import:${item.id}`, async (tx) => {
+            await authorizeJob(actor, boundaryJob, true, tx as TxClient);
+            // Imports also require the current add grant at the committing boundary.
+            await assertPermission(actor, "fees", "add", tx as TxClient);
             const form = new FormData();
             for (const [key, value] of Object.entries(item.payload))
               if (key !== "csv") form.set(key, value);

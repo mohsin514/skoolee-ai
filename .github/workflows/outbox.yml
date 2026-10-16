@@ -29,6 +29,7 @@ jobs:
       REDIS_URL: redis://127.0.0.1:56420
       AUTH_SECRET: sko220-local-synthetic-test-secret
       NEXT_TELEMETRY_DISABLED: "1"
+      OUTBOX_ALLOW_RESET: "synthetic-only"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -42,7 +43,7 @@ jobs:
       - run: node tests/outbox/prepare.mjs
       - run: pnpm prisma generate
       - run: pnpm exec tsc --noEmit --incremental false
-      - run: pnpm test:outbox
+      - run: node --import tsx --test tests/outbox/operation-contract.test.ts tests/outbox/outbox.test.ts tests/outbox/receipts.database.test.ts
       - name: Check live operator and publication APIs
         run: |
           pnpm exec next dev --hostname 127.0.0.1 --port 3220 > /tmp/outbox-app.log 2>&1 &

@@ -402,13 +402,13 @@ export default function StudentDashboard() {
 
           {/* AI */}
           <div
-            className="sk-rise bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-4"
+            className="sk-rise bg-gradient-to-br from-[#8127cf] to-[#9c48ea] rounded-[40px] p-[12px] sm:p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-4"
             style={{ animationDelay: "480ms" }}
           >
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-            <div className="relative flex-1 text-white space-y-6">
+            <div className="relative min-w-0 flex-1 text-white space-y-6">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110">
+                <div className="h-[40px] w-[40px] shrink-0 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110">
                   {user.aiInsights?.length ? <Sparkles className="w-6 h-6 text-white" /> : <TrendingUp className="w-6 h-6 text-white" />}
                 </div>
                 <h4 className="text-xl font-bold italic tracking-tight leading-none">Academic Insight</h4>
@@ -431,7 +431,7 @@ export default function StudentDashboard() {
                 </div>
               ) : null}
             </div>
-            <div className="relative lg:w-[360px] rounded-[28px] bg-white/95 p-5 text-[#1d1b20] shadow-xl transition-all hover:shadow-2xl hover:-translate-y-0.5 overflow-hidden">
+            <div className="relative min-w-0 lg:w-[360px] rounded-[28px] bg-white/95 p-[12px] sm:p-5 text-[#1d1b20] shadow-xl transition-all hover:shadow-2xl hover:-translate-y-0.5 overflow-hidden">
               <CornerSparkles />
               <AiActionPanel
                 title="Student AI"

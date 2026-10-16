@@ -19,7 +19,7 @@ export interface ChatAttachmentView {
   fileName: string;
   contentType: string;
   sizeBytes: number;
-  /** Presigned and short-lived; re-fetch the message rather than caching it. */
+  /** Authenticated application URL; every download rechecks current conversation access. */
   url: string | null;
 }
 

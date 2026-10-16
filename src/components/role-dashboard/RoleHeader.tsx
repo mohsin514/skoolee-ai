@@ -212,7 +212,7 @@ export function RoleHeader({
 
   return (
     <>
-      <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[22px] px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
+      <header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
         <div className="hidden min-[400px]:flex items-center gap-4">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
@@ -229,19 +229,20 @@ export function RoleHeader({
           </div>
         </div>
 
-        <div className="ms-auto min-w-0 flex items-center gap-2 sm:gap-2.5">
-          <CycleBadge />
+        <div className="ms-auto flex w-full min-w-0 flex-wrap items-center justify-end gap-[6px] sm:w-auto sm:gap-2.5">
+          <div className="me-auto max-w-full [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px] [&_svg]:shrink-0"><CycleBadge /></div>
         {actions}
-        <div ref={notifRef} className="relative">
+        <div ref={notifRef} className="sm:relative">
           <Button variant="outline" size="icon"
             type="button"
             onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
             className={cn(
-              "relative flex items-center justify-center",
+              "relative flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px] sm:h-11 sm:w-11 sm:min-w-11",
               notifOpen && "border-primary",
               bellShake && "sk-shake"
             )}
             title={t("View notifications")}
+            aria-label={t("View notifications")}
           >
             <Bell className="w-[18px] h-[18px]" />
             {unreadCount > 0 && (
@@ -250,7 +251,7 @@ export function RoleHeader({
           </Button>
 
           {notifOpen && (
-            <div className="animate-dropdown-enter absolute end-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+            <div className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
               <div className="flex items-center justify-between px-5 py-4 border-b border-[#cfc2d6]/10">
                 <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight"><UiText>{"Notifications"}</UiText></h3>
                 {unreadCount > 0 && (
@@ -311,7 +312,7 @@ export function RoleHeader({
         <Button variant="outline" size="icon"
           type="button"
           onClick={() => openSettings("profile")}
-          className="flex items-center justify-center"
+          className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px] sm:h-11 sm:w-11 sm:min-w-11"
           title={t("Account settings")}
           aria-label={t("Account settings")}
         >
@@ -319,19 +320,20 @@ export function RoleHeader({
         </Button>
         <div aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-border sm:block" />
 
-        <div ref={menuRef} className="relative">
+        <div ref={menuRef} className="sm:relative">
           <Button variant="ghost"
             type="button"
             onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
             title={t("Account menu")}
+            aria-label={t("Account menu")}
             className={cn(
-              "flex justify-start items-center gap-0 px-1.5 sm:gap-2.5 sm:px-4 hover:-translate-y-0.5",
+              "flex min-h-[44px] min-w-[44px] justify-start items-center gap-0 px-[6px] py-[6px] sm:min-h-11 sm:gap-2.5 sm:px-4 hover:-translate-y-0.5",
               menuOpen && "border-[#8127cf]/30 bg-white shadow-lg"
             )}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
-            <div className={cn("h-8 w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
+            <div className={cn("h-[28px] w-[28px] sm:h-8 sm:w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
               <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
             </div>
             <div className="hidden sm:block text-start">
@@ -343,7 +345,7 @@ export function RoleHeader({
           {menuOpen && (
             <div
               role="menu"
-              className="animate-dropdown-enter absolute end-0 z-[999] mt-3 w-72 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
+              className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
             >
               <div className="border-b border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
                 <div className="flex items-center gap-3">

@@ -8,7 +8,6 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3 = new S3Client({
   region: process.env.S3_REGION || "us-east-1",
@@ -42,18 +41,16 @@ export async function uploadPdf(
   return key;
 }
 
-/**
- * Generate a pre-signed URL for downloading a report card PDF.
- */
-export async function getDownloadUrl(
-  key: string,
-  expiresIn = 3600
-): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
-  });
-  return getSignedUrl(s3, command, { expiresIn });
+/** Private download routes keep object credentials and expiring URLs on the server. */
+export async function readPrivateObject(key: string): Promise<ReadableStream<Uint8Array>> {
+  const object = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }), { abortSignal: AbortSignal.timeout(30000) });
+  if (!object.Body) throw new Error("Private object body is unavailable");
+  return object.Body.transformToWebStream() as ReadableStream<Uint8Array>;
+}
+
+/** A completed upload cannot be overwritten by replaying a retained upload intent. */
+export async function uploadPrivateObject(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
+  await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: bytes, ContentType: contentType, IfNoneMatch: "*" }), { abortSignal: AbortSignal.timeout(30000) });
 }
 
 /**
@@ -77,23 +74,6 @@ export function reportCardKey(
   studentId: string
 ): string {
   return `reports/${tenantId}/${examId}/${studentId}.pdf`;
-}
-
-/**
- * Generate a pre-signed URL the browser can PUT to directly (documents,
- * images, uploads). Returns the key + presigned PUT URL.
- */
-export async function getUploadUrl(
-  key: string,
-  contentType: string,
-  expiresIn = 900
-): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
-    ContentType: contentType,
-  });
-  return getSignedUrl(s3, command, { expiresIn });
 }
 
 /**

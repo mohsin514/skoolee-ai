@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requirePageSession } from "@/lib/auth/require-page-session";
 import OperationalLayout from "@/app/operational-layout";
 import { SuperAdminDataProvider } from "./super-data-context";
 
@@ -8,9 +9,10 @@ export const metadata: Metadata = {
   title: "School Administration",
 };
 
-export default function SuperLayout({ children }: { children: React.ReactNode }) {
+export default async function SuperLayout({ children }: { children: React.ReactNode }) {
+  const user = await requirePageSession();
   return (
-    <SuperAdminDataProvider>
+    <SuperAdminDataProvider key={JSON.stringify([user.userId, user.schoolId, user.campusId, user.role, user.accessVersion ?? 0])}>
       <OperationalLayout>{children}</OperationalLayout>
     </SuperAdminDataProvider>
   );

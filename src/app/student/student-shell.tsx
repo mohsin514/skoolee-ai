@@ -27,6 +27,7 @@ export function StudentShell({ children }: { children: React.ReactNode }) {
 
   return (
     <RoleShell
+      mobileDocumentFlow
       navItems={navItems}
       bottomItems={bottomItems}
       eyebrow="Official Academic Transcript"

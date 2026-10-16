@@ -40,6 +40,20 @@ interface FormFieldProps {
 const controlSelector = "input:not([type=hidden]),textarea,select,[role=combobox]";
 type ControlProps = React.InputHTMLAttributes<HTMLInputElement> & { "data-form-field-control"?: string };
 
+/**
+ * Compound controls render a decorative surface and put the real control inside
+ * it. Cloning the resolved field `id` onto such a wrapper emitted the id on the
+ * wrapper *and* on the nested control in the server HTML — two elements sharing
+ * an id until the layout effect moved it, which strict locators resolve to
+ * "2 elements". The wrapper is skipped: the nested control keeps the caller's id
+ * (or receives it from the layout effect below), and the label still points at it.
+ */
+const COMPOUND_CONTROLS = new Set(["InputGroup"]);
+function isCompoundControl(control: React.ReactElement<ControlProps> | null) {
+  const type = control?.type as { displayName?: string } | string | undefined;
+  return typeof type !== "string" && type?.displayName !== undefined && COMPOUND_CONTROLS.has(type.displayName);
+}
+
 function describedBy(caller: string | undefined, hintId?: string, errorId?: string, previousId?: string) {
   // A scoped field() binder may still name this field's unscoped error/hint.
   const references = (caller?.split(/\s+/) ?? []).map(reference => {
@@ -64,6 +78,7 @@ export function FormField({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const labelRef = React.useRef<HTMLLabelElement>(null);
   const control = React.isValidElement<ControlProps>(children) ? children : null;
+  const compound = isCompoundControl(control);
   const fieldId = id ?? (idScope ? `field-${idScope}-${name}` : control?.props.id ?? `field-${name}`);
   const errorId = `${fieldId}-error`;
   const hintId = `${fieldId}-hint`;
@@ -118,7 +133,9 @@ export function FormField({
 
       {control ? React.cloneElement(control, {
         "data-form-field-control": "",
-        id: fieldId,
+        // A compound wrapper owns a nested control; leaving the id off the
+        // wrapper keeps the server HTML free of duplicate ids.
+        ...(compound ? null : { id: fieldId }),
         "aria-invalid": error ? true : control.props["aria-invalid"],
         "aria-required": required || control.props["aria-required"],
         "aria-describedby": describedBy(control.props["aria-describedby"], hint ? hintId : undefined, error ? errorId : undefined, control.props.id ?? `field-${name}`),

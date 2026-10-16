@@ -61,6 +61,33 @@ export const questionOriginSchema = z.object({
   paperId: id, paperVersion: z.number().int().positive(), questionId: id,
   curriculumId: id, curriculumVersion: z.number().int().positive(),
 }).strict();
+
+/** Per-item review state travels inside `paperData` so it is a property of the record version that
+ * produced it, inheriting the existing compare-and-set, immutable revision and audit chain.
+ *
+ * These two schemas are declared here rather than in `item-review.ts` because `questionSchema`
+ * references `itemReviewSchema` at module-evaluation time, and `item-review.ts` needs `Question` and
+ * `PaperData` from this module; defining them there would make the cycle a runtime one. `item-review.ts`
+ * re-exports them and owns the behaviour: `itemStateFor`, the transition rules and `applyStaleness`.
+ *
+ * Nothing in this file resolves an absent `review`. Absence is not a state — it means no review state
+ * has been recorded — and `itemStateFor` is the single place that reads it as `DRAFT`, or as
+ * `NEEDS_SOURCE` when `sourceRefs` is empty. */
+export const itemReviewStateSchema = z.enum(["DRAFT", "NEEDS_SOURCE", "NEEDS_CORRECTION", "READY_FOR_REVIEW", "APPROVED", "CHANGED_AFTER_APPROVAL"]);
+export const itemReviewSchema = z.object({
+  state: itemReviewStateSchema,
+  itemRevision: z.number().int().min(1),
+  approvedBy: z.object({ actorId: id, at: z.string().datetime(), itemRevision: z.number().int().min(1) }).strict().optional(),
+  invalidated: z.array(z.object({
+    artifact: z.enum(["KEY", "RUBRIC", "SEMANTIC_REVIEW", "FIGURE_CHECK", "ITEM_APPROVAL", "COVERAGE_CHECK"]),
+    trigger: z.enum(["PROMPT", "OPTIONS", "MARKS", "FIGURES", "SOURCE_VERSION", "OUTCOME_MAP", "COVERAGE"]),
+    actorId: id, at: z.string().datetime(),
+  }).strict()).max(24),
+  history: z.array(z.object({
+    state: itemReviewStateSchema, actorId: id, at: z.string().datetime(), note: z.string().max(500).optional(),
+  }).strict()).max(60),
+}).strict();
+
 export const questionSchema = z.object({
   id,
   sectionId: id,
@@ -79,6 +106,7 @@ export const questionSchema = z.object({
   locked: z.boolean(),
   bankMetadata: questionBankMetadataSchema.optional(),
   reusedFrom: questionOriginSchema.optional(),
+  review: itemReviewSchema.optional(),
 }).strict();
 
 export const paperDataSchema = z.object({
@@ -96,6 +124,20 @@ export const paperDataSchema = z.object({
     model: draftText(200).nullable(),
     generatedAt: z.string().datetime().nullable(),
   }).strict(),
+  // One record per (form, language), linked by shared identifiers carried here rather than by
+  // multiplying `language` or `questions`, which would invalidate `candidatePaper`, the print
+  // projection, the assignment snapshot and the scan path at once. `blueprintHash` is the parity key:
+  // lowercase hex to match `canonicalDigest` and the existing `paperFigureSchema.sha256` convention.
+  formSet: z.object({ id, label: z.enum(["A", "B", "C", "D"]), blueprintHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
+  itemGroupIds: z.record(id, id).optional(), // questionId -> shared item group id, joining parallel language versions
+  // Form-level staleness. Written by `applyStaleness` in `item-review.ts`; read by the rehearsal and
+  // release gates, which own the refusal in R6.7. Absence means no rehearsal result has been recorded.
+  staleness: z.object({
+    rehearsalValid: z.boolean(),
+    rehearsalId: id.optional(),
+    invalidatedAt: z.string().datetime().optional(),
+    triggeredBy: z.object({ actorId: id, change: z.string().max(120) }).strict().optional(),
+  }).strict().optional(),
 }).strict();
 
 export const generatePaperRequestSchema = z.object({
@@ -110,6 +152,8 @@ export type CurriculumData = z.infer<typeof curriculumDataSchema>;
 export type Blueprint = z.infer<typeof blueprintSchema>;
 export type Question = z.infer<typeof questionSchema>;
 export type PaperData = z.infer<typeof paperDataSchema>;
+export type ItemReview = z.infer<typeof itemReviewSchema>;
+export type ItemReviewState = z.infer<typeof itemReviewStateSchema>;
 export type AssessmentLocale = z.infer<typeof assessmentLanguageSchema>;
 
 const unique = (values: string[]) => new Set(values).size === values.length;
@@ -168,6 +212,36 @@ export function validateBlueprint(blueprint: Blueprint, curriculum?: CurriculumD
   return errors;
 }
 
+/** The item-review-state check (R4.10) and the figure-staleness check (R6.2), both read from the
+ * item's own recorded `review` and from nothing else.
+ *
+ * A paper that carries no recorded review state at all is governed entirely by the deterministic
+ * checks around this one, which is what keeps every row stored before the item workbench existed
+ * approvable without a migration. The moment any item of the paper carries a review state, the paper
+ * is under the workbench and every item must carry one and be approved — so a half-reviewed paper
+ * cannot be approved on the strength of its unreviewed items. */
+function itemReviewIssues(paper: PaperData): string[] {
+  if (!paper.questions.some((question) => question.review)) return [];
+  const errors: string[] = [];
+  const unapproved = paper.questions.filter((question) => question.review?.state !== "APPROVED");
+  if (unapproved.length) {
+    const named = unapproved.slice(0, 10).map((question) => question.id).join(", ");
+    errors.push(`Approve every item before approving the paper. Not approved: ${named}${unapproved.length > 10 ? ` and ${unapproved.length - 10} more` : ""}.`);
+  }
+  for (const question of paper.questions) {
+    const review = question.review;
+    if (!review) continue;
+    // A figure change invalidates that item's figure completeness check and its approval. The figure's
+    // own `approved` flag cannot express this: a re-cropped figure keeps it, so the recorded
+    // invalidation is the only evidence that the reviewed check belongs to an earlier item revision.
+    const staleFigure = review.invalidated.find((entry) => entry.artifact === "FIGURE_CHECK" || entry.trigger === "FIGURES");
+    if (staleFigure) errors.push(`Question ${question.id}: a ${staleFigure.trigger.toLocaleLowerCase()} change invalidated the figure check at ${staleFigure.at}. Review the figure again before approval.`);
+    // An approval recorded against an earlier item revision is not an approval of this item.
+    if (review.state === "APPROVED" && review.approvedBy?.itemRevision !== review.itemRevision) errors.push(`Question ${question.id}: the recorded approval belongs to an earlier item revision.`);
+  }
+  return errors;
+}
+
 export function validatePaperApproval(paper: PaperData, curriculum: CurriculumData): string[] {
   const errors = [...validateCurriculumApproval(curriculum), ...validateBlueprint(paper.blueprint, curriculum)];
   if (paper.classId !== curriculum.classId || paper.subjectId !== curriculum.subjectId) errors.push("Paper and curriculum class/subject must match.");
@@ -178,6 +252,7 @@ export function validatePaperApproval(paper: PaperData, curriculum: CurriculumDa
   if (paper.resources?.some(resource => !resource.title.trim() || !resource.content.trim() || !resource.approved) || (paper.resources && !unique(paper.resources.map(resource => resource.id)))) errors.push("Every candidate resource needs a distinct identifier, title, content and explicit approval.");
   errors.push(...figureBudgetIssues(paper.questions.flatMap(question=>question.figures??[])));
   if (paper.questions.some(question=>question.figures?.some(figure=>!figure.approved||!figure.alt.trim()))) errors.push("Review each candidate figure and add accessible alternative text before approval.");
+  errors.push(...itemReviewIssues(paper));
   if (!unique(paper.questions.map((question) => question.id))) errors.push("Question identifiers must be unique.");
   const prompts = paper.questions.map((question) => question.prompt.trim().toLocaleLowerCase().replace(/\s+/g, " "));
   if (!unique(prompts)) errors.push("Duplicate question prompts must be reviewed.");
@@ -221,9 +296,11 @@ export function mergeLockedQuestions(generated: Question[], locked: Question[]):
   return result;
 }
 
-/** Provider output cannot invent an approved-bank origin; only exact pinned inputs retain it. */
+/** Provider output cannot invent an approved-bank origin, a reviewed figure or an item approval;
+ * only exact pinned inputs retain them. A generated item arrives with no recorded review state, which
+ * the item workbench reads as `DRAFT`. */
 export function prepareGeneratedQuestions(generated: Question[], locked: Question[]): Question[] {
-  return mergeLockedQuestions(generated.map(({ reusedFrom: _unverifiedOrigin, figures: _unverifiedFigures, ...question }) => question), locked);
+  return mergeLockedQuestions(generated.map(({ reusedFrom: _unverifiedOrigin, figures: _unverifiedFigures, review: _unverifiedReview, ...question }) => question), locked);
 }
 
 export type CandidatePaper = {

@@ -15,8 +15,8 @@ export async function POST(request: Request, context: Context) {
     assertSameOrigin(request);
     const user = await requireAuthUser(), id = (await context.params).id;
     await getSchoolAiExam(user, id);
-    const { version } = startExamSchema.parse(await readBoundedJson(request, 1000));
-    return Response.json({ attempt: await startSchoolAiExam(user, id, undefined, version) }, { headers: { "Cache-Control": "private, no-store" } });
+    const { version, cameraReady, consentVersion } = startExamSchema.parse(await readBoundedJson(request, 1000));
+    return Response.json({ attempt: await startSchoolAiExam(user, id, undefined, version, { cameraReady, consentVersion }) }, { headers: { "Cache-Control": "private, no-store" } });
   }
   catch (error) { return schoolAiError(error); }
 }

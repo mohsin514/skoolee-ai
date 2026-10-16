@@ -87,13 +87,14 @@ python3 scripts/recovery/rehearse.py --port 55412 --output /tmp/recovery-run-uni
 
 The harness creates unique `rehearsal_*` databases and never reads `.env`. Its
 subprocess environment excludes notification, payment, AI and cloud credentials;
-it runs no app or worker. All identities use `example.invalid`, with a synthetic
+it runs no app server or worker entrypoint. A providerless post-restore smoke
+invokes the outbox consumer with local handlers only. All identities use `example.invalid`, with a synthetic
 user for every database role. Do not attach real data or provider credentials.
 The destination host is hard-coded to `127.0.0.1`; only the explicit port/user and
 optional `RECOVERY_PG_PASSWORD` for the disposable CI service are accepted.
 
 The harness verifies clean provisioning and drift, upgrades populated records,
-backs up PostgreSQL plus a referenced object, restores both, hashes every public
+backs up PostgreSQL plus referenced objects, restores both, hashes every public
 application table, checks invoice/grade values and file content, then forces a
 transactional migration failure, blocked retry and reviewed forward repair. It
 records a marker read from the restored database, backup age, recovery elapsed
@@ -105,7 +106,10 @@ Negative drills (each must exit nonzero and name its actual discrepancy):
 
 ```sh
 python3 scripts/recovery/rehearse.py --port 55412 --fault missing-file --output /tmp/recovery-missing-unique
+python3 scripts/recovery/rehearse.py --port 55412 --fault corrupt-file --output /tmp/recovery-object-corrupt-unique
 python3 scripts/recovery/rehearse.py --port 55412 --fault corrupt-record --output /tmp/recovery-corrupt-unique
+python3 scripts/recovery/rehearse.py --port 55412 --fault corrupt-backup --output /tmp/recovery-backup-corrupt-unique
+python3 scripts/recovery/rehearse.py --port 55412 --fault schema-drift --output /tmp/recovery-schema-drift-unique
 python3 scripts/recovery/rehearse.py --port 55412 --fault migration --output /tmp/recovery-migration-unique
 ```
 
@@ -139,6 +143,100 @@ The append-only decision binds the report hash and destination; it never authori
 production restoration or reopening. CI leaves sign-off empty; automation must not
 invent an operator. A protected ticket's authenticated reviewer identity is the
 approval authority, not an arbitrary string supplied to this local helper.
+
+### SKO-381 evidence contract (15 October 2026)
+
+Reports use format version 2. They record the exact Git commit, whether the working
+tree contains changes, and a SHA-256 manifest covering the schema, every executable
+migration, recovery scripts/SQL fixtures, lockfile and deployment/recovery workflows.
+The run copies the migration inputs and checks the manifest again before success.
+Changing an input during the rehearsal blocks verification. A dirty-tree run is
+useful local evidence but cannot certify promotion of its recorded commit; rerun
+the committed source in CI before release. Historical reports remain historical
+evidence and cannot be accepted through the current decision helper.
+
+The fixture now has two schools with separate campuses, grades, invoices and
+referenced files. Reconciliation checks every public application table's full
+record hash, tenant relationships, migration-ledger contents, pending workflow
+state, a committed effect receipt and synthetic published artifact bytes/reference.
+It does **not** run a worker entrypoint or replay a restored external side effect.
+After reconciliation, a separate providerless smoke uses new synthetic events to
+check failure/retry, duplicate fencing, an uncertain local sink result, tenant
+context and 32 jobs (28 in a noisy tenant, 4 in a second tenant), concurrency 4.
+The declared development guard is 5 seconds per job and 30 seconds total. It records
+per-tenant p95 and correlation IDs. This is a regression budget, not a customer
+SLA, Redis/provider proof or scheduler-fairness certification. The restore verifies the archive checksum before use and
+compares canonical PostgreSQL columns/defaults, constraints, indexes, RLS flags
+and policies, triggers, functions, enums, views, extensions, table grants and
+sequence state. PostgreSQL's expression deparser normalizes harmless parentheses;
+actual definition changes fail. Object ownership and provider-managed global
+roles still require the separate environment inventory above.
+
+Missing or changed object bytes, changed database rows, a damaged archive, schema
+drift and an unrepaired migration each exit nonzero with a named blocking check.
+Object references cannot escape the isolated restore directory or follow symlinks.
+Failures retain the exact generated databases and diagnostic artifacts; successful
+database cleanup is recorded before the final report is written. The report shows
+the current stage and elapsed time, without estimating a completion percentage.
+
+Render a readable, sanitized operator view from a completed run:
+
+```sh
+python3 scripts/recovery/render-report.py \
+  --report /tmp/recovery-run-unique/report.json \
+  --output /tmp/recovery-run-unique/report.html
+```
+
+The view contains whitelisted synthetic stage results, record counts, UTC recovery
+point, backup age, measured restore/total elapsed time and source/archive hashes.
+It does not embed diagnostic logs, database row contents or credentials. It is
+responsive and readable without JavaScript; screenshots are supporting evidence,
+while the original JSON, manifest and reconciliation hashes remain authoritative.
+No screenshot or green status substitutes for named operator review.
+
+### Offline environment preflight and integration states
+
+`preflight.py` validates the actual scrubbed subprocess envelope before creating
+databases: explicit loopback host, valid port/role, bounded connection timeout and
+an allowlist excluding inherited application credentials and runtime hooks. The
+report contains variable names and purposes only. Unknown values, hosts, passwords
+and malformed input are never echoed. `environment-preflight.json` is attached to
+each run and an invalid envelope blocks the rehearsal before database writes.
+
+Its separate application inventory distinguishes missing, incomplete, invalid,
+disabled and configured-but-unverified inputs. It performs no network probe and
+never infers provider health from a key's presence. Missing application/provider
+configuration is intentional in this recovery profile; it does not mean a deployed
+application is healthy. A timed-out/rejected provider must be assessed by that
+integration's runtime probe, never guessed from this offline report.
+
+Email development bypass is explicitly not a configured provider or a successful
+delivery. Generic messages return failure/bypass and invitations propagate failure,
+so existing communication/invitation consumers cannot mark an unsent email as sent.
+Nonproduction signup's existing explicit verification-link warning is preserved;
+it is not provider delivery. Disabled outbound email takes precedence over bypass.
+Payment availability requires complete configuration: placeholder Safepay merchant
+IDs and partial bank details are unavailable, Stripe requires a valid key/account
+shape and completed onboarding. Missing checkout returns a recoverable 503; the
+existing localized package page disables paid choices and explains alternatives.
+Sandbox/live modes and connectivity-unverified are separate states. These checks
+do not prove keys are valid or that a provider will accept a request.
+
+`docs/ENVIRONMENTS.md` records intended environment names, not a discovered live
+deployment. Do not use a generic `.env` to guess staging. The setup runbooks require
+distinct databases, session secrets, queues and storage, and controlled promotion
+for staging/QA/production/demo. They must never instruct copying production backup
+credentials. This development acceptance does not require a production deployment;
+environment-specific provider, secret-manager/KMS, incident authorization and
+release sign-off remain required **before using or promoting those environments**.
+
+`record-decision.py --release` must match the exact 40-character commit recorded
+in the report. Acceptance requires every mandatory verification stage, real
+boolean pass values, a synthetic loopback destination and measured recovery data.
+The decision remains exclusively an acceptance of a synthetic rehearsal.
+Backup age is not an RPO, and local elapsed restore time is not a contractual RTO.
+Production PITR/object storage/KMS, current roles, supported regional deployments,
+critical browser workflows and provider-side reconciliation remain separate gates.
 
 ## Deployment and forward-recovery gates
 

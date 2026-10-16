@@ -43,3 +43,9 @@ export function hasGuardianPermission(permissions: unknown, permission: Guardian
     ? parsed.consents[permission as keyof GuardianPermissions["consents"]]
     : parsed[permission as keyof Omit<GuardianPermissions, "consents">];
 }
+
+/** An ambiguous effective history grants nothing, including through retained signed links. */
+export function currentGuardianPermissions(versions: readonly { permissions: unknown; effectiveFrom: Date; effectiveUntil: Date | null }[], at: Date): GuardianPermissions | null {
+  const effective = versions.filter(version => version.effectiveFrom <= at && (!version.effectiveUntil || version.effectiveUntil > at));
+  return effective.length === 1 ? parseGuardianPermissions(effective[0].permissions) : null;
+}

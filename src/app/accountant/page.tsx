@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
+
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
@@ -49,6 +51,7 @@ type AccountantView =
   | "accounts"
   | "payroll"
   | "leave";
+const WORKSPACE_VIEWS: readonly AccountantView[] = ["dashboard", "fee-overview", "fee-structures", "fee-layers", "invoices", "payments", "fee-reports", "accounts", "payroll", "leave"];
 
 /**
  * One list drives the section strip, the sidebar and the page header, so the
@@ -89,7 +92,7 @@ export default function AccountantPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<AccountantView>("dashboard");
+  const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "dashboard");
 
   const loadData = useCallback(async () => {
     try {

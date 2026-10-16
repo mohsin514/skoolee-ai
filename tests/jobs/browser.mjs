@@ -52,7 +52,7 @@ for (const [role, cookie] of Object.entries(fixture.cookies)) {
       origin: "https://cross-site.invalid",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ action: "cancel", items: [] }),
+    body: JSON.stringify({ action: "cancel", items: [], reason: "NO_LONGER_REQUIRED" }),
   });
   assert.equal(cross.status, 403);
   evidence.push({

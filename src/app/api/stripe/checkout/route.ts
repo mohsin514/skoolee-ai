@@ -210,15 +210,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return Response.json({
-      success: true,
-      method: "bank_transfer",
-      plan: parsed.data.plan,
-      billingPeriod: parsed.data.billingPeriod,
-      bank: null,
-      amount: btPrice,
-      amountLabel: btLabel,
-    });
+    throw new ApiError("No payment method is configured. Contact the platform billing administrator.", 503);
   } catch (error) {
     return errorResponse(error, "[checkout] failed");
   }

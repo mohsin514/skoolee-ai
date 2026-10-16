@@ -21,7 +21,7 @@ import { resolveCurrentPrincipal } from "../../src/lib/auth/principal";
 import {
   trackDeliveries,
   readJob,
-  operateJob,
+  operateJob as operateCurrentJob,
 } from "../../src/lib/jobs/service";
 import {
   startPdfJob,
@@ -36,6 +36,7 @@ import { consume, appendEvent } from "../../src/lib/queue/outbox";
 import { reportDeliveryWorkflow } from "../../src/lib/queue/report-delivery";
 if (process.env.DATABASE_URL !== "postgresql://postgres@127.0.0.1:55423/sko223")
   throw new Error("Only isolated sko223:55423 is allowed");
+const operateJob = (user: Parameters<typeof operateCurrentJob>[0], id: string, action: "retry" | "cancel", items: string[]) => operateCurrentJob(user, id, action, items, action === "retry" ? "TRANSIENT_FAILURE_RESOLVED" : "NO_LONGER_REQUIRED");
 const raw = new PrismaClient();
 const schoolId = `jobs-${randomUUID()}`,
   campusId = randomUUID(),

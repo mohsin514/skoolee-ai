@@ -304,7 +304,7 @@ function SchoolDialog({
         />
       }
     >
-      <DraftRecovery draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
+      <DraftRecovery recordLabel={form.name} draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
       {blockedReason && <FormErrorSummary errors={{ settings: blockedReason }} onFocusField={() => document.querySelector<HTMLInputElement>("[role=dialog] input:not([type=file])")?.focus()} />}
       <div className="space-y-5">
         <LogoPicker
@@ -437,7 +437,7 @@ function CampusDialog({
         />
       }
     >
-      <DraftRecovery draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
+      <DraftRecovery recordLabel={form.name} draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
       {blockedReason && <FormErrorSummary errors={{ settings: blockedReason }} onFocusField={() => document.querySelector<HTMLInputElement>("[role=dialog] input:not([type=file])")?.focus()} />}
       <div className="space-y-5">
         <LogoPicker

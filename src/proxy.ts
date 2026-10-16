@@ -13,8 +13,9 @@ import {
 } from "./lib/roles";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
-// Dependency-free by design, so nothing here drags Prisma or next/headers into
-// the proxy — see the note on the revocation check below.
+import { allowedDuringCandidateExam, candidateExamUrl } from "@/lib/school-ai/exam-boundary";
+// The cookie helper stays dependency-free. The active candidate boundary below
+// is the explicit, narrow exception that reads authoritative database state.
 import {
   SESSION_COOKIE_NAME,
   clearedSessionCookieAttributes,
@@ -81,6 +82,52 @@ export async function proxy(req: NextRequest) {
   if (normalizedPath === "/generated/reports" || normalizedPath.startsWith("/generated/reports/")) return new NextResponse(null, { status: 404 });
   const { pathname } = req.nextUrl;
 
+  // Unlike general optimistic navigation checks, the active-exam boundary must
+  // read current server state. It runs before public/dotted-path shortcuts so a
+  // second tab or encoded route cannot reach unrelated Skoolee data. Domain
+  // authentication and authorization still run in each allowed handler.
+  const examToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (examToken && !normalizedPath.startsWith("/_next/static/") && normalizedPath !== "/_next/image" && !(normalizedPath === "/api/auth/logout" && req.method === "POST")) {
+    let candidate: { userId: string; schoolId: string; role: "STUDENT"; accessVersion: unknown; mfaVerified: unknown } | null = null;
+    try {
+      const { payload } = await jwtVerify(examToken, JWT_SECRET);
+      if (normalizeUserRole(payload.role) === "STUDENT" && typeof payload.userId === "string" && typeof payload.schoolId === "string") candidate = { userId: payload.userId, schoolId: payload.schoolId, role: "STUDENT", accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified };
+    } catch { /* The regular authentication path below handles invalid tokens. */ }
+    if (candidate) {
+      try {
+        const { candidateExamBoundaryForSession } = await import("@/lib/school-ai/exam-boundary-service");
+        const session = await candidateExamBoundaryForSession(examToken, candidate);
+        if (!session.authenticated) {
+          // A revoked cookie must not disclose even the active assignment URL
+          // or deadline, including through otherwise-public navigation routes.
+          const response = normalizedPath.startsWith("/api/") || !["GET", "HEAD"].includes(req.method)
+            ? NextResponse.json({ error: "Invalid or expired session" }, { status: 401 })
+            : NextResponse.redirect(new URL("/login", req.url));
+          response.headers.set("Cache-Control", "private, no-store");
+          response.cookies.set(SESSION_COOKIE_NAME, "", clearedSessionCookieAttributes());
+          return response;
+        }
+        const active = session.active;
+        if (active && !allowedDuringCandidateExam(normalizedPath, req.method, active.assignmentId)) {
+          const examUrl = candidateExamUrl(active.assignmentId);
+          if (normalizedPath.startsWith("/api/") || !["GET", "HEAD"].includes(req.method)) return NextResponse.json({ error: "Return to your active exam. Other Skoolee tasks become available after submission or the server deadline.", code: "EXAM_SESSION_ACTIVE", examUrl, deadlineAt: active.deadlineAt.toISOString() }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+          const destination = new URL(examUrl, req.url);
+          // Next 16 dev overwrites document no-store with no-cache, and native
+          // history can reuse HTML whose request-specific debug stream ended.
+          // A dev-only fresh URL avoids that stale stream; production keeps
+          // the canonical URL and noncacheable candidate document response.
+          if (process.env.NODE_ENV === "development") destination.searchParams.set("_exam_resume", crypto.randomUUID());
+          const response = NextResponse.redirect(destination);
+          response.headers.set("Cache-Control", "private, no-store");
+          return response;
+        }
+      } catch {
+        // Never fail open into unrelated tasks when current exam state is unknown.
+        return NextResponse.json({ error: "Exam session status is unavailable. Retry to continue safely.", code: "EXAM_SESSION_UNAVAILABLE" }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+      }
+    }
+  }
+
   // Synthetic component reference only; the page also refuses production access.
   if (process.env.NODE_ENV === "development" && pathname === "/design-system") return NextResponse.next();
 
@@ -114,19 +161,20 @@ export async function proxy(req: NextRequest) {
     // NOTE: this verifies the signature only, and deliberately does not check
     // whether the session has been revoked.
     //
-    // Revocation is a database read, and this function runs on every request
-    // that is not a static asset — including every prefetch the router fires as
-    // a user moves the mouse over navigation. Next's own guidance is explicit
-    // that proxy checks should stay optimistic and cookie-only for exactly that
-    // reason, and that the real check belongs next to the data. Proxy is also
-    // documented as something that may be hoisted to a CDN and must not depend
-    // on shared modules, which rules out reaching for Prisma here.
+    // General authentication stays optimistic here because Proxy also handles
+    // prefetches. Revocation and fresh role/resource authority belong beside
+    // protected data. The narrow student-attempt lookup above is an intentional
+    // exception: its response must reflect submission/expiry immediately, so a
+    // stale JWT claim cannot decide the application boundary. Next 16 Proxy
+    // runs in Node.js; this lookup has no process-local authorization cache.
     //
     // So this stays a cheap filter, and getAuthUser() — which every page,
     // layout and route handler already goes through — is where a revoked token
-    // is actually turned away. The consequence to be aware of: a revoked token
-    // still passes this point, so nothing downstream may infer "the proxy let
-    // it through" as evidence that a session is live.
+    // is actually turned away. The student boundary above also authenticates
+    // the current session before disclosing attempt metadata, but does not
+    // replace any domain checks. Other roles remain optimistic here, so
+    // nothing downstream may infer "the proxy let it through" as evidence
+    // that a session is live.
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = normalizeUserRole(payload.role);
     const onboardingComplete = Boolean(payload.onboardingComplete);
@@ -231,7 +279,13 @@ export async function proxy(req: NextRequest) {
     }
     requestHeaders.set("x-school-slug", String(payload.schoolSlug || ""));
 
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    if (role === "STUDENT" && /^\/ai\/exams\/[^/]+$/.test(pathname)) {
+      // Native history can reuse an old exam document after the active-attempt
+      // redirect. Never reuse candidate HTML (or its development Flight stream).
+      response.headers.set("Cache-Control", "private, no-store");
+    }
+    return response;
   } catch {
     // Invalid or expired token
     if (pathname.startsWith("/api")) {

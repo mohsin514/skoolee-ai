@@ -5,9 +5,10 @@ import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/scho
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { createSchoolAiExam, startSchoolAiExam } from "../../src/lib/school-ai/exam-service";
 import { updateExamProctorPolicy } from "../../src/lib/school-ai/exam-proctor-service";
+import { updateExamIntegrityPolicy } from "../../src/lib/school-ai/exam-integrity-service";
 import { assessmentFixture } from "./assessment-fixture";
 export const proctorContext = <T>(user: AuthUser, fn: () => Promise<T>) => runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role }, fn);
-export async function examProctorFixture(db: PrismaClient, options: { start?: boolean; enabled?: boolean } = {}) {
+export async function examProctorFixture(db: PrismaClient, options: { start?: boolean; enabled?: boolean; integrityDays?: number } = {}) {
   const schoolId = `proctor-ai-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
   try {
   await db.school.create({ data: { id: schoolId, name: "Synthetic recording school", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.invalid`, status: "ACTIVE", plan: "PRO" } });
@@ -24,6 +25,9 @@ export async function examProctorFixture(db: PrismaClient, options: { start?: bo
   let paper = await createWorkspaceRecord(admin, { kind: "PAPER", title: "Capture paper", campusId, idempotencyKey: randomUUID(), data: { ...data.paper, curriculumId: curriculum.id, curriculumVersion: curriculum.version } }); paper = await updateWorkspaceRecord(admin, paper.id, { version: paper.version, action: "approve" });
   const assignment = await proctorContext(admin, () => createSchoolAiExam(admin, { idempotencyKey: randomUUID(), paperId: paper.id, title: "Optional capture exam", startsAt: new Date(Date.now() - 60000).toISOString(), endsAt: new Date(Date.now() + 3600000).toISOString(), studentIds: students.map(student => student.id), mode: "STANDARD" }));
   if (options.enabled !== false) await proctorContext(admin, async () => updateExamProctorPolicy(admin, assignment.id, { version: (await db.schoolAiExamAssignment.findUniqueOrThrow({ where: { id: assignment.id } })).version, policy: { enabled: true, camera: true, screen: true, retentionDays: 1 } }));
+  // No implicit telemetry opt-in. Only tests explicitly asking for synthetic
+  // observations approve a finite policy before an attempt is created.
+  if (options.integrityDays !== undefined) await proctorContext(admin, async () => updateExamIntegrityPolicy(admin, assignment.id, { version: (await db.schoolAiExamAssignment.findUniqueOrThrow({ where: { id: assignment.id } })).version, policy: { enabled: true, retentionDays: options.integrityDays, policyReference: "Synthetic test retention policy — not a deployment policy" } }));
   const attempt = options.start === false ? null : await proctorContext(learner, () => startSchoolAiExam(learner, assignment.id));
   return { schoolId, campusId, classId, subjectId, admin, learner, other, teacher, students, assignment, attempt };
   } catch (error) { await removeProctorFixture(db, schoolId); throw error; }

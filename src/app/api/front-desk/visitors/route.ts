@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
+  assertPermission,
   canManageFrontDesk,
   errorResponse,
   requireAuthUser,
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Forbidden", 403);
+    await assertPermission(user, "front-desk", "add");
 
     const body = await request.json();
     const { name, phone, purpose, toMeet, inTime, note, campusId: requestedCampusId } = body;
@@ -68,6 +70,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Forbidden", 403);
+    await assertPermission(user, "front-desk", "edit");
 
     const body = await request.json();
     const { id, outTime, note } = body;
@@ -95,6 +98,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Forbidden", 403);
+    await assertPermission(user, "front-desk", "delete");
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

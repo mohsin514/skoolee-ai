@@ -1,4 +1,7 @@
+import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
+import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
+import { studentScope } from "@/lib/auth/policy";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
@@ -8,7 +11,7 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
-import { deleteFile, getDownloadUrl } from "@/lib/storage/s3";
+import { deleteFile } from "@/lib/storage/s3";
 
 // Student admission documents.
 // GET  /api/students/documents?studentId=    — list (campus-scoped)
@@ -21,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     // These are birth certificates, transfer certificates and ID photos, and
-    // the response carries a presigned download URL for each one. The handler
+    // each download must recheck the current account and scope. The handler
     // was school-scoped but ungated, so any signed-in account — every student
     // and guardian included — could read another child's file simply by
     // guessing its id. Staff-only, on the same students.view bit as the roster.
@@ -29,10 +32,19 @@ export async function GET(req: NextRequest) {
     const studentId = req.nextUrl.searchParams.get("studentId");
     if (!studentId) throw new ApiError("studentId required", 400);
 
+    const documentId = req.nextUrl.searchParams.get("documentId");
+    if (documentId) {
+      const document = await prisma.studentDocument.findFirst({
+        where: { id: documentId, studentId, student: studentScope(user) },
+        select: { fileKey: true, fileName: true, student: { select: { campusId: true } } },
+      });
+      if (!document || !matchesDocumentKey(document.fileKey, "student-docs", document.student.campusId, studentId)) throw new ApiError("Document not found", 404);
+      return privateDownloadResponse(document.fileKey, document.fileName);
+    }
     const documents = await prisma.studentDocument.findMany({
       where: {
         studentId,
-        student: { campus: { schoolId: user.schoolId } },
+        student: studentScope(user),
       },
       select: {
         id: true,
@@ -44,14 +56,12 @@ export async function GET(req: NextRequest) {
       orderBy: { uploadedAt: "desc" },
     });
 
-    const data = await Promise.all(
-      documents.map(async (doc) => ({
-        ...doc,
-        downloadUrl: await getDownloadUrl(doc.fileKey).catch(() => null),
-      }))
-    );
+    const data = documents.map(({ fileKey: _fileKey, ...doc }) => ({
+      ...doc,
+      downloadUrl: `/api/students/documents?studentId=${encodeURIComponent(studentId)}&documentId=${encodeURIComponent(doc.id)}`,
+    }));
 
-    return Response.json({ success: true, data });
+    return Response.json({ success: true, data }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[students/documents] GET failed");
   }
@@ -76,10 +86,11 @@ export async function POST(req: NextRequest) {
     if (!fileKey || !fileName) throw new ApiError("fileKey and fileName are required", 400);
 
     const student = await prisma.student.findFirst({
-      where: { id: studentId, campus: { schoolId: user.schoolId } },
-      select: { id: true, fullName: true },
+      where: { id: studentId, ...studentScope(user) },
+      select: { id: true, fullName: true, campusId: true },
     });
     if (!student) throw new ApiError("Student not found", 404);
+    if (!matchesDocumentKey(fileKey, "student-docs", student.campusId, student.id)) throw new ApiError("Document upload does not match this record", 400);
 
     const document = await prisma.studentDocument.create({
       data: {
@@ -115,9 +126,10 @@ export async function DELETE(req: NextRequest) {
     if (!id) throw new ApiError("id is required", 400);
 
     const doc = await prisma.studentDocument.findFirst({
-      where: { id, student: { campus: { schoolId: user.schoolId } } },
+      where: { id, student: studentScope(user) },
+      include: { student: { select: { campusId: true } } },
     });
-    if (!doc) throw new ApiError("Document not found", 404);
+    if (!doc || !matchesDocumentKey(doc.fileKey, "student-docs", doc.student.campusId, doc.studentId)) throw new ApiError("Document not found", 404);
 
     await prisma.studentDocument.delete({ where: { id: doc.id } });
     await deleteFile(doc.fileKey).catch(() => {}); // best-effort S3 cleanup

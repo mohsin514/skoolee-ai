@@ -10,10 +10,9 @@ import { appendEvent, consume, dispatch, cancel, reconcile, type Reference, type
 import { reportWorkflow } from "../../src/lib/queue/report-workflow";
 import { operateWorkflow, requireWorkflowOperator } from "../../src/lib/queue/operations";
 import { getTenantContext } from "../../src/lib/db/tenant-context";
+import { outboxDestination } from "./local-destination.mjs";
 
-const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55420" || url.pathname !== "/sko220_test") throw new Error("Disposable local sko220_test database required");
-if (process.env.REDIS_URL !== "redis://127.0.0.1:56420") throw new Error("Disposable local Redis required");
+const target = outboxDestination();
 const db = new PrismaClient();
 const schoolId = "rehearsal-school";
 async function event(kind = "TEST", identity = randomUUID(), school = schoolId) {
@@ -32,7 +31,7 @@ async function increment(tx: Sql) {
 }
 async function marks() { return (await db.$queryRaw<{ value: number }[]>`SELECT marks_obtained AS value FROM marks WHERE id='rehearsal-mark'`)[0].value; }
 async function crash(mode: string, eventId?: string) {
-  const child = spawn(process.execPath, ["--import", "tsx", "tests/outbox/crash-child.ts"], { env: { NODE_ENV: "test", PATH: process.env.PATH, DATABASE_URL: process.env.DATABASE_URL, CRASH_MODE: mode, EVENT_ID: eventId }, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, ["--import", "tsx", "tests/outbox/crash-child.ts"], { env: { NODE_ENV: "test", PATH: process.env.PATH, DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL, CRASH_MODE: mode, EVENT_ID: eventId }, stdio: ["ignore", "pipe", "pipe"] });
   let errors = "";
   child.stderr.on("data", data => errors += data);
   const marker = await Promise.race([
@@ -144,13 +143,65 @@ test("retry budget, dead letter, current operator roles, audited retry and cance
     if (role.role === "APP_OWNER") await db.$transaction(tx => requireWorkflowOperator(tx, role.id, schoolId));
     else await assert.rejects(db.$transaction(tx => requireWorkflowOperator(tx, role.id, schoolId)), /OPERATOR_REQUIRED/);
   }
-  await db.$transaction(async tx => { await requireWorkflowOperator(tx, "role-APP_OWNER", schoolId); await operateWorkflow(tx, ref, "role-APP_OWNER", "retry"); });
+  await db.$transaction(async tx => { await requireWorkflowOperator(tx, "role-APP_OWNER", schoolId); await operateWorkflow(tx, ref, "role-APP_OWNER", "retry", "TRANSIENT_FAILURE_RESOLVED"); });
   assert.equal((await job(ref)).state, "queued");
+  const audit = await db.$queryRaw<{ user_id: string; new_value: { reason: string } }[]>`SELECT user_id,new_value FROM audit_logs WHERE record_id=${ref.eventId} AND school_id=${schoolId}`;
+  assert.equal(audit.at(-1)?.user_id, "role-APP_OWNER");
+  assert.equal(audit.at(-1)?.new_value.reason, "TRANSIENT_FAILURE_RESOLVED");
   const before = await marks();
   await consume(db, ref, async ctx => { await ctx.effect("before-cancel", increment); await cancel(db, ref); await ctx.effect("after-cancel", increment); });
   assert.equal(await marks(), before + 1);
   assert.equal((await job(ref)).state, "cancelled");
   assert.equal((await job(ref)).checkpoint, 1);
+});
+
+test("30-recipient batch crash after12 preserves partial progress across another tenant and retries only18", async () => {
+  await db.$executeRaw`CREATE TABLE outbox_batch_probe(job_id text NOT NULL,school_id text NOT NULL,recipient int NOT NULL,PRIMARY KEY(job_id,recipient))`;
+  const ref = await event();
+  assert.equal(await crash("batch30", ref.eventId), "twelve-confirmed");
+  assert.equal((await job(ref)).checkpoint, 12);
+  const other = await event("TEST", randomUUID(), "outbox-school-b");
+  await consume(db, other, async ctx => {
+    assert.equal(getTenantContext()?.schoolId, "outbox-school-b");
+    await ctx.effect("different-tenant-first", async tx => {
+      await tx.$executeRaw`INSERT INTO outbox_batch_probe(job_id,school_id,recipient) VALUES (${ctx.eventId},${ctx.schoolId},0)`;
+    });
+  });
+  await ready(ref);
+  let resumedEffects = 0;
+  await consume(db, ref, async ctx => {
+    assert.equal(ctx.checkpoint, 12);
+    assert.equal(getTenantContext()?.schoolId, schoolId);
+    for (let index = 0; index < 30; index++) await ctx.effect(`recipient-${index}`, async tx => {
+      resumedEffects++;
+      await tx.$executeRaw`INSERT INTO outbox_batch_probe(job_id,school_id,recipient) VALUES (${ctx.eventId},${ctx.schoolId},${index})`;
+    });
+  });
+  assert.equal(resumedEffects, 18);
+  assert.equal((await job(ref)).checkpoint, 30);
+  assert.equal((await job(ref)).state, "completed");
+  await consume(db, ref, async () => assert.fail("Completed batch must not replay"));
+  const rows = await db.$queryRaw<{ school_id: string; count: number }[]>`SELECT school_id,count(*)::int AS count FROM outbox_batch_probe GROUP BY school_id`;
+  assert.equal(rows.find(row => row.school_id === schoolId)?.count, 30);
+  assert.equal(rows.find(row => row.school_id === "outbox-school-b")?.count, 1);
+  assert.equal(getTenantContext(), undefined);
+});
+
+test("operator reconciliation identifies orphaned, absent/expired lease and dead-letter work without payloads", async () => {
+  const orphan = await event(), missingLease = await event(), expiredLease = await event();
+  await db.$executeRaw`DELETE FROM workflow_jobs WHERE id=${orphan.eventId} AND school_id=${schoolId}`;
+  await db.$executeRaw`UPDATE workflow_jobs SET state='running',lease_until=NULL WHERE id=${missingLease.eventId} AND school_id=${schoolId}`;
+  await db.$executeRaw`UPDATE workflow_jobs SET state='running',lease_until=now()-interval '5 minutes' WHERE id=${expiredLease.eventId} AND school_id=${schoolId}`;
+  for (const [ref, expected] of [[orphan, "orphaned"], [missingLease, "stuck"], [expiredLease, "stuck"]] as const) {
+    const rows = await reconcile(db, schoolId, ref.eventId) as Array<{ reconciliation: string; event_age_seconds: number; confirmed_effects: number }>;
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].reconciliation, expected);
+    assert.ok(rows[0].event_age_seconds >= 0);
+    assert.equal(rows[0].confirmed_effects, 0);
+    assert.doesNotMatch(JSON.stringify(rows), /rehearsal-exam|example.invalid|marks_obtained/);
+  }
+  // Diagnostic corruption is isolated and removed before testing the real worker entrypoint.
+  await db.$executeRaw`DELETE FROM workflow_events WHERE id IN (${orphan.eventId},${missingLease.eventId},${expiredLease.eventId}) AND school_id=${schoolId}`;
 });
 
 test("uncertain provider effect is preserved and cannot be automatically or manually replayed", async () => {
@@ -162,7 +213,7 @@ test("uncertain provider effect is preserved and cannot be automatically or manu
   await consume(db, ref, handler);
   assert.equal(calls, 1);
   assert.equal((await job(ref)).state, "failed");
-  await assert.rejects(db.$transaction(tx => operateWorkflow(tx, ref, "role-APP_OWNER", "retry")), /RECONCILE_EXTERNAL_OUTCOME_FIRST/);
+  await assert.rejects(db.$transaction(tx => operateWorkflow(tx, ref, "role-APP_OWNER", "retry", "TRANSIENT_FAILURE_RESOLVED")), /RECONCILE_EXTERNAL_OUTCOME_FIRST/);
   await cancel(db, ref);
   const effects = await db.$queryRaw<{ state: string }[]>`SELECT state FROM workflow_effects WHERE job_id=${ref.eventId}`;
   assert.equal(effects[0].state, "uncertain");
@@ -239,7 +290,7 @@ test("production worker entry point dispatches a pending publication and emits t
 
 test("optional RLS ledger policy denies an unset or different school to a non-bypass role", async () => {
   execFileSync("psql", ["-X", "-v", "ON_ERROR_STOP=1", "-f", "prisma/rls.sql"], {
-    env: { NODE_ENV: "test", PATH: process.env.PATH, PGHOST: "127.0.0.1", PGPORT: "55420", PGUSER: "postgres", PGDATABASE: "sko220_test" }, stdio: "ignore",
+    env: { NODE_ENV: "test", PATH: process.env.PATH, PGHOST: target.host, PGPORT: target.port, PGUSER: target.user, PGDATABASE: target.database }, stdio: "ignore",
   });
   await db.$executeRaw`CREATE ROLE sko220_outbox_probe NOLOGIN NOSUPERUSER NOBYPASSRLS`;
   await db.$executeRaw`GRANT SELECT,INSERT ON workflow_events,workflow_jobs,workflow_effects TO sko220_outbox_probe`;

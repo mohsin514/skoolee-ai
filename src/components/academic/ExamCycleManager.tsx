@@ -1946,9 +1946,6 @@ function RejectMarksModal({
   );
 }
 
-const CLASSES_CACHE = new Map<string, { data: { id: string; name: string; section?: string | null }[]; ts: number }>();
-const CLASSES_CACHE_TTL = 60_000;
-
 function CreateExamModal({
   campusId,
   role,
@@ -1970,7 +1967,9 @@ function CreateExamModal({
   // cycle labelled 2027 starts in August 2026, and filing under 2026 hides the
   // exam from the office's board.
   const cycleYear = useAcademicYear();
-  const [classes, setClasses] = useState<{ id: string; name: string; section?: string | null }[]>([]);
+  const [classResult, setClassResult] = useState<{ scope: string | undefined; data: { id: string; name: string; section?: string | null }[] }>({ scope: campusId, data: [] });
+  const classes = classResult.scope === campusId ? classResult.data : [];
+  const classRequest = useRef<AbortController | null>(null);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [classesError, setClassesError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1986,25 +1985,22 @@ function CreateExamModal({
   const loadClasses = useCallback(async () => {
     setLoadingClasses(true);
     setClassesError(null);
-    const cacheKey = campusId || "default";
-    const cached = CLASSES_CACHE.get(cacheKey);
-    if (cached && Date.now() - cached.ts < CLASSES_CACHE_TTL) {
-      setClasses(cached.data);
-      setLoadingClasses(false);
-      return;
-    }
+    classRequest.current?.abort();
     const controller = new AbortController();
+    classRequest.current = controller;
+    setClassResult({ scope: campusId, data: [] });
     const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
       const params = new URLSearchParams();
       if (campusId) params.set("campusId", campusId);
-      const res = await fetch(`/api/classes?${params.toString()}`, { signal: controller.signal });
+      const res = await fetch(`/api/classes?${params.toString()}`, { signal: controller.signal, cache: "no-store" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Failed to load classes");
       const list = d.data || [];
-      CLASSES_CACHE.set(cacheKey, { data: list, ts: Date.now() });
-      setClasses(list);
+      if (classRequest.current !== controller) return;
+      setClassResult({ scope: campusId, data: list });
     } catch (e) {
+      if (classRequest.current !== controller) return;
       const err = e as { name?: string; message?: string };
       setClassesError(
         err?.name === "AbortError"
@@ -2013,27 +2009,33 @@ function CreateExamModal({
       );
     } finally {
       clearTimeout(timeout);
-      setLoadingClasses(false);
+      if (classRequest.current === controller) setLoadingClasses(false);
     }
   }, [campusId]);
 
   useEffect(() => {
-    loadClasses();
+    setForm(current => ({ ...current, classId: "", subjectId: "" }));
+    void loadClasses();
+    return () => { classRequest.current?.abort(); classRequest.current = null; };
   }, [loadClasses]);
 
 
   /* Class and title were "required", but the button stayed live and the check
      ran on submit as a toast — so a missing class was reported as an error the
      office had made rather than a field they had not filled in yet. */
+  const scopeReady = classResult.scope === campusId && !loadingClasses;
+  const selectedClassValid = scopeReady && classes.some(item => item.id === form.classId);
   const missing = [
-    !form.classId && "a class",
+    !selectedClassValid && "a class",
     !form.title.trim() && "a title",
   ].filter(Boolean) as string[];
-  const blockedReason = classesError
-    ? "Classes could not be loaded — retry above first."
-    : missing.length
-      ? `Choose ${missing.join(" and ")} to continue.`
-      : null;
+  const blockedReason = !scopeReady
+    ? "Wait for this campus's classes to load."
+    : classesError
+      ? "Classes could not be loaded — retry above first."
+      : missing.length
+        ? `Choose ${missing.join(" and ")} to continue.`
+        : null;
 
   const submit = async () => {
     if (blockedReason) return;

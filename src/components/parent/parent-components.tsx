@@ -70,7 +70,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
 /** Matches the compact `ParentStat` the pages actually render. */
 function ParentStatSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
+    <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -155,7 +155,7 @@ export function ParentListSkeleton({ rows = 3 }: { rows?: number }) {
 
 export function ParentEmptyState({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 px-[12px] py-[24px] sm:px-6 sm:py-12 text-center">
       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#fbf0fe]">
         <Icon className="h-6 w-6 text-[#8127cf]/40" />
       </div>
@@ -195,25 +195,25 @@ export function ParentStat({
   const t = tones[tone];
 
   return (
-    <div className="group relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
+    <div className="group relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
       <span
         aria-hidden
         className={`absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.bar}`}
       />
-      <div className="relative flex items-center justify-between gap-3">
+      <div className="relative flex min-w-0 items-center justify-between gap-[10px]">
         <div className="min-w-0">
-          <p className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf] sm:text-[22px]">
+          <p className="[overflow-wrap:anywhere] text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf] sm:text-[22px]">
             {value}
           </p>
-          <p className="mt-1.5 truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+          <p className="mt-1.5 [overflow-wrap:anywhere] text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
             {label}
           </p>
           {sub ? (
-            <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-ink-subtle">{sub}</p>
+            <p className="mt-0.5 [overflow-wrap:anywhere] text-[10px] font-semibold leading-tight text-ink-subtle">{sub}</p>
           ) : null}
         </div>
         <span
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${t.chip}`}
+          className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${t.chip}`}
         >
           <Icon className="h-4 w-4" />
         </span>

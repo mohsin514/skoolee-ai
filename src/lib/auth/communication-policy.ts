@@ -9,7 +9,7 @@ type CommunicationPermission = "communication" | "learningRecords" | "attendance
 export async function authorizedGuardianCommunicationTargets(target: CommunicationTarget, channel: string, permission: CommunicationPermission = "communication") {
   const parsed = announcementChannelSchema.safeParse(channel);
   if (!target.studentId || !parsed.success) return [];
-  const student = await prisma.student.findFirst({ where: { id: target.studentId, schoolId: target.schoolId, ...(target.campusId ? { campusId: target.campusId } : {}), archivedAt: null, status: { equals: "active", mode: "insensitive" }, campus: { archivedAt: null } }, select: { id: true, campusId: true } });
+  const student = await findInScopeStudent(target);
   if (!student) return [];
   const now = new Date(), relationships = await prisma.guardianRelationship.findMany({
     where: { schoolId: target.schoolId, campusId: student.campusId, studentId: student.id, guardianUserId: target.parentUserId || { not: null }, status: "ACTIVE", verifiedAt: { not: null }, validFrom: { lte: now }, OR: [{ validUntil: null }, { validUntil: { gt: now } }], guardian: { schoolId: target.schoolId, isActive: true, role: "PARENT" } },
@@ -27,10 +27,43 @@ export async function authorizedGuardianCommunicationTargets(target: Communicati
   });
 }
 
+/**
+ * A pupil-scoped target is resolvable only while that pupil is active, unarchived and
+ * inside the requested school/campus scope. The pupil's own campus is what scopes the
+ * guardian lookup, so the caller's campus is treated as a narrowing filter.
+ */
+async function findInScopeStudent(target: CommunicationTarget) {
+  if (!target.studentId) return null;
+  return prisma.student.findFirst({ where: { id: target.studentId, schoolId: target.schoolId, ...(target.campusId ? { campusId: target.campusId } : {}), archivedAt: null, status: { equals: "active", mode: "insensitive" }, campus: { archivedAt: null } }, select: { id: true, campusId: true } });
+}
+
+/**
+ * An institution-only notice may address one known account directly, without a pupil:
+ * the account must be an active PARENT of the same school. This is a school-membership
+ * check, never a pupil/guardian permission grant.
+ */
+async function isActiveSchoolParent(target: CommunicationTarget) {
+  if (!target.parentUserId) return false;
+  const parent = await prisma.user.findFirst({ where: { id: target.parentUserId, schoolId: target.schoolId, role: "PARENT", isActive: true }, select: { id: true } });
+  return Boolean(parent);
+}
+
 /** Used both when queuing and immediately before a provider effect. */
 export async function assertCommunicationTarget(target: CommunicationTarget, channel: string, permission: CommunicationPermission = "communication") {
   if (!target.studentId && !target.parentUserId) return; // Institution-only notices contain no pupil records.
-  if (!target.parentUserId && !target.recipient) throw new AccessDenied("communication", "send");
+  if (!target.studentId) {
+    // Without a pupil the message is an institution-only notice. Pupil-record dispatches
+    // (report cards, invoices) are meaningless here and must keep the pupil-scoped grant.
+    if (permission !== "communication") throw new AccessDenied("communication", "send");
+    if (await isActiveSchoolParent(target)) return;
+    throw new AccessDenied("communication", "send");
+  }
+  if (!target.parentUserId && !target.recipient) {
+    // No recipient is ever resolved, so nothing is delivered (status NO_RECIPIENT); only
+    // the pupil's live school/campus scope is required to frame the locale snapshot.
+    if (await findInScopeStudent(target)) return;
+    throw new AccessDenied("communication", "send");
+  }
   if (!(await authorizedGuardianCommunicationTargets(target, channel, permission)).length) throw new AccessDenied("communication", "send");
 }
 

@@ -1,9 +1,11 @@
-import { getDownloadUrl } from "@/lib/storage/s3";
+import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
+import { privateDownloadResponse } from "@/lib/storage/private-download";
+
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { isFamily, studentScope } from "@/lib/auth/policy";
-import { applyEnrollment, assertRegistrar, dateOnly, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
+import { applyEnrollment, assertRegistrar, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,19 +18,20 @@ export async function GET(req: NextRequest) {
     const documentId = req.nextUrl.searchParams.get("documentId");
     if (documentId) {
       if (!canManage) throw new ApiError("Confidential admission documents are restricted to registrars", 403);
-      const document = await prisma.studentDocument.findFirst({ where: { id: documentId, studentId: id }, select: { fileKey: true } });
-      if (!document) throw new ApiError("Document not found", 404);
-      return Response.redirect(await getDownloadUrl(document.fileKey));
+      const document = await prisma.studentDocument.findFirst({ where: { id: documentId, studentId: id }, select: { fileKey: true, fileName: true, student: { select: { campusId: true } } } });
+      if (!document || !matchesDocumentKey(document.fileKey, "student-docs", document.student.campusId, id)) throw new ApiError("Document not found", 404);
+      return privateDownloadResponse(document.fileKey, document.fileName);
     }
     const enrollmentId = req.nextUrl.searchParams.get("enrollmentId");
     if (enrollmentId) {
       if (!pupil.enrollments.some(e => e.id === enrollmentId)) throw new ApiError("Enrollment not found", 404);
+      const history = enrollmentHistoryWhere(user);
       const [attendance, invoices, reports] = await Promise.all([
-        prisma.attendance.findMany({ where: { studentId: id, enrollmentId }, select: { id: true, date: true, status: true }, orderBy: { date: "desc" }, take: 100 }),
-        prisma.invoice.findMany({ where: { studentId: id, enrollmentId }, select: { id: true, invoiceNumber: true, invoiceDate: true, currency: true, balanceDue: true }, orderBy: { invoiceDate: "desc" }, take: 100 }),
-        prisma.reportCard.findMany({ where: { studentId: id, enrollmentId, ...(family ? { status: { in: ["PUBLISHED", "SENT"] } } : {}) }, select: { id: true, generatedAt: true, status: true, exam: { select: { title: true } } }, take: 100 }),
+        prisma.attendance.findMany({ where: { studentId: id, enrollmentId, ...history.attendance }, select: { id: true, date: true, status: true }, orderBy: { date: "desc" }, take: 100 }),
+        prisma.invoice.findMany({ where: { studentId: id, enrollmentId, ...history.invoices }, select: { id: true, invoiceNumber: true, invoiceDate: true, currency: true, balanceDue: true }, orderBy: { invoiceDate: "desc" }, take: 100 }),
+        prisma.reportCard.findMany({ where: { studentId: id, enrollmentId, ...history.reports }, select: { id: true, generatedAt: true, status: true, exam: { select: { title: true } } }, take: 100 }),
       ]);
-      return Response.json({ attendance, invoices, reports, limit: 100 });
+      return Response.json({ attendance, invoices, reports, limit: 100 }, { headers: { "Cache-Control": "private, no-store" } });
     }
     const [proposals, classes, documents] = !canManage ? [[], [], []] : await Promise.all([
       prisma.enrollmentProposal.findMany({ where: { studentId: id }, orderBy: { createdAt: "desc" } }),
@@ -36,7 +39,7 @@ export async function GET(req: NextRequest) {
       prisma.studentDocument.findMany({ where: { studentId: id }, select: { id: true, kind: true, fileName: true, uploadedAt: true } }),
     ]);
     const events = family ? [] : await prisma.studentTimelineEvent.findMany({ where: { studentId: id, kind: { in: ["ENROLLMENT_TRANSITION", "IDENTITY_CONSOLIDATED", "ADMITTED", "PROMOTED"] } }, select: { id: true, kind: true, title: true, createdAt: true }, orderBy: { createdAt: "desc" } });
-    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: user.role === "SUPER_ADMIN", canManage });
+    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: user.role === "SUPER_ADMIN", canManage }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "Unable to load enrollment history"); }
 }
 export async function POST(req: NextRequest) {

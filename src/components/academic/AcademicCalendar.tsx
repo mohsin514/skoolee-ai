@@ -4,7 +4,7 @@ import { localeTag } from "@/lib/locale/package";
 
 import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -87,6 +87,14 @@ interface LayerState {
   deadlines: boolean;
 }
 
+const compactCalendarSnapshot = () => window.matchMedia('(max-width: 639px)').matches;
+const calendarServerSnapshot = () => false;
+function subscribeCalendarWidth(callback: () => void) {
+  const media = window.matchMedia('(max-width: 639px)');
+  media.addEventListener('change', callback);
+  return () => media.removeEventListener('change', callback);
+}
+
 export function AcademicCalendar({
   campusId,
   readOnly = false,
@@ -122,7 +130,11 @@ export function AcademicCalendar({
   // A month grid answers "what happens in October". It cannot answer "what is
   // next", which is the question anyone actually opens this screen with — that
   // used to mean clicking through months looking for a coloured square.
-  const [calendarView, setCalendarView] = useState<"month" | "agenda">("month");
+  const compactCalendar = useSyncExternalStore(subscribeCalendarWidth, compactCalendarSnapshot, calendarServerSnapshot);
+  const [chosenView, setCalendarView] = useState<"month" | "agenda" | null>(null);
+  // The existing agenda is readable at phone widths; keep the month available
+  // as an explicit, horizontally scrollable view with full-size day targets.
+  const calendarView = chosenView ?? (compactCalendar ? "agenda" : "month");
 
   const qs = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
@@ -320,12 +332,12 @@ export function AcademicCalendar({
   return (
     <div className="sk-panel border-[#cfc2d6]/15 overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] border-b border-[#cfc2d6]/10">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-            <CalendarDays className="h-5 w-5" />
+      <div className="flex flex-col gap-[12px] p-[12px] sm:p-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] border-b border-[#cfc2d6]/10">
+        <div className="flex min-w-0 items-center gap-[10px]">
+          <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+            <CalendarDays className="h-[20px] w-[20px]" />
           </div>
-          <div>
+          <div className="min-w-0 [overflow-wrap:anywhere]">
             <h3 className="text-lg font-black tracking-tight text-[#1d1b20]"><UiText>{"Academic Calendar"}</UiText></h3>
             <p className="text-[11px] font-semibold text-ink-muted">
               {calendarView === "month" ? new Intl.DateTimeFormat(localeTag(locale), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(viewYear, viewMonth, 1))) : `${viewYear}`}
@@ -333,8 +345,8 @@ export function AcademicCalendar({
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="sk-panel flex items-center gap-0.5 p-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-[8px]">
+          <div className="sk-panel flex max-w-full flex-wrap items-center gap-[4px] p-[4px]">
             {(["month", "agenda"] as const).map((v) => (
               <Button variant="choice"
                 key={v}
@@ -342,7 +354,7 @@ export function AcademicCalendar({
                 onClick={() => setCalendarView(v)}
                 aria-pressed={calendarView === v}
                 className={cn(
-                  "px-3 py-1.5",
+                  "min-h-[44px] px-[10px] py-[6px]",
                   "",
                 )}
               >
@@ -352,24 +364,24 @@ export function AcademicCalendar({
           </div>
           {calendarView === "month" ? (
             <>
-              <Button variant="outline" size="icon" onClick={prevMonth} aria-label={tr("Previous month")} className="flex items-center justify-center">
+              <Button variant="outline" size="icon" onClick={prevMonth} aria-label={tr("Previous month")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button variant="outline"
                 onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
-                className="px-3 py-2"
+                className="min-h-[44px] px-[10px] py-[6px]"
               ><UiText>{"Today"}</UiText></Button>
-              <Button variant="outline" size="icon" onClick={nextMonth} aria-label={tr("Next month")} className="flex items-center justify-center">
+              <Button variant="outline" size="icon" onClick={nextMonth} aria-label={tr("Next month")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </>
           ) : (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y - 1)} aria-label={tr("Previous year")} className="flex items-center justify-center">
+            <div className="flex flex-wrap items-center gap-[8px]">
+              <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y - 1)} aria-label={tr("Previous year")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-[11px] font-black uppercase tracking-wider text-ink-muted">{viewYear}</span>
-              <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y + 1)} aria-label={tr("Next year")} className="flex items-center justify-center">
+              <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y + 1)} aria-label={tr("Next year")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -378,7 +390,7 @@ export function AcademicCalendar({
       </div>
 
       {/* Layer toggles */}
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-[#cfc2d6]/10">
+      <div className="flex flex-wrap items-center gap-[8px] px-[12px] py-[12px] sm:px-5 border-b border-[#cfc2d6]/10">
         <LayerChip label={tr("Exams")} color="#8127cf" active={layers.exams} onClick={() => setLayers((l) => ({ ...l, exams: !l.exams }))} />
         <LayerChip label={tr("Holidays")} color="#0d9488" active={layers.holidays} onClick={() => setLayers((l) => ({ ...l, holidays: !l.holidays }))} />
         <LayerChip label={tr("Terms")} color="#d97706" active={layers.terms} onClick={() => setLayers((l) => ({ ...l, terms: !l.terms }))} />
@@ -403,8 +415,8 @@ export function AcademicCalendar({
       ) : calendarView === "agenda" ? (
         <AgendaList items={agenda} />
       ) : (
-        <div className="p-5">
-          <div className="grid grid-cols-7 gap-1.5">
+        <div role="region" tabIndex={0} aria-label={tr("Month calendar. Scroll horizontally to see all days.")} className="overflow-x-auto p-[12px] sm:p-5">
+          <div className="grid min-w-[22rem] grid-cols-7 gap-[6px]">
             {Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(localeTag(locale), { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2027, 0, 3 + ((feed?.weekStartsOn ?? 1) + i) % 7)))).map((d) => (
               <div key={d} className="pb-1 text-center text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                 {d}
@@ -427,7 +439,7 @@ export function AcademicCalendar({
                     setPopover({ iso: cell.iso, x: r.left, y: r.bottom + 6, mode: canEdit ? "add" : "view" });
                   }}
                   className={cn(
-                    "group relative flex h-16 min-w-0 flex-col items-stretch justify-start p-1.5 text-start",
+                    "group relative flex min-h-[64px] min-w-[44px] flex-col items-stretch justify-start p-[6px] text-start",
                     holidayBg && "bg-teal-50",
                     weekendBg && "bg-surface-subtle"
                   )}
@@ -485,7 +497,7 @@ function LayerChip({ label, color, active, onClick }: { label: string; color: st
       // shift, so the state has to be exposed for assistive tech too.
       aria-pressed={active}
       className={"justify-start " + (cn(
-        "flex items-center gap-1.5 px-3 py-1",
+        "flex min-h-[44px] items-center gap-[6px] px-[10px] py-[6px]",
         ""
       ))}
     >
@@ -670,7 +682,7 @@ function AgendaList({
 
   if (grouped.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-14 text-center">
+      <div className="flex flex-col items-center justify-center px-[12px] py-[24px] sm:p-10 text-center">
         <CalendarDays className="mb-3 h-9 w-9 text-ink-subtle" />
         <p className="text-sm font-bold text-ink-muted"><UiText>{"Nothing on the calendar this year"}</UiText></p>
         <p className="mt-1 text-xs font-semibold text-ink-subtle"><UiText>{"Terms, holidays and exam dates all appear here once they are set."}</UiText></p>
@@ -683,8 +695,8 @@ function AgendaList({
     const isToday = iso === today;
     const days = Math.round((d.getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000);
     return (
-      <li key={iso} className={cn("flex gap-4 px-5 py-3", isPast && "opacity-55")}>
-        <div className="w-20 shrink-0 text-right">
+      <li key={iso} className={cn("flex flex-col gap-[8px] px-[12px] py-[12px] sm:flex-row sm:gap-4 sm:px-5", isPast && "opacity-55")}>
+        <div className="shrink-0 text-start sm:w-20">
           <p
             className={cn(
               "text-sm font-black leading-tight",
@@ -712,8 +724,8 @@ function AgendaList({
                 style={{ backgroundColor: item.color }}
               />
               <span className="min-w-0">
-                <span className="block truncate text-sm font-bold text-[#1d1b20]">{item.title}</span>
-                <span className="block truncate text-[11px] font-semibold text-ink-muted">
+                <span className="block text-sm font-bold text-[#1d1b20] [overflow-wrap:anywhere]">{item.title}</span>
+                <span className="block text-[11px] font-semibold text-ink-muted [overflow-wrap:anywhere]">
                   {item.detail}
                 </span>
               </span>

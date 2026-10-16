@@ -7,6 +7,9 @@ import { assertWorkspacePermission, loadWorkspacePermissionSnapshot, assertSchoo
 import { candidatePaper, paperDataSchema, type PaperData } from "./assessment";
 import { approveExamAccommodationSchema, examAccommodationsSchema, attemptDeadline, assertSupportedExamMode, examAssignmentSchema, examReviewSchema, examSaveDecision, responsesSchema, saveExamSchema, scoreObjectiveResponses, validateExamReview, validateExamWindow, validateResponses } from "./exam";
 import { schoolAiTransaction, retryDatabaseTransaction } from "./transaction";
+import { PROCTOR_CONSENT_VERSION, proctorPolicy } from "./exam-proctor";
+import { sourceStorageAvailable } from "./source-storage";
+import { examIntegrityDisclosure } from "./exam-integrity";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const selection = { id: true, title: true, startsAt: true, endsAt: true, paperVersion: true, mode: true, status: true, classId: true, campusId: true } as const;
@@ -109,7 +112,8 @@ export async function getSchoolAiExam(user: AuthUser, id: string) {
   const { assignment, paper, student } = await scopedAssignment(user, id);
   const accommodation = student ? examAccommodationsSchema.parse(assignment.accommodations)[student.id] : undefined;
   const extraMinutes = accommodation?.extraMinutes ?? 0, breakMinutes = accommodation?.breakMinutes ?? 0;
-  return { version: assignment.version, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
+  const recording = proctorPolicy(assignment.proctorPolicy);
+  return { version: assignment.version, integrityPolicy: examIntegrityDisclosure(assignment.proctorPolicy), cameraRequired: recording.requireCamera && !accommodation?.cameraExempt, cameraRetentionDays: recording.retentionDays, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false, cameraExempt: accommodation?.cameraExempt ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
 }
 
 function receipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; responses: unknown; submittedAt: Date | null }, paper: PaperData, now: Date) {
@@ -117,11 +121,17 @@ function receipt(attempt: { id: string; status: string; startedAt: Date; deadlin
 }
 
 /** Both approval and start lock the assignment row, so an approval cannot overtake a start. */
-export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, expectedVersion?: number) {
+export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, expectedVersion?: number, readiness?: { cameraReady?: boolean; consentVersion?: string }) {
   const { assignment, paper, student } = await scopedAssignment(user, id);
   if (!student) throw new ApiError("Only assigned students can start an attempt.", 403);
   try {
     const attempt = await retryDatabaseTransaction(() => prisma.$transaction(async (tx) => {
+      // All starts for this account serialize, including different assignments.
+      // A per-assignment lock alone allows two simultaneous active exams.
+      const account = await tx.user.updateMany({ where: { id: user.userId, schoolId: user.schoolId, campusId: student.campusId, role: "STUDENT", isActive: true, ...(user.accessVersion === undefined ? {} : { accessVersion: user.accessVersion }) }, data: { accessVersion: { increment: 0 } } });
+      if (account.count !== 1) throw new ApiError("Your exam access changed. Sign in again.", 403);
+      const activeElsewhere = await tx.schoolAiExamAttempt.findFirst({ where: { schoolId: user.schoolId, userId: user.userId, studentId: student.id, campusId: student.campusId, assignmentId: { not: id }, status: "IN_PROGRESS", deadlineAt: { gt: now ?? new Date() }, assignment: { status: "ACTIVE", mode: "STANDARD", classId: student.classId, studentIds: { array_contains: [student.id] } } }, select: { id: true } });
+      if (activeElsewhere) throw new ApiError("Finish your active exam before starting another one.", 409);
       const locked = await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, campusId: student.campusId, version: assignment.version, status: "ACTIVE", mode: "STANDARD" }, data: { version: { increment: 0 } } });
       if (locked.count !== 1) throw new ApiError("The exam changed. Check readiness again before starting.", 409);
       const existing = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId: id, userId: user.userId, schoolId: user.schoolId, campusId: student.campusId } });
@@ -134,6 +144,12 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
       const currentTime = now ?? new Date();
       if (currentTime < assignment.startsAt || currentTime >= assignment.endsAt) throw new ApiError("The exam is outside its availability window.", 409);
       const accommodation = examAccommodationsSchema.parse(assignment.accommodations)[student.id];
+      const recording = proctorPolicy(assignment.proctorPolicy);
+      if (recording.requireCamera && !accommodation?.cameraExempt) {
+        if (!sourceStorageAvailable()) throw new ApiError("Required camera recording is unavailable. Ask staff for an approved alternative before starting.", 503);
+        // This is a browser report and explicit consent, not device attestation.
+        if (readiness?.cameraReady !== true || readiness.consentVersion !== PROCTOR_CONSENT_VERSION) throw new ApiError("Complete the camera check and recording notice before starting, or ask staff for an approved exception.", 422);
+      }
       const extraMinutes = (accommodation?.extraMinutes ?? 0) + (accommodation?.breakMinutes ?? 0);
       return tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt: attemptDeadline(currentTime, assignment.endsAt, paper.blueprint.durationMinutes + extraMinutes), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
@@ -165,7 +181,7 @@ export async function getSchoolAiAccommodations(user: AuthUser, id: string) {
   ]);
   return { version: assignment.version, canApprove: canApprove && assignment.status === "ACTIVE" && assignment.endsAt > new Date(), baseDurationMinutes: paper.blueprint.durationMinutes, endsAt: assignment.endsAt, students: students.map((student) => {
     const approved = accommodations[student.id];
-    return { ...student, extraMinutes: approved?.extraMinutes ?? 0, breakMinutes: approved?.breakMinutes ?? 0, reader: approved?.reader ?? false, scribe: approved?.scribe ?? false, largeText: approved?.largeText ?? false, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
+    return { ...student, extraMinutes: approved?.extraMinutes ?? 0, breakMinutes: approved?.breakMinutes ?? 0, reader: approved?.reader ?? false, scribe: approved?.scribe ?? false, largeText: approved?.largeText ?? false, cameraExempt: approved?.cameraExempt ?? false, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
   }) };
 }
 
@@ -188,7 +204,7 @@ export async function approveSchoolAiAccommodation(user: AuthUser, id: string, r
       const accommodations = examAccommodationsSchema.parse(current.accommodations);
       const currentTime = now ?? new Date();
       if (current.endsAt <= currentTime) throw new ApiError("The exam changed or closed. Refresh before approving extra time.", 409);
-      const approved = { extraMinutes: input.extraMinutes, breakMinutes: input.breakMinutes ?? 0, reader: input.reader ?? false, scribe: input.scribe ?? false, largeText: input.largeText ?? false, reason: input.reason, approvedById: user.userId, approvedAt: currentTime.toISOString() };
+      const approved = { extraMinutes: input.extraMinutes, breakMinutes: input.breakMinutes ?? 0, reader: input.reader ?? false, scribe: input.scribe ?? false, largeText: input.largeText ?? false, cameraExempt: input.cameraExempt ?? false, reason: input.reason, approvedById: user.userId, approvedAt: currentTime.toISOString() };
       const updated = examAccommodationsSchema.parse({ ...accommodations, [input.studentId]: approved });
       await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, version: input.version }, data: { accommodations: json(updated), version: { increment: 1 } } });
       return { version: input.version + 1, studentId: input.studentId, ...approved };

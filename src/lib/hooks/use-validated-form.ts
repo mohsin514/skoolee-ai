@@ -87,7 +87,7 @@ export function useValidatedForm<S extends z.ZodType>({
       `[name="${CSS.escape(field)}"], #${CSS.escape(`field-${field}`)}`
     );
     element?.focus?.();
-    element?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    element?.scrollIntoView?.({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   };
 
   const setValue = (field: Key, value: unknown) => {

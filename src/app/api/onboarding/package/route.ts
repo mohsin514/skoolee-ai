@@ -47,7 +47,7 @@ export async function GET() {
     });
     const methods = [
       stripe && paymentConfig.availableMethods.includes("stripe") ? "stripe" : null,
-      process.env.SAFEPAY_MERCHANT_ID && process.env.SAFEPAY_API_KEY && process.env.SAFEPAY_SECRET_KEY ? "safepay" : null,
+      paymentConfig.availableMethods.includes("safepay") ? "safepay" : null,
       paymentConfig.bank?.bankName ? "bank_transfer" : null,
     ].filter((method): method is string => Boolean(method));
 
@@ -124,9 +124,7 @@ export async function POST(req: NextRequest) {
     const canUseStripe = Boolean(
       stripe && paymentConfig.availableMethods.includes("stripe") && stripePriceId
     );
-    const canUseSafePay = Boolean(
-      process.env.SAFEPAY_MERCHANT_ID && process.env.SAFEPAY_API_KEY && process.env.SAFEPAY_SECRET_KEY
-    );
+    const canUseSafePay = paymentConfig.availableMethods.includes("safepay");
     const canUseBank = Boolean(paymentConfig.bank?.bankName);
 
     const provider = intent.provider !== "NONE"

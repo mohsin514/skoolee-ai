@@ -1,4 +1,6 @@
-import { prisma } from "@/lib/db/prisma";
+import { resolveCurrentPrincipal } from "@/lib/auth/principal";
+import { authorizeJob } from "@/lib/jobs/service";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runAsCurrentActor } from "@/lib/auth/job-policy";
 import { assertCommunicationTarget } from "@/lib/auth/communication-policy";
 import { getPublishedVersion } from "@/lib/academic/report-versions";
@@ -28,7 +30,12 @@ export async function reportDeliveryWorkflow(
         where: { id: ctx.referenceId },
       });
       const metadata = c.metadata as { reportVersionId?: string } | null;
-      const authorize = async () => {
+      const authorize = async (db: TxClient = prisma) => {
+        if (!["EMAIL", "WHATSAPP"].includes(c.channel)) throw new WorkflowStopped("UNKNOWN_EVENT_KIND");
+        const actor = await resolveCurrentPrincipal({ schoolId: ctx.schoolId, userId: ctx.actorId });
+        const report = c.relatedId && await db.reportCard.findFirst({ where: { id: c.relatedId, schoolId: ctx.schoolId, campusId: c.campusId || undefined, studentId: c.studentId || "" }, include: { exam: { select: { id: true, classId: true, title: true } } } });
+        if (!actor || !report || !c.campusId || !c.parentUserId) throw new WorkflowStopped("AUTHORIZATION_OR_PUBLICATION_REVOKED");
+        await authorizeJob(actor, { id: ctx.referenceId, school_id: ctx.schoolId, campus_id: c.campusId, class_id: report.exam.classId, kind: "REPORT_DELIVERY", source_id: report.exam.id, source_label: report.exam.title, created_at: c.createdAt, cancel_requested_at: null }, true, db);
         await assertCommunicationTarget(
           {
             schoolId: c.schoolId,
@@ -40,7 +47,7 @@ export async function reportDeliveryWorkflow(
           c.channel,
           "learningRecords",
         );
-        const version = await getPublishedVersion(c.relatedId || "");
+        const version = await getPublishedVersion(c.relatedId || "", undefined, db);
         if (version.id !== metadata?.reportVersionId)
           throw new WorkflowStopped("AUTHORIZATION_OR_PUBLICATION_REVOKED");
       };
@@ -49,7 +56,7 @@ export async function reportDeliveryWorkflow(
       if (!deliver && process.env.DISABLE_OUTBOUND_MESSAGES === "true") throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
       if (!deliver && c.channel === "WHATSAPP" && (!process.env.WHATSAPP_PHONE_NUMBER_ID || !process.env.WHATSAPP_ACCESS_TOKEN)) throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
       if (!deliver && c.channel === "EMAIL" && !hasEmailProviderConfig()) throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
-      await ctx.external(`deliver:${c.id}`, authorize, async () => {
+      await ctx.external(`deliver:${c.id}`, tx => authorize(tx as TxClient), async () => {
         const result = deliver
           ? await deliver(c)
           : c.channel === "WHATSAPP"
@@ -90,7 +97,7 @@ export async function reportDeliveryWorkflow(
       });
     },
   ).catch((error) => {
-    if ((error as { status?: number }).status === 403)
+    if ([402, 403, 404, 409].includes((error as { status?: number }).status || 0))
       throw new WorkflowStopped("AUTHORIZATION_OR_PUBLICATION_REVOKED");
     throw error;
   });

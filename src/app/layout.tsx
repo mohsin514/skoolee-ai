@@ -4,6 +4,7 @@ import { AppToaster } from "@/components/ui/app-toaster";
 import { Suspense } from "react";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
 import { NetworkProvider } from "@/components/providers/network-provider";
+import { CandidateExamGuard } from "@/components/providers/candidate-exam-guard";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -75,7 +76,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <Suspense fallback={null}>
           <AppLoaderProvider>
-            <NetworkProvider>{children}</NetworkProvider>
+            <NetworkProvider><CandidateExamGuard>{children}</CandidateExamGuard></NetworkProvider>
             <AppToaster />
           </AppLoaderProvider>
         </Suspense>

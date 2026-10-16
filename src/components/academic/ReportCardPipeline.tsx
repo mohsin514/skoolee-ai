@@ -5,7 +5,7 @@ import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { jobMessages } from "@/lib/jobs/messages";
 import { useLocale } from "@/components/locale/LocaleProvider";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 
 type Version = {
@@ -78,6 +78,7 @@ const copy = {
     preview: "Preview approved release",
     empty: "No reports generated. Lock the exam and generate reports first.",
     loading: "Loading current report versions…",
+    retry: "Retry loading reports",
     language: "Report language",
     remarks: "Remarks",
     filter: "Readiness",
@@ -107,6 +108,7 @@ const copy = {
     preview: "معاينة النسخة المعتمدة",
     empty: "لا توجد تقارير. أقفل الامتحان ثم أنشئ التقارير.",
     loading: "جار تحميل النسخ الحالية…",
+    retry: "إعادة تحميل التقارير",
     language: "لغة التقرير",
     remarks: "الملاحظات",
     filter: "الجاهزية",
@@ -136,6 +138,7 @@ const copy = {
     preview: "منظور شدہ نسخہ دیکھیں",
     empty: "کوئی رپورٹ نہیں۔ پہلے امتحان لاک کریں اور رپورٹس بنائیں۔",
     loading: "موجودہ نسخے لوڈ ہو رہے ہیں…",
+    retry: "رپورٹس دوبارہ لوڈ کریں",
     language: "رپورٹ کی زبان",
     remarks: "تبصرے",
     filter: "تیاری",
@@ -148,15 +151,23 @@ const copy = {
 };
 const button =
   "px-3 py-2";
-export function ReportCardPipeline({
-  exam,
-  campusId,
-  onChanged,
-}: {
+type PipelineProps = {
   exam: ExamItem;
   campusId?: string;
   onChanged?: () => void;
-}) {
+};
+export function ReportCardPipeline(props: PipelineProps) {
+  // Reset permissions, selections and private notes before a new scope paints.
+  return <ScopedReportCardPipeline key={JSON.stringify([props.exam.id, props.campusId])} {...props} />;
+}
+function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) {
+  const alive = useRef(false);
+  const request = useRef<AbortController | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; request.current?.abort(); };
+  }, []);
   const [cards, setCards] = useState<Card[]>([]),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -174,23 +185,32 @@ export function ReportCardPipeline({
   const [reviewerFilter, setReviewerFilter] = useState("");
   const t = copy[locale];
   const load = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
+    setLoadFailed(false);
+    setCanReview(false);
+    setCanEdit(false);
     setSelected([]);
     setActive(null);
     try {
       const q = new URLSearchParams({ examId: exam.id });
       if (campusId) q.set("campusId", campusId);
-      const r = await fetch(`/api/reports?${q}`);
+      const r = await fetch(`/api/reports?${q}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) });
       const d = await r.json();
+      if (!alive.current || request.current !== controller || controller.signal.aborted) return;
       if (!r.ok) throw new Error(d.error);
       setCards(d.reportCards);
       setCanReview(d.canReview);
       setCanEdit(d.canEdit);
     } catch (e) {
+      if (!alive.current || request.current !== controller || controller.signal.aborted) return;
+      setLoadFailed(true);
       setCards([]);
       setMessage(e instanceof Error ? e.message : "Failed to load reports");
     } finally {
-      setLoading(false);
+      if (alive.current && request.current === controller) setLoading(false);
     }
   }, [exam.id, campusId]);
   useEffect(() => {
@@ -217,6 +237,9 @@ export function ReportCardPipeline({
         },
       );
       const d = await r.json();
+      if (!alive.current) return;
+      if (r.status === 401 || r.status === 403) { setCards([]); setCanReview(false); setCanEdit(false); setActive(null); setLoadFailed(true); }
+      if (r.status === 409) await load();
       if (!r.ok)
         throw new Error(
           typeof d.error === "string" ? d.error : "Action failed",
@@ -224,12 +247,11 @@ export function ReportCardPipeline({
       if (d.jobId) { window.location.assign(`/jobs?id=${d.jobId}`); return; }
       setMessage(t.success);
       await load();
-      onChanged?.();
+      if (alive.current) onChanged?.();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Action failed");
-      await load();
+      if (alive.current) setMessage(e instanceof Error ? e.message : "Action failed");
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   }
   const current = cards.find((c) => c.id === active);
@@ -254,20 +276,23 @@ export function ReportCardPipeline({
         }),
       });
       const d = await r.json();
+      if (!alive.current) return;
+      if (r.status === 401 || r.status === 403) { setCards([]); setCanReview(false); setCanEdit(false); setActive(null); setLoadFailed(true); }
+      if (r.status === 409) await load();
       if (!r.ok) throw new Error(d.error);
       await load();
       setMessage(t.success);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Save failed");
+      if (alive.current) setMessage(e instanceof Error ? e.message : "Save failed");
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   }
   const blocked = cards.filter((c) => c.review.blockers.length).length;
   return (
     <section
       dir={locale === "en" ? "ltr" : "rtl"}
-      className="space-y-4 min-w-0"
+      className="space-y-4 min-w-0 [overflow-wrap:anywhere]"
       aria-label={t.title}
     >
       <a className="underline" href="/jobs">{jobMessages[locale].title}</a>
@@ -288,7 +313,7 @@ export function ReportCardPipeline({
             {t.blocked}: {blocked} · {t.eligible}: {cards.length - blocked} ·{" "}
             {t.approved}: {cards.filter((c) => c.review.approvedAt).length}
           </p>
-          {!cards.length && <p>{t.empty}</p>}
+          {loadFailed ? <Button variant="outline" onClick={() => void load()}>{t.retry}</Button> : !cards.length && <p>{t.empty}</p>}
           {canReview && cards.some((c) => c.review.predecessorId) && (
             <>
               <label className="block">
@@ -509,6 +534,7 @@ export function ReportCardPipeline({
           {current && (
             <div
               className="rounded-xl border p-4 space-y-3"
+              role="region"
               aria-label={`${t.inspect} v${current.review.number}`}
             >
               <h4 className="font-semibold">

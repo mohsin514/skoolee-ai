@@ -1,16 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
 import { Textarea } from "@/components/ui/textarea";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
+import { PROCTOR_CONSENT_VERSION } from "@/lib/school-ai/exam-proctor";
+import { examCameraCopy } from "./exam-camera-copy";
 import { examReadinessCopy } from "./exam-readiness-copy";
+import type { ExamIntegrityDisclosure } from "@/lib/school-ai/exam-integrity";
+import { ExamIntegrityNotice } from "./exam-integrity-policy";
 
-export type ExamInfo = { version: number; title: string; startsAt: string; endsAt: string; baseDurationMinutes: number; extraMinutes: number; breakMinutes?: number; assistance?: { reader: boolean; scribe: boolean; largeText: boolean }; durationMinutes: number; totalMarks: number; serverNow: string };
-export function ExamPreflight({ id, exam, locale, busy, serverNow, onChecked, onStart }: { id: string; exam: ExamInfo; locale: AssessmentLocale; busy: boolean; serverNow: number; onChecked: (exam: ExamInfo) => void; onStart: (version: number) => void }) {
-  const t = examReadinessCopy(locale);
+export type ExamInfo = { integrityPolicy?: ExamIntegrityDisclosure; version: number; title: string; startsAt: string; endsAt: string; baseDurationMinutes: number; extraMinutes: number; breakMinutes?: number; assistance?: { reader: boolean; scribe: boolean; largeText: boolean; cameraExempt?: boolean }; cameraRequired?: boolean; cameraRetentionDays?: number; durationMinutes: number; totalMarks: number; serverNow: string };
+export type CameraStartEvidence = { cameraReady: true; consentVersion: string };
+export function ExamPreflight({ id, exam, locale, busy, serverNow, onChecked, onStart, cameraStream = null, onCameraStream }: { cameraStream?: MediaStream | null; onCameraStream?: (stream: MediaStream | null) => void; id: string; exam: ExamInfo; locale: AssessmentLocale; busy: boolean; serverNow: number; onChecked: (exam: ExamInfo) => void; onStart: (version: number, camera?: CameraStartEvidence) => void }) {
+  const t = examReadinessCopy(locale), camera = examCameraCopy(locale);
+  const [cameraConsent, setCameraConsent] = useState(false);
+  const [cameraBusy, setCameraBusy] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const preview = useRef<HTMLVideoElement>(null);
+  const cameraMounted = useRef(true);
+  useEffect(() => { cameraMounted.current = true; return () => { cameraMounted.current = false; }; }, []);
+  useEffect(() => {
+    if (preview.current) { preview.current.srcObject = cameraStream; if (cameraStream) void preview.current.play().catch(() => {}); }
+    const ended = () => { setCameraError(camera.failure); onCameraStream?.(null); };
+    cameraStream?.getVideoTracks().forEach(track => track.addEventListener("ended", ended));
+    return () => { cameraStream?.getVideoTracks().forEach(track => track.removeEventListener("ended", ended)); };
+  }, [cameraStream, camera.failure, onCameraStream]);
+  const cameraLive = !!cameraStream?.getVideoTracks().some(track => track.readyState === "live");
+  const openCamera = async () => {
+    if (!cameraConsent || cameraBusy) return;
+    setCameraError("");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined" || !["video/webm;codecs=vp8", "video/webm", "video/mp4"].some(type => MediaRecorder.isTypeSupported(type))) { setCameraError(camera.unsupported); return; }
+    setCameraBusy(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 10, max: 15 } }, audio: false });
+      if (!cameraMounted.current) { stream.getTracks().forEach(track => track.stop()); return; }
+      onCameraStream?.(stream);
+    } catch { if (cameraMounted.current) setCameraError(camera.failure); }
+    finally { if (cameraMounted.current) setCameraBusy(false); }
+  };
   const [checking, setChecking] = useState(false);
   const [checked, setChecked] = useState<{ version: number; at: number; serverAt: number } | null>(null);
   const [storage, setStorage] = useState<boolean | null>(null);
@@ -31,7 +61,7 @@ export function ExamPreflight({ id, exam, locale, busy, serverNow, onChecked, on
       const response = await fetch(`/api/school-ai/exams/${encodeURIComponent(id)}`, { cache: "no-store", signal: AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error(t.connectionFailed);
       const payload = await response.json(); const current = payload.exam as ExamInfo;
-      onChecked(current); setChecked({ version: current.version, at: Date.now(), serverAt: new Date(current.serverNow).getTime() });
+      onChecked(current); setChecked({ version: current.version, at: performance.now(), serverAt: new Date(current.serverNow).getTime() });
     } catch { setError(t.connectionFailed); }
     finally { setChecking(false); }
   };
@@ -43,9 +73,21 @@ export function ExamPreflight({ id, exam, locale, busy, serverNow, onChecked, on
     <Button variant="outline" disabled={busy || checking} onClick={check}>{checking ? t.checking : t.check}</Button>
     <div aria-live="polite" className="space-y-2 text-sm"><p>{ready ? t.ready : t.pending}</p>{storage !== null && <p>{storage ? t.storageOk : t.storageWarning}</p>}{error && <p role="alert" className="text-status-error-text">{error}</p>}</div>
     <p className="text-xs text-ink-subtle">{t.storageNote}</p>
+    <ExamIntegrityNotice policy={exam.integrityPolicy} locale={locale} />
+    {exam.assistance?.cameraExempt && <p role="status" className="text-sm">{camera.exempt}</p>}
+    {exam.cameraRequired && <section className="space-y-4 rounded-xl border border-border p-4" aria-label={camera.title}>
+      <h3 className="font-bold">{camera.required}</h3><p className="text-sm text-ink-subtle">{camera.explanation}</p>
+      <p className="text-sm font-semibold">{camera.retention}: {exam.cameraRetentionDays ?? 1} {camera.days}</p>
+      <label className="flex items-start gap-3 text-sm"><Checkbox checked={cameraConsent} disabled={busy || cameraBusy} onChange={event => { setCameraConsent(event.target.checked); if (!event.target.checked) onCameraStream?.(null); }} /><span>{camera.consent}</span></label>
+      <video ref={preview} muted playsInline aria-label={camera.title} className={cameraLive ? "aspect-video w-full max-w-sm rounded-xl bg-black object-contain" : "hidden"} />
+      <p role="status" className="text-sm">{cameraLive ? camera.ready : camera.waiting}</p>
+      {cameraError && <p role="alert" className="text-sm text-status-error-text">{cameraError}</p>}
+      <div className="flex flex-wrap gap-3"><Button type="button" variant="outline" disabled={!cameraConsent || cameraBusy || busy || cameraLive} onClick={openCamera}>{cameraBusy ? camera.checking : camera.preview}</Button>{cameraLive && <Button type="button" variant="ghost" disabled={busy} onClick={() => onCameraStream?.(null)}>{camera.stop}</Button>}</div>
+      <p className="text-xs text-ink-subtle">{camera.privacy}</p>
+    </section>}
     <FormField name="exam-practice" label={t.practice} hint={t.practiceHint}><Textarea value={practice} maxLength={1000} rows={3} onChange={(event) => setPractice(event.target.value)} /></FormField>
     <label className="flex items-start gap-3 text-sm"><Checkbox checked={acknowledged} disabled={!ready || busy} onChange={(event) => setAcknowledged(event.target.checked)} /><span>{t.acknowledge}</span></label>
     <p className="text-xs text-ink-subtle">{t.fresh}</p>
-    <Button disabled={busy || checking || !available || !ready || !acknowledged} onClick={() => { if (checked && Date.now() - checked.at < 120000 && checked.version === exam.version) onStart(checked.version); else { setChecked(null); setAcknowledged(false); } }}>{t.start}</Button>
+    <Button disabled={busy || checking || cameraBusy || !available || !ready || !acknowledged || !!exam.cameraRequired && (!cameraConsent || !cameraLive)} onClick={() => { if (checked && performance.now() - checked.at < 120000 && checked.version === exam.version) onStart(checked.version, exam.cameraRequired && cameraConsent && cameraLive ? { cameraReady: true, consentVersion: PROCTOR_CONSENT_VERSION } : undefined); else { setChecked(null); setAcknowledged(false); } }}>{t.start}</Button>
   </section>;
 }

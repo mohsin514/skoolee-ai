@@ -1,0 +1,313 @@
+{
+  "formatVersion": 2,
+  "startedAt": "2026-10-15T10:34:00.215919+00:00",
+  "status": "verified-awaiting-sign-off",
+  "dataClass": "synthetic",
+  "notificationIsolation": "No app server, worker entrypoint or provider SDK is executed; subprocess environment excludes all provider credentials. Post-restore smoke uses providerless in-process handlers only.",
+  "operatorSignOff": null,
+  "schoolReopenDecision": "Requires operator review; synthetic proof is not production readiness.",
+  "limitations": [
+    "Local synthetic database and files only; provider PITR, storage/KMS, credentials and traffic recovery require separate evidence.",
+    "Schema fingerprint excludes object ownership; deployed roles and grants require independent environment verification.",
+    "Pending job receipts are reconciled without running workers; provider-side effects and controlled replay require domain-owner review.",
+    "A dirty worktree is test evidence only, not evidence for promoting the recorded commit."
+  ],
+  "checks": [
+    {
+      "name": "redacted-environment-preflight",
+      "passed": true
+    },
+    {
+      "name": "clean-provisioning-and-schema-drift",
+      "passed": true
+    },
+    {
+      "name": "populated-schema-push-adoption-and-upgrade",
+      "passed": true
+    },
+    {
+      "name": "additive-migration-tables-initially-empty",
+      "passed": true
+    },
+    {
+      "name": "enrollment-backfill-complete",
+      "passed": true
+    },
+    {
+      "name": "backup-artifact-checksum",
+      "passed": true
+    },
+    {
+      "name": "all-record-counts-and-content-hashes",
+      "passed": true
+    },
+    {
+      "name": "migration-ledger-restored",
+      "passed": true
+    },
+    {
+      "name": "schema-security-catalog-restored",
+      "passed": true
+    },
+    {
+      "name": "invoice-balance-and-grade",
+      "passed": true
+    },
+    {
+      "name": "tenant-ownership-reconciled",
+      "passed": true
+    },
+    {
+      "name": "queued-effects-reconciled-without-execution",
+      "passed": true
+    },
+    {
+      "name": "published-artifact-bytes-and-reference-restored",
+      "passed": true
+    },
+    {
+      "name": "referenced-files-have-matching-manifest",
+      "passed": true
+    },
+    {
+      "name": "file-reconciliation:synthetic/attachment.txt",
+      "passed": true
+    },
+    {
+      "name": "file-reconciliation:synthetic/other-attachment.txt",
+      "passed": true
+    },
+    {
+      "name": "post-restore-job-retry-and-tenant-load-smoke",
+      "passed": true
+    },
+    {
+      "name": "interrupted-migration-rolled-back",
+      "passed": true
+    },
+    {
+      "name": "failed-migration-blocks-replay",
+      "passed": true
+    },
+    {
+      "name": "reviewed-forward-repair",
+      "passed": true
+    },
+    {
+      "name": "source-inputs-unchanged",
+      "passed": true
+    }
+  ],
+  "fault": null,
+  "destination": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "databases": {
+      "clean": "rehearsal_131a68c36732_clean",
+      "upgrade": "rehearsal_131a68c36732_upgrade",
+      "restored": "rehearsal_131a68c36732_restored",
+      "failure": "rehearsal_131a68c36732_failure"
+    }
+  },
+  "currentStage": "awaiting-human-review",
+  "environmentPreflight": {
+    "formatVersion": 1,
+    "environment": "isolated-synthetic-staging",
+    "dataClass": "synthetic",
+    "status": "ready-for-synthetic-rehearsal",
+    "networkActions": "none",
+    "checks": [
+      {
+        "name": "PGHOST",
+        "purpose": "Disposable loopback database; never a remote host",
+        "state": "valid"
+      },
+      {
+        "name": "PGPORT",
+        "purpose": "Explicit disposable database port",
+        "state": "valid"
+      },
+      {
+        "name": "PGUSER",
+        "purpose": "Explicit synthetic database role",
+        "state": "valid"
+      },
+      {
+        "name": "PGCONNECT_TIMEOUT",
+        "purpose": "Bounded local connection wait",
+        "state": "valid"
+      },
+      {
+        "name": "SUBPROCESS_ENVIRONMENT",
+        "purpose": "Only approved process and loopback database variables; no app/provider credentials",
+        "state": "valid"
+      }
+    ],
+    "application": {
+      "fields": [
+        {
+          "name": "DATABASE_URL",
+          "purpose": "Runtime database connection",
+          "state": "missing"
+        },
+        {
+          "name": "DIRECT_URL",
+          "purpose": "Migration database connection",
+          "state": "missing"
+        },
+        {
+          "name": "AUTH_SECRET",
+          "purpose": "Environment-specific session signing material",
+          "state": "missing"
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "purpose": "Built application origin",
+          "state": "missing"
+        }
+      ],
+      "integrations": [
+        {
+          "name": "AI generation",
+          "variables": [
+            "AI_PROVIDER",
+            "AI_PROVIDER_ORDER"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Private source storage",
+          "variables": [
+            "S3_BUCKET_NAME",
+            "S3_ACCESS_KEY_ID",
+            "S3_SECRET_ACCESS_KEY"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Email delivery",
+          "variables": [
+            "SMTP_HOST",
+            "SMTP_USER",
+            "SMTP_PASS"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Stripe payments",
+          "variables": [
+            "STRIPE_SECRET_KEY",
+            "STRIPE_WEBHOOK_SECRET"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Durable queue",
+          "variables": [
+            "REDIS_URL"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        }
+      ],
+      "runtimeProbes": "not-run",
+      "applicationReadiness": "unverified",
+      "nextStep": "Confirm isolated destination and secrets ownership, then run provider-owned sandbox, storage, queue and application smoke checks. No value or valid-looking credential proves access."
+    },
+    "executionBoundary": "The rehearsal starts no application server, worker entrypoint, payment, AI or notification SDK. Post-restore smoke invokes providerless handlers only. Missing app configuration is intentional for this profile.",
+    "providerHealth": "not-tested",
+    "productionReadiness": "unverified"
+  },
+  "source": {
+    "commit": "1b366664ed5c4ea3b453df8077bf0cb81e273ce5",
+    "worktreeDirty": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  },
+  "releaseEvidenceEligible": false,
+  "supportedUpgradePaths": [
+    "dev-9c5193d-schema-push-to-versioned-baseline",
+    "verified-baseline-to-head"
+  ],
+  "databaseBackupSha256": "ac120568c92a51c9c4d00733fa4b82af2c452ec03914137a14d0de4dfd3c6764",
+  "actualRestoredPointUtc": "2026-10-15 10:34:23.795131 UTC",
+  "backupStartedAt": "2026-10-15T10:34:23.796532+00:00",
+  "backupAgeSecondsAtRestore": 0.769828,
+  "restoredSchemaSha256": "127ba63d88a5b3981d53b67fc0b3157d4d21ff37f247f9e6d73a62ec04bbd4fc",
+  "verifiedRestoreElapsedSeconds": 15.845,
+  "restoreAttemptElapsedSeconds": 15.845,
+  "jobSmoke": {
+    "formatVersion": 1,
+    "dataClass": "synthetic",
+    "environment": "isolated-synthetic-staging",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "failure-recorded-with-sanitized-reason",
+        "passed": true
+      },
+      {
+        "name": "retry-and-duplicate-preserve-one-effect",
+        "passed": true
+      },
+      {
+        "name": "cross-tenant-reference-cannot-run",
+        "passed": true
+      },
+      {
+        "name": "uncertain-external-outcome-is-not-replayed",
+        "passed": true
+      },
+      {
+        "name": "bounded-two-tenant-load-completes-without-cross-effects",
+        "passed": true
+      },
+      {
+        "name": "declared-local-recovery-smoke-budget",
+        "passed": true
+      },
+      {
+        "name": "reconciliation-exposes-failure-and-tenant-scoped-correlations",
+        "passed": true
+      }
+    ],
+    "load": {
+      "threshold": {
+        "totalJobs": 32,
+        "noisyTenantJobs": 28,
+        "quietTenantJobs": 4,
+        "concurrency": 4,
+        "maxPerJobMs": 5000,
+        "maxTotalMs": 30000
+      },
+      "elapsedMs": 44.707,
+      "tenantA": {
+        "jobs": 28,
+        "p95Ms": 10.056
+      },
+      "tenantB": {
+        "jobs": 4,
+        "p95Ms": 4.447
+      }
+    },
+    "localSinkCalls": 1,
+    "actualProviderCalls": 0,
+    "elapsedMs": 121.194,
+    "correlations": {
+      "retryEventId": "2da197bf-cc8d-4a30-bbf7-3cc9738c51fc",
+      "uncertainEventId": "1753c71b-0f5d-4824-8925-71a17edafdea"
+    },
+    "limitations": [
+      "In-process providerless handlers against the restored PostgreSQL database. No Redis, app server, worker entry point, live provider or scheduler fairness/capacity claim.",
+      "Thresholds are checked-in development regression budgets, not an agreed customer SLA or production RPO/RTO."
+    ]
+  },
+  "baselineSqlSha256": "3e653920ef9312aa574bb53cfdffc5d1d302eda10bb57613afa4296d47cae01d",
+  "cleanup": "isolated-databases-removed",
+  "elapsedSeconds": 50.701,
+  "completedAt": "2026-10-15T10:34:50.917163+00:00",
+  "diagnostics": "diagnostics.log"
+}

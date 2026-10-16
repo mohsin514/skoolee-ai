@@ -1,7 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
+import { ChevronDown, MessageCircle, X } from "lucide-react";
+import { useState } from "react";
+import { ModalSurface } from "@/components/ui/modal";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useParentData } from "./parent-data-context";
 import { PARENT_NAV } from "@/components/parent/parent-page";
@@ -31,6 +34,7 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
 
   return (
     <RoleShell
+      mobileDocumentFlow
       navItems={navItems}
       navigationAccess={data?.navigationAccess ?? null}
       navigationAccessFallback={error ? <ParentErrorState error={error} onRetry={refetch} /> : undefined}
@@ -53,32 +57,23 @@ export function ParentShell({ children }: { children: React.ReactNode }) {
  */
 function ChildSwitcher() {
   const { children: siblings, selectedStudentId, selectChild } = useParentData();
+  const [open, setOpen] = useState(false);
+  const t = useUiText();
   if (siblings.length < 2) return null;
+  const selected = siblings.find(child => child.id === selectedStudentId) ?? siblings[0];
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-1.5">
-      <span className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
-        Viewing
-      </span>
-      {siblings.map((s) => {
-        const active = s.id === selectedStudentId;
-        return (
-          <Button variant="choice"
-            key={s.id}
-            type="button"
-            onClick={() => selectChild(s.id)}
-            aria-pressed={active}
-            className={
-              active
-                ? "px-3 py-1"
-                : "px-3 py-1"
-            }
-          >
-            {s.fullName}
-            {s.rollNo ? <span className="ml-1.5 font-semibold opacity-60">{s.rollNo}</span> : null}
-          </Button>
-        );
-      })}
-    </div>
+    <>
+      <Button variant="choice" type="button" aria-label={t("Change child")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="mb-[12px] w-full min-w-0 shrink-0 justify-between gap-[8px] px-[12px] py-[8px] text-start">
+        <span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-wider text-ink-muted">{t("Viewing")}</span><bdi className="block text-sm [overflow-wrap:anywhere]">{selected.fullName}</bdi>{selected.rollNo && <bdi className="block text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{selected.rollNo}</bdi>}</span>
+        <ChevronDown aria-hidden="true" className="shrink-0" />
+      </Button>
+      {open && <ModalSurface ariaLabel={t("Choose child")} onClose={() => setOpen(false)}>
+        <div className="flex items-center justify-between gap-[8px] border-b border-border p-[12px]"><h2 className="text-lg font-bold">{t("Choose child")}</h2><Button variant="ghost" size="icon" aria-label={t("Close")} onClick={() => setOpen(false)} className="h-[44px] w-[44px] min-w-[44px]"><X aria-hidden="true" /></Button></div>
+        <div className="min-h-0 space-y-[8px] overflow-y-auto p-[12px]">
+          {siblings.map(child => <Button variant="choice" key={child.id} type="button" aria-pressed={child.id === selectedStudentId} onClick={() => { selectChild(child.id); setOpen(false); }} className="w-full min-w-0 flex-col items-start gap-[4px] px-[12px] py-[8px] text-start"><bdi className="max-w-full text-sm [overflow-wrap:anywhere]">{child.fullName}</bdi>{child.rollNo && <span className="max-w-full text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{t("Roll number")}: <bdi>{child.rollNo}</bdi></span>}</Button>)}
+        </div>
+      </ModalSurface>}
+    </>
   );
 }

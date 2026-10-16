@@ -418,7 +418,7 @@ export default function TeacherOnboardingPage() {
             </div>
 
             <form onSubmit={handleSubmit} noValidate>
-              <DraftRecovery draft={recovery} saving={saving} excluded="National ID, date of birth, home address and emergency contacts are not stored in device drafts." />
+              <DraftRecovery recordLabel="Teacher onboarding" draft={recovery} saving={saving} excluded="National ID, date of birth, home address and emergency contacts are not stored in device drafts." />
               <FormErrorSummary errors={errors} onFocusField={() => { setStep(0); requestAnimationFrame(() => document.querySelector<HTMLInputElement>("form input")?.focus()); }} />
               {/* Step 0 — Personal Info */}
               {step === 0 && (

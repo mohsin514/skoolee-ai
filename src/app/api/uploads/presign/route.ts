@@ -1,3 +1,4 @@
+import { createPrivateUploadUrl, authorizePrivateUpload } from "@/lib/storage/private-upload";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -8,14 +9,14 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { documentKey, staffDocumentKey, getUploadUrl } from "@/lib/storage/s3";
+import { documentKey, staffDocumentKey } from "@/lib/storage/s3";
 import { randomUUID } from "crypto";
 
 // POST /api/uploads/presign
 // body: { studentId, fileName, contentType, kind? } — admission documents
 //       { userId, fileName, contentType }           — staff documents
-// Returns { key, uploadUrl } — a presigned S3 PUT the client uploads to
-// directly, then a document row is created via the matching documents route.
+// Returns { key, uploadUrl } — an authenticated app PUT URL, then a document
+// row is created via the matching documents route.
 
 const ALLOWED_CONTENT_TYPES = new Set([
   "application/pdf",
@@ -31,7 +32,7 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    // A presigned PUT is a writable handle into the school's document bucket,
+    // An upload intent identifies a writable destination into the school's document bucket,
     // under a key this route chooses for a student or staff member. Gated on
     // the same bit as the documents route it feeds, so an account that may not
     // attach a document cannot mint the URL that would upload one either.
@@ -62,7 +63,8 @@ export async function POST(req: NextRequest) {
       if (!staff) throw new ApiError("Staff member not found", 404);
       const campusId = await resolveCampusId(user, staff.campusId);
       const key = staffDocumentKey(campusId, staff.id, `${randomUUID()}-${fileName}`);
-      const uploadUrl = await getUploadUrl(key, contentType);
+      await authorizePrivateUpload(user, { kind: "staff", targetId: staff.id, storageKey: key, contentType: contentType as Parameters<typeof authorizePrivateUpload>[1]["contentType"], sizeBytes });
+      const uploadUrl = await createPrivateUploadUrl(user, { kind: "staff", targetId: staff.id, storageKey: key, contentType, sizeBytes, fileName });
       return Response.json({ success: true, data: { key, uploadUrl } });
     }
 
@@ -77,7 +79,8 @@ export async function POST(req: NextRequest) {
     const campusId = await resolveCampusId(user, student.campusId);
 
     const key = documentKey(campusId, student.id, `${randomUUID()}-${fileName}`);
-    const uploadUrl = await getUploadUrl(key, contentType);
+    await authorizePrivateUpload(user, { kind: "student", targetId: student.id, storageKey: key, contentType: contentType as Parameters<typeof authorizePrivateUpload>[1]["contentType"], sizeBytes });
+    const uploadUrl = await createPrivateUploadUrl(user, { kind: "student", targetId: student.id, storageKey: key, contentType, sizeBytes, fileName });
     return Response.json({ success: true, data: { key, uploadUrl } });
   } catch (error) {
     return errorResponse(error, "[uploads/presign] POST failed");

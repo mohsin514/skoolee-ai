@@ -138,12 +138,12 @@ export default function MarksPage() {
       if (payload.length === 0) { toast.error("Enter marks first"); return; }
       const res = await fetch("/api/marks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks: baselineMarks }),
+        body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks: draft.baseline }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
       if (res.status === 409 && result.conflict) {
-        await loadMarks(selectedExamId);
+        await draft.reviewCurrent();
         toast.error(result.error);
         return;
       }
@@ -303,7 +303,7 @@ export default function MarksPage() {
       summary={`${data.exams?.length || 0} exam cycle${(data.exams?.length || 0) === 1 ? "" : "s"} · enter marks, create assessments and manage grading`}
       actions={<GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />}
     >
-      <DraftRecovery draft={draft} saving={marksSaving} labels={Object.fromEntries((markSheet?.students || []).flatMap((student: any) => (markSheet?.subjects || []).map((subject: any) => [`${student.id}:${subject.id}`, `${student.fullName} — ${subject.name}`])))} />
+      <DraftRecovery recordLabel={activeExam?.title || "Marks entry"} draft={draft} saving={marksSaving} labels={Object.fromEntries((markSheet?.students || []).flatMap((student: any) => (markSheet?.subjects || []).map((subject: any) => [`${student.id}:${subject.id}`, `${student.fullName} — ${subject.name}`])))} />
       <FormErrorSummary errors={Object.fromEntries(invalidCells.map(({ student, subject }: any) => [`mark-${student.id}:${subject.id}`, `${student.fullName}: ${subject.name} must be between 0 and ${subject.totalMarks || 100}.`]))} onFocusField={(id) => document.getElementById(id)?.focus()} />
       <div className="space-y-3">
 
@@ -538,7 +538,7 @@ export default function MarksPage() {
                           const isDirty = dirtyKeys.has(key);
                           return (
                             <TableCell key={subject.id} className="px-3 py-3">
-                              <SystemInput id={`mark-${key}`} aria-invalid={isOverLimit || undefined} aria-describedby={isOverLimit ? `mark-${key}-error` : undefined} type="number" min={0} max={max} value={value} disabled={isLocked}
+                              <SystemInput id={`mark-${key}`} aria-invalid={isOverLimit || undefined} aria-describedby={isOverLimit ? `mark-${key}-error` : undefined} type="number" min={0} max={max} value={value} disabled={isLocked || marksSaving || !!draft.recovery}
                                 data-row={row} data-col={col}
                                 onChange={(e) => setMarksByKey((c) => ({ ...c, [key]: e.target.value }))}
                                 onFocus={(e) => e.currentTarget.select()}

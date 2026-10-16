@@ -24,7 +24,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 const MotionButton = motion.create(Button);
 
 
-export function ChatDock() {
+export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAvailable?: boolean }) {
   const { unreadTotal, viewer, closeConversation } = useChat();
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
@@ -32,6 +32,9 @@ export function ChatDock() {
   // The dedicated page already shows all of this; a floating copy on top of it
   // would be two live threads competing for the same scroll.
   const onMessagesPage = pathname?.startsWith("/messages") ?? false;
+  // On phones Studio provides an in-flow messages link with the unread count.
+  // Keep its horizontal task tabs and editor controls clear of the launcher.
+  const onExamStudio = pathname === "/ai/studio";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,7 +71,9 @@ export function ChatDock() {
         transition={{ type: "spring", stiffness: 520, damping: 26 }}
         className={cn(
           "chat-launcher group fixed bottom-24 end-4 z-[60] grid h-14 w-14 place-items-center rounded-full",
-          "md:bottom-6 md:end-6"
+          "md:bottom-6 md:end-6",
+          onExamStudio && "hidden sm:grid",
+          mobileMessagesAvailable && "max-md:hidden"
         )}
       >
         <span aria-hidden="true" className="chat-launcher-ring" />

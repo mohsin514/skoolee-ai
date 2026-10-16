@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import type { UserRole } from "@/lib/roles";
 
@@ -186,12 +186,14 @@ export function isFixedPermissionRole(role: UserRole | string | null | undefined
 
 export function defaultFlagsForRole(role: UserRole | string | null | undefined, module: string): PermissionFlags {
   if (isFixedPermissionRole(role)) return { canView: true, canAdd: true, canEdit: true, canDelete: true };
-  const defaults = DEFAULT_PERMISSIONS[(role as UserRole)] ?? DEFAULT_PERMISSIONS.TEACHER;
+  const defaults = role && Object.hasOwn(DEFAULT_PERMISSIONS, role) ? DEFAULT_PERMISSIONS[role as UserRole] : undefined;
+  if (!defaults) return { canView: false, canAdd: false, canEdit: false, canDelete: false };
   const flags = defaults[module as PermissionModule];
   return flags ?? { canView: false, canAdd: false, canEdit: false, canDelete: false };
 }
 
 export function moduleFlags(overrides: { module: string; canView: boolean; canAdd: boolean; canEdit: boolean; canDelete: boolean }[] | null | undefined, role: string, module: string): PermissionFlags {
+  if (!Object.hasOwn(DEFAULT_PERMISSIONS, role) || !(PERMISSION_MODULES as readonly string[]).includes(module)) return { canView: false, canAdd: false, canEdit: false, canDelete: false };
   if (isFixedPermissionRole(role)) return { canView: true, canAdd: true, canEdit: true, canDelete: true };
   const override = overrides?.find((o) => o.module === module);
   const base = defaultFlagsForRole(role, module);
@@ -204,38 +206,25 @@ export function moduleFlags(overrides: { module: string; canView: boolean; canAd
 // Server-side enforcement. Read on every request so permission
 // changes take effect without re-login.
 // ────────────────────────────────────────────────────────────
-const permissionCache = new Map<string, Promise<Map<string, PermissionFlags>>>();
-const CACHE_TTL_MS = 5000;
+type PermissionClient = Pick<TxClient, "rolePermission">;
 
-export async function loadPermissionMap(schoolId: string, role: string): Promise<Map<string, PermissionFlags>> {
-  const key = `${schoolId}:${role}`;
-  const cached = permissionCache.get(key);
-  if (cached) return cached;
-
-  const promise = (async () => {
-    const rows = await prisma.rolePermission.findMany({
+/** No process cache: a navigation read must never retain authority for a later mutation or job. */
+export async function loadPermissionMap(schoolId: string, role: string, db: PermissionClient = prisma): Promise<Map<string, PermissionFlags>> {
+    if (!Object.hasOwn(DEFAULT_PERMISSIONS, role)) return new Map(PERMISSION_MODULES.map(module => [module, defaultFlagsForRole(null, module)]));
+    const rows = await db.rolePermission.findMany({
       where: { schoolId, role: role as UserRole },
       select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true },
     });
     const map = new Map<string, PermissionFlags>();
     for (const mod of PERMISSION_MODULES) {
-      map.set(mod, moduleFlags(rows as any, role, mod));
+      map.set(mod, moduleFlags(rows, role, mod));
     }
-    setTimeout(() => permissionCache.delete(key), CACHE_TTL_MS);
     return map;
-  })();
-  permissionCache.set(key, promise);
-  try {
-    return await promise;
-  } catch (error) {
-    permissionCache.delete(key);
-    throw error;
-  }
 }
 
-export async function assertPermission(user: AuthUser, module: PermissionModule, action: PermissionAction) {
+export async function assertPermission(user: AuthUser, module: PermissionModule, action: PermissionAction, db: PermissionClient = prisma) {
   if (isFixedPermissionRole(user.role)) return true;
-  const map = await loadPermissionMap(user.schoolId, user.role);
+  const map = await loadPermissionMap(user.schoolId, user.role, db);
   const flags = map.get(module);
   const allowed = flags ? flags[actionToFlag(action)] : false;
   if (!allowed) {

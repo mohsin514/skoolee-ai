@@ -1,4 +1,5 @@
 import { riskIndicatorSchema,riskModules } from "./school-operations-risk";
+import { approvalSeparationDecision, type ApprovalSeparationDecision, type DeliveryPolicySource, type ResolvedDeliveryPolicy } from "./delivery-policy";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import type { PermissionAction, PermissionModule, PermissionFlags } from "@/lib/permissions";
@@ -11,12 +12,36 @@ export const SCHOOL_AI_STAFF_ROLES = ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "P
 export function isSchoolAiManager(user: Pick<AuthUser, "role">) {
   return ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"].includes(user.role);
 }
+/**
+ * Role gating for the record kinds. A kind absent from a role's list is refused by absence, both
+ * here and through `canAccessWorkspaceRecord` and `assertWorkspaceDomainPermission`.
+ *
+ * The three SKO-408 kinds are placed as follows:
+ * - `DELIVERY_POLICY` is **manager-only**. It governs delivery and carries `separationOfDuties`
+ *   (R2.4) and `maxForms` (R10.1), and R2.3 gives approval of a Delivery_Policy revision to the
+ *   Academic_Approver, which `isSchoolAiManager` defines. A teacher never reaches it.
+ * - `BRIEF` travels with `CURRICULUM` and `PAPER`: R3.1 has the teacher answering the brief for an
+ *   assigned subject and class.
+ * - `PRACTICE` also travels with them: R18.4 has the teacher's Recovery_Service producing a
+ *   Practice_Set and R18.6 requires a *teacher* approval of it before it reaches a candidate. The
+ *   design's record-kind table names the kind without splitting it by role, so the requirement is
+ *   the citation for this placement.
+ *
+ * Every other staff role keeps the narrow `SOURCE`/`WORKFLOW` pair — none of the three is added
+ * there, which is the fail-closed reading for a role no requirement names.
+ */
 export function allowedWorkspaceKinds(user: Pick<AuthUser, "role">): WorkspaceKind[] {
-  if (isSchoolAiManager(user)) return ["ONBOARDING", "SOURCE", "CURRICULUM", "PAPER", "WORKFLOW", "POLICY"];
-  if (user.role === "TEACHER") return ["SOURCE", "CURRICULUM", "PAPER", "WORKFLOW"];
+  if (isSchoolAiManager(user)) return ["ONBOARDING", "SOURCE", "CURRICULUM", "PAPER", "WORKFLOW", "POLICY", "DELIVERY_POLICY", "BRIEF", "PRACTICE"];
+  if (user.role === "TEACHER") return ["SOURCE", "CURRICULUM", "PAPER", "WORKFLOW", "BRIEF", "PRACTICE"];
   if ((SCHOOL_AI_STAFF_ROLES as readonly string[]).includes(user.role)) return ["SOURCE", "WORKFLOW"];
   return [];
 }
+/**
+ * The kinds whose domain authority is the `exams` permission module. Every assessment kind routes
+ * through `assertWorkspaceDomainPermission` to this one module, exactly as `CURRICULUM` and `PAPER`
+ * already did, so a revoked `exams` grant removes all of them together within the same request.
+ */
+export const EXAM_DOMAIN_WORKSPACE_KINDS: readonly WorkspaceKind[] = ["CURRICULUM", "PAPER", "DELIVERY_POLICY", "BRIEF", "PRACTICE"];
 export function assertSchoolAiRole(user: AuthUser) {
   if (!user.schoolId || !(SCHOOL_AI_STAFF_ROLES as readonly string[]).includes(user.role)) throw new SchoolAiError("The school AI workspace is available to authorized school staff only.", 403);
   if (user.role !== "SUPER_ADMIN" && !user.campusId) throw new SchoolAiError("An active campus assignment is required.", 403);
@@ -76,6 +101,49 @@ export function assertApprovalRole(user: AuthUser) {
   if (!isSchoolAiManager(user)) throw new SchoolAiError("Only an authorized school administrator or principal can approve this saved version.", 403);
 }
 
+/** The authoring side of the version under approval. Both ids are columns on `SchoolAiRecord`. */
+export interface ApprovalSeparationRecord { createdById: string; updatedById: string }
+const DELIVERY_POLICY_SOURCE_LABEL: Readonly<Record<DeliveryPolicySource, string>> = Object.freeze({
+  SCHOOL_POLICY: "The school's approved delivery policy",
+  PLATFORM_DEFAULT: "The platform default delivery policy",
+});
+
+/**
+ * R2.4, which `assertApprovalRole` deliberately does not cover: R2.3 asks *whether this actor may
+ * approve at all*, R2.4 asks *whether this actor may approve this version*. The two are separate
+ * questions, so they stay separate functions and `assertApprovalRole` keeps its signature.
+ *
+ * The decision itself is `approvalSeparationDecision` in `./delivery-policy` — pure, and carrying
+ * the policy source that produced it so the approval surface can state whether the school's policy
+ * or the platform default applied. The platform default sets `separationOfDuties: "NOT_REQUIRED"`,
+ * so a school that has configured no Delivery_Policy degrades to always-allow rather than silently
+ * blocking every approval.
+ *
+ * **Both authoring actors are checked, which is stricter than the letter of R2.4.** The criterion
+ * names "a version that Academic_Approver authored"; the version under approval was written by
+ * `updatedById` and descends from content created by `createdById`. An approver who authored either
+ * end has authored the material, so separation would not hold if only the last writer were checked:
+ * a manager could create the content, hand the record to a colleague for one save, and approve it.
+ */
+export function approvalSeparation(user: Pick<AuthUser, "userId">, record: ApprovalSeparationRecord, policy: ResolvedDeliveryPolicy): ApprovalSeparationDecision {
+  const decisions = [record.createdById, record.updatedById].map((authorId) => approvalSeparationDecision({ resolved: policy, authorId, approverId: user.userId }));
+  // A refusal from either authoring actor decides; otherwise both agree and either one is the answer.
+  return decisions.find((decision) => !decision.allowed) ?? decisions[0];
+}
+
+/** The thin throwing wrapper, called beside `assertApprovalRole`. Returns the decision so the caller can record which policy source applied. */
+export function assertApprovalSeparation(user: AuthUser, record: ApprovalSeparationRecord, policy: ResolvedDeliveryPolicy): ApprovalSeparationDecision {
+  const decision = approvalSeparation(user, record, policy);
+  if (!decision.allowed) {
+    throw new SchoolAiError(
+      `${DELIVERY_POLICY_SOURCE_LABEL[decision.source]} requires that the actor who approves a saved version is not the actor who authored it. Ask another authorized approver to review this version.`,
+      403,
+      "APPROVAL_SEPARATION_REQUIRED",
+    );
+  }
+  return decision;
+}
+
 export async function resolveWorkspaceCampus(user: AuthUser, requestedCampusId?: string | null, client?: TxClient): Promise<string | null> {
   assertSchoolAiRole(user);
   const db = client ?? (await import("@/lib/db/prisma")).prisma;
@@ -120,7 +188,7 @@ const workflowPermissions: Record<string, PermissionModule> = {
 export async function assertWorkspaceDomainPermission(user: AuthUser, kind: WorkspaceKind, data: Record<string, unknown>, action: "view" | "add" | "edit", permissions?: WorkspacePermissionSnapshot) {
   const assertPermission = (actor: AuthUser, module: PermissionModule, required: PermissionAction) => assertWorkspacePermission(actor, module, required, permissions);
   if (!allowedWorkspaceKinds(user).includes(kind)) throw new SchoolAiError("This workspace type is outside your role.", 403);
-  if (kind === "CURRICULUM" || kind === "PAPER") await assertPermission(user, "exams", action);
+  if (EXAM_DOMAIN_WORKSPACE_KINDS.includes(kind)) await assertPermission(user, "exams", action);
   if (kind === "SOURCE") {
     const sourceModules: Record<string, PermissionModule> = { fee_sheet: "fees", register: "students", staff_list: "staff", timetable: "timetable", paper: "exams", answer_script: "exams", syllabus: "exams" };
     const permissionModule = sourceModules[String(data.documentKind)];
@@ -224,7 +292,7 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
     canApprove: isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit)),
     canArchive: fixed || Boolean(ai?.canDelete),
     canImportRoster: isSchoolAiManager(user) && (fixed || Boolean(ai?.canView && ai?.canAdd && students?.canView && students?.canAdd)),
-    kinds: allowedWorkspaceKinds(user).filter((kind) => !["CURRICULUM", "PAPER"].includes(kind) || fixed || exam?.canView),
+    kinds: allowedWorkspaceKinds(user).filter((kind) => !EXAM_DOMAIN_WORKSPACE_KINDS.includes(kind) || fixed || exam?.canView),
     campuses,
     subjects: subjects.map(({ class: cls, ...subject }) => ({ ...subject, className: [cls.name, cls.section].filter(Boolean).join(" · ") })),
     profile,

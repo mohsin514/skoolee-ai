@@ -21,3 +21,14 @@ export function availableNavigation<T extends NavigationTarget & { children?: T[
     return children.length ? [{ ...item, children }] : [];
   });
 }
+
+/** Search only supplied, available destinations; a matching group reveals its available children. */
+export function searchNavigation<T extends NavigationTarget & { label: string; children?: T[] }>(items: T[], query: string): T[] {
+  const normalized = query.trim().normalize('NFKC').toLocaleLowerCase();
+  return availableNavigation(items).flatMap(item => {
+    if (!normalized || item.label.normalize('NFKC').toLocaleLowerCase().includes(normalized)) return [item];
+    if (!item.children) return [];
+    const children = searchNavigation(item.children, query);
+    return children.length ? [{ ...item, children }] : [];
+  });
+}

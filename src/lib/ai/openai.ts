@@ -10,6 +10,7 @@ import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
 import { transliterateToUrdu } from "@/lib/urdu";
 import { assertNoPII, PIILeakError, Pseudonymizer } from "./pseudonymize";
 import { AI_POLICY_VERSION, AI_SOURCE_VERSION } from "./evaluation";
+import { PAPER_GENERATION_FEATURE, unknownPaperGeneration } from "@/lib/school-ai/paper-generation";
 
 type AIProvider = "pollinations" | "openai" | "ollama";
 
@@ -425,10 +426,12 @@ export class AIProviderQuotaError extends Error {
 }
 
 export async function getAICreditSnapshot(schoolId: string) {
-  const school = await prisma.school.findUnique({
-    where: { id: schoolId },
-    select: { aiCreditsUsed: true, aiCreditsLimit: true, plan: true, status: true, commercialContract: true },
-  });
+  const context = getTenantContext() ?? await resolveTenantFromRequest();
+  if (!context || context.unscoped || context.schoolId !== schoolId) throw Object.assign(new AICreditError("AI credits require the authenticated school scope."), { status: 403 });
+  const school = await runWithTenantContext({ ...context, rlsSession: true }, () => prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT set_config('app.current_school_id', ${schoolId}, true)`;
+    return lockAndReconcileAICredits(schoolId, tx as TxClient);
+  }));
 
   if (school && !isSchoolOperational(school.status)) {
     throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
@@ -440,9 +443,34 @@ export async function getAICreditSnapshot(schoolId: string) {
   return {
     used,
     limit,
-    remaining: Math.max(limit - used, 0),
+    reserved: school?.aiCreditsReserved ?? 0,
+    remaining: Math.max(limit - used - (school?.aiCreditsReserved ?? 0), 0),
     plan: school?.plan || "FREE",
   };
+}
+
+/** All credit mutations share this school lock, including expiry and monthly resets. */
+export async function lockAndReconcileAICredits(schoolId: string, tx: TxClient, now = new Date()) {
+  const context = getTenantContext();
+  if (!context || context.unscoped || context.schoolId !== schoolId) throw Object.assign(new AICreditError("AI reservations require the authenticated school scope."), { status: 403 });
+  await tx.$queryRaw`SELECT "id" FROM "schools" WHERE "id" = ${schoolId} FOR UPDATE`;
+  const expiredWhere = { schoolId, feature: PAPER_GENERATION_FEATURE, status: { in: ["PENDING", "DISPATCHED"] }, reservedCredits: { gt: 0 }, leaseExpiresAt: { lte: now } };
+  const expired = await tx.schoolAiRequest.aggregate({ where: expiredWhere, _sum: { reservedCredits: true } });
+  const released = expired._sum.reservedCredits ?? 0;
+  if (released > 0) {
+    await tx.schoolAiRequest.updateMany({ where: expiredWhere, data: { status: "UNKNOWN", reservedCredits: 0, claimToken: null, leaseExpiresAt: null, reply: JSON.stringify(unknownPaperGeneration), completedAt: now } });
+    await tx.school.update({ where: { id: schoolId }, data: { aiCreditsReserved: { decrement: released } } });
+  }
+  return tx.school.findUnique({ where: { id: schoolId }, select: { aiCreditsUsed: true, aiCreditsReserved: true, plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true } });
+}
+
+/** The caller saves the request's matching reservedCredits in this same transaction. */
+export async function reserveAICredits(schoolId: string, credits: number, tx: TxClient) {
+  if (!Number.isSafeInteger(credits) || credits < 1) throw Object.assign(new AICreditError("Invalid AI reservation cost."), { status: 400 });
+  const school = await lockAndReconcileAICredits(schoolId, tx);
+  if (!school || !isSchoolOperational(school.status) || school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date())) throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
+  if (school.aiCreditsUsed + school.aiCreditsReserved + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) throw new AICreditError("AI credit limit reached");
+  await tx.school.update({ where: { id: schoolId }, data: { aiCreditsReserved: { increment: credits } } });
 }
 
 export async function ensureAICreditsAvailable(schoolId: string, credits = 1) {
@@ -467,11 +495,7 @@ export async function consumeAICreditAndLog<T = null>(
   const charge = async (tx: TxClient) => {
     // Serialize charges and billing/reset updates for this school. A read followed
     // by an unlocked increment allowed parallel requests to spend the last credit twice.
-    await tx.$queryRaw`SELECT "id" FROM "schools" WHERE "id" = ${input.schoolId} FOR UPDATE`;
-    const school = await tx.school.findUnique({
-      where: { id: input.schoolId },
-      select: { aiCreditsUsed: true, plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true },
-    });
+    const school = await lockAndReconcileAICredits(input.schoolId, tx);
 
     if (!school) {
       throw new AICreditError("AI credit limit reached");
@@ -481,7 +505,7 @@ export async function consumeAICreditAndLog<T = null>(
       throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
     }
 
-    if (school.aiCreditsUsed + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) {
+    if (school.aiCreditsUsed + school.aiCreditsReserved + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) {
       throw new AICreditError("AI credit limit reached");
     }
 

@@ -63,8 +63,16 @@ export function reuseBankQuestion(input: BankReuseInput, source: { paperId: stri
   }
   const options = original.options.map((option, index) => ({ ...option, id: `${newId}:o${index}` }));
   const correctIndex = original.options.findIndex((option) => option.id === original.correctOptionId);
+  const correctOptionIds = original.correctOptionIds?.map((optionId) => {
+    const index = original.options.findIndex((option) => option.id === optionId);
+    if (index < 0) throw new Error("The source answer key does not match its question options.");
+    return options[index].id;
+  });
   const rubric = original.rubric.map((criterion, index) => ({ ...criterion, id: `${newId}:r${index}` }));
-  const copied: Question = { ...structuredClone(original), id: newId, sectionId, options, rubric, correctOptionId: correctIndex >= 0 ? options[correctIndex].id : null, outcomeIds: mappings.map((mapping) => mapping.targetOutcomeId), sourceRefs: refs, locked: true, reusedFrom: { paperId: source.paperId, paperVersion: source.paperVersion, questionId: original.id, curriculumId: source.paper.curriculumId, curriculumVersion: source.paper.curriculumVersion } };
+  // The originating paper's item approval does not travel with the copy: this item has a new identifier,
+  // new options, a new rubric, new outcomes and new source evidence, so it needs its own review.
+  const { review: _supersededReview, ...carried } = structuredClone(original);
+  const copied: Question = { ...carried, id: newId, sectionId, options, rubric, correctOptionId: correctIndex >= 0 ? options[correctIndex].id : null, ...(correctOptionIds ? { correctOptionIds } : {}), outcomeIds: mappings.map((mapping) => mapping.targetOutcomeId), sourceRefs: refs, locked: true, reusedFrom: { paperId: source.paperId, paperVersion: source.paperVersion, questionId: original.id, curriculumId: source.paper.curriculumId, curriculumVersion: source.paper.curriculumVersion } };
   const questions = replaced ? paper.questions.map((question) => question.id === replaced.id ? copied : question) : [...paper.questions, copied];
   return paperDataSchema.parse({ ...paper, questions });
 }

@@ -19,7 +19,7 @@ export default async function TeacherLayout({ children }: { children: React.Reac
   // Server-seeded so the shell's first paint has the right language; the shell's own provider becomes a passthrough.
   return (
     <LocaleProvider initialLocale={await getDisplayLocale(user)}>
-      <TeacherDataProvider>
+      <TeacherDataProvider key={JSON.stringify([user.userId, user.schoolId, user.campusId, user.role, user.accessVersion ?? 0])}>
         <TeacherShell>{children}</TeacherShell>
       </TeacherDataProvider>
     </LocaleProvider>

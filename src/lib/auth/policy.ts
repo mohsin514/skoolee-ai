@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { guardianStudentWhere } from "@/lib/parent/guardian-query";
 
-export const POLICY_VERSION = "2026-10-08.1";
+export const POLICY_VERSION = "2026-10-15.1";
 export const ACCESS_DENIED = "This account cannot access that record.";
 export const publishedMarksWhere = { exam: { status: "PUBLISHED" } };
 export const publishedReportsWhere = { publishedVersionId: { not: null }, exam: { status: "PUBLISHED" } };

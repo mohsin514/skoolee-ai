@@ -60,5 +60,10 @@ test("revoked and expired guardian links fail the live communication predicate",
       AND: [{ OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: at } }] }],
       permissions: { path: ["communication"], equals: true },
     },
+    none: {
+      effectiveFrom: { lte: at },
+      AND: [{ OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: at } }] }],
+      permissions: { path: ["communication"], equals: false },
+    },
   });
 });

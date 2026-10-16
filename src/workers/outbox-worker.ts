@@ -1,5 +1,6 @@
 import { sweepDocumentJobs } from "../lib/school-ai/document-jobs-service";
 import { sweepExamProctorRecordings } from "../lib/school-ai/exam-proctor-sweep";
+import { sweepExamIntegrity } from "../lib/school-ai/exam-integrity-sweep";
 import { sweepSchoolRuns } from "../lib/school-ai/run-service";
 import { processingWorkflow } from "../lib/jobs/processing";
 import { reportDeliveryWorkflow } from "../lib/queue/report-delivery";
@@ -29,6 +30,9 @@ let documentSweep: Promise<unknown> | null = null;
 let proctorSweep: Promise<unknown> | null = null;
 let proctorCursor: string | null = null;
 let nextProctorSweep = 0;
+let integritySweep: Promise<unknown> | null = null;
+let integrityCursor: string | null = null;
+let nextIntegritySweep = 0;
 let examExpiryCursor: ExamExpiryCursor | null = null;
 async function pump() {
   while (!closing) {
@@ -56,6 +60,14 @@ async function pump() {
         if (result.failed) console.error(JSON.stringify({ component: "exam-proctor-retention", reason: "DELETION_RETRY_REQUIRED", count: result.failed }));
       }).catch(() => console.error(JSON.stringify({ component: "exam-proctor-retention", reason: "RETENTION_SWEEP_UNAVAILABLE" }))).finally(() => { proctorSweep = null; });
     }
+    if (!integritySweep && Date.now() >= nextIntegritySweep) {
+      nextIntegritySweep = Date.now() + 15000;
+      integritySweep = sweepExamIntegrity(db, integrityCursor).then(result => {
+        integrityCursor = result.cursor;
+        if (result.cursor) nextIntegritySweep = Date.now() + 1000;
+        if (result.failed) console.error(JSON.stringify({ component: "exam-integrity-retention", reason: "DELETION_RETRY_REQUIRED", count: result.failed }));
+      }).catch(() => console.error(JSON.stringify({ component: "exam-integrity-retention", reason: "RETENTION_SWEEP_UNAVAILABLE" }))).finally(() => { integritySweep = null; });
+    }
     if (Date.now() >= nextExamExpirySweep) {
       nextExamExpirySweep = Date.now() + 15_000;
       try {
@@ -77,6 +89,7 @@ async function shutdown() {
   await running;
   await documentSweep;
   await proctorSweep;
+  await integritySweep;
   await worker.close();
   await queue.close();
   await connection.quit();

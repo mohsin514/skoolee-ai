@@ -1,14 +1,15 @@
 import { dashboardPathForRole } from "@/lib/roles";
-import { runWithTenantContext } from "@/lib/db/tenant-context";
+import { getTenantContext, runWithTenantContext } from "@/lib/db/tenant-context";
 import { createHash, randomUUID } from "node:crypto";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, tenantTransaction, type TxClient } from "@/lib/db/prisma";
-import { assertPermission, loadPermissionMap } from "@/lib/permissions";
+import { assertPermission } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/scope";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { appendEvent, cancel, type Sql } from "@/lib/queue/outbox";
 import { getPublishedVersion } from "@/lib/academic/report-versions";
-import { reconcileCounts, failureCategory } from "./contract";
+import { reconcileCounts, attentionCount, publicFailureReason, publicJobResult, failureCategory, retryBlockReason, jobOperationSchema, type JobOperation } from "./contract";
+import { authorizedGuardianCommunicationTargets } from "@/lib/auth/communication-policy";
 
 export function jobTransaction<T>(
   user: AuthUser,
@@ -34,6 +35,10 @@ export type Item = {
   label: string;
   version_id: string | null;
   workflow_id: string | null;
+  workflow_state: string | null;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at: Date | null;
   communication_id: string | null;
   state: string;
   reason: string | null;
@@ -47,7 +52,13 @@ export type Item = {
   uncertain: boolean;
   result: unknown;
 };
-export async function authorizeJob(user: AuthUser, job: Job, edit = false) {
+export async function authorizeJob(user: AuthUser, job: Job, edit = false, db: TxClient = prisma) {
+  const account = await db.user.findFirst({
+    where: { id: user.userId, schoolId: user.schoolId, isActive: true },
+    select: { role: true, campusId: true, accessVersion: true, school: { select: { status: true } } },
+  });
+  if (!account || account.role !== user.role || account.campusId !== user.campusId || account.accessVersion !== (user.accessVersion ?? 0) || account.school.status === "DELETED")
+    throw new ApiError("Current job access is unavailable", 403);
   if (
     ["PARENT", "STUDENT", "APP_OWNER"].includes(user.role) ||
     job.school_id !== user.schoolId ||
@@ -58,13 +69,16 @@ export async function authorizeJob(user: AuthUser, job: Job, edit = false) {
     user,
     job.kind === "IMPORT" ? "fees" : "reports",
     edit ? "edit" : "view",
+    db,
   );
   if (user.role === "TEACHER") {
     const assigned =
       job.class_id &&
-      (await prisma.class.findFirst({
+      (await db.class.findFirst({
         where: {
           id: job.class_id,
+          schoolId: job.school_id,
+          campusId: job.campus_id,
           OR: [
             { classTeacherId: user.userId },
             { subjects: { some: { teacherId: user.userId } } },
@@ -74,21 +88,22 @@ export async function authorizeJob(user: AuthUser, job: Job, edit = false) {
       }));
     if (!assigned) throw new ApiError("Job not found", 404);
   }
-  if (edit) await assertSchoolOperational(user.schoolId);
+  if (edit) await assertSchoolOperational(user.schoolId, db);
 }
 export async function itemsFor(job: Job, db: Sql = prisma) {
   const rows = await db.$queryRaw<
     Item[]
   >`SELECT i.id,i.reference_id,i.label,i.version_id,i.workflow_id,i.communication_id,
+    w.state AS workflow_state,COALESCE(w.attempts,0) AS attempts,COALESCE(w.max_attempts,0) AS max_attempts,w.next_attempt_at,
     CASE WHEN c.status='SENT' THEN 'completed' WHEN w.state='completed' THEN 'completed'
       WHEN w.state='cancelled' OR i.state='cancelled' THEN 'cancelled'
       WHEN w.state IN ('queued','retrying') THEN 'queued' WHEN w.state='running' THEN 'running'
       WHEN w.state='failed' OR c.status IN ('NO_RECIPIENT','BLOCKED','FAILED') THEN 'failed' ELSE i.state END AS state,
     COALESCE(w.reason,CASE WHEN c.status='NO_RECIPIENT' THEN 'MISSING_CONTACT' WHEN c.status='BLOCKED' THEN 'AUTHORIZATION_BLOCKED' ELSE i.reason END) AS reason,
     c.channel,c.recipient,CASE WHEN c.provider_message_id IS NOT NULL THEN c.sent_at ELSE NULL END AS accepted_at,i.result,
-    (SELECT min(r.occurred_at) FROM delivery_receipts r WHERE r.communication_id=c.id AND r.school_id=i.school_id AND r.state='delivered') AS delivered_at,
-    (SELECT min(r.occurred_at) FROM delivery_receipts r WHERE r.communication_id=c.id AND r.school_id=i.school_id AND r.state='read') AS read_at,
-    (SELECT min(r.occurred_at) FROM delivery_receipts r WHERE r.communication_id=c.id AND r.school_id=i.school_id AND r.state='failed') AS delivery_failed_at,
+    (SELECT min(r.occurred_at) FROM delivery_receipts r WHERE c.channel='WHATSAPP' AND c.sent_at IS NOT NULL AND r.provider_message_id=c.provider_message_id AND r.communication_id=c.id AND r.school_id=i.school_id AND r.state='delivered') AS delivered_at,
+    (SELECT min(r.occurred_at) FROM delivery_receipts r WHERE c.channel='WHATSAPP' AND c.sent_at IS NOT NULL AND r.provider_message_id=c.provider_message_id AND r.communication_id=c.id AND r.school_id=i.school_id AND r.state='read') AS read_at,
+    (SELECT min(r.occurred_at) FROM delivery_receipts r WHERE c.channel='WHATSAPP' AND c.sent_at IS NOT NULL AND r.provider_message_id=c.provider_message_id AND r.communication_id=c.id AND r.school_id=i.school_id AND r.state='failed') AS delivery_failed_at,
     GREATEST(i.updated_at,w.updated_at,c.updated_at) AS updated_at,
     EXISTS(SELECT 1 FROM workflow_effects f WHERE f.school_id=i.school_id AND f.job_id=w.id AND f.state='uncertain') AS uncertain
     FROM activity_items i LEFT JOIN workflow_jobs w ON w.id=i.workflow_id AND w.school_id=i.school_id
@@ -96,33 +111,72 @@ export async function itemsFor(job: Job, db: Sql = prisma) {
     WHERE i.job_id=${job.id} AND i.school_id=${job.school_id} ORDER BY i.label,i.id`;
   return rows;
 }
+/** Source links point only to actual role workspaces; unsupported role sources fall back to their dashboard. */
+export function jobSourceHref(user: Pick<AuthUser, "role">, job: Pick<Job, "kind" | "source_id">) {
+  const base = dashboardPathForRole(user.role);
+  if (job.kind !== "IMPORT" && user.role === "TEACHER") return `${base}/reports?examId=${encodeURIComponent(job.source_id)}`;
+  if (["ADMIN", "PRINCIPAL", "CAMPUS_ADMIN"].includes(user.role)) return `${base}?view=${job.kind === "IMPORT" ? "fees" : "report-cards"}${job.kind === "IMPORT" ? "" : `&examId=${encodeURIComponent(job.source_id)}`}`;
+  if (job.kind === "IMPORT" && user.role === "ACCOUNTANT") return `${base}?view=accounts`;
+  if (job.kind === "IMPORT" && user.role === "SUPER_ADMIN") return `${base}?view=fees`;
+  return base;
+}
+
+async function deliveryRetryTarget(job: Job, item: Item, db: TxClient) {
+  const communication = await db.parentCommunication.findFirst({ where: { id: item.communication_id!, schoolId: job.school_id, campusId: job.campus_id } });
+  if (!communication || !communication.studentId || !communication.parentUserId || !communication.relatedId)
+    return { reason: "RECIPIENT_AUTHORIZATION_REQUIRED" } as const;
+  if (!["EMAIL", "WHATSAPP"].includes(communication.channel)) return { reason: "UNSUPPORTED_CHANNEL" } as const;
+  const report = await db.reportCard.findFirst({ where: { id: communication.relatedId, schoolId: job.school_id, campusId: job.campus_id, examId: job.source_id, studentId: communication.studentId }, select: { id: true } });
+  if (!report) return { reason: "ORIGINAL_VERSION_UNAVAILABLE" } as const;
+  try {
+    const version = await getPublishedVersion(report.id, undefined, db);
+    if (!item.version_id || version.id !== item.version_id || (communication.metadata as { reportVersionId?: string } | null)?.reportVersionId !== item.version_id)
+      return { reason: "ORIGINAL_VERSION_UNAVAILABLE" } as const;
+  } catch (error) {
+    if ((error as { status?: number }).status === 409 || (error as { code?: string }).code === "P2025") return { reason: "ORIGINAL_VERSION_UNAVAILABLE" } as const;
+    throw error;
+  }
+  // Only the original, still-authorized guardian may receive the frozen report. Legacy pupil contact fields confer no authority.
+  // This shared resolver owns its Prisma reads. They must establish their own RLS session,
+  // rather than inheriting the flag for the separate activity-job transaction connection.
+  const targets = await runWithTenantContext({ ...getTenantContext(), schoolId: job.school_id, unscoped: false, rlsSession: false }, () =>
+    authorizedGuardianCommunicationTargets({ schoolId: job.school_id, campusId: job.campus_id, studentId: communication.studentId, parentUserId: communication.parentUserId }, communication.channel, "learningRecords"));
+  const recipients = [...new Set(targets.map(target => target.recipient))];
+  if (recipients.length !== 1) return { reason: "RECIPIENT_AUTHORIZATION_REQUIRED" } as const;
+  return { reason: null, communication, recipient: recipients[0] } as const;
+}
+
+async function itemRetryReason(job: Job, item: Item, db: TxClient, user: AuthUser) {
+  const blocked = retryBlockReason(item, !!job.cancel_requested_at);
+  if (blocked) return blocked;
+  if (job.kind === "IMPORT") {
+    try { await assertPermission(user, "fees", "add", db); }
+    catch (error) { if ((error as { status?: number }).status === 403) return "AUTHORIZATION_REQUIRED"; throw error; }
+  }
+  if (item.communication_id) return (await deliveryRetryTarget(job, item, db)).reason;
+  if (job.kind === "PDF") {
+    const version = item.version_id && await db.reportVersion.findFirst({ where: { id: item.version_id, reportCardId: item.reference_id, approvedAt: { not: null }, documentBytes: { not: null }, reportCard: { examId: job.source_id, campusId: job.campus_id } }, select: { id: true } });
+    if (!version) return "ORIGINAL_VERSION_UNAVAILABLE";
+  }
+  return null;
+}
+
 export async function readJob(user: AuthUser, id: string) {
-  const [job] = await jobTransaction(
-    user,
-    (tx) =>
-      tx.$queryRaw<
-        Job[]
-      >`SELECT * FROM activity_jobs WHERE id=${id} AND school_id=${user.schoolId}`,
-  );
-  if (!job) throw new ApiError("Job not found", 404);
-  await authorizeJob(user, job);
-  const items = await jobTransaction(user, (tx) => itemsFor(job, tx));
-  const flags = (await loadPermissionMap(user.schoolId, user.role)).get(
-    job.kind === "IMPORT" ? "fees" : "reports",
-  );
-  return {
-    ...job,
-    sourceHref: `${dashboardPathForRole(user.role)}${user.role === "TEACHER" ? "/reports" : ""}?${job.kind === "IMPORT" ? "tab=fees" : `examId=${encodeURIComponent(job.source_id)}`}`,
-    items: items.map((i) => ({
-      ...i,
-      category: failureCategory(i.reason),
-      canRetry:
-        i.state === "failed" && !i.uncertain && !job.cancel_requested_at,
-    })),
-    counts: reconcileCounts(items),
-    canEdit: !!flags?.canEdit,
-    updatedAt: new Date().toISOString(),
-  };
+  return jobTransaction(user, async tx => {
+    const [job] = await tx.$queryRaw<Job[]>`SELECT * FROM activity_jobs WHERE id=${id} AND school_id=${user.schoolId}`;
+    if (!job) throw new ApiError("Job not found", 404);
+    await authorizeJob(user, job, false, tx);
+    const items = await itemsFor(job, tx);
+    let canEdit = true;
+    try { await authorizeJob(user, job, true, tx); }
+    catch (error) { if (![402, 403, 404].includes((error as { status?: number }).status || 0)) throw error; canEdit = false; }
+    const enriched = [];
+    for (const item of items) {
+      const retryBlockedReason = canEdit ? await itemRetryReason(job, item, tx, user) : "AUTHORIZATION_REQUIRED";
+      enriched.push({ ...item, reason: publicFailureReason(item.reason), result: publicJobResult(job.kind, item), category: failureCategory(item.uncertain ? "EXTERNAL_OUTCOME_UNCERTAIN" : item.reason), canRetry: !retryBlockedReason, retryBlockedReason });
+    }
+    return { ...job, sourceHref: jobSourceHref(user, job), items: enriched, counts: reconcileCounts(items), attentionCount: attentionCount(items), canEdit, updatedAt: new Date().toISOString() };
+  });
 }
 export async function listJobs(user: AuthUser) {
   const jobs = await jobTransaction(
@@ -136,12 +190,8 @@ export async function listJobs(user: AuthUser) {
   for (const job of jobs) {
     try {
       await authorizeJob(user, job);
-      visible.push({
-        ...job,
-        counts: reconcileCounts(
-          await jobTransaction(user, (tx) => itemsFor(job, tx)),
-        ),
-      });
+      const items = await jobTransaction(user, (tx) => itemsFor(job, tx));
+      visible.push({ ...job, counts: reconcileCounts(items), attentionCount: attentionCount(items) });
     } catch (error) {
       if (![403, 404].includes((error as { status?: number }).status || 0))
         throw error;
@@ -181,9 +231,9 @@ export async function trackDeliveries(
 ) {
   const identity = createHash("sha256")
     .update(
-      communications
+      [exam.id, ...communications
         .map((c) => c.id)
-        .sort()
+        .sort()]
         .join(":"),
     )
     .digest("hex");
@@ -213,130 +263,54 @@ export async function operateJob(
   id: string,
   action: "retry" | "cancel",
   selected: string[],
+  reason: JobOperation["reason"],
 ) {
-  const data = await readJob(user, id);
-  await authorizeJob(user, data, true);
-  if (
-    action === "retry" &&
-    (!selected.length ||
-      selected.length > 500 ||
-      new Set(selected).size !== selected.length)
-  )
-    throw new ApiError("Select failed items", 400);
+  const parsed = jobOperationSchema.safeParse({ action, items: selected, reason });
+  if (!parsed.success) throw new ApiError("Choose a valid action, selection and reason", 400);
   return jobTransaction(user, async (tx) => {
-    const [job] = await tx.$queryRaw<
-      Job[]
-    >`SELECT * FROM activity_jobs WHERE id=${id} AND school_id=${user.schoolId} FOR UPDATE`;
+    const [job] = await tx.$queryRaw<Job[]>`SELECT * FROM activity_jobs WHERE id=${id} AND school_id=${user.schoolId} FOR UPDATE`;
+    if (!job) throw new ApiError("Job not found", 404);
+    // The current account, role, campus, class assignment and module grant are checked after acquiring the operation lock.
+    await authorizeJob(user, job, true, tx);
     const items = await itemsFor(job, tx);
-    const chosen =
-      action === "cancel"
-        ? items
-        : items.filter((i) => selected.includes(i.id));
-    if (
-      action === "retry" &&
-      (job.cancel_requested_at ||
-        chosen.length !== selected.length ||
-        chosen.some((i) => i.state !== "failed" || i.uncertain))
-    )
-      throw new ApiError(
-        "Only confirmed failed items can be retried. Reconcile uncertain provider outcomes first.",
-        409,
-      );
-    if (action === "cancel")
-      await tx.$executeRaw`UPDATE activity_jobs SET cancel_requested_at=COALESCE(cancel_requested_at,now()) WHERE id=${id} AND school_id=${user.schoolId}`;
+    const before = reconcileCounts(items);
+    const chosen = action === "cancel" ? items : items.filter(i => selected.includes(i.id));
+    if (action === "retry" && chosen.length !== selected.length) throw new ApiError("The selection changed. Refresh before retrying.", 409);
+    if (action === "cancel") await tx.$executeRaw`UPDATE activity_jobs SET cancel_requested_at=COALESCE(cancel_requested_at,now()) WHERE id=${id} AND school_id=${user.schoolId}`;
     for (const item of chosen) {
       if (action === "cancel") {
         if (["completed", "cancelled"].includes(item.state)) continue;
-        if (item.workflow_id)
-          await cancel(tx, {
-            eventId: item.workflow_id,
-            schoolId: user.schoolId,
-          });
-        else
-          await tx.$executeRaw`UPDATE activity_items SET state='cancelled',updated_at=now() WHERE id=${item.id} AND school_id=${user.schoolId}`;
+        if (item.workflow_id) await cancel(tx, { eventId: item.workflow_id, schoolId: user.schoolId });
+        else await tx.$executeRaw`UPDATE activity_items SET state='cancelled',updated_at=now() WHERE id=${item.id} AND school_id=${user.schoolId}`;
         continue;
       }
+      const blocked = await itemRetryReason(job, item, tx, user);
+      if (blocked) throw new ApiError(`Retry unavailable: ${blocked}. Refresh and resolve the cause before retrying.`, 409);
       if (item.communication_id) {
-        const c = await tx.parentCommunication.findUniqueOrThrow({
-          where: { id: item.communication_id },
+        const target = await deliveryRetryTarget(job, item, tx);
+        if (target.reason !== null) throw new ApiError(`Retry unavailable: ${target.reason}`, 409);
+        const c = target.communication;
+        // Conditional state prevents accepted work from being reset by a competing provider completion.
+        const changed = await tx.parentCommunication.updateMany({
+          where: { id: c.id, status: c.status, providerMessageId: null },
+          data: { recipient: target.recipient, status: "PENDING", failedReason: null },
         });
-        const version = await getPublishedVersion(
-          c.relatedId || "",
-          undefined,
-          tx,
-        );
-        if (version.id !== item.version_id)
-          throw new ApiError(
-            "The approved version was superseded. Start delivery of the newly published version.",
-            409,
-          );
-        if (c.status === "BLOCKED")
-          throw new ApiError(
-            "Resolve the approval or subscription restriction before retry.",
-            409,
-          );
-        if (c.status === "NO_RECIPIENT") {
-          const student = await tx.student.findUniqueOrThrow({
-            where: { id: c.studentId! },
-            include: { parent: true },
-          });
-          const recipient =
-            c.channel === "EMAIL"
-              ? student.guardianEmail ||
-                (student.parent?.isActive ? student.parent.email : null)
-              : student.guardianWhatsapp ||
-                student.guardianPhone ||
-                (student.parent?.isActive ? student.parent.phone : null);
-          if (!recipient)
-            throw new ApiError(
-              "Correct the guardian contact in the pupil record first.",
-              409,
-            );
-          await tx.parentCommunication.update({
-            where: { id: c.id },
-            data: {
-              recipient,
-              parentUserId: student.parentUserId,
-              status: "PENDING",
-              failedReason: null,
-            },
-          });
-        }
+        if (!changed.count) throw new ApiError("The delivery changed. Refresh before retrying.", 409);
         if (!item.workflow_id) {
-          const workflowId = await appendEvent(tx, {
-            schoolId: user.schoolId,
-            actorId: user.userId,
-            referenceId: c.id,
-            kind: "REPORT_DELIVERY",
-            version: 1,
-            identity: `report-delivery:${c.idempotencyKey}`,
-          });
+          const workflowId = await appendEvent(tx, { schoolId: user.schoolId, actorId: user.userId, referenceId: c.id, kind: "REPORT_DELIVERY", version: 1, identity: `report-delivery:${c.idempotencyKey}` });
           await tx.$executeRaw`UPDATE activity_items SET workflow_id=${workflowId},state='queued',updated_at=now() WHERE id=${item.id} AND school_id=${user.schoolId}`;
         }
       }
       if (item.workflow_id) {
-        const changed =
-          await tx.$executeRaw`UPDATE workflow_jobs SET state='queued',max_attempts=attempts+5,reason=NULL,finished_at=NULL,next_attempt_at=now(),updated_at=now()
+        const changed = await tx.$executeRaw`UPDATE workflow_jobs SET state='queued',max_attempts=attempts+5,reason=NULL,finished_at=NULL,next_attempt_at=now(),updated_at=now()
           WHERE id=${item.workflow_id} AND school_id=${user.schoolId} AND state='failed' AND cancel_requested_at IS NULL
           AND NOT EXISTS(SELECT 1 FROM workflow_effects WHERE job_id=${item.workflow_id} AND school_id=${user.schoolId} AND state='uncertain')`;
-        if (!changed)
-          throw new ApiError("The item changed. Refresh before retrying.", 409);
+        if (!changed) throw new ApiError("The item changed. Refresh before retrying.", 409);
         await tx.$executeRaw`UPDATE workflow_events SET actor_id=${user.userId},available_at=now(),lease_token=NULL,lease_until=NULL WHERE id=${item.workflow_id} AND school_id=${user.schoolId}`;
       }
     }
-    await tx.auditLog.create({
-      data: {
-        schoolId: user.schoolId,
-        tableName: "activity_jobs",
-        recordId: id,
-        userId: user.userId,
-        newValue: {
-          action,
-          items: chosen.map((i) => i.id),
-          counts: reconcileCounts(items),
-        },
-      },
-    });
-    return { jobId: id };
+    const counts = reconcileCounts(await itemsFor(job, tx));
+    await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: job.campus_id, tableName: "activity_jobs", recordId: id, userId: user.userId, newValue: { action, reason, items: chosen.map(i => i.id), before, counts } } });
+    return { jobId: id, action, reason, counts };
   });
 }

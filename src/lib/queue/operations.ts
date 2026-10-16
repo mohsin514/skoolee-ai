@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { cancel, type Sql, type Reference } from "./outbox";
+import { workflowOperationSchema, type WorkflowOperationReason } from "./operation-contract";
 
 export async function requireWorkflowOperator(tx: Sql, userId: string, sessionSchoolId: string) {
   const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM users WHERE id=${userId} AND school_id=${sessionSchoolId}
@@ -7,7 +8,8 @@ export async function requireWorkflowOperator(tx: Sql, userId: string, sessionSc
   if (!rows.length) throw new Error("OPERATOR_REQUIRED");
 }
 
-export async function operateWorkflow(tx: Sql, ref: Reference, userId: string, action: "retry" | "cancel") {
+export async function operateWorkflow(tx: Sql, ref: Reference, userId: string, action: "retry" | "cancel", reason: WorkflowOperationReason) {
+  if (!workflowOperationSchema.safeParse({ ...ref, action, reason }).success) throw new Error("INVALID_OPERATION_REASON");
   const rows = await tx.$queryRaw<{ state: string; checkpoint: number }[]>`SELECT state,checkpoint FROM workflow_jobs WHERE id=${ref.eventId} AND school_id=${ref.schoolId} FOR UPDATE`;
   if (!rows.length) throw new Error("WORKFLOW_NOT_FOUND");
   if (action === "retry") {
@@ -23,6 +25,6 @@ export async function operateWorkflow(tx: Sql, ref: Reference, userId: string, a
   }
   await tx.$executeRaw`INSERT INTO audit_logs (id,school_id,table_name,record_id,user_id,new_value)
     VALUES (${randomUUID()},${ref.schoolId},'workflow_jobs',${ref.eventId},${userId},
-      ${JSON.stringify({ action, checkpoint: rows[0].checkpoint, priorState: rows[0].state })}::jsonb)`;
-  return { action, checkpoint: rows[0].checkpoint, message: action === "retry" ? "Retry scheduled from the confirmed checkpoint; completion is pending." : "Cancellation requested at the next safe boundary. Confirmed and uncertain external effects remain recorded." };
+      ${JSON.stringify({ action, reason, checkpoint: rows[0].checkpoint, priorState: rows[0].state })}::jsonb)`;
+  return { action, reason, checkpoint: rows[0].checkpoint, message: action === "retry" ? "Retry scheduled from the confirmed checkpoint; completion is pending." : "Cancellation requested at the next safe boundary. Confirmed and uncertain external effects remain recorded." };
 }

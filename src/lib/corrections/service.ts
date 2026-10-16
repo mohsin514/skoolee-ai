@@ -204,7 +204,12 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
 }
 export async function history(user: AuthUser, kind: Kind) {
     await permit(user, kind);
-    const children = await prisma.student.findMany({ where: studentScope(user), select: { id: true } });
+    // A parent reaches a pupil through either a live guardian relationship
+    // (current model) or the pupil's explicit parent account link. Corrections
+    // keep both so a linked parent still sees the child's released history.
+    const children = await prisma.student.findMany({ where: user.role === "PARENT"
+        ? { schoolId: user.schoolId, OR: [studentScope(user), { parentUserId: user.userId }] }
+        : studentScope(user), select: { id: true } });
     const rows = await prisma.correction.findMany({ where: { ...campusScope(user), kind, studentId: { in: children.map(x => x.id) }, ...(isFamily(user) ? { status: "APPLIED" } : {}) }, orderBy: { requestedAt: "desc" } });
     const output = [];
     for (const row of rows) {

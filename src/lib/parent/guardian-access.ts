@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db/prisma";
-import { hasGuardianPermission, parseGuardianPermissions, type GuardianPermission, type GuardianPermissions } from "./guardian-permissions";
+import { currentGuardianPermissions, hasGuardianPermission, type GuardianPermission, type GuardianPermissions } from "./guardian-permissions";
+import { guardianRelationshipAuthorityWhere } from "./guardian-query";
 export { EMPTY_GUARDIAN_PERMISSIONS, hasGuardianPermission, parseGuardianPermissions } from "./guardian-permissions";
 export type { GuardianPermission, GuardianPermissions } from "./guardian-permissions";
 export { guardianStudentWhere, liveGuardianRelationshipWhere } from "./guardian-query";
@@ -15,25 +16,21 @@ export async function currentGuardianRelationship(input: {
   const at = input.at ?? new Date();
   const relation = await prisma.guardianRelationship.findFirst({
     where: {
-      schoolId: input.schoolId,
+      ...guardianRelationshipAuthorityWhere(input.guardianUserId, at, input.schoolId),
       studentId: input.studentId,
-      guardianUserId: input.guardianUserId,
       ...(input.relationshipId ? { id: input.relationshipId } : {}),
-      status: "ACTIVE",
-      verifiedAt: { not: null },
-      validFrom: { lte: at },
-      AND: [{ OR: [{ validUntil: null }, { validUntil: { gt: at } }] }],
     },
     include: {
       accessVersions: {
         where: { effectiveFrom: { lte: at }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: at } }] },
-        orderBy: { effectiveFrom: "desc" },
-        take: 1,
+        orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: 2,
       },
     },
   });
   if (!relation) return null;
-  return { ...relation, permissions: parseGuardianPermissions(relation.accessVersions[0]?.permissions) };
+  const permissions = currentGuardianPermissions(relation.accessVersions, at);
+  return permissions ? { ...relation, permissions } : null;
 }
 
 export async function guardianHasAccess(input: {

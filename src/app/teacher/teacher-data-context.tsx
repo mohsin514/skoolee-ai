@@ -19,47 +19,39 @@ const TeacherDataContext = createContext<TeacherDataContextType>({
   refetch: () => {},
 })
 
-const CACHE_KEY = "teacher-dashboard"
-const CACHE_TTL = 60_000
-const cache = new Map<string, { data: any; ts: number }>()
-
 export function TeacherDataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<any>(() => {
-    const cached = cache.get(CACHE_KEY)
-    return cached && Date.now() - cached.ts < CACHE_TTL ? cached.data : null
-  })
-  const [loading, setLoading] = useState(data === null)
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const fetchedRef = useRef(false)
+  const requestVersion = useRef(0)
 
   const loadData = useCallback(async () => {
+    const version = ++requestVersion.current
+    setData(null)
     setLoading(true)
     setError(null)
     try {
       const fresh = await getTeacherDashboardData()
-      cache.set(CACHE_KEY, { data: fresh, ts: Date.now() })
+      if (version !== requestVersion.current) return
       setData(fresh)
     } catch (err: any) {
+      if (version !== requestVersion.current) return
       // Server-action failures surface raw engine text (query, build paths,
       // database host), so they never go straight to the user.
       const message = userMessage(err, "Could not load your dashboard.")
       setError(message)
       toast.error(message)
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
   }, [])
 
+  // The layout retains this context between teacher routes. A module-global
+  // cache would outlive its actor/campus and expose the previous roster on a
+  // new scope's first render. Each scoped mount starts closed instead.
   useEffect(() => {
-    if (fetchedRef.current) return
-    const cached = cache.get(CACHE_KEY)
-    if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      setData(cached.data)
-      setLoading(false)
-      return
-    }
-    fetchedRef.current = true
-    loadData()
+    void loadData()
+    return () => { requestVersion.current += 1 }
   }, [loadData])
 
   return (

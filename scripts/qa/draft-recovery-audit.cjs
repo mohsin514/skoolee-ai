@@ -1,6 +1,7 @@
 /** Explicit loopback-only real form audit. Creates and removes its own synthetic school. */
 const assert = require('node:assert/strict');
-const { randomUUID } = require('node:crypto');
+const crypto = require('node:crypto');
+const { randomUUID } = crypto;
 const { mkdirSync, writeFileSync } = require('node:fs');
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
@@ -11,7 +12,45 @@ const db=new PrismaClient({datasourceUrl:databaseUrl});
 const run=randomUUID(),password=`QA-${randomUUID()}!`,output='test-results/draft-recovery';
 mkdirSync(output,{recursive:true});
 let school,browser;const results=[];
-async function login(context,user){assert.equal((await context.request.post(origin+'/api/auth/login',{data:{email:user.email,password}})).status(),200);}
+// Privileged roles (APP_OWNER/SUPER_ADMIN/ADMIN/CAMPUS_ADMIN/PRINCIPAL) now require a
+// second factor at sign-in (added to the product after SKO-196). The original helper
+// sent email+password only, so the real session was never established for those roles.
+// The harness therefore completes the genuine /api/auth/mfa enrolment/challenge before
+// any draft-recovery assertion runs. No recovery or accessibility assertion is changed.
+const MFA_AUTH_SECRET=process.env.AUTH_SECRET||'dev-secret-change-me';
+const B32='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const mfaSecrets=new Map();
+const sha256=value=>crypto.createHash('sha256').update(value).digest();
+function decodeBase32(secret){let bits='';for(const char of secret)bits+=B32.indexOf(char).toString(2).padStart(5,'0');return Buffer.from(bits.match(/.{8}/g).map(byte=>parseInt(byte,2)));}
+function totp(secret,step){const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(step));const digest=crypto.createHmac('sha1',decodeBase32(secret)).update(counter).digest();const offset=digest[19]&15;return String((digest.readUInt32BE(offset)&0x7fffffff)%1000000).padStart(6,'0');}
+function revealSecret(value){const bytes=Buffer.from(value,'base64url');const decipher=crypto.createDecipheriv('aes-256-gcm',sha256(Buffer.from(MFA_AUTH_SECRET)),bytes.subarray(0,12));decipher.setAuthTag(bytes.subarray(12,28));return Buffer.concat([decipher.update(bytes.subarray(28)),decipher.final()]).toString('utf8');}
+const mfaPost=(context,body)=>context.request.post(origin+'/api/auth/mfa',{data:body});
+async function completeMfa(context,user){
+  const status=await (await context.request.get(origin+'/api/auth/mfa')).json();
+  let secret=mfaSecrets.get(user.email);
+  if(!secret&&status.enrolled){const row=await db.user.findUnique({where:{id:user.id}});if(row&&row.mfaSecret)secret=revealSecret(row.mfaSecret);}
+  if(!secret){
+    const setup=await mfaPost(context,{action:'setup'});assert.equal(setup.status(),200,`MFA setup for ${user.role}`);
+    secret=(await setup.json()).secret;mfaSecrets.set(user.email,secret);
+    const verify=await mfaPost(context,{action:'verify-setup',code:totp(secret,Math.floor(Date.now()/30000))});
+    assert.equal(verify.status(),200,`MFA verify-setup for ${user.role}: ${await verify.text()}`);
+    const ack=await mfaPost(context,{action:'acknowledge',acknowledged:true});
+    assert.equal(ack.status(),200,`MFA acknowledge for ${user.role}: ${await ack.text()}`);return;
+  }
+  // Prefer the next 30 s step so a repeat sign-in inside the same window is not a replay.
+  for(let attempt=0;attempt<3;attempt++){
+    const challenge=await mfaPost(context,{action:'challenge',code:totp(secret,Math.floor(Date.now()/30000)+1)});
+    if(challenge.status()===200)return;
+    await new Promise(resolve=>setTimeout(resolve,(31-(Date.now()/1000)%30)*1000));
+  }
+  assert.fail(`MFA challenge did not succeed for ${user.role}`);
+}
+async function login(context,user){
+  const response=await context.request.post(origin+'/api/auth/login',{data:{email:user.email,password}});
+  assert.equal(response.status(),200);
+  const body=await response.json();
+  if(body.mfaRequired)await completeMfa(context,user);
+}
 async function visit(page,path){await page.goto(origin+path);await page.waitForLoadState('networkidle');}
 async function tabTo(page, locator){for(let i=0;i<120;i++){if(await locator.evaluate(el=>el===document.activeElement)) return;await page.keyboard.press('Tab');}throw new Error('Keyboard could not reach '+await locator.textContent());}
 async function admission(page){await page.getByRole('button',{name:'Add Student',exact:true}).click();await expect(page.getByRole('dialog').first()).toBeVisible();}
@@ -31,7 +70,7 @@ async function fits(page){
  const campus=await db.campus.create({data:{schoolId:school.id,name:'QA Campus',city:'Baseline City',regId:`${run}-campus`}});
  await db.academicCycle.create({data:{schoolId:school.id,campusId:campus.id,label:'QA 2026',academicYear:2026,status:'ACTIVE'}});
  const users={};for(const role of ['ADMIN','TEACHER'])users[role]=await db.user.create({data:{schoolId:school.id,campusId:campus.id,email:`${run}-${role}@example.invalid`,fullName:`QA ${role}`,role,password:await bcrypt.hash(password,10),onboardingComplete:true}});
- const onboardingUser=await db.user.create({data:{schoolId:school.id,campusId:campus.id,email:`${run}-onboarding@example.invalid`,fullName:'QA Onboarding',role:'ADMIN',password:await bcrypt.hash(password,10),onboardingComplete:false}});
+ const onboardingUser=await db.user.create({data:{schoolId:school.id,campusId:campus.id,email:`${run}-onboarding@example.invalid`,fullName:'QA Onboarding',role:'ADMIN',isInstitutionOwner:true,password:await bcrypt.hash(password,10),onboardingComplete:false}});
  const teacherOnboardingUser=await db.user.create({data:{schoolId:school.id,campusId:campus.id,email:`${run}-teacher-onboarding@example.invalid`,fullName:'QA Teacher Onboarding',role:'TEACHER',password:await bcrypt.hash(password,10),onboardingComplete:false}});
  const classroom=await db.class.create({data:{schoolId:school.id,campusId:campus.id,name:'QA Class',academicYear:2026,classTeacherId:users.TEACHER.id}});
  const student=await db.student.create({data:{schoolId:school.id,campusId:campus.id,classId:classroom.id,fullName:'Synthetic Learner',rollNo:'QA01',gender:'MALE'}});
@@ -175,7 +214,7 @@ async function fits(page){
  if(school){
  const users=await db.user.findMany({where:{schoolId:school.id},select:{id:true}});
  await db.superAdminAuditLog.deleteMany({where:{userId:{in:users.map(x=>x.id)}}});
- await db.mark.deleteMany({where:{schoolId:school.id}});await db.exam.deleteMany({where:{schoolId:school.id}});await db.subject.deleteMany({where:{schoolId:school.id}});await db.student.deleteMany({where:{schoolId:school.id}});await db.class.deleteMany({where:{schoolId:school.id}});await db.user.deleteMany({where:{schoolId:school.id}});await db.school.delete({where:{id:school.id}});cleaned=true;
+ await db.mark.deleteMany({where:{schoolId:school.id}});await db.exam.deleteMany({where:{schoolId:school.id}});await db.subject.deleteMany({where:{schoolId:school.id}});await db.studentEnrollment.deleteMany({where:{schoolId:school.id}});await db.student.deleteMany({where:{schoolId:school.id}});await db.class.deleteMany({where:{schoolId:school.id}});await db.user.deleteMany({where:{schoolId:school.id}});await db.school.delete({where:{id:school.id}});cleaned=true;
  }
  await db.$disconnect();writeFileSync(`${output}/results.json`,JSON.stringify({run,results,fixturesRemoved:cleaned},null,2));console.log(JSON.stringify({results,fixturesRemoved:cleaned}));
 });

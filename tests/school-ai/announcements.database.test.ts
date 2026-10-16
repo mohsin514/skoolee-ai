@@ -25,6 +25,16 @@ async function school(run: (f: Awaited<ReturnType<typeof fixture>>) => Promise<v
   const f = await fixture();
   try { await run(f); } finally { await db.school.delete({ where: { id: f.schoolId } }); }
 }
+// The guardian_access_versions_no_overlap exclusion constraint requires at most one
+// version per relationship at any instant. To change rights in these tests we close the
+// current version exactly when the new one begins, so the intervals stay adjacent and
+// non-overlapping `[from, until)`. The newly created version is the one current at `now`.
+async function setGuardianRights(relationshipId: string, rights: { schoolId: string; permissions: Record<string, boolean>; reason: string; createdByUserId: string; effectiveFrom?: Date }) {
+  const effectiveFrom = rights.effectiveFrom ?? new Date();
+  const current = await db.guardianAccessVersion.findFirst({ where: { relationshipId, effectiveFrom: { lte: effectiveFrom }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: effectiveFrom } }] }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
+  if (current) await db.guardianAccessVersion.update({ where: { id: current.id }, data: { effectiveUntil: effectiveFrom } });
+  return db.guardianAccessVersion.create({ data: { schoolId: rights.schoolId, relationshipId, permissions: rights.permissions, reason: rights.reason, createdByUserId: rights.createdByUserId, effectiveFrom } });
+}
 async function fixture() {
   const schoolId = `announcement-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), userId = randomUUID(), parentId = randomUUID(), studentId = randomUUID();
   await db.school.create({ data: { id: schoolId, name: "Synthetic announcement school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Test", status: "ACTIVE" } });
@@ -86,7 +96,7 @@ test("student exclusions are unique and do not include students with an eligible
   const included = await previewSchoolAiExecution(f.user, record.id, "communications.queue_announcement", record.version);
   assert.equal(included.recipients.length, 1);
   assert.deepEqual(included.skipped, []);
-  await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Synthetic revocation", createdByUserId: f.user.userId } });
+  await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: false }, reason: "Synthetic revocation", createdByUserId: f.user.userId });
   const excluded = await previewSchoolAiExecution(f.user, record.id, "communications.queue_announcement", record.version);
   assert.equal(excluded.recipients.length, 0);
   assert.deepEqual(excluded.skipped, [{ studentId: f.studentId, studentName: "Synthetic learner", reason: "NO_COMMUNICATION_PERMISSION" }]);
@@ -95,7 +105,7 @@ test("changed contact or effective rights invalidates an exact reviewed audience
   const record = await approved(f), preview = await previewSchoolAiExecution(f.user, record.id, "communications.queue_announcement", record.version);
   await db.guardianRelationship.update({ where: { id: f.relation.id }, data: { email: "changed@example.invalid" } });
   await assert.rejects(() => executeSchoolAiTool(f.user, record.id, { operation: "communications.queue_announcement", version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() }), { code: "STALE_EXECUTION_PREVIEW" });
-  await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Revoked", createdByUserId: f.user.userId } });
+  await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: false }, reason: "Revoked", createdByUserId: f.user.userId });
   const current = await previewSchoolAiExecution(f.user, record.id, "communications.queue_announcement", record.version);
   assert(current.skipped.some(item => item.reason === "NO_COMMUNICATION_PERMISSION")); assert.equal(current.recipients.length, 0);
   assert.equal(await db.parentCommunication.count({ where: { schoolId: f.schoolId } }), 0);
@@ -119,7 +129,7 @@ test("editing approval, revoking guardian rights, changing language/contact or d
   for (const change of ["approval", "rights", "language", "contact", "actor", "class", "grants"] as const) await school(async f => {
     const record = await approved(f), result = await queue(f, record); let sent = 0;
     if (change === "approval") await updateWorkspaceRecord(f.user, record.id, { action: "save", version: record.version, title: "Revised review required" });
-    if (change === "rights") await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Revoked", createdByUserId: f.user.userId } });
+    if (change === "rights") await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: false }, reason: "Revoked", createdByUserId: f.user.userId });
     if (change === "language") await db.user.update({ where: { id: f.parentId }, data: { preferredLanguage: "en" } });
     if (change === "contact") await db.guardianRelationship.update({ where: { id: f.relation.id }, data: { email: "changed@example.invalid" } });
     if (change === "actor") await db.user.update({ where: { id: f.user.userId }, data: { isActive: false } });
@@ -140,9 +150,9 @@ test("unknown provider outcomes are fenced and never retried automatically", () 
 test("worker rights timestamps remain UTC in a non-UTC database session", () => school(async f => {
   const record = await approved(f), result = await queue(f, record); let sent = 0;
   // Current grant expires shortly in UTC; a future denial must not take effect
-  // early under Asia/Karachi's +05 session zone.
-  await db.guardianAccessVersion.update({ where: { id: f.relation.accessVersions[0].id }, data: { effectiveUntil: new Date(Date.now() + 3600000) } });
-  await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Future scheduled denial", createdByUserId: f.user.userId, effectiveFrom: new Date(Date.now() + 1800000) } });
+  // early under Asia/Karachi's +05 session zone. Closing the grant where the denial
+  // begins keeps both intervals adjacent and non-overlapping.
+  await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: false }, reason: "Future scheduled denial", createdByUserId: f.user.userId, effectiveFrom: new Date(Date.now() + 1800000) });
   const nonUtc: Database = { $queryRaw: db.$queryRaw.bind(db), $executeRaw: db.$executeRaw.bind(db), $transaction: fn => db.$transaction(async tx => { await tx.$executeRaw`SET LOCAL TIME ZONE 'Asia/Karachi'`; return fn(tx); }) };
   await runDelivery(f, result.receipt.communicationIds[0], async () => { sent++; return { success: true, messageId: "timezone-safe" }; }, nonUtc);
   assert.equal(sent, 1);
@@ -191,7 +201,7 @@ test("channel preferences reject forged guardian, campus, contact and fresh perm
   await assert.rejects(() => saveChannelPreference(parent, { ...input, guardianUserId: f.user.userId, enabled: false }), { status: 403 });
   await assert.rejects(() => saveChannelPreference(parent, { ...input, campusId: "foreign-campus", enabled: false }), { status: 403 });
   await assert.rejects(() => saveChannelPreference(f.user, { ...input, recipient: "+923009999999" }), { code: "ANNOUNCEMENT_PREFERENCE_EVIDENCE" });
-  await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Synthetic revoked right", createdByUserId: f.user.userId } });
+  await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: false }, reason: "Synthetic revoked right", createdByUserId: f.user.userId });
   assert.deepEqual(await listChannelPreferences(parent), []);
   await assert.rejects(() => saveChannelPreference(f.user, input), { status: 403 });
   assert.equal(await db.guardianChannelPreference.count({ where: { schoolId: f.schoolId } }), 0);
@@ -213,7 +223,7 @@ test("legacy communication target checks honor latest rights and phone consent w
     await assert.rejects(() => assertCommunicationTarget(target, "WHATSAPP", "learningRecords"), { status: 403 });
     await db.user.update({ where: { id: f.parentId }, data: { phone: "+923009999999" } });
     await assert.rejects(() => assertCommunicationTarget({ ...target, recipient: "+923009999999" }, "WHATSAPP"), { status: 403 });
-    await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: false }, reason: "Newer denial supersedes still-effective old allow", createdByUserId: f.user.userId } });
+    await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: false }, reason: "Newer denial supersedes still-effective old allow", createdByUserId: f.user.userId });
     await assert.rejects(() => assertCommunicationTarget(target, "WHATSAPP"), { status: 403 });
     await assert.rejects(() => assertCommunicationTarget({ ...target, recipient: f.relation.email }, "EMAIL"), { status: 403 });
   });
@@ -222,7 +232,7 @@ test("legacy communication target checks honor latest rights and phone consent w
 test("WhatsApp inbound uses exact consented contact and never guesses across multiple children or guardians", () => school(f => phoneChannel(f, "WHATSAPP", async () => {
   await consent(f, "WHATSAPP");
   assert.equal(await resolveInboundGuardian("923001234567"), null, "Learning-record permission is required");
-  await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: true, learningRecords: true }, reason: "Verified learning-record access", createdByUserId: f.user.userId } });
+  await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: true, learningRecords: true }, reason: "Verified learning-record access", createdByUserId: f.user.userId });
   assert.equal((await resolveInboundGuardian("923001234567"))?.studentId, f.studentId);
   assert.equal(await resolveInboundGuardian("3001234567"), null, "A partial phone must never match");
   const otherParent = await db.user.create({ data: { schoolId: f.schoolId, campusId: f.campusId, email: `${randomUUID()}@example.invalid`, fullName: "Another guardian", role: "PARENT" } });
@@ -237,7 +247,7 @@ test("WhatsApp inbound uses exact consented contact and never guesses across mul
 test("verified inbound replies are deduplicated and consent revoked during drafting prevents delivery", async () => {
   for (const revoke of [false, true]) await school(f => phoneChannel(f, "WHATSAPP", async () => {
     await consent(f, "WHATSAPP");
-    await db.guardianAccessVersion.create({ data: { schoolId: f.schoolId, relationshipId: f.relation.id, permissions: { communication: true, learningRecords: true }, reason: "Verified learning-record access", createdByUserId: f.user.userId } });
+    await setGuardianRights(f.relation.id, { schoolId: f.schoolId, permissions: { communication: true, learningRecords: true }, reason: "Verified learning-record access", createdByUserId: f.user.userId });
     let drafts = 0, sends = 0;
     const input = { id: `synthetic-inbound-${randomUUID()}`, phone: "923001234567", text: "Please show approved reports" }, dependencies = { draft: async () => { drafts++; if (revoke) await consent(f, "WHATSAPP", false, 1); return { text: "اسکول پورٹل میں منظور شدہ ریکارڈ دیکھیں۔", tokensUsed: 0, model: "synthetic-only", promptVersion: "synthetic" }; }, send: async () => { sends++; return { success: true, messageId: "synthetic-inbound-provider" }; } };
     await handleVerifiedGuardianMessage(input, dependencies); await handleVerifiedGuardianMessage(input, dependencies);

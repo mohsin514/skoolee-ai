@@ -56,16 +56,16 @@ export function InsightCard({
     <section
       aria-labelledby={headingId}
       className={cn(
-        "sk-panel sk-rise group/card relative flex flex-col overflow-hidden p-5",
+        "sk-panel sk-rise group/card relative flex min-w-0 flex-col overflow-hidden p-[12px] sm:p-5",
         className,
       )}
       style={delay > 0 ? { animationDelay: `${delay}ms` } : undefined}
     >
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
+      <header className="mb-[12px] flex flex-wrap items-start justify-between gap-[12px]">
+        <div className="flex min-w-[min(100%,12rem)] flex-1 items-start gap-[10px]">
           {Icon ? (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
-              <Icon className="h-4.5 w-4.5" />
+            <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+              <Icon className="h-[18px] w-[18px]" />
             </span>
           ) : null}
           <div className="min-w-0">
@@ -77,7 +77,7 @@ export function InsightCard({
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center gap-[8px]">
           {actions}
           {table ? (
             <Button variant="default" size="icon"
@@ -85,7 +85,7 @@ export function InsightCard({
               onClick={() => setShowTable((v) => !v)}
               aria-pressed={showTable}
               title={showTable ? "Show chart" : "Show the numbers as a table"}
-              className="flex items-center justify-center"
+              className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]"
             >
               {showTable ? <BarChart3 className="h-4 w-4" /> : <Table2 className="h-4 w-4" />}
               <span className="sr-only">{showTable ? "Show chart" : "Show table"}</span>

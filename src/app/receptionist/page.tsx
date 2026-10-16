@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
+
 import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -34,6 +36,7 @@ import { LeaveManagementPanel } from "@/components/shared-admin/index";
 import { FrontDeskOverview } from "@/components/insights";
 
 type ReceptionistView = "dashboard" | "visitors" | "complaints" | "postal" | "phone-calls" | "certificates" | "leave";
+const WORKSPACE_VIEWS: readonly ReceptionistView[] = ["dashboard", "visitors", "complaints", "postal", "phone-calls", "certificates", "leave"];
 
 /** One list drives the section strip, the sidebar and the page header. */
 const NAV: ConsoleNavItem<ReceptionistView>[] = [
@@ -50,7 +53,7 @@ export default function ReceptionistPage() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<ReceptionistView>("dashboard");
+  const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "dashboard");
 
   const loadData = useCallback(async () => {
     try {

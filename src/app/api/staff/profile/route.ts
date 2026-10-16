@@ -1,3 +1,4 @@
+import { campusScope } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     if (!userId) throw new ApiError("userId required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, schoolId: user.schoolId },
+      where: { id: userId, ...campusScope(user) },
       select: {
         id: true,
         fullName: true,
@@ -41,17 +42,12 @@ export async function GET(req: NextRequest) {
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
 
-    const documents = await Promise.all(
-      staff.staffDocuments.map(async (doc) => {
-        const { getDownloadUrl } = await import("@/lib/storage/s3");
-        return {
-          ...doc,
-          downloadUrl: await getDownloadUrl(doc.fileKey).catch(() => null),
-        };
-      })
-    );
+    const documents = staff.staffDocuments.map(({ fileKey: _fileKey, ...doc }) => ({
+      ...doc,
+      downloadUrl: `/api/staff/documents?userId=${encodeURIComponent(userId)}&documentId=${encodeURIComponent(doc.id)}`,
+    }));
 
-    return Response.json({ success: true, data: { ...staff, staffDocuments: documents } });
+    return Response.json({ success: true, data: { ...staff, staffDocuments: documents } }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[staff/profile] GET failed");
   }
@@ -67,7 +63,7 @@ export async function PATCH(req: NextRequest) {
     if (!userId) throw new ApiError("userId is required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, schoolId: user.schoolId },
+      where: { id: userId, ...campusScope(user) },
       select: { id: true, fullName: true, staffProfile: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);

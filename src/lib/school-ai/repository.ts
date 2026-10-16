@@ -1,18 +1,20 @@
 import { validateKnowledgeReferences } from "./knowledge-service";
-import { createHash } from "node:crypto";
 import { Prisma, type SchoolAiRecord as StoredRecord } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { z } from "zod";
 import {
-  SchoolAiError, allowedWorkspaceKinds, assertApprovalRole, assertSchoolAiAccess, assertSchoolAiRole,
+  SchoolAiError, allowedWorkspaceKinds, assertApprovalRole, assertApprovalSeparation, assertSchoolAiAccess, assertSchoolAiRole,
   assertWorkspaceDomainPermission, assertWorkspaceSubject, canAccessWorkspaceRecord,
   getAssignedWorkspaceSubjects, isSchoolAiManager, resolveWorkspaceCampus, type WorkspacePermissionSnapshot,
   loadWorkspacePermissionSnapshot,
 } from "./access";
+import { DELIVERY_POLICY_KIND, resolveDeliveryPolicy, type ResolvedDeliveryPolicy } from "./delivery-policy";
+import { legacyWorkspaceRequestHash } from "./canonical";
 import { createWorkspaceSchema, parseWorkspaceData, updateWorkspaceSchema, workspaceIdSchema } from "./schemas";
 import { curriculumDataSchema, paperDataSchema, validatePaperApproval } from "./assessment";
+import { PaperReviewWriteError, preparePaperContentWrite } from "./item-review";
 import { nextWorkspaceStatus, protectSourceMetadata, TRUSTED_SOURCE_FIELDS, workspaceApprovalIssues, type TrustedSourceMetadata } from "./workflows";
 import type { AiWorkspaceRecord, WorkspaceCreateInput, WorkspaceKind, WorkspaceRevision, WorkspaceStatus, WorkspaceUpdateInput } from "./types";
 import type { WorkspaceHistoryAccess, WorkspaceRevisionPage, WorkspaceRevisionView } from "./revisions";
@@ -20,6 +22,14 @@ import { schoolAiTransaction as transaction } from "./transaction";
 
 function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue; }
 function dataOf(record: StoredRecord): Record<string, unknown> { return record.data as Record<string, unknown>; }
+function preparePaperWrite(user: AuthUser, incoming: Record<string, unknown>, previous?: Record<string, unknown>): Record<string, unknown> {
+  try {
+    return preparePaperContentWrite(previous ? paperDataSchema.parse(previous) : null, paperDataSchema.parse(incoming), { actorId: user.userId, at: new Date().toISOString() });
+  } catch (error) {
+    if (error instanceof PaperReviewWriteError) throw new SchoolAiError(error.message, error.status, "PAPER_REVIEW_AUTHORITY");
+    throw error;
+  }
+}
 function publicRecord(record: StoredRecord): AiWorkspaceRecord {
   return { id: record.id, kind: record.kind as WorkspaceKind, title: record.title, campusId: record.campusId, version: record.version, status: record.status as WorkspaceStatus, data: dataOf(record) as AiWorkspaceRecord["data"], createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() };
 }
@@ -35,12 +45,11 @@ function translateDatabaseError(error: unknown): never {
   }
   throw error;
 }
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));
-  return value;
-}
-export function workspaceRequestHash(value: unknown) { return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex"); }
+/** Unchanged hash, moved to `canonical.ts` and re-exported under its existing name so no
+ * call site changes. Its output is persisted in `SchoolAiRecord.requestHash`, so the
+ * ICU-dependent key order has to stay as it is for idempotency replay on existing rows.
+ * New digests use `canonicalDigest` from `./canonical` instead. */
+export const workspaceRequestHash = legacyWorkspaceRequestHash;
 
 async function assertKnowledgeEvidenceRead(user:AuthUser,kind:string,campusId:string|null,data:Record<string,unknown>,db:TxClient,permissions?:WorkspacePermissionSnapshot){
   const evidence=kind==="POLICY"?(data.knowledge as {source?:{recordId:string;version:number}}|undefined)?.source:undefined;if(!evidence)return;
@@ -99,8 +108,41 @@ export async function assertSourceOriginalAccess(user: AuthUser, id: string, db:
   }
 }
 
+/**
+ * The approved Delivery_Policy revision governing a campus scope (R12.3), or the platform default.
+ *
+ * The authority is the **approved revision snapshot**, not the record's current `data`: a draft
+ * saved on top of an approved policy leaves the approved revision governing, which is what makes
+ * R12.3 true without a second store. The newest approved revision in the scope wins, so a school
+ * that keeps more than one policy record still gets a deterministic answer. When nothing resolves,
+ * `resolveDeliveryPolicy(null)` returns the platform default — standard tier, every managed gate
+ * open, `separationOfDuties: "NOT_REQUIRED"` — so degrading removes authority and never grants it.
+ */
+export async function resolveScopeDeliveryPolicy(user: AuthUser, campusId: string | null, db: TxClient = prisma): Promise<ResolvedDeliveryPolicy> {
+  const approved = await db.schoolAiRevision.findFirst({
+    where: { schoolId: user.schoolId, campusId, status: "APPROVED", record: { schoolId: user.schoolId, kind: DELIVERY_POLICY_KIND } },
+    orderBy: [{ createdAt: "desc" }, { version: "desc" }],
+    select: { recordId: true, version: true, data: true },
+  });
+  return resolveDeliveryPolicy(approved ? { recordId: approved.recordId, version: approved.version, data: approved.data } : null);
+}
+
 async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId: string | null, data: Record<string, unknown>, db: TxClient, permissions: WorkspacePermissionSnapshot) {
   if(kind==="POLICY")await validateKnowledgeReferences(user,null,campusId,data,db,permissions);
+  if (kind === DELIVERY_POLICY_KIND) {
+    // `resolveScopeDeliveryPolicy` looks a policy up by school **and campus**, so a policy stored
+    // without a campus would be approved and then govern no attempt at all. Refuse it at write
+    // time rather than store a record whose `separationOfDuties` and `maxForms` silently decide
+    // nothing (R12.2, R12.3). The body itself is already bound by `deliveryPolicySchema`, and the
+    // record carries no cross-record reference to check.
+    if (!campusId) throw new SchoolAiError("Choose the campus this delivery policy governs.", 400);
+  }
+  // PRACTICE carries no cross-record reference under its placeholder body; its released-item and
+  // approved-source links land with its schema in SKO-408 task 23.x (R18.4, R18.5), as a branch
+  // here. BRIEF now has its body (`assessmentBriefSchema`), whose extracted suggestions name a
+  // source record and version; resolving those against an approved source revision needs a read, so
+  // it belongs to the brief service in SKO-408 task 5.2 — as a branch here — and not to the pure
+  // schema, which bounds their shape only.
   if (kind === "PAPER") {
     const paper = paperDataSchema.parse(data);
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);
@@ -222,7 +264,8 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
       const input = createWorkspaceSchema.parse(rawInput);
       const campusId = await resolveWorkspaceCampus(user, input.campusId);
       const preparedData = input.kind === "SOURCE" ? protectSourceMetadata(input.data, undefined, options.trustedSourceMetadata) : input.data;
-      const data = parseWorkspaceData(input.kind, preparedData);
+      const parsed = parseWorkspaceData(input.kind, preparedData);
+      const data = input.kind === "PAPER" ? preparePaperWrite(user, parsed) : parsed;
       await assertWorkspaceDomainPermission(user, input.kind, data, "add", permissions);
       const hashData = { ...data };
       if (input.kind === "SOURCE") for (const field of TRUSTED_SOURCE_FIELDS) delete hashData[field];
@@ -265,10 +308,14 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   const current = await scopedRecord(user, id, "write", tx, permissions);
   const status = nextWorkspaceStatus({ version: current.version, status: current.status as WorkspaceStatus }, input);
   const action = input.action;
-  if (action === "approve") assertApprovalRole(user);
+  if (action === "approve") {
+    assertApprovalRole(user);                                                    // R2.3: may this actor approve at all?
+    assertApprovalSeparation(user, current, await resolveScopeDeliveryPolicy(user, current.campusId, tx)); // R2.4: may this actor approve *this* version?
+  }
   await assertSchoolAiAccess(user, action === "archive" ? "delete" : action === "approve" || current.createdById !== user.userId ? "edit" : "add", permissions);
   const prepared = current.kind === "SOURCE" && input.data ? protectSourceMetadata(input.data, dataOf(current)) : input.data ?? dataOf(current);
-  const data = parseWorkspaceData(current.kind as WorkspaceKind, prepared);
+  const parsed = parseWorkspaceData(current.kind as WorkspaceKind, prepared);
+  const data = current.kind === "PAPER" && input.data ? preparePaperWrite(user, parsed, dataOf(current)) : parsed;
   await assertWorkspaceDomainPermission(user, current.kind as WorkspaceKind, data, "edit", permissions);
   const subject = await assertWorkspaceSubject(user, current.campusId, data, tx);
   await validateReferences(user, current.kind as WorkspaceKind, current.campusId, data, tx, permissions);

@@ -1,4 +1,6 @@
 "use client";
+
+import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
 import { Button } from "@/components/ui/button";
 import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
 
@@ -181,6 +183,7 @@ type PrincipalView =
   | "library"
   | "inventory"
 ;
+const WORKSPACE_VIEWS: readonly PrincipalView[] = ["overview", "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "student-setup", "promote-archive", "leave", "permissions", "attendance", "year-cycle", "academic-hub", "year-setup", "academic-model", "exam-cycles", "grading-rules", "fees", "timetable", "class-rooms", "period-setup", "school-calendar", "teacher-performance", "report-cards", "ai", "engagement", "transport", "dormitory", "library", "inventory"];
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 
 const principalAIFeatures = [
@@ -195,7 +198,7 @@ export default function PrincipalDashboard() {
   // `loading` is not read: the provider hands back null until the first
   // payload lands, and null is what the skeleton keys off.
   const { data, refetch } = usePrincipalData();
-  const [activeView, setActiveView] = useState<PrincipalView>("overview");
+  const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "overview");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editedRemarks, setEditedRemarks] = useState({ en: "", ur: "" });

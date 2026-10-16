@@ -1,7 +1,10 @@
+import { campusScope } from "@/lib/auth/policy";
+import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
+import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { deleteFile, getDownloadUrl } from "@/lib/storage/s3";
+import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { deleteFile } from "@/lib/storage/s3";
 
 // Staff documents (CV, CNIC, degrees, contracts...).
 // GET    /api/staff/documents?userId= — list (admin only, school-scoped)
@@ -14,23 +17,33 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "staff", "view");
     const userId = req.nextUrl.searchParams.get("userId");
     if (!userId) throw new ApiError("userId required", 400);
 
+    const documentId = req.nextUrl.searchParams.get("documentId");
+    if (documentId) {
+      const document = await prisma.staffDocument.findFirst({
+        where: { id: documentId, userId, user: campusScope(user) },
+        select: { fileKey: true, fileName: true },
+      });
+      if (!document) throw new ApiError("Document not found", 404);
+      const campusId = await resolveCampusId(user, document.fileKey.split("/")[1]);
+      if (!matchesDocumentKey(document.fileKey, "staff-docs", campusId, userId)) throw new ApiError("Document not found", 404);
+      return privateDownloadResponse(document.fileKey, document.fileName);
+    }
     const documents = await prisma.staffDocument.findMany({
-      where: { userId, user: { schoolId: user.schoolId } },
+      where: { userId, user: campusScope(user) },
       select: { id: true, kind: true, fileKey: true, fileName: true, uploadedAt: true },
       orderBy: { uploadedAt: "desc" },
     });
 
-    const data = await Promise.all(
-      documents.map(async (doc) => ({
-        ...doc,
-        downloadUrl: await getDownloadUrl(doc.fileKey).catch(() => null),
-      }))
-    );
+    const data = documents.map(({ fileKey: _fileKey, ...doc }) => ({
+      ...doc,
+      downloadUrl: `/api/staff/documents?userId=${encodeURIComponent(userId)}&documentId=${encodeURIComponent(doc.id)}`,
+    }));
 
-    return Response.json({ success: true, data });
+    return Response.json({ success: true, data }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[staff/documents] GET failed");
   }
@@ -40,6 +53,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "staff", "edit");
     const body = await req.json();
     const { userId, kind, fileKey, fileName } = body as {
       userId?: string;
@@ -54,10 +68,12 @@ export async function POST(req: NextRequest) {
     if (!fileKey || !fileName) throw new ApiError("fileKey and fileName are required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, schoolId: user.schoolId },
+      where: { id: userId, ...campusScope(user) },
       select: { id: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
+    const campusId = await resolveCampusId(user, fileKey.split("/")[1]);
+    if (!matchesDocumentKey(fileKey, "staff-docs", campusId, staff.id)) throw new ApiError("Document upload does not match this record", 400);
 
     const doc = await prisma.staffDocument.create({
       data: { userId, kind: String(kind).toUpperCase(), fileKey, fileName },
@@ -81,13 +97,16 @@ export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "staff", "delete");
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id required", 400);
 
     const doc = await prisma.staffDocument.findFirst({
-      where: { id, user: { schoolId: user.schoolId } },
+      where: { id, user: campusScope(user) },
     });
     if (!doc) throw new ApiError("Document not found", 404);
+    const campusId = await resolveCampusId(user, doc.fileKey.split("/")[1]);
+    if (!matchesDocumentKey(doc.fileKey, "staff-docs", campusId, doc.userId)) throw new ApiError("Document not found", 404);
 
     await prisma.staffDocument.delete({ where: { id } });
     await deleteFile(doc.fileKey).catch(() => {});

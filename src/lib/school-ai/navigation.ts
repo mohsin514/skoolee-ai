@@ -1,5 +1,7 @@
 import { dashboardPathForRole } from "@/lib/roles";
 
+export const EXAM_STUDIO_HREF = "/ai/studio";
+
 /** Only verified public routes/deep links; internal-only console tabs return their dashboard. */
 export function moduleWorkspaceHref(role: string, module: string): string {
   if (["ADMIN", "CAMPUS_ADMIN"].includes(role)) {
@@ -10,6 +12,7 @@ export function moduleWorkspaceHref(role: string, module: string): string {
     const routes: Record<string, string> = { students: "students", timetable: "timetable", attendance: "attendance", exams: "tests", reports: "reports", leave: "leave" };
     if (routes[module]) return `/teacher/${routes[module]}`;
   }
+  if (module === "exam-studio") return EXAM_STUDIO_HREF;
   if (["curriculum", "assessment", "ai"].includes(module)) return "/ai";
   return dashboardPathForRole(role);
 }

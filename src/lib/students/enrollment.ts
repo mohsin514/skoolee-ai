@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations } from "@/lib/api/scope";
-import { isFamily, studentScope } from "@/lib/auth/policy";
+import { isFamily, publishedReportsWhere, studentScope } from "@/lib/auth/policy";
 import type { AuthUser } from "@/lib/auth";
 
 export function dateOnly(value: unknown): Date {
@@ -14,13 +14,22 @@ export async function assertRegistrar(user: AuthUser) {
   if (!canManageOperations(user)) throw new ApiError("Only authorized registrars manage enrollments", 403);
   await assertPermission(user, "students", "edit");
 }
+/** Counts and rows must share the same field-specific authority and publication rule. */
+export function enrollmentHistoryWhere(user: AuthUser) {
+  return {
+    attendance: { student: studentScope(user, "attendance") },
+    invoices: { student: studentScope(user, "finances") },
+    reports: { student: studentScope(user, "learningRecords"), ...(isFamily(user) ? publishedReportsWhere : {}) },
+  };
+}
 export async function readPupil(user: AuthUser, id: string) {
   if (!isFamily(user)) await assertPermission(user, "students", "view");
+  const history = enrollmentHistoryWhere(user);
   const pupil = await prisma.student.findFirst({ where: { id, ...studentScope(user) }, select: {
     id: true, admissionNo: true, fullName: true, campusId: true, classId: true, rollNo: true, status: true,
     profileImageUrl: true, category: { select: { name: true } }, group: { select: { name: true } },
     consolidatedIntoId: true,
-    enrollments: { orderBy: { startDate: "desc" }, include: { _count: { select: { attendance: true, invoices: true, reports: isFamily(user) ? { where: { status: { in: ["PUBLISHED", "SENT"] } } } : true } } } },
+    enrollments: { orderBy: { startDate: "desc" }, include: { _count: { select: { attendance: { where: history.attendance }, invoices: { where: history.invoices }, reports: { where: history.reports } } } } },
   } });
   if (!pupil) throw new ApiError("Pupil not found", 404);
   return pupil;

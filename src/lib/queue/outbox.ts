@@ -166,10 +166,13 @@ export async function cancel(db: Sql, ref: Reference) {
 }
 
 export async function reconcile(db: Sql, schoolId: string, eventId?: string) {
-  return db.$queryRaw`SELECT e.id,e.kind,e.version,e.created_at,e.dispatched_at,e.dispatch_count,j.state,j.attempts,j.checkpoint,j.reason,j.started_at,j.finished_at,j.cancel_requested_at,
+  return db.$queryRaw`SELECT e.id,e.kind,e.version,e.created_at,e.dispatched_at,e.dispatch_count,j.state,j.attempts,j.max_attempts,j.checkpoint,j.reason,j.started_at,j.finished_at,j.cancel_requested_at,j.updated_at,j.next_attempt_at,j.lease_until,
+    GREATEST(0,EXTRACT(EPOCH FROM (now()-e.created_at)))::int AS event_age_seconds,
+    CASE WHEN j.state IN ('queued','retrying') THEN GREATEST(0,EXTRACT(EPOCH FROM (now()-e.available_at)))::int ELSE 0 END AS pending_age_seconds,
+    (SELECT count(*)::int FROM workflow_effects f WHERE f.job_id=e.id AND f.school_id=e.school_id AND f.state='committed') AS confirmed_effects,
     (SELECT count(*)::int FROM workflow_effects f WHERE f.job_id=e.id AND f.school_id=e.school_id AND f.state='uncertain') AS uncertain_effects,
     CASE WHEN j.id IS NULL THEN 'orphaned' WHEN j.state='failed' THEN 'dead-letter'
-      WHEN j.state='running' AND j.lease_until < now() THEN 'stuck'
+      WHEN j.state='running' AND (j.lease_until IS NULL OR j.lease_until < now()) THEN 'stuck'
       WHEN j.state IN ('queued','retrying') AND e.available_at < now()-interval '5 minutes' THEN 'overdue'
       ELSE 'tracked' END AS reconciliation
     FROM workflow_events e LEFT JOIN workflow_jobs j ON j.id=e.id AND j.school_id=e.school_id

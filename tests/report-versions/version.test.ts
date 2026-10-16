@@ -21,12 +21,11 @@ import {
 } from "../../src/lib/academic/report-versions";
 import { sendReportCardPublishedNotifications } from "../../src/lib/notifications/service";
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (
-  url.hostname !== "127.0.0.1" ||
-  url.port !== "55410" ||
-  url.pathname !== "/sko210"
-)
-  throw new Error("Use isolated local sko210 database on 55410");
+const currentLocal = ["127.0.0.1", "localhost"].includes(url.hostname) && url.port === "55438" && url.pathname === "/postgres" && process.env.DIRECT_URL === process.env.DATABASE_URL;
+const legacyLocal = url.hostname === "127.0.0.1" && url.port === "55410" && url.pathname === "/sko210";
+if (!currentLocal && !legacyLocal) throw new Error("Use the explicitly guarded isolated local report-version database");
+const app = new URL(process.env.AUTHZ_TEST_APP_URL || (currentLocal ? "http://localhost:3107" : "http://127.0.0.1:3210"));
+if (!["127.0.0.1", "localhost"].includes(app.hostname) || app.port !== (currentLocal ? "3107" : "3210") || !process.env.AUTH_SECRET) throw new Error("Explicit isolated app and AUTH_SECRET required; never load .env");
 const raw = new PrismaClient();
 const schoolId = `versions-${randomUUID()}`,
   campusId = randomUUID(),
@@ -131,11 +130,19 @@ before(async () => {
       fullName: "Synthetic pupil",
       rollNo: "S210",
       gender: "MALE",
-      guardianEmail: "synthetic@example.invalid",
+      guardianEmail: `${users.get("PARENT")}@example.invalid`,
       parentUserId: users.get("PARENT"),
       studentUserId: users.get("STUDENT"),
     },
   });
+  const relationship = await raw.guardianRelationship.create({ data: {
+    schoolId, campusId, studentId, guardianUserId: users.get("PARENT")!, createdByUserId: actorId,
+    fullName: "Synthetic guardian", email: `${users.get("PARENT")}@example.invalid`, relationship: "Parent", status: "ACTIVE", verifiedAt: new Date(),
+  } });
+  await raw.guardianAccessVersion.create({ data: {
+    schoolId, relationshipId: relationship.id, createdByUserId: actorId, reason: "Synthetic version-release fixture",
+    permissions: { learningRecords: true, attendance: true, finances: true, communication: true, pickup: false },
+  } });
   await raw.subject.create({
     data: {
       id: subjectId,
@@ -189,6 +196,7 @@ after(async () => {
         oldVersionId,
         cookies: Object.fromEntries(cookies),
       }),
+      { mode: 0o600 },
     );
   await raw.$disconnect();
   await prisma.$disconnect();
@@ -369,9 +377,9 @@ async function http(
   method = "GET",
   data?: unknown,
 ) {
-  return fetch(`http://127.0.0.1:3210${path}`, {
+  return fetch(new URL(path, app), {
     method,
-    headers: { cookie: cookies.get(role)!, "content-type": "application/json" },
+    headers: { cookie: cookies.get(role)!, "content-type": "application/json", origin: app.origin },
     ...(data ? { body: JSON.stringify(data) } : {}),
   });
 }
@@ -393,8 +401,9 @@ for (const role of USER_ROLES)
       await response.clone().text(),
     );
     const read = await http(role, `/api/reports?examId=${examId}`);
-    if (["PARENT", "STUDENT"].includes(role)) assert.equal(read.status, 403);
-    else assert.equal(read.status, 200, await read.clone().text());
+    // The configured matrix grants report viewing to staff; approval remains reviewer-only.
+    const canRead = !["PARENT", "STUDENT"].includes(role);
+    assert.equal(read.status, canRead ? 200 : 403, await read.clone().text());
   });
 test("HTTP old family PDF resolves corrected version, notes stay private, unlink revokes old link", async () => {
   const path = `/api/reports/download?reportCardId=${reportId}&versionId=${oldVersionId}&redirect=1`;
@@ -408,15 +417,9 @@ test("HTTP old family PDF resolves corrected version, notes stay private, unlink
   const data = await http("PARENT", `/api/parent/data?studentId=${studentId}`);
   assert.equal(data.status, 200, await data.clone().text());
   assert.equal((await data.text()).includes("PRIVATE REVIEWER NOTE"), false);
-  await raw.student.update({
-    where: { id: studentId },
-    data: { parentUserId: null },
-  });
+  await raw.guardianRelationship.updateMany({ where: { schoolId, studentId, guardianUserId: users.get("PARENT") }, data: { status: "REVOKED" } });
   assert.equal((await http("PARENT", path)).status, 403);
-  await raw.student.update({
-    where: { id: studentId },
-    data: { parentUserId: users.get("PARENT") },
-  });
+  await raw.guardianRelationship.updateMany({ where: { schoolId, studentId, guardianUserId: users.get("PARENT") }, data: { status: "ACTIVE" } });
 });
 test("HTTP single-send approval override cannot release an unapproved report", async () => {
   const unpublished = await raw.exam.create({
@@ -588,7 +591,7 @@ test("concurrent sends create one logical delivery and uncertain provider outcom
       ),
     );
     const communication = await raw.parentCommunication.findUniqueOrThrow({
-      where: { idempotencyKey: `report-version:${version.id}:EMAIL` },
+      where: { idempotencyKey: `report-version:${version.id}:EMAIL:${users.get("PARENT")}` },
     });
     const events = await raw.workflowEvent.findMany({
       where: { schoolId, referenceId: communication.id },

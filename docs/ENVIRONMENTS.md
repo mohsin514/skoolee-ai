@@ -1,8 +1,9 @@
 # Environments
 
-SkooleeAI runs five environments. Each has its **own Vercel project** AND its
-**own Supabase database** — full isolation, so no environment can read or write
-another's tenant data.
+The deployment design defines five environments. Each must have its **own Vercel
+project** and **own Supabase database**. The names below are intended configuration,
+not evidence that the projects exist or that isolation has been verified. Confirm
+the actual provider settings and environment-specific credentials before use.
 
 | Environment | Git branch  | Vercel project       | Supabase project | Purpose                 |
 |-------------|-------------|----------------------|------------------|-------------------------|
@@ -66,8 +67,12 @@ for CI migrations), and locally in `.env` (gitignored).
 Because each environment has its own Supabase project, the DB URLs and Supabase
 keys **differ per environment** — copy each env's values from its own Supabase
 project. `NEXT_PUBLIC_APP_URL` also differs (each Vercel project has its own URL).
-Values that legitimately stay the same across envs: `OPENAI_API_KEY`, SMTP, and
-(optionally) `AUTH_SECRET` — though a distinct `AUTH_SECRET` per env is safer.
+Use a distinct `AUTH_SECRET`, queue, object-store namespace and environment-scoped
+provider credentials. Synthetic recovery uses no live provider credentials and
+starts no app or worker. An application staging smoke run must explicitly disable
+outbound delivery (`EMAIL_DEV_MODE=true`, `DISABLE_OUTBOUND_MESSAGES=true`) and use
+approved sandbox/sink integrations; those flags alone are not a network-egress
+boundary. Never copy a generic local `.env` or `.env.supabase-backup` into staging.
 
 ## Development deployment
 

@@ -10,6 +10,9 @@ import shutil
 import subprocess
 import time
 import uuid
+from urllib.parse import quote
+from verification import manifest_digest, safe_object_path, source_manifest
+from preflight import rehearsal_environment
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = '20261008000000_verified_baseline'
@@ -20,15 +23,21 @@ def main():
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--user', default='postgres')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--fault', choices=['missing-file', 'corrupt-record', 'migration'])
+    parser.add_argument('--fault', choices=['missing-file', 'corrupt-file', 'corrupt-record', 'corrupt-backup', 'schema-drift', 'migration'])
     args = parser.parse_args()
+    if not 1 <= args.port <= 65535:
+        parser.error('Choose a valid port on a disposable loopback PostgreSQL instance')
     output = args.output.resolve()
-    output.mkdir(parents=True, exist_ok=False)
+    output.mkdir(mode=0o700, parents=True, exist_ok=False)
     started = time.monotonic()
     restore_started = None
-    report = {'startedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'status': 'blocked',
-              'dataClass': 'synthetic', 'notificationIsolation': 'No app, worker or notification SDK is executed; subprocess environment excludes all provider credentials.',
+    report = {'formatVersion': 2, 'startedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'status': 'blocked',
+              'dataClass': 'synthetic', 'notificationIsolation': 'No app server, worker entrypoint or provider SDK is executed; subprocess environment excludes all provider credentials. Post-restore smoke uses providerless in-process handlers only.',
               'operatorSignOff': None, 'schoolReopenDecision': 'Requires operator review; synthetic proof is not production readiness.',
+              'limitations': ['Local synthetic database and files only; provider PITR, storage/KMS, credentials and traffic recovery require separate evidence.',
+                              'Schema fingerprint excludes object ownership; deployed roles and grants require independent environment verification.',
+                              'Pending job receipts are reconciled without running workers; provider-side effects and controlled replay require domain-owner review.',
+                              'A dirty worktree is test evidence only, not evidence for promoting the recorded commit.'],
               'checks': [], 'fault': args.fault}
     # Do not inherit DATABASE_URL, dotenv configuration, SMTP, cloud credentials or runtime hooks.
     env = {key: os.environ[key] for key in ('PATH', 'HOME', 'TMPDIR', 'SystemRoot') if key in os.environ}
@@ -47,7 +56,6 @@ def main():
         if database:
             local['PGDATABASE'] = database
             # Prisma URL is passed only through a scrubbed environment, never command arguments.
-            from urllib.parse import quote
             password = ':' + quote(env['PGPASSWORD'], safe='') if env.get('PGPASSWORD') else ''
             url = f"postgresql://{quote(args.user, safe='')}{password}@127.0.0.1:{args.port}/{database}"
             local.update(DATABASE_URL=url, DIRECT_URL=url)
@@ -56,6 +64,7 @@ def main():
             text = result.stdout + result.stderr
             if env.get('PGPASSWORD'):
                 text = text.replace(env['PGPASSWORD'], '[REDACTED]')
+                text = text.replace(quote(env['PGPASSWORD'], safe=''), '[REDACTED]')
             handle.write(f"\n$ {command[0]} {command[1] if len(command) > 1 else ''} [exit={result.returncode}]\n{text}")
         if (expected == 0 and result.returncode != 0) or (expected != 0 and result.returncode == 0):
             raise RuntimeError(f'{command[0]} returned unexpected status {result.returncode}; inspect diagnostics.log')
@@ -65,6 +74,7 @@ def main():
         return run(['psql', '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1'], database=database, input=statement)
 
     prisma = str(ROOT / 'node_modules/.bin/prisma')
+    inputs = source_manifest(ROOT)
     execution = output / 'execution-prisma'
     execution.mkdir()
     shutil.copy(ROOT / 'prisma/schema.prisma', execution / 'schema.prisma')
@@ -91,26 +101,53 @@ def main():
             result[name] = {'rows': len(rows.splitlines()), 'sha256': hashlib.sha256(rows.encode()).hexdigest(), 'columns': columns}
         return result
 
+    def ledger(database):
+        return sql(database, 'SELECT row_to_json(m)::text FROM public._prisma_migrations m ORDER BY migration_name, id;')
+
+    def schema_fingerprint(database):
+        # Compare PostgreSQL's canonical definitions, not dump text: harmless
+        # nested CHECK parentheses can flatten when the dump is parsed again.
+        catalog = sql(database, (ROOT / 'scripts/recovery/catalog-snapshot.sql').read_text())
+        return hashlib.sha256(catalog.encode()).hexdigest()
+
     def check(name, condition):
         report['checks'].append({'name': name, 'passed': bool(condition)})
         if not condition:
             raise RuntimeError(name)
 
+    def stage(name):
+        report['currentStage'] = name
+        print(f"Recovery stage: {name} (elapsed {time.monotonic() - started:.1f}s)", flush=True)
+
     try:
+        stage('source-and-isolated-destination')
+        preflight = rehearsal_environment(env)
+        report['environmentPreflight'] = preflight
+        (output / 'environment-preflight.json').write_text(json.dumps(preflight, indent=2) + '\n')
+        check('redacted-environment-preflight', preflight['status'] == 'ready-for-synthetic-rehearsal')
+        commit = run(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'])
+        dirty = bool(run(['git', '-C', str(ROOT), 'status', '--porcelain']))
+        report['source'] = {'commit': commit, 'worktreeDirty': dirty, 'inputsSha256': manifest_digest(inputs)}
+        report['releaseEvidenceEligible'] = not dirty
+        (output / 'input-manifest.json').write_text(json.dumps(inputs, indent=2) + '\n')
         for database in databases.values():
             run(['createdb', database])
         clean, upgrade, restored, failure = (databases[name] for name in ('clean', 'upgrade', 'restored', 'failure'))
+        stage('clean-provisioning-and-drift')
         migrate(clean, 'deploy')
+        migrate(clean, 'status')
         migrate(clean, 'diff', '--from-schema-datasource', schema, '--to-schema-datamodel', schema, '--exit-code')
         check('clean-provisioning-and-schema-drift', True)
         # The supported predecessor is dev 9c5193d's schema-push release. The frozen SQL
         # represents that schema, without inventing a successful legacy migration history.
-        baseline = (ROOT / 'prisma/migrations' / BASELINE / 'migration.sql').read_text()
+        stage('populated-supported-upgrade')
+        baseline = (execution / 'migrations' / BASELINE / 'migration.sql').read_text()
         sql(upgrade, baseline)
         sql(upgrade, (ROOT / 'scripts/recovery/fixtures.sql').read_text())
         before = snapshot(upgrade)
         migrate(upgrade, 'resolve', '--applied', BASELINE)
         migrate(upgrade, 'deploy')
+        migrate(upgrade, 'status')
         after = snapshot(upgrade)
         preserved = snapshot(upgrade, predecessor=before)
         check('populated-schema-push-adoption-and-upgrade', all(preserved.get(name) == value for name, value in before.items()))
@@ -123,41 +160,67 @@ def main():
         report['supportedUpgradePaths'] = ['dev-9c5193d-schema-push-to-versioned-baseline', 'verified-baseline-to-head']
         # Quiesced synthetic source. Marker is written immediately before dump and recovered
         # from the restored DB; it is not inferred from a provider plan or upload timestamp.
+        stage('database-and-object-backup')
         sql(upgrade, 'CREATE TABLE recovery_marker (point timestamptz NOT NULL); INSERT INTO recovery_marker VALUES (clock_timestamp());')
         backup_start = dt.datetime.now(dt.timezone.utc)
         run(['pg_dump', '--format=custom', '--no-owner', '--file', str(output / 'database.dump')], database=upgrade)
+        report['databaseBackupSha256'] = hashlib.sha256((output / 'database.dump').read_bytes()).hexdigest()
+        restore_dump = output / 'restore-input.dump'
+        shutil.copyfile(output / 'database.dump', restore_dump)
+        if args.fault == 'corrupt-backup':
+            restore_dump.write_bytes(b'Synthetic damaged archive. Never restore this.\n')
+        check('backup-artifact-checksum', hashlib.sha256(restore_dump.read_bytes()).hexdigest() == report['databaseBackupSha256'])
+        run(['pg_restore', '--list', str(restore_dump)])
         source_objects = output / 'backup-objects'
         (source_objects / 'synthetic').mkdir(parents=True)
         (source_objects / 'synthetic/attachment.txt').write_text('Synthetic recovery attachment. No pupil data.\n')
-        manifest = {'synthetic/attachment.txt': hashlib.sha256((source_objects / 'synthetic/attachment.txt').read_bytes()).hexdigest()}
+        (source_objects / 'synthetic/other-attachment.txt').write_text('Separate synthetic tenant attachment. No pupil data.\n')
+        manifest = {key: hashlib.sha256((source_objects / key).read_bytes()).hexdigest()
+                    for key in ('synthetic/attachment.txt', 'synthetic/other-attachment.txt')}
         (output / 'object-manifest.json').write_text(json.dumps(manifest, indent=2))
         restore_started = time.monotonic()
-        run(['pg_restore', '--exit-on-error', '--no-owner', '--no-privileges', '--dbname', restored, str(output / 'database.dump')])
+        stage('restore-and-reconcile')
+        run(['pg_restore', '--exit-on-error', '--no-owner', '--dbname', restored, str(restore_dump)])
         destination_objects = output / 'restored-objects'
         shutil.copytree(source_objects, destination_objects)
         if args.fault == 'missing-file':
             (destination_objects / 'synthetic/attachment.txt').unlink()
+        if args.fault == 'corrupt-file':
+            (destination_objects / 'synthetic/attachment.txt').write_text('Synthetic wrong object bytes.\n')
         if args.fault == 'corrupt-record':
             sql(restored, "UPDATE marks SET marks_obtained=0;")
+        if args.fault == 'schema-drift':
+            sql(restored, "CREATE VIEW recovery_unexpected_view AS SELECT 'synthetic schema drift'::text AS value;")
         report['actualRestoredPointUtc'] = sql(restored, 'SELECT point AT TIME ZONE \'UTC\' FROM recovery_marker;') + ' UTC'
         report['backupStartedAt'] = backup_start.isoformat()
         report['backupAgeSecondsAtRestore'] = (dt.datetime.now(dt.timezone.utc) - backup_start).total_seconds()
         check('all-record-counts-and-content-hashes', snapshot(upgrade) == snapshot(restored))
-        check('invoice-balance-and-grade', sql(restored, 'SELECT total_amount=total_amount_paid+balance_due FROM invoices;') == 't' and sql(restored, 'SELECT marks_obtained FROM marks;') == '83')
+        check('migration-ledger-restored', ledger(upgrade) == ledger(restored))
+        report['restoredSchemaSha256'] = schema_fingerprint(restored)
+        check('schema-security-catalog-restored', schema_fingerprint(upgrade) == report['restoredSchemaSha256'])
+        check('invoice-balance-and-grade', sql(restored, 'SELECT count(*)=2 AND bool_and(total_amount=total_amount_paid+balance_due) FROM invoices;') == 't' and sql(restored, 'SELECT count(*)=2 AND sum(marks_obtained)=154 FROM marks;') == 't')
+        check('tenant-ownership-reconciled', sql(restored, "SELECT NOT EXISTS (SELECT 1 FROM marks m JOIN students s ON s.id=m.student_id JOIN exams e ON e.id=m.exam_id WHERE m.school_id<>s.school_id OR m.school_id<>e.school_id OR m.campus_id<>s.campus_id OR m.campus_id<>e.campus_id) AND NOT EXISTS (SELECT 1 FROM student_documents d JOIN students s ON s.id=d.student_id WHERE d.school_id<>s.school_id);") == 't')
+        check('queued-effects-reconciled-without-execution', sql(restored, "SELECT (SELECT count(*) FROM workflow_jobs WHERE id='recovery-event' AND state='retrying' AND checkpoint=1)=1 AND (SELECT count(*) FROM workflow_effects WHERE id='recovery-effect' AND identity='confirmed-before-crash' AND state='committed')=1;") == 't')
+        check('published-artifact-bytes-and-reference-restored', sql(restored, "SELECT count(*)=1 FROM report_versions v JOIN report_cards r ON r.published_version_id=v.id AND r.school_id=v.school_id WHERE v.id='recovery-published-version' AND v.published_at IS NOT NULL AND encode(v.document_bytes,'hex')='255044462d312e340a2553796e746865746963207265636f766572792061727469666163740a2525454f460a';") == 't')
         keys = sql(restored, 'SELECT file_key FROM student_documents ORDER BY file_key;').splitlines()
         check('referenced-files-have-matching-manifest', set(keys) == set(manifest))
         for key in keys:
-            path = destination_objects / key
+            path = safe_object_path(destination_objects, key)
             check('file-reconciliation:' + key, path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == manifest[key])
         report['verifiedRestoreElapsedSeconds'] = round(time.monotonic() - restore_started, 3)
         report['restoreAttemptElapsedSeconds'] = report['verifiedRestoreElapsedSeconds']
         (output / 'reconciliation.json').write_text(json.dumps(snapshot(restored), indent=2))
+        stage('post-restore-providerless-workflow-smoke')
+        run(['node', '--import', str(ROOT / 'node_modules/tsx/dist/loader.mjs'), str(ROOT / 'scripts/recovery/job-smoke.ts')], database=restored)
+        report['jobSmoke'] = json.loads((output / 'job-smoke.json').read_text())
+        check('post-restore-job-retry-and-tenant-load-smoke', report['jobSmoke'].get('status') == 'passed')
         # Exercise a failed real Prisma migration, atomic rollback, blocked replay and
         # reviewed forward repair in an isolated copy of the migration directory.
+        stage('migration-failure-and-forward-recovery')
         fixture_prisma = output / 'failure-prisma'
         fixture_prisma.mkdir()
-        shutil.copy(ROOT / 'prisma/schema.prisma', fixture_prisma / 'schema.prisma')
-        shutil.copytree(ROOT / 'prisma/migrations', fixture_prisma / 'migrations')
+        shutil.copy(execution / 'schema.prisma', fixture_prisma / 'schema.prisma')
+        shutil.copytree(execution / 'migrations', fixture_prisma / 'migrations')
         broken = fixture_prisma / 'migrations/29990101000000_failure_drill'
         broken.mkdir()
         (broken / 'migration.sql').write_text('BEGIN; CREATE TABLE recovery_probe(id int); SELECT 1/0; COMMIT;\n')
@@ -172,23 +235,32 @@ def main():
         (broken / 'migration.sql').write_text('BEGIN; CREATE TABLE recovery_probe(id int); COMMIT;\n')
         run(command, database=failure)
         check('reviewed-forward-repair', sql(failure, "SELECT to_regclass('public.recovery_probe') IS NOT NULL;") == 't')
+        check('source-inputs-unchanged', inputs == source_manifest(ROOT))
         report['status'] = 'verified-awaiting-sign-off'
-        report['databaseBackupSha256'] = hashlib.sha256((output / 'database.dump').read_bytes()).hexdigest()
+        report['currentStage'] = 'awaiting-human-review'
         report['baselineSqlSha256'] = hashlib.sha256(baseline.encode()).hexdigest()
     except Exception as error:
         report['error'] = str(error)
     finally:
         if restore_started is not None and 'restoreAttemptElapsedSeconds' not in report:
             report['restoreAttemptElapsedSeconds'] = round(time.monotonic() - restore_started, 3)
+        # Preserve all failed destinations. Successful cleanup is itself recorded;
+        # never print a successful report before the cleanup attempt finishes.
+        report['cleanup'] = 'retained-for-diagnosis'
+        if report['status'] != 'blocked':
+            try:
+                for database in databases.values():
+                    run(['dropdb', database])
+                report['cleanup'] = 'isolated-databases-removed'
+            except Exception as error:
+                report['status'] = 'blocked'
+                report['cleanup'] = 'incomplete-see-diagnostics'
+                report['error'] = str(error)
         report['elapsedSeconds'] = round(time.monotonic() - started, 3)
         report['completedAt'] = dt.datetime.now(dt.timezone.utc).isoformat()
         report['diagnostics'] = 'diagnostics.log'
         (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps(report, indent=2))
-        # Deliberately retain isolated DBs and artifacts on failure for diagnosis.
-        if report['status'] != 'blocked':
-            for database in databases.values():
-                run(['dropdb', database])
     return 1 if report['status'] == 'blocked' else 0
 
 

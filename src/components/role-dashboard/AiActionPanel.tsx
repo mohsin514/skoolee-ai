@@ -99,15 +99,15 @@ export function AiActionPanel({
   if (options.length === 0) return null;
 
   return (
-    <div className={cn("group", className)}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative">
+    <div className={cn("group min-w-0", className)}>
+      <div className="mb-[12px] flex min-w-0 items-center gap-[10px]">
+        <div className="relative shrink-0">
           <div className="absolute -inset-2 bg-[#8127cf]/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className="relative h-9 w-9 rounded-2xl bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center sk-float">
-            <Sparkles className="w-5 h-5" />
+          <div className="relative h-[36px] w-[36px] rounded-2xl bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center sk-float">
+            <Sparkles className="w-[20px] h-[20px]" />
           </div>
         </div>
-        <h3 className="text-sm font-black text-[#1f1a23] tracking-wider">{title}</h3>
+        <h3 className="min-w-0 text-sm font-black text-[#1f1a23] tracking-wider [overflow-wrap:anywhere]">{title}</h3>
       </div>
 
       <div className="space-y-3">

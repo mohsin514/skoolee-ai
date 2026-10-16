@@ -1,14 +1,28 @@
 import type { z } from "zod";
 import type { CurriculumData, PaperData } from "./assessment";
-import type { onboardingDataSchema, sourceDataSchema, workflowDataSchema, policyDataSchema } from "./schemas";
+import type { DeliveryPolicy } from "./delivery-policy";
+import type { briefDataSchema, onboardingDataSchema, practiceDataSchema, sourceDataSchema, workflowDataSchema, policyDataSchema } from "./schemas";
 
-export const WORKSPACE_KINDS = ["ONBOARDING", "SOURCE", "CURRICULUM", "PAPER", "WORKFLOW", "POLICY"] as const;
+/**
+ * The single source of truth for the record kinds. `workspaceKindSchema` and the discriminated
+ * `workspaceDataSchema` in `./schemas` are both derived from this list, and `allowedWorkspaceKinds`
+ * in `./access` gates it by role, so a kind cannot exist in one of the three and not the others.
+ *
+ * `DELIVERY_POLICY`, `BRIEF` and `PRACTICE` were added by SKO-408. `SchoolAiRecord.kind` is a plain
+ * `String` column, so all three are a code-only change with **no migration**, and each inherits
+ * versioning, `APPROVED` status, immutable `SchoolAiRevision` snapshots, campus scoping,
+ * compare-and-set on version and audit logging from the existing record chain (R25.1–R25.4, R25.9).
+ */
+export const WORKSPACE_KINDS = ["ONBOARDING", "SOURCE", "CURRICULUM", "PAPER", "WORKFLOW", "POLICY", "DELIVERY_POLICY", "BRIEF", "PRACTICE"] as const;
 export type WorkspaceKind = typeof WORKSPACE_KINDS[number];
 export type WorkspaceStatus = "DRAFT" | "IN_REVIEW" | "APPROVED" | "ARCHIVED";
 export type OnboardingData = z.infer<typeof onboardingDataSchema>;
 export type SourceData = z.infer<typeof sourceDataSchema>;
 export type WorkflowData = z.infer<typeof workflowDataSchema>;
 export type PolicyData = z.infer<typeof policyDataSchema>;
+/** Placeholder bodies until their owning tasks land. See the note beside them in `./schemas`. */
+export type BriefData = z.infer<typeof briefDataSchema>;
+export type PracticeData = z.infer<typeof practiceDataSchema>;
 export type WorkspaceDataMap = {
   ONBOARDING: OnboardingData;
   SOURCE: SourceData;
@@ -16,6 +30,9 @@ export type WorkspaceDataMap = {
   PAPER: PaperData;
   WORKFLOW: WorkflowData;
   POLICY: PolicyData;
+  DELIVERY_POLICY: DeliveryPolicy;
+  BRIEF: BriefData;
+  PRACTICE: PracticeData;
 };
 
 /** The same persisted artifact is edited by a form, a conversation, or an AI proposal. */

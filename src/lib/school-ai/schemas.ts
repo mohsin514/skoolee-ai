@@ -6,13 +6,17 @@ import { financeOperationProposalSchema } from "./finance-operations";
 import { automationPolicySchema } from "./runs";
 import { z } from "zod";
 import { curriculumDataSchema, paperDataSchema } from "./assessment";
+import { assessmentBriefSchema } from "./assessment-brief";
+import { deliveryPolicySchema } from "./delivery-policy";
 import { academicSetupProposalSchema } from "./academic-setup";
 import { timetableSetupProposalSchema } from "./timetable-setup";
 import { announcementProposalSchema } from "./announcements";
 import { examSessionPlanProposalSchema } from "./exam-session-plan";
 import { feeInvoiceProposalSchema } from "./fee-invoices";
+import { WORKSPACE_KINDS } from "./types";
 
-export const workspaceKindSchema = z.enum(["ONBOARDING", "SOURCE", "CURRICULUM", "PAPER", "WORKFLOW", "POLICY"]);
+/** Derived from the one kind list in `./types`, so the enum cannot drift from it. */
+export const workspaceKindSchema = z.enum(WORKSPACE_KINDS);
 export const workspaceStatusSchema = z.enum(["DRAFT", "IN_REVIEW", "APPROVED", "ARCHIVED"]);
 export const workspaceIdSchema = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 export const ONBOARDING_ANSWER_KEYS = ["schoolName", "country", "timezone", "campuses", "grades", "academicYear", "startDate", "endDate", "workingDays", "firstOutcome", "curriculum", "assessmentPolicy", "feePolicy", "communications", "resources", "staff", "students", "migrationSource"] as const;
@@ -73,6 +77,27 @@ export const policyDataSchema = z.strictObject({
   knowledge: knowledgeSchema.optional(),
 }).refine(value => !value.knowledge || !value.automation && value.instructions === value.knowledge.value && value.mode === "approval_required", "Facts and preferences require explicit review and cannot contain automatic actions.").refine(value => !value.automation?.enabled || value.mode === "approval_required", "Scheduled actions require reviewed approval mode.");
 
+/**
+ * `PRACTICE` is registered as a record kind before its body is designed, so the placeholder below
+ * is deliberately **narrow rather than permissive**: it accepts the teaching scope
+ * `assertWorkspaceSubject` reads and refuses every other key, so the kind cannot become an untyped
+ * bag of JSON while its owner is outstanding. Its real schema is the Practice_Set schema in
+ * `src/lib/school-ai/recovery.ts` (SKO-408 task 23.x), which its owner swaps in below.
+ *
+ * `BRIEF` has landed: its body is `assessmentBriefSchema` in `src/lib/school-ai/assessment-brief.ts`
+ * (SKO-408 task 5.1), which carries the same paired `subjectId`/`classId` teaching scope the
+ * placeholder did, so the kind, its role gating and its permission module in `./access` are
+ * unchanged by the swap.
+ */
+const placeholderScopeOnlySchema = z.strictObject({
+  subjectId: workspaceIdSchema.optional(),
+  classId: workspaceIdSchema.optional(),
+}).superRefine((value, ctx) => {
+  if (Boolean(value.subjectId) !== Boolean(value.classId)) ctx.addIssue({ code: "custom", path: ["subjectId"], message: "Choose both the subject and its class." });
+});
+export const briefDataSchema = assessmentBriefSchema;
+export const practiceDataSchema = placeholderScopeOnlySchema;
+
 /** Discriminated input validation prevents arbitrary bags of JSON becoming trusted workflow state. */
 export const workspaceDataSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("ONBOARDING"), data: onboardingDataSchema }),
@@ -81,6 +106,13 @@ export const workspaceDataSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("PAPER"), data: paperDataSchema }),
   z.strictObject({ kind: z.literal("WORKFLOW"), data: workflowDataSchema }),
   z.strictObject({ kind: z.literal("POLICY"), data: policyDataSchema }),
+  // The Delivery Policy body is owned by `./delivery-policy`, which also owns the pure decisions
+  // over it. Stored here it inherits the whole record chain with no migration (R12.2, R12.3).
+  z.strictObject({ kind: z.literal("DELIVERY_POLICY"), data: deliveryPolicySchema }),
+  // The Assessment Brief body is owned by `./assessment-brief`, which also owns the pure decisions
+  // over it. Stored here it inherits the whole record chain with no migration (R3.9, R3.13).
+  z.strictObject({ kind: z.literal("BRIEF"), data: briefDataSchema }),
+  z.strictObject({ kind: z.literal("PRACTICE"), data: practiceDataSchema }),
 ]);
 
 const jsonObject = z.record(z.string(), z.unknown());

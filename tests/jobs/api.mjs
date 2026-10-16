@@ -73,6 +73,7 @@ assert.equal(
   (
     await request(`/api/jobs/${f.jobId}`, "POST", {
       action: "retry",
+      reason: "AUTHORIZATION_RESTORED",
       items: ["not-owned"],
     })
   ).status,
@@ -150,7 +151,7 @@ assert.equal(
     await request(
       `/api/jobs/${f.jobId}`,
       "POST",
-      { action: "retry", items: ["not-owned"] },
+      { action: "retry", items: ["not-owned"], reason: "AUTHORIZATION_RESTORED" },
       outsider,
     )
   ).status,
@@ -163,7 +164,7 @@ for (const role of ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"]) {
       await request(
         `/api/jobs/${f.jobId}`,
         "POST",
-        { action: "cancel", items: [] },
+        { action: "cancel", items: [], reason: "NO_LONGER_REQUIRED" },
         f.cookies[role],
       )
     ).status,

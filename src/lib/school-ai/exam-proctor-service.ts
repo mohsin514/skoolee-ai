@@ -7,12 +7,13 @@ import { scopedAssignment, staffExamAccess } from "./exam-service";
 import { schoolAiTransaction } from "./transaction";
 import { readOriginal, removeOriginal, saveReservedOriginal, sourceStorageAvailable } from "./source-storage";
 import { isProctorVideo, PROCTOR_CLIP_BYTES, PROCTOR_STREAM_BYTES, PROCTOR_STREAM_CLIPS, ProctorChangeSchema, ProctorPolicyUpdateSchema, ProctorStartSchema, proctorMimeType, proctorPolicy, type ProctorView } from "./exam-proctor";
+import { examIntegrityPolicy } from "./exam-integrity";
 
 async function actor(user: AuthUser, db: TxClient) {
   const current = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, campusId: user.campusId, role: user.role, isActive: true }, select: { accessVersion: true } });
   if (!current || user.accessVersion !== undefined && current.accessVersion !== user.accessVersion) throw new ApiError("Your exam access changed. Sign in again.", 403);
 }
-async function audit(db: TxClient, user: AuthUser, id: string, action: string, detail: Prisma.InputJsonObject = {}) { await db.auditLog.create({ data: { schoolId: user.schoolId, tableName: "school_ai_proctor_sessions", recordId: id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { action, ...detail } } }); }
+async function audit(db: TxClient, user: AuthUser, campusId: string, id: string, action: string, detail: Prisma.InputJsonObject = {}) { await db.auditLog.create({ data: { schoolId: user.schoolId, campusId, tableName: "school_ai_proctor_sessions", recordId: id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { action, ...detail } } }); }
 async function sessionAccess(user: AuthUser, assignmentId: string, sessionId: string, db: TxClient, action: "view" | "edit" = "view") {
   await actor(user, db);
   const session = await db.schoolAiProctorSession.findFirst({ where: { id: sessionId, assignmentId, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) }, include: { assignment: true, attempt: true } });
@@ -43,9 +44,12 @@ export async function updateExamProctorPolicy(user: AuthUser, assignmentId: stri
   return schoolAiTransaction(user, async db => {
     const { assignment } = await scopedAssignment(user, assignmentId, db); await staffExamAccess(user, assignment, "edit", db);
     if (await db.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId } })) throw new ApiError("Recording choices are frozen after the first attempt starts.", 409);
-    const saved = await db.schoolAiExamAssignment.updateMany({ where: { id: assignmentId, schoolId: user.schoolId, version: input.version }, data: { proctorPolicy: input.policy, version: { increment: 1 } } });
+    // Recording settings cannot enable, extend or erase the separate
+    // administrator-approved observation policy, including through a forged body.
+    const policy = { ...input.policy, integrity: examIntegrityPolicy(assignment.proctorPolicy) };
+    const saved = await db.schoolAiExamAssignment.updateMany({ where: { id: assignmentId, schoolId: user.schoolId, version: input.version }, data: { proctorPolicy: policy, version: { increment: 1 } } });
     if (!saved.count) throw new ApiError("Exam settings changed. Refresh before saving.", 409);
-    await audit(db, user, assignmentId, "POLICY", input.policy); return { policy: input.policy, version: input.version + 1 };
+    await audit(db, user, assignment.campusId, assignmentId, "POLICY", policy); return { policy, version: input.version + 1 };
   });
 }
 export async function startExamProctor(user: AuthUser, assignmentId: string, value: unknown) {
@@ -63,7 +67,7 @@ export async function startExamProctor(user: AuthUser, assignmentId: string, val
     const previous = await db.schoolAiProctorSession.findMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, kind: input.kind } });
     if (previous.some(s => s.status === "ACTIVE") || previous.length >= 4 || previous.reduce((sum, s) => sum + s.bytes, 0) >= PROCTOR_STREAM_BYTES || previous.reduce((sum, s) => sum + s.clipCount, 0) >= PROCTOR_STREAM_CLIPS) throw new ApiError("End the existing recording first, or continue the exam without recording when its limit is reached.", 409);
     const session = await db.schoolAiProctorSession.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, userId: user.userId, kind: input.kind, clientKey: input.clientKey, consentVersion: input.consentVersion, retentionUntil: new Date(Date.now() + policy.retentionDays * 86400000) } });
-    await audit(db, user, session.id, "CONSENT", { kind: input.kind, consentVersion: input.consentVersion, retentionUntil: session.retentionUntil.toISOString() }); return { id: session.id, retentionUntil: session.retentionUntil.toISOString() };
+    await audit(db, user, session.campusId, session.id, "CONSENT", { kind: input.kind, consentVersion: input.consentVersion, retentionUntil: session.retentionUntil.toISOString() }); return { id: session.id, retentionUntil: session.retentionUntil.toISOString() };
   });
 }
 export async function uploadExamProctorClip(user: AuthUser, assignmentId: string, sessionId: string, sequence: number, bytes: Buffer, contentType: string) {
@@ -97,10 +101,10 @@ export async function changeExamProctor(user: AuthUser, assignmentId: string, va
     const session = await sessionAccess(user, assignmentId, input.sessionId, db, "edit");
     if (input.action === "review") {
       if (user.role === "STUDENT" || !readable(session)) throw new ApiError("Recording review is restricted to current authorized exam staff.", 403);
-      await db.schoolAiProctorSession.update({ where: { id: session.id }, data: { reviewNote: input.note, reviewedById: user.userId, reviewedAt: new Date() } }); await audit(db, user, session.id, "HUMAN_REVIEW");
+      await db.schoolAiProctorSession.update({ where: { id: session.id }, data: { reviewNote: input.note, reviewedById: user.userId, reviewedAt: new Date() } }); await audit(db, user, session.campusId, session.id, "HUMAN_REVIEW");
     } else {
       if (input.action === "end" && user.role !== "STUDENT") throw new ApiError("Only the candidate can end their browser recording.", 403);
-      await db.schoolAiProctorSession.updateMany({ where: { id: session.id, status: { notIn: ["DELETING", "DELETED"] } }, data: input.action === "delete" ? { status: "DELETING", endedAt: session.endedAt ?? new Date(), reviewNote: null, reviewedById: null, reviewedAt: null } : { status: "ENDED", endedAt: session.endedAt ?? new Date() } }); await audit(db, user, session.id, input.action === "delete" ? "DELETE_REQUESTED" : "ENDED");
+      await db.schoolAiProctorSession.updateMany({ where: { id: session.id, status: { notIn: ["DELETING", "DELETED"] } }, data: input.action === "delete" ? { status: "DELETING", endedAt: session.endedAt ?? new Date(), reviewNote: null, reviewedById: null, reviewedAt: null } : { status: "ENDED", endedAt: session.endedAt ?? new Date() } }); await audit(db, user, session.campusId, session.id, input.action === "delete" ? "DELETE_REQUESTED" : "ENDED");
     }
     return { accepted: true };
   });

@@ -1,6 +1,8 @@
 import type { WorkspaceKind, WorkspaceStatus, WorkspaceUpdateInput } from "./types";
 import { SchoolAiError } from "./access";
 import { ONBOARDING_ANSWER_KEYS, onboardingDataSchema, policyDataSchema, sourceDataSchema, workflowDataSchema } from "./schemas";
+import { deliveryPolicySchema } from "./delivery-policy";
+import { assessmentBriefSchema, briefApprovalIssues } from "./assessment-brief";
 import { curriculumDataSchema, validateCurriculumApproval } from "./assessment";
 import { sourceStructureApprovalIssues } from "./intake";
 
@@ -38,8 +40,10 @@ export function protectSourceMetadata(next: Record<string, unknown>, previous?: 
   return result;
 }
 
-/** Readiness errors describe draft approval only. No domain writes are implied. */
-export function workspaceApprovalIssues(kind: WorkspaceKind, data: Record<string, unknown>): string[] {
+/** Readiness errors describe draft approval only. No domain writes are implied.
+ * `now` is injected so the clock-dependent checks stay pure and testable; callers keep their
+ * existing two-argument call and get the server clock. */
+export function workspaceApprovalIssues(kind: WorkspaceKind, data: Record<string, unknown>, now: Date = new Date()): string[] {
   if (kind === "ONBOARDING") {
     const value = onboardingDataSchema.parse(data);
     const required = ["schoolName", "country", "timezone", "campuses", "grades", "academicYear", "startDate", "endDate", "workingDays", "firstOutcome"] as const;
@@ -73,7 +77,27 @@ export function workspaceApprovalIssues(kind: WorkspaceKind, data: Record<string
     for (const step of value.steps) if (step.status === "blocked") issues.push(`Resolve the blocker: ${step.title}`);
     return issues;
   }
-  return []; // PAPER also needs its permission-checked curriculum revision; the repository validates both.
+  if (kind === "DELIVERY_POLICY") {
+    const value = deliveryPolicySchema.parse(data);
+    // An expired revision refuses every admission under it (R12.5, reason code `POLICY_EXPIRED`),
+    // so approving one would approve a policy that can govern nothing. Everything else on the
+    // record is already a schema bound, and an open validation gate is a recorded fact rather
+    // than a defect: `managedModeAvailable` fails closed at admission time instead (R12.8).
+    const today = Number.isFinite(now.getTime()) ? now.toISOString().slice(0, 10) : null;
+    if (today === null) return ["The server clock is unavailable. Try approving this delivery policy again."];
+    return value.expiresOn !== null && value.expiresOn < today ? [`This delivery policy expired on ${value.expiresOn}. Clear or extend the expiry date before approving it.`] : [];
+  }
+  if (kind === "BRIEF") {
+    // Readiness is `briefReadiness` in `./assessment-brief`: a brief is approvable when all nine
+    // decisions are confirmed facts. A skipped decision stays open and keeps blocking (R3.6, R3.8),
+    // and an unaccepted suggestion blocks too — approving on one would approve a value the author
+    // never confirmed (R3.11).
+    return briefApprovalIssues(assessmentBriefSchema.parse(data));
+  }
+  // PAPER also needs its permission-checked curriculum revision; the repository validates both.
+  // PRACTICE readiness is the Practice_Set check in `./recovery` (SKO-408 task 23.x); its owner adds
+  // its branch here when its schema replaces the placeholder in `./schemas`.
+  return [];
 }
 
 function validDate(value: string) {

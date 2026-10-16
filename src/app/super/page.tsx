@@ -1,4 +1,6 @@
 "use client";
+
+import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
@@ -106,9 +108,10 @@ function hasActiveSlot(slot: any) {
 const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
 type SuperView = "schools" | "billing" | "fees" | "settings" | "curriculum-templates" | "support";
+const WORKSPACE_VIEWS: readonly SuperView[] = ["schools", "billing", "fees", "settings", "curriculum-templates", "support"];
 export default function SuperAdminDashboard() {
   const { data, loading, refetch } = useSuperAdminData();
-  const [activeView, setActiveView] = useState<SuperView>("schools");
+  const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "schools");
   const [selectedCampus, setSelectedCampus] = useState<any>(null);
   const [showAddCampusModal, setShowAddCampusModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -152,62 +155,30 @@ export default function SuperAdminDashboard() {
     }
   }, [data]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("view") === "billing") {
-      setActiveView("billing");
-      setSelectedCampus(null);
-    }
-    if (params.get("view") === "fees") {
-      setActiveView("fees");
-      setSelectedCampus(null);
-    }
-    if (params.get("view") === "settings") {
-      setActiveView("settings");
-      setSelectedCampus(null);
-    }
-    if (params.get("view") === "curriculum-templates") {
-      setActiveView("curriculum-templates");
-      setSelectedCampus(null);
-    }
-  }, []);
 
   // Sign-out lives in RoleHeader, which this console renders via RoleShell.
   // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
   // prop, so nothing could call it); its router.push("/login") would also have
   // left this console renderable via Back after sign-out.
-  const syncSuperUrl = (view: SuperView) => {
-    const query =
-      view === "billing" ? "?view=billing"
-      : view === "fees" ? "?view=fees"
-      : view === "settings" ? "?view=settings"
-      : "";
-    window.history.replaceState(null, "", `/super${query}`);
-  };
   const openSchools = () => {
     setActiveView("schools");
     setSelectedCampus(null);
-    syncSuperUrl("schools");
   };
   const openBilling = () => {
     setActiveView("billing");
     setSelectedCampus(null);
-    syncSuperUrl("billing");
   };
   const openFees = () => {
     setActiveView("fees");
     setSelectedCampus(null);
-    syncSuperUrl("fees");
   };
   const openCampus = (campus: any) => {
     setActiveView("schools");
     setSelectedCampus(campus);
-    syncSuperUrl("schools");
   };
   const openAI = () => {
     setActiveView("schools");
     setSelectedCampus(null);
-    syncSuperUrl("schools");
     window.requestAnimationFrame(() => {
       document.getElementById("network-ai-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -344,13 +315,11 @@ export default function SuperAdminDashboard() {
   const openSettings = useCallback(() => {
     setSelectedCampus(null);
     setActiveView("settings");
-    window.history.replaceState(null, "", "/super?view=settings");
   }, []);
 
   const openCurriculumTemplates = useCallback(() => {
     setSelectedCampus(null);
     setActiveView("curriculum-templates");
-    window.history.replaceState(null, "", "/super?view=curriculum-templates");
   }, []);
 
   const navItems: RoleNavItem[] = [

@@ -12,3 +12,13 @@ INSERT INTO exams (id,school_id,campus_id,class_id,title,term,academic_year) VAL
 INSERT INTO marks (id,school_id,campus_id,exam_id,student_id,subject_id,marks_obtained) VALUES ('rehearsal-mark','rehearsal-school','rehearsal-campus','rehearsal-exam','rehearsal-student','rehearsal-subject',83);
 INSERT INTO invoices (id,school_id,campus_id,student_id,invoice_date,due_date,monthly_fee,subtotal,total_amount,total_amount_paid,balance_due) VALUES ('rehearsal-invoice','rehearsal-school','rehearsal-campus','rehearsal-student','2026-10-01','2026-10-15',10000,10000,10000,2500,7500);
 INSERT INTO student_documents (id,school_id,student_id,kind,file_key,file_name) VALUES ('rehearsal-document','rehearsal-school','rehearsal-student','OTHER','synthetic/attachment.txt','attachment.txt');
+-- A second tenant/campus ensures reconciliation cannot silently flatten ownership.
+INSERT INTO schools (id,name,slug,city,reg_id,contact_email) VALUES ('rehearsal-school-b','Second recovery fixture','rehearsal-b','Test','rehearsal-b','operator-b@example.invalid');
+INSERT INTO campuses (id,school_id,name,city,reg_id) VALUES ('rehearsal-campus-b','rehearsal-school-b','Second fixture','Test','fixture-campus-b');
+INSERT INTO classes (id,school_id,campus_id,name,academic_year) VALUES ('rehearsal-class-b','rehearsal-school-b','rehearsal-campus-b','Fixture B',2026);
+INSERT INTO students (id,school_id,campus_id,class_id,full_name,roll_no,gender,enrollment_date) VALUES ('rehearsal-student-b','rehearsal-school-b','rehearsal-campus-b','rehearsal-class-b','Second synthetic pupil','R1','FEMALE','2026-01-01');
+INSERT INTO subjects (id,school_id,campus_id,class_id,name) VALUES ('rehearsal-subject-b','rehearsal-school-b','rehearsal-campus-b','rehearsal-class-b','Science');
+INSERT INTO exams (id,school_id,campus_id,class_id,title,term,academic_year) VALUES ('rehearsal-exam-b','rehearsal-school-b','rehearsal-campus-b','rehearsal-class-b','Fixture B','Term 1',2026);
+INSERT INTO marks (id,school_id,campus_id,exam_id,student_id,subject_id,marks_obtained) VALUES ('rehearsal-mark-b','rehearsal-school-b','rehearsal-campus-b','rehearsal-exam-b','rehearsal-student-b','rehearsal-subject-b',71);
+INSERT INTO invoices (id,school_id,campus_id,student_id,invoice_date,due_date,monthly_fee,subtotal,total_amount,total_amount_paid,balance_due) VALUES ('rehearsal-invoice-b','rehearsal-school-b','rehearsal-campus-b','rehearsal-student-b','2026-10-01','2026-10-15',9000,9000,9000,3000,6000);
+INSERT INTO student_documents (id,school_id,student_id,kind,file_key,file_name) VALUES ('rehearsal-document-b','rehearsal-school-b','rehearsal-student-b','OTHER','synthetic/other-attachment.txt','other-attachment.txt');

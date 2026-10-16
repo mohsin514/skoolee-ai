@@ -4,13 +4,19 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { dashboardPathForRole, roleLabel } from "@/lib/roles";
+import { candidateExamBoundary } from "@/lib/school-ai/exam-boundary-service";
+import { candidateExamUrl } from "@/lib/school-ai/exam-boundary";
+import { loadPermissionMap } from "@/lib/permissions";
+import { draftAuthorizationFingerprint } from "@/lib/drafts/scope";
+
+const noStore = { "Cache-Control": "private, no-store" };
 
 export async function GET() {
   try {
     const user = await getAuthUser();
 
     if (!user) {
-      return NextResponse.json({ user: null }, { status: 401 });
+      return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
     }
 
     const profile = await prisma.user.findUnique({
@@ -18,15 +24,18 @@ export async function GET() {
       select: { fullName: true, email: true, phone: true, profileImageUrl: true, isActive: true, schoolId: true, role: true, campusId: true },
     });
 
-    if (!profile?.isActive || profile.schoolId !== user.schoolId || profile.role !== user.role || profile.campusId !== user.campusId) return NextResponse.json({ user: null }, { status: 401 });
+    if (!profile?.isActive || profile.schoolId !== user.schoolId || profile.role !== user.role || profile.campusId !== user.campusId) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
 
     const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+    const draftAuthorization = draftAuthorizationFingerprint(user, await loadPermissionMap(user.schoolId, user.role));
+    const activeExam = user.role === "STUDENT" ? await candidateExamBoundary(user) : null;
     return NextResponse.json({
+      activeExamUrl: activeExam ? candidateExamUrl(activeExam.assignmentId) : null,
       user: {
         id: user.userId,
         schoolId: user.schoolId,
         // A purpose-scoped digest is not a bearer credential. New logins cannot recover old drafts.
-        draftScope: token ? hashSessionToken(`device-draft:${token}:${user.schoolId}:${user.campusId}:${user.role}`) : null,
+        draftScope: token ? hashSessionToken(`device-draft:${token}:${user.schoolId}:${user.campusId}:${user.role}:${draftAuthorization}`) : null,
         email: profile?.email || user.email,
         fullName: profile?.fullName || user.fullName || user.email,
         phone: profile?.phone || "",
@@ -35,9 +44,9 @@ export async function GET() {
         roleLabel: roleLabel(user.role),
         dashboardPath: dashboardPathForRole(user.role),
       },
-    });
+    }, { headers: noStore });
   } catch (error) {
     console.error("[auth/session] GET failed", error);
-    return NextResponse.json({ error: "Operation failed" }, { status: 500 });
+    return NextResponse.json({ error: "Operation failed" }, { status: 500, headers: noStore });
   }
 }

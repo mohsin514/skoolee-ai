@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 
 /** Signing out is a POST, so it cannot be a plain link. */
-export function SignOutLink() {
+export function SignOutLink({ label = "Sign out" }: { label?: string }) {
   const signOut = async () => {
     clearDeviceDrafts();
     await fetch("/api/auth/logout", { method: "POST" });
@@ -17,7 +17,7 @@ export function SignOutLink() {
       onClick={signOut}
       className="w-full items-center justify-center"
     >
-      Sign out
+      {label}
     </Button>
   );
 }

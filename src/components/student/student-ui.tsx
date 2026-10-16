@@ -169,7 +169,7 @@ export function StatCard({
   const t = TONES[tone];
   return (
     <div
-      className="sk-rise relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]"
+      className="sk-rise relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]"
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {/* A tinted edge carries the tone without a coloured card. */}
@@ -177,21 +177,21 @@ export function StatCard({
         aria-hidden
         className={`absolute inset-y-0 start-0 w-[3px] opacity-40 ${t.solid}`}
       />
-      <div className="relative flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p dir="auto" className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
+      <div className="relative flex min-w-0 items-center justify-between gap-[10px]">
+        <div className="min-w-0 flex-1">
+          <p dir="auto" className="[overflow-wrap:anywhere] text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
             {value}
           </p>
-          <p dir="auto" className="mt-1.5 truncate text-xs font-semibold leading-tight text-ink-muted">
+          <p dir="auto" className="mt-1.5 [overflow-wrap:anywhere] text-xs font-semibold leading-tight text-ink-muted">
             {label}
           </p>
-          {sub && <p dir="auto" className="mt-0.5 truncate text-xs font-medium leading-tight text-ink-muted">{sub}</p>}
+          {sub && <p dir="auto" className="mt-0.5 [overflow-wrap:anywhere] text-xs font-medium leading-tight text-ink-muted">{sub}</p>}
         </div>
         {typeof ring === "number" ? (
           <ProgressRing value={ring} tone={tone} size={46} stroke={5} />
         ) : (
           <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}
+            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}
           >
             <Icon className="h-4 w-4" />
           </div>
@@ -217,13 +217,13 @@ export function PanelHeading({
 }) {
   const t = TONES[tone];
   return (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}>
+    <div className="mb-[12px] flex flex-wrap items-center justify-between gap-[10px]">
+      <div className="flex min-w-[min(100%,12rem)] flex-1 items-center gap-[10px]">
+        <div className={`flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}>
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">{title}</h3>
+          <h3 className="text-sm font-black tracking-tight text-[#1d1b20] [overflow-wrap:anywhere]">{title}</h3>
           {sub && (
             <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p>
           )}
@@ -246,7 +246,7 @@ export function Panel({
 }) {
   return (
     <div
-      className={`sk-rise rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${className}`}
+      className={`sk-rise min-w-0 rounded-[22px] border border-[#cfc2d6]/20 bg-white p-[12px] sm:p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${className}`}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {children}
