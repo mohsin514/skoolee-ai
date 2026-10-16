@@ -348,20 +348,13 @@ export default function OnboardingWizard() {
       toast.success(`${newCampus.name} updated.`);
     } else {
       // Add new campus
-      try {
-        const plan = session?.school?.plan;
-        const maxCampuses = getPlanLimits(plan).maxCampuses;
-        if (maxCampuses >= 0 && campuses.length + 1 > maxCampuses) {
-          const planName = getPlanLimits(plan).name || 'your plan';
-          toast.error(`Your ${planName} package is limited to ${maxCampuses} campus${maxCampuses === 1 ? '' : 'es'}. Please upgrade to an applicable package to add multiple campuses.`);
-          return;
-        }
-      } catch {
-        // let server validate
-      }
       setCampuses([...campuses, { ...newCampus, id: Date.now().toString() }]);
       setNewCampus(emptyCampus());
-      toast.success(`${newCampus.name} added.`);
+      if (campusLimit >= 0 && campuses.length + 1 > campusLimit) {
+        toast.warning(`${newCampus.name} saved as a draft. Your current package covers ${campusLimit} campus${campusLimit === 1 ? '' : 'es'}; compare packages before launching.`);
+      } else {
+        toast.success(`${newCampus.name} added.`);
+      }
     }
   };
 
@@ -477,7 +470,16 @@ export default function OnboardingWizard() {
     setStep('review');
   };
 
+  // Campuses beyond the selected package stay as drafts; launch waits for a package that fits.
+  const campusLimit = (() => { try { return getPlanLimits(session?.school?.plan).maxCampuses; } catch { return -1; } })();
+  const overCampusLimit = campusLimit >= 0 && campuses.length > campusLimit;
+  const comparePackagesHref = `/onboarding/package?returnStep=${encodeURIComponent(step)}&campuses=${Math.max(1, campuses.length)}`;
+
   const handleFinalLaunch = async () => {
+    if (overCampusLimit) {
+      toast.error(`Your current package covers ${campusLimit} campus${campusLimit === 1 ? '' : 'es'}. Choose a package that fits ${campuses.length} campuses, or remove a draft campus, before launching.`);
+      return;
+    }
     setLoading(true);
     try {
       const res = await finishOnboarding(schoolData, campuses);
@@ -591,7 +593,7 @@ export default function OnboardingWizard() {
           </div>
           <div className="flex items-center gap-3">
             <Link
-              href={`/onboarding/package?returnStep=${encodeURIComponent(step)}&campuses=${Math.max(1, campuses.length)}`}
+              href={comparePackagesHref}
               className={buttonVariants({ variant: "outline", className: "" })}
             >
               Compare packages
@@ -839,6 +841,12 @@ export default function OnboardingWizard() {
                         </h3>
                         <span className="text-[9px] font-black text-[#8127cf] bg-[#fbf0fe] px-3 py-1 rounded-full uppercase tracking-normal">{campuses.length} Added</span>
                       </div>
+                      {overCampusLimit && (
+                        <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                          <p>Your current package covers {campusLimit} campus{campusLimit === 1 ? '' : 'es'}. The other {campuses.length - campusLimit} {campuses.length - campusLimit === 1 ? 'is' : 'are'} kept as draft{campuses.length - campusLimit === 1 ? '' : 's'} and will be created once you choose a package that fits.</p>
+                          <Link href={comparePackagesHref} className={buttonVariants({ variant: "link", className: "mt-1 h-auto p-0" })}>Compare packages</Link>
+                        </div>
+                      )}
 
                       <div className="flex-1 space-y-3 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
                         {campuses.map((c, i) => (
@@ -1157,6 +1165,11 @@ export default function OnboardingWizard() {
                     )}
                   </div>
 
+                  {overCampusLimit && (
+                    <p id="launch-capacity-note" role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                      {campuses.length} campuses are planned but your current package covers {campusLimit}. <Link href={comparePackagesHref} className="font-bold underline">Compare packages</Link> or remove a draft campus to launch.
+                    </p>
+                  )}
                   <div className="flex items-center gap-4 pt-2">
                     <Button variant="outline"
                       onClick={goBack}
@@ -1169,6 +1182,7 @@ export default function OnboardingWizard() {
                     <Button variant="default"
                       onClick={handleFinalLaunch}
                       disabled={loading}
+                      aria-describedby={overCampusLimit ? "launch-capacity-note" : undefined}
                       className="flex-1 items-center justify-center gap-4 group"
                     >
                       {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Launch Dashboard <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" /></>}

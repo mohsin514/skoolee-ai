@@ -240,6 +240,7 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
     },
     limits,
     commercialContractVersion: limits.contractVersion,
+    country: locationCountry.success ? locationCountry.data : "OTHER" as const,
     regionalCurrency,
     priceCurrency: limits.priceCurrency,
     usage: {

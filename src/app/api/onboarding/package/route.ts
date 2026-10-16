@@ -17,6 +17,7 @@ import { COMMERCIAL_CATALOG_VERSION, type BillingPeriod } from "@/config/plans";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { getPriceId, stripe, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
+import { automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,15 +46,17 @@ export async function GET() {
       where: { id: user.userId, schoolId: user.schoolId },
       select: { preferredLanguage: true },
     });
-    const methods = [
+    const methods = regionalPaymentMethods(billing.country, [
       stripe && paymentConfig.availableMethods.includes("stripe") ? "stripe" : null,
       paymentConfig.availableMethods.includes("safepay") ? "safepay" : null,
       paymentConfig.bank?.bankName ? "bank_transfer" : null,
-    ].filter((method): method is string => Boolean(method));
+    ].filter((method): method is OnboardingPaymentMethod => Boolean(method)));
 
     return Response.json({
       plans: details,
       currentPlan: billing.school.plan,
+      country: billing.country,
+      salesAssisted: !automatedCheckoutAvailable(billing.country),
       regionalCurrency: billing.regionalCurrency,
       priceCurrency: "PKR",
       catalogueVersion: COMMERCIAL_CATALOG_VERSION,
@@ -126,6 +129,13 @@ export async function POST(req: NextRequest) {
     );
     const canUseSafePay = paymentConfig.availableMethods.includes("safepay");
     const canUseBank = Boolean(paymentConfig.bank?.bankName);
+    if (intent.provider === "NONE" && !automatedCheckoutAvailable(billing.country)) {
+      await prisma.onboardingCheckoutIntent.update({
+        where: { id: intent.id },
+        data: { status: "FAILED", failureReason: "Automated checkout is not available in this school's region." },
+      });
+      throw new ApiError("Automated checkout is not yet available for your school's region. Request a quote and our team will confirm pricing and payment with you, or continue with the free package.", 409);
+    }
 
     const provider = intent.provider !== "NONE"
       ? intent.provider

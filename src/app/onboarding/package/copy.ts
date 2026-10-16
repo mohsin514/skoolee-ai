@@ -4,7 +4,7 @@ export type PackageCopy = {
   current: string; free: string; customQuote: string; freeDescription: string; customDescription: string;
   fits: string; exceeds: string; students: string; teachers: string; branches: string; aiCredits: string;
   unlimited: string; perMonth: string; perYear: string; continueFree: string; choose: string; quote: string;
-  checkoutUnavailable: string; paidUnavailable: string; pricesAndTerms: string; approvedTerms: string;
+  checkoutUnavailable: string; paidUnavailable: string; regionalQuote: string; pricesAndTerms: string; approvedTerms: string;
   priceDisclosure: string; statusTitle: string; loadingOrder: string; missingReference: string;
   statusConfirmed: string; statusPending: string; statusQuote: string; statusFree: string;
   statusCancelled: string; statusFailed: string; savedActive: string; savedPending: string;
@@ -28,7 +28,7 @@ const en: PackageCopy = {
   exceeds: "Expected size is above this package limit", students: "Students", teachers: "Teachers", branches: "Campuses",
   aiCredits: "AI credits / month", unlimited: "Unlimited", perMonth: "mo", perYear: "yr",
   continueFree: "Continue with free package", choose: "Choose this package", quote: "Request a custom quote",
-  checkoutUnavailable: "Checkout unavailable", paidUnavailable: "Paid checkout is not currently available.",
+  checkoutUnavailable: "Checkout unavailable", paidUnavailable: "Paid checkout is not currently available.", regionalQuote: "Online payment is not available for your region yet. Request a quote and our team will confirm the price, currency and payment method with you.",
   pricesAndTerms: "Prices in PKR. The regional currency does not convert the catalogue price.", approvedTerms: "Approved terms",
   priceDisclosure: "Prices are shown in PKR. Regional currency is informational and does not convert the price.",
   statusTitle: "Payment and setup status", loadingOrder: "Loading saved order…", missingReference: "Checkout reference is missing.",
@@ -60,7 +60,7 @@ const ar: PackageCopy = {
   exceeds: "الاحتياج المتوقع يتجاوز حد هذه الباقة", students: "الطلاب", teachers: "المعلمون", branches: "الفروع",
   aiCredits: "رصيد الذكاء الاصطناعي شهرياً", unlimited: "غير محدود", perMonth: "شهرياً", perYear: "سنوياً",
   continueFree: "المتابعة بالباقة المجانية", choose: "اختيار هذه الباقة", quote: "طلب عرض سعر مخصص",
-  checkoutUnavailable: "الدفع غير متاح", paidUnavailable: "الدفع للباقة المدفوعة غير متاح حالياً.",
+  checkoutUnavailable: "الدفع غير متاح", paidUnavailable: "الدفع للباقة المدفوعة غير متاح حالياً.", regionalQuote: "الدفع الإلكتروني غير متاح لمنطقتك بعد. اطلب عرض سعر وسيؤكد فريقنا السعر والعملة وطريقة الدفع معك.",
   pricesAndTerms: "الأسعار بعملة PKR. العملة الإقليمية لا تحوّل سعر الكتالوج.", approvedTerms: "الشروط المعتمدة",
   priceDisclosure: "تُعرض الأسعار بعملة PKR. العملة الإقليمية للمعلومات فقط ولا تحوّل السعر.",
   statusTitle: "حالة الدفع والإعداد", loadingOrder: "جارٍ تحميل الطلب المحفوظ…", missingReference: "مرجع الدفع غير موجود.",
@@ -103,7 +103,7 @@ const ur: PackageCopy = {
   exceeds: "متوقع ضرورت اس پیکیج کی حد سے زیادہ ہے", students: "طلبہ", teachers: "اساتذہ", branches: "کیمپس",
   aiCredits: "ماہانہ AI کریڈٹس", unlimited: "لامحدود", perMonth: "ماہانہ", perYear: "سالانہ",
   continueFree: "مفت پیکیج کے ساتھ جاری رکھیں", choose: "یہ پیکیج منتخب کریں", quote: "حسب ضرورت قیمت طلب کریں",
-  checkoutUnavailable: "ادائیگی دستیاب نہیں", paidUnavailable: "ادائیگی والا پیکیج فی الحال دستیاب نہیں۔",
+  checkoutUnavailable: "ادائیگی دستیاب نہیں", paidUnavailable: "ادائیگی والا پیکیج فی الحال دستیاب نہیں۔", regionalQuote: "آپ کے علاقے کے لیے آن لائن ادائیگی ابھی دستیاب نہیں۔ قیمت طلب کریں، ہماری ٹیم آپ کے ساتھ قیمت، کرنسی اور ادائیگی کا طریقہ طے کرے گی۔",
   pricesAndTerms: "قیمتیں PKR میں ہیں۔ علاقائی کرنسی فہرست کی قیمت تبدیل نہیں کرتی۔", approvedTerms: "منظور شدہ شرائط",
   priceDisclosure: "قیمتیں PKR میں دکھائی گئی ہیں۔ علاقائی کرنسی صرف معلومات کے لیے ہے اور قیمت تبدیل نہیں کرتی۔",
   statusTitle: "ادائیگی اور سیٹ اپ کی حالت", loadingOrder: "محفوظ آرڈر لوڈ ہو رہا ہے…", missingReference: "ادائیگی کا حوالہ موجود نہیں۔",

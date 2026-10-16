@@ -31,6 +31,7 @@ type Catalogue = {
   commercialTermsVersion: string;
   regionalPriceDisclosure: string;
   paymentMethods: string[];
+  salesAssisted: boolean;
   bank: { bankName: string; accountTitle: string; accountNumber: string; iban: string | null } | null;
   language: string;
 };
@@ -113,6 +114,13 @@ function PackageChoice() {
     }
   };
 
+  const requestRegionalQuote = (plan: Plan) => {
+    if (!catalogue) return;
+    const subject = encodeURIComponent(`Package quote — ${plan.name}`);
+    const body = encodeURIComponent(`Package: ${plan.name}\nBilling period: ${period}\nExpected campuses: ${campuses}\nExpected enrollment: ${enrollment}\nSchool currency: ${catalogue.regionalCurrency}\nSetup return step: ${resume}`);
+    window.location.href = `mailto:${encodeURIComponent(process.env.NEXT_PUBLIC_SALES_EMAIL || "sales@skoolee.ai")}?subject=${subject}&body=${body}`;
+  };
+
   const priceText = (plan: Plan) => {
     if (plan.price == null) return copy.customQuote;
     if (plan.price === 0) return copy.free;
@@ -176,7 +184,9 @@ function PackageChoice() {
             const plan = catalogue.plans[type];
             const fits = (plan.maxCampuses < 0 || campuses <= plan.maxCampuses) && (plan.maxStudents < 0 || enrollment <= plan.maxStudents);
             const recommendedCurrent = plan.type === catalogue.currentPlan;
-            const unavailablePaid = type !== "FREE" && type !== "ENTERPRISE" && catalogue.paymentMethods.length === 0;
+            const paidType = type !== "FREE" && type !== "ENTERPRISE";
+            const regionalQuote = paidType && catalogue.salesAssisted;
+            const unavailablePaid = paidType && !regionalQuote && catalogue.paymentMethods.length === 0;
             return <article key={plan.type} className={`sk-panel flex min-h-[28rem] flex-col p-5 ${recommendedCurrent ? "border-primary" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-base font-black">{copy.planNames[plan.type] ?? plan.name}</h2>
@@ -206,12 +216,17 @@ function PackageChoice() {
                 <Button variant="outline" type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
                   <Mail className="h-4 w-4" />{copy.quote}
                 </Button>
+              ) : regionalQuote ? (
+                <Button variant="outline" type="button" onClick={() => requestRegionalQuote(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
+                  <Mail className="h-4 w-4" />{copy.quote}
+                </Button>
               ) : (
                 <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy || unavailablePaid} className="mt-5 items-center justify-center gap-2">
                   {busy === type && <Loader2 className="h-4 w-4 animate-spin" />}{unavailablePaid ? copy.checkoutUnavailable : copy.choose}
                 </Button>
               )}
               {unavailablePaid && <p className="mt-2 text-xs text-[#615668]">{copy.paidUnavailable}</p>}
+              {regionalQuote && <p className="mt-2 text-xs leading-5 text-[#615668]">{copy.regionalQuote}</p>}
             </article>;
           })}
         </section>}
