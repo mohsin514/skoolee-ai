@@ -1,4 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { effectiveSettings } from "@/lib/accommodations/plan";
+import { activePlanFor } from "@/lib/accommodations/service";
 import { createHash } from "node:crypto";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
@@ -113,8 +115,10 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
 
 export async function getSchoolAiExam(user: AuthUser, id: string) {
   const { assignment, paper, student } = await scopedAssignment(user, id);
-  const accommodation = student ? examAccommodationsSchema.parse(assignment.accommodations)[student.id] : undefined;
-  const extraMinutes = accommodation?.extraMinutes ?? 0, breakMinutes = accommodation?.breakMinutes ?? 0;
+  const examApproval = student ? examAccommodationsSchema.parse(assignment.accommodations)[student.id] : undefined;
+  const effective = effectiveSettings({ baseMinutes: paper.blueprint.durationMinutes, type: "EXAM", at: new Date(), examApproval: examApproval ?? null, plan: student && !examApproval ? await activePlanFor(prisma, user.schoolId, student.id) : null });
+  const accommodation = { ...effective.capabilities, extraMinutes: effective.extraMinutes, breakMinutes: effective.breakMinutes };
+  const extraMinutes = effective.extraMinutes, breakMinutes = effective.breakMinutes;
   const recording = proctorPolicy(assignment.proctorPolicy);
   return { version: assignment.version, integrityPolicy: examIntegrityDisclosure(assignment.proctorPolicy), cameraRequired: recording.requireCamera && !accommodation?.cameraExempt, cameraRetentionDays: recording.retentionDays, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false, cameraExempt: accommodation?.cameraExempt ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
 }
@@ -147,14 +151,16 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
       const currentTime = now ?? new Date();
       if (currentTime < assignment.startsAt || currentTime >= assignment.endsAt) throw new ApiError("The exam is outside its availability window.", 409);
       const accommodation = examAccommodationsSchema.parse(assignment.accommodations)[student.id];
+      // SKO-410: an exam-specific approval wins; otherwise the learner's active plan covering this exam applies.
+      const effective = effectiveSettings({ baseMinutes: paper.blueprint.durationMinutes, type: "EXAM", at: currentTime, examApproval: accommodation ?? null, plan: accommodation ? null : await activePlanFor(tx, user.schoolId, student.id) });
       const recording = proctorPolicy(assignment.proctorPolicy);
-      if (recording.requireCamera && !accommodation?.cameraExempt) {
+      if (recording.requireCamera && !effective.capabilities.cameraExempt) {
         if (!sourceStorageAvailable()) throw new ApiError("Required camera recording is unavailable. Ask staff for an approved alternative before starting.", 503);
         // This is a browser report and explicit consent, not device attestation.
         if (readiness?.cameraReady !== true || readiness.consentVersion !== PROCTOR_CONSENT_VERSION) throw new ApiError("Complete the camera check and recording notice before starting, or ask staff for an approved exception.", 422);
       }
-      const extraMinutes = (accommodation?.extraMinutes ?? 0) + (accommodation?.breakMinutes ?? 0);
-      const started = await tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt: attemptDeadline(currentTime, assignment.endsAt, paper.blueprint.durationMinutes + extraMinutes), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
+      // The effective settings are bound to the attempt: later plan expiry or revocation never changes a started attempt.
+      const started = await tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt: attemptDeadline(currentTime, assignment.endsAt, effective.totalMinutes), accommodationSnapshot: json({ ...effective, instructions: undefined }), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
       await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: started.id, action: "CREATE", campusId: started.campusId, after: { assignmentId: id, studentId: student.id, status: started.status, assignmentVersion: assignment.version, deadlineAt: started.deadlineAt.toISOString() } });
       return started;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
@@ -180,13 +186,18 @@ export async function getSchoolAiAccommodations(user: AuthUser, id: string) {
   const canApprove = await canApproveAccommodation(user);
   const accommodations = examAccommodationsSchema.parse(assignment.accommodations);
   const studentIds = Array.isArray(assignment.studentIds) ? assignment.studentIds.filter((value): value is string => typeof value === "string") : [];
-  const [students, attempts] = await Promise.all([
+  const [students, attempts, plans, live] = await Promise.all([
     prisma.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: assignment.campusId, classId: assignment.classId, archivedAt: null, status: "active" }, select: { id: true, fullName: true, rollNo: true }, orderBy: { rollNo: "asc" } }),
     prisma.schoolAiExamAttempt.findMany({ where: { assignmentId: id, schoolId: user.schoolId, campusId: assignment.campusId }, select: { studentId: true, deadlineAt: true, status: true } }),
+    prisma.accommodationPlan.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", studentId: { in: studentIds } } }),
+    prisma.accommodationLiveAdjustment.findMany({ where: { schoolId: user.schoolId, assignmentId: id }, orderBy: { createdAt: "asc" }, select: { studentId: true, addedMinutes: true, reason: true, oldDeadline: true, newDeadline: true, createdAt: true } }),
   ]);
   return { version: assignment.version, canApprove: canApprove && assignment.status === "ACTIVE" && assignment.endsAt > new Date(), baseDurationMinutes: paper.blueprint.durationMinutes, endsAt: assignment.endsAt, students: students.map((student) => {
-    const approved = accommodations[student.id];
-    return { ...student, extraMinutes: approved?.extraMinutes ?? 0, breakMinutes: approved?.breakMinutes ?? 0, reader: approved?.reader ?? false, scribe: approved?.scribe ?? false, largeText: approved?.largeText ?? false, cameraExempt: approved?.cameraExempt ?? false, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
+    const exam = accommodations[student.id];
+    // Invigilators see the operational result and its source, never supporting records.
+    const effective = effectiveSettings({ baseMinutes: paper.blueprint.durationMinutes, type: "EXAM", at: assignment.startsAt, examApproval: exam ?? null, plan: exam ? null : plans.find(plan => plan.studentId === student.id) ?? null });
+    const approved = exam ?? (effective.source === "PLAN" ? { ...effective.capabilities, extraMinutes: effective.extraMinutes, breakMinutes: effective.breakMinutes, reason: undefined, approvedAt: undefined } : undefined);
+    return { ...student, source: effective.source, planVersion: effective.planVersion, instructions: effective.instructions, totalMinutes: effective.totalMinutes, liveAdjustments: live.filter(row => row.studentId === student.id), extraMinutes: approved?.extraMinutes ?? 0, breakMinutes: approved?.breakMinutes ?? 0, reader: approved?.reader ?? false, scribe: approved?.scribe ?? false, largeText: approved?.largeText ?? false, cameraExempt: approved?.cameraExempt ?? false, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
   }) };
 }
 

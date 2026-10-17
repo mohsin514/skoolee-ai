@@ -222,6 +222,10 @@ model School {
   learningResources       LearningResource[]
   learningResourceVersions LearningResourceVersion[]
   curriculumObjectiveMappings CurriculumObjectiveMapping[]
+  accommodationPlans AccommodationPlan[]
+  accommodationSupportRecords AccommodationSupportRecord[]
+  accommodationRehearsals AccommodationRehearsal[]
+  accommodationLiveAdjustments AccommodationLiveAdjustment[]
   assignments             Assignment[]
   assignmentRubricVersions AssignmentRubricVersion[]
   assignmentVersions      AssignmentVersion[]
@@ -3999,6 +4003,8 @@ model SchoolAiExamAttempt {
   status       String @default("IN_PROGRESS")
   submittedAt  DateTime? @map("submitted_at")
   scoreProposal Json? @map("score_proposal")
+  /// SKO-410: the effective timing and access settings bound at start; later plan changes never alter it.
+  accommodationSnapshot Json? @map("accommodation_snapshot")
   reviewedAt   DateTime? @map("reviewed_at")
   reviewedById String? @map("reviewed_by_id")
   review       Json?
@@ -4851,4 +4857,86 @@ model AssignmentFeedback {
   updatedAt           DateTime                    @updatedAt @map("updated_at")
 
   @@map("assignment_feedback")
+}
+
+/// SKO-410: a learner's approved, time-bounded assessment access plan. Each revision is a new row;
+/// only operational adjustments live here. Diagnosis or private context never belongs in `instructions`.
+model AccommodationPlan {
+  id              String    @id @default(uuid())
+  schoolId        String    @default("") @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  studentId       String    @map("student_id")
+  version         Int
+  status          String    @default("ACTIVE") // ACTIVE | SUPERSEDED | REVOKED
+  validFrom       DateTime  @map("valid_from") @db.Date
+  validUntil      DateTime  @map("valid_until") @db.Date
+  assessmentTypes String[]  @map("assessment_types")
+  extraMinutes    Int       @default(0) @map("extra_minutes")
+  extraPercent    Int       @default(0) @map("extra_percent")
+  breakMinutes    Int       @default(0) @map("break_minutes")
+  capabilities    Json
+  instructions    String    @default("")
+  approvedById    String    @map("approved_by_id")
+  approvedAt      DateTime  @default(now()) @map("approved_at")
+  endedAt         DateTime? @map("ended_at")
+  endedById       String?   @map("ended_by_id")
+  endReason       String?   @map("end_reason")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  supportRecords  AccommodationSupportRecord[]
+  rehearsals      AccommodationRehearsal[]
+
+  @@unique([schoolId, studentId, version])
+  @@index([schoolId, campusId, status])
+  @@map("accommodation_plans")
+}
+
+/// Confidential supporting context, readable only by designated approvers.
+model AccommodationSupportRecord {
+  id          String            @id @default(uuid())
+  schoolId    String            @default("") @map("school_id")
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  planId      String            @map("plan_id")
+  plan        AccommodationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  note        String
+  createdById String            @map("created_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  @@index([schoolId, planId])
+  @@map("accommodation_support_records")
+}
+
+/// A learner's practice check of the exact accessible mode before a formal attempt.
+model AccommodationRehearsal {
+  id          String            @id @default(uuid())
+  schoolId    String            @default("") @map("school_id")
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  planId      String            @map("plan_id")
+  plan        AccommodationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  studentId   String            @map("student_id")
+  settings    Json
+  completedAt DateTime          @default(now()) @map("completed_at")
+
+  @@index([schoolId, studentId])
+  @@map("accommodation_rehearsals")
+}
+
+/// An exceptional adjustment to a running attempt, with approver, reason and old/new deadline.
+model AccommodationLiveAdjustment {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  assignmentId String   @map("assignment_id")
+  attemptId    String   @map("attempt_id")
+  studentId    String   @map("student_id")
+  addedMinutes Int      @map("added_minutes")
+  reason       String
+  oldDeadline  DateTime @map("old_deadline")
+  newDeadline  DateTime @map("new_deadline")
+  approvedById String   @map("approved_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, assignmentId])
+  @@map("accommodation_live_adjustments")
 }

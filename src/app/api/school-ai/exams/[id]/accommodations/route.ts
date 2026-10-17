@@ -14,3 +14,11 @@ export async function PATCH(request: Request, context: Context) {
     return Response.json({ approval: await approveSchoolAiAccommodation(await requireAuthUser(), (await context.params).id, await readBoundedJson(request, 8000)) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return schoolAiError(error); }
 }
+/** SKO-410: an exceptional live extension of a running attempt. */
+export async function POST(request: Request, context: Context) {
+  try {
+    assertSameOrigin(request);
+    const { liveAdjustment } = await import("@/lib/accommodations/service");
+    return Response.json({ adjustment: await liveAdjustment(await requireAuthUser(), (await context.params).id, await readBoundedJson(request, 4000)) }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return schoolAiError(error); }
+}

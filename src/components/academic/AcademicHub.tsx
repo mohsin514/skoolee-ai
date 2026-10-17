@@ -265,6 +265,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
             <Link href="/setup/readiness" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">School readiness</Link>
             <Link href="/resources" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">Learning resources</Link>
             <Link href="/curriculum" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">Objective map</Link>
+            <Link href="/accommodations" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">Access plans</Link>
             {stats && stats.availableYears.length > 1 ? (
               <SystemSelect
                 value={stats.academicYear}
