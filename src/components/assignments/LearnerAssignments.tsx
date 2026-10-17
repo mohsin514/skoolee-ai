@@ -2,7 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
 import { Banner, call, fileHref, fill, formatAt, Pill, RubricTable, shortSha, stateTone, type Criterion, type Feedback, type Receipt } from "./shared";
 
@@ -30,18 +32,30 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [receipt, setReceipt] = useState<ReceiptResult | null>(null);
+  // SKO-418: Today deep-links here with ?open=<assignment>; Back returns to Today.
+  const ui = useUiText();
+  const params = useSearchParams(), requested = params.get("open"), fromToday = params.get("from") === "today";
+  const [missing, setMissing] = useState(false), linked = useRef(false);
   const load = useCallback(async () => setItems((await call("/api/assignments")).assignments), []);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
+  useEffect(() => {
+    if (!items || !requested || linked.current) return;
+    linked.current = true;
+    const match = items.find(item => item.id === requested);
+    if (match) setSelected(`${match.id}:${match.studentId}`); else setMissing(true);
+  }, [items, requested]);
 
   if (!items) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <p className="text-sm text-slate-600" aria-busy="true">{t.loading}</p>}</div>;
   const current = items.find(item => `${item.id}:${item.studentId}` === selected);
   if (current) return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
+    {fromToday ? <Link href="/student" className="text-sm font-semibold text-[#8127cf] underline" data-back-today>{ui("Back to Today")}</Link> : null}
     <Button type="button" variant="link" className="px-0" onClick={() => { setSelected(null); setStatus(null); setReceipt(null); }}>{t.back}</Button>
     <Banner status={status} />
     <AssignmentView t={t} language={language} item={current} audience={audience} reload={load} setStatus={setStatus} receipt={receipt} setReceipt={setReceipt} />
   </div>;
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
     <Banner status={status} />
+    {missing ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-task-unavailable>{ui("This task is no longer assigned to your account.")} {fromToday ? <Link href="/student" className="font-semibold underline">{ui("Back to Today")}</Link> : null}</div> : null}
     {audience === "guardian" && <p className="text-xs text-slate-600">{t.workHidden}</p>}
     {items.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-600">{audience === "guardian" ? t.guardianEmpty : t.learnerEmpty}</p>
       : <ul className="grid gap-3" aria-label={t.title}>{items.map(item => { const latest = item.versions[0]; return <li key={`${item.id}:${item.studentId}`} className="min-w-0 rounded-xl border bg-white p-4">

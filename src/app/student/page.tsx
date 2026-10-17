@@ -19,6 +19,7 @@ import { CornerSparkles } from "@/components/CornerSparkles";
 import { LearnerInsights, learnerSeriesFromStudent } from "@/components/insights";
 import { downloadPdfFile } from "@/lib/download";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
+import { StudentToday } from "@/components/student/student-today";
 
 const WEEKDAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -175,30 +176,7 @@ export default function StudentDashboard() {
       }
       actions={
         <>
-          {/* "In class now / Up next" was a 90px card in the hero. It is one
-              live fact, so it reads better as a pill beside the action. */}
-          {upNext ? (
-            <span
-              title={`${upNext.subject?.name || upNext.slotType || "Class"} · ${upNext.startTime}–${upNext.endTime}`}
-              className={cn(
-                "hidden h-10 items-center gap-2 rounded-xl border px-3 lg:flex",
-                upNext.current
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-[#cfc2d6]/25 bg-white text-[#8127cf]",
-              )}
-            >
-              <Clock className="h-3.5 w-3.5 shrink-0" />
-              <span className="min-w-0">
-                <span className="block text-[9px] font-black uppercase leading-none tracking-wider opacity-70">
-                  {upNext.current ? "In class now" : "Up next"}
-                </span>
-                <span className="block max-w-[150px] truncate text-[11px] font-black leading-tight">
-                  {upNext.subject?.name || upNext.slotType || "Class"}
-                  <span className="ml-1 font-bold tabular-nums opacity-70">{upNext.startTime}</span>
-                </span>
-              </span>
-            </span>
-          ) : null}
+          {/* SKO-418: now/next lives in Today below, computed in school time rather than the device clock. */}
           <BrandButton
             variant="dark"
             className="min-h-10"
@@ -211,6 +189,7 @@ export default function StudentDashboard() {
         </>
       }
     >
+      {!data.profileMissing ? <StudentToday /> : null}
       {data.profileMissing ? (
         <div className="flex-1 flex items-center justify-center">
           <EmptyState

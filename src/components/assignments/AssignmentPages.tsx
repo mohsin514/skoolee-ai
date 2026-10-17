@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { StudentPage } from "@/components/student/student-page";
@@ -17,9 +18,9 @@ export function TeacherAssignmentsPage() {
 }
 export function StudentAssignmentsPage() {
   const t = useCopy();
-  return <StudentPage tone="classes" icon={ClipboardCheck} eyebrow={t.eyebrow} title={t.title} summary={t.learnerSummary}><LearnerAssignments audience="learner" /></StudentPage>;
+  return <StudentPage tone="classes" icon={ClipboardCheck} eyebrow={t.eyebrow} title={t.title} summary={t.learnerSummary}><Suspense fallback={null}><LearnerAssignments audience="learner" /></Suspense></StudentPage>;
 }
 export function ParentAssignmentsPage() {
   const t = useCopy();
-  return <ParentPage tone="classes" icon={ClipboardCheck} eyebrow={t.eyebrow} title={t.title} summary={t.guardianSummary}><LearnerAssignments audience="guardian" /></ParentPage>;
+  return <ParentPage tone="classes" icon={ClipboardCheck} eyebrow={t.eyebrow} title={t.title} summary={t.guardianSummary}><Suspense fallback={null}><LearnerAssignments audience="guardian" /></Suspense></ParentPage>;
 }

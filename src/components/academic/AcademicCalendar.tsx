@@ -31,8 +31,8 @@ interface UnifiedTerm {
   label: string;
   academicYear: number;
   status: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
 }
 interface UnifiedHoliday {
   id: string;
@@ -215,15 +215,16 @@ export function AcademicCalendar({
       );
     }
     if (layers.terms) {
+      // A cycle saved without dates has nothing to place on the calendar.
       feed.terms.forEach((t) => {
-        items.push({
+        if (t.startDate) items.push({
           iso: t.startDate.slice(0, 10),
           kind: "term",
           title: `${t.label} begins`,
           detail: `Academic year ${t.academicYear}`,
           color: "#d97706",
         });
-        items.push({
+        if (t.endDate) items.push({
           iso: t.endDate.slice(0, 10),
           kind: "term",
           title: `${t.label} ends`,
@@ -280,8 +281,8 @@ export function AcademicCalendar({
     });
 
     feed.terms.forEach((t) => {
-      const startIso = t.startDate.slice(0, 10);
-      const endIso = t.endDate.slice(0, 10);
+      const startIso = t.startDate?.slice(0, 10);
+      const endIso = t.endDate?.slice(0, 10);
       if (startIso) ensure(startIso).terms.push({ type: "start", term: t });
       if (endIso && endIso !== startIso) ensure(endIso).terms.push({ type: "end", term: t });
     });
