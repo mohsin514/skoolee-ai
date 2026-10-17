@@ -193,6 +193,7 @@ model School {
   dormRoomTypes           DormRoomType[]
   dormRooms               DormRoom[]
   dormAllocations         DormAllocation[]
+  complaintEvents         ComplaintEvent[]
   bookCategories          BookCategory[]
   books                   Book[]
   libraryMembers          LibraryMember[]
@@ -678,6 +679,7 @@ model User {
   @@unique([schoolId, username])
   @@index([schoolId])
   @@map("users")
+  ownedComplaints Complaint[] @relation("ComplaintOwner")
 }
 
 // Staff records depth: payroll, bank, documents and timeline for faculty.
@@ -3532,11 +3534,52 @@ model Complaint {
   date            DateTime
   description     String?  @db.Text
   actionTaken     String?  @map("action_taken") @db.Text
-  status          String   @default("OPEN")
+  status          String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED
   createdAt       DateTime @default(now()) @map("created_at")
+  // SKO-467: a case has a receipt code, an owner (or is explicitly unassigned) and a response due date.
+  // Confidential concerns are visible only to campus leaders and the assigned owner; the original report
+  // (description, date, complainant) is never edited — follow-up lives in ComplaintEvent.
+  referenceCode   String?   @map("reference_code")
+  confidential    Boolean   @default(false)
+  ownerId         String?   @map("owner_id")
+  owner           User?     @relation("ComplaintOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  dueDate         DateTime? @map("due_date") @db.Date
+  publicResponse  String?   @map("public_response") @db.Text
+  resolution      String?   @db.Text
+  resolvedAt      DateTime? @map("resolved_at")
+  reopenedCount   Int       @default(0) @map("reopened_count")
+  receivedById    String?   @map("received_by_id")
+  version         Int       @default(1)
+  idempotencyKey  String?   @map("idempotency_key")
+  requestHash     String?   @map("request_hash")
+  events          ComplaintEvent[]
 
+  @@unique([campusId, referenceCode])
+  @@unique([campusId, idempotencyKey])
+  @@index([campusId, status])
   @@index([schoolId])
   @@map("complaints")
+}
+
+model ComplaintEvent {
+  id          String    @id @default(uuid())
+  schoolId    String    @default("") @map("school_id")
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId    String    @map("campus_id")
+  complaintId String    @map("complaint_id")
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  kind        String // CREATED | ASSIGNED | NOTE | STATUS | RESOLVED | REOPENED
+  fromStatus  String?   @map("from_status")
+  toStatus    String?   @map("to_status")
+  note        String?   @db.Text
+  ownerId     String?   @map("owner_id")
+  dueDate     DateTime? @map("due_date") @db.Date
+  actorId     String    @map("actor_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([complaintId, createdAt])
+  @@index([schoolId])
+  @@map("complaint_events")
 }
 
 model PostalRecord {

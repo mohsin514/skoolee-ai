@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { PanelTitle } from "@/components/shared-admin";
 import { DormitoryAllocations } from "./dormitory-allocations";
 import { VisitorRegister } from "./visitor-register";
+import { ComplaintsDesk } from "./complaints-desk";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
 import { formatPKR } from "@/components/fees/fee-utils";
@@ -1219,87 +1220,8 @@ export function VisitorsPanel() {
 }
 
 export function ComplaintsPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/complaints"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // Two independent blockers here. The old guard required `description`, which
-  // had no input at all — only a state key — so it was always empty and the
-  // toast fired before any request was made. Had it got past that, the route
-  // requires `date`, which the form never sent. Complaint also has no
-  // `priority` column, so that select was discarded on save and the badge
-  // below always fell back to "MEDIUM".
-  const form = useValidatedForm({
-    schema: complaintFormSchema,
-    initialValues: {
-      complainantName: "",
-      type: "",
-      phone: "",
-      date: new Date().toISOString().slice(0, 10),
-      description: "",
-    },
-    onSubmit: async (values) => {
-      if (!(await submitTo("/api/front-desk/complaints", values, form))) return;
-      toast.success("Complaint logged");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  const resolve = async (id: string) => {
-    try { const r = await fetch("/api/front-desk/complaints", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status: "RESOLVED" }) }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Resolved"); load(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={MessageSquare} title="Complaints" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Log Complaint</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Name" error={form.errors.complainantName}>
-            <SystemInput className={`${inputCls} w-36`} {...form.field("complainantName")} />
-          </OpField>
-          <OpField label="Type" error={form.errors.type}>
-            <SystemInput className={`${inputCls} w-28`} {...form.field("type")} placeholder="General" />
-          </OpField>
-          <OpField label="Phone" error={form.errors.phone}>
-            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
-          </OpField>
-          <OpField label="Date" error={form.errors.date}>
-            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("date")} />
-          </OpField>
-          <OpField label="Description" error={form.errors.description} width="flex-1">
-            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder="What happened?" />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Name", "Type", "Phone", "Description", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={7} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={7} text="No complaints" /> : rows.map((c: any) => (
-              <tr key={c.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{c.date ? new Date(c.date).toLocaleDateString() : new Date(c.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}>{c.complainantName}</td>
-                <td className={tdCls}>{c.type || "—"}</td>
-                <td className={tdCls}>{c.phone || "—"}</td>
-                <td className={`${tdCls} max-w-[200px] truncate`}>{c.description || "—"}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === "RESOLVED" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{c.status || "OPEN"}</span></td>
-                <td className={tdCls}>{c.status !== "RESOLVED" && <Button variant="secondary" size="sm" onClick={() => resolve(c.id)} >Resolve</Button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-467: owned cases, confidential routing and history live in ComplaintsDesk.
+  return <ComplaintsDesk />;
 }
 
 export function PostalPanel() {

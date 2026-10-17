@@ -44,6 +44,7 @@ export const TENANT_MODELS = new Set<string>([
   "class",
   "classRoom",
   "complaint",
+  "complaintEvent",
   "consentLog",
   "conversation",
   "conversationMember",

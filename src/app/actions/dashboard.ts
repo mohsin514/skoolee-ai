@@ -1691,7 +1691,8 @@ async function receptionistSummary(schoolId: string, campusId: string) {
       where: { campusId, schoolId, inTime: { gte: fortnight } },
       select: { inTime: true, outTime: true },
     }),
-    prisma.complaint.groupBy({ by: ["status"], where: { campusId, schoolId }, _count: true }),
+    // Confidential concerns are not counted on the reception dashboard, so their existence is not disclosed (SKO-467).
+    prisma.complaint.groupBy({ by: ["status"], where: { campusId, schoolId, confidential: false }, _count: true }),
     prisma.phoneCallLog.findMany({
       where: { campusId, schoolId, date: { gte: fortnight } },
       select: { date: true, direction: true, followUpDate: true },
