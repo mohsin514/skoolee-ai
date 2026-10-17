@@ -180,3 +180,25 @@ test("a reviewer compares a regenerated item beside the current one and keeps th
   assert.equal((await raw.schoolAiRecord.findUniqueOrThrow({ where: { id: draftPaperId } })).version, record.version, "keeping the current item writes nothing");
   assert.deepEqual(errors, []); await ctx.close();
 });
+
+test("the paper editor reads streamed generation frames and applies the completed draft (R5.1, R5.2)", async () => {
+  const record = await raw.schoolAiRecord.findUniqueOrThrow({ where: { id: draftPaperId } });
+  const paper = record.data as { questions: unknown[]; blueprint: { sections: Array<{ questionCount: number }> } };
+  const requested = paper.blueprint.sections.reduce((sum, section) => sum + section.questionCount, 0);
+  const frames = [
+    { type: "stage", stage: "BLUEPRINT", produced: 0, requested }, { type: "stage", stage: "ITEMS", produced: 0, requested },
+    ...paper.questions.map(item => ({ type: "item", item })),
+    { type: "stage", stage: "KEYS", produced: paper.questions.length, requested }, { type: "stage", stage: "REVIEW", produced: paper.questions.length, requested },
+    { type: "complete", paper: record.data },
+  ];
+  let requestBody: Record<string, unknown> = {};
+  const ctx = await context("lead"), page = await ctx.newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  // No approved provider runs here; the route's frames are recorded exactly as the server writes them.
+  await page.route("**/api/school-ai/generate-paper/stream", route => { requestBody = route.request().postDataJSON(); return route.fulfill({ status: 200, contentType: "application/x-ndjson; charset=utf-8", body: frames.map(frame => JSON.stringify(frame)).join("\n") + "\n" }); });
+  await openPanel(page, "Curriculum & papers");
+  await page.getByRole("button", { name: /Generate proposed questions/ }).click();
+  await page.getByText(/AI output is an editable draft/).first().waitFor();
+  assert.ok(typeof requestBody.idempotencyKey === "string" && typeof requestBody.curriculumVersion === "number", "the request now carries the idempotency key and curriculum version the server requires");
+  assert.deepEqual(errors, []); await ctx.close();
+});

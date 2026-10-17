@@ -3,7 +3,7 @@ import { Prisma, type SchoolAiRequest } from "@prisma/client";
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { AIProviderQuotaError, consumeAICreditAndLog, generateAIDraft, lockAndReconcileAICredits, reserveAICredits, type AIDraftResult } from "@/lib/ai/openai";
+import { AIProviderQuotaError, GenerationCancelledError, consumeAICreditAndLog, generateAIDraft, lockAndReconcileAICredits, reserveAICredits, type AIDraftResult } from "@/lib/ai/openai";
 import { PIILeakError } from "@/lib/ai/pseudonymize";
 import { SchoolAiError, assertWorkspaceDomainPermission } from "./access";
 import { assertConversationActor } from "./conversation-service";
@@ -110,7 +110,7 @@ export async function recoverPaperGeneration(user: AuthUser, key: string): Promi
 }
 
 /** Dependencies are server-side injection points for isolated, no-provider tests. */
-export async function generatePaperWithReceipt(user: AuthUser, raw: unknown, dependencies: { generate?: typeof generateAIDraft; assertProvider?: () => void } = {}): Promise<PaperGenerationReceipt> {
+export async function generatePaperWithReceipt(user: AuthUser, raw: unknown, dependencies: { generate?: typeof generateAIDraft; assertProvider?: () => void; signal?: AbortSignal } = {}): Promise<PaperGenerationReceipt> {
   const input = paperGenerationInputSchema.parse(raw);
   const begun = await begin(user, input, dependencies.assertProvider ?? assertSchoolAiTextProvider);
   if (!("claim" in begun)) return begun;
@@ -125,7 +125,9 @@ export async function generatePaperWithReceipt(user: AuthUser, raw: unknown, dep
       if (changed.count !== 1) throw new SchoolAiError("This generation request expired before dispatch.", 409);
     });
     dispatched = true;
-    generated = await (dependencies.generate ?? generateAIDraft)({ system, prompt: claim.prompt, maxTokens: 12000, temperature: 0.3 });
+    if (dependencies.signal?.aborted) throw new GenerationCancelledError();
+    generated = await (dependencies.generate ?? generateAIDraft)({ system, prompt: claim.prompt, maxTokens: 12000, temperature: 0.3, ...(dependencies.signal ? { signal: dependencies.signal } : {}) });
+    if (dependencies.signal?.aborted) throw new GenerationCancelledError();
     const rawPaper = parseModelJson(generated.text);
     if (!rawPaper || typeof rawPaper !== "object" || Array.isArray(rawPaper)) throw new z.ZodError([]);
     const paper = paperDataSchema.parse({ ...rawPaper, curriculumId: input.curriculumId, curriculumVersion: input.curriculumVersion, subjectId: claim.curriculum.subjectId, classId: claim.curriculum.classId, language: input.language, blueprint: input.blueprint, coverageSection: input.coverageSection, resources: [], generation: { kind: "AI", model: generated.model, generatedAt: new Date().toISOString() } });
@@ -143,6 +145,12 @@ export async function generatePaperWithReceipt(user: AuthUser, raw: unknown, dep
       return { status: 200, body: { paper } };
     });
   } catch (error) {
+    // R5.12: a cancelled generation is settled as failed and uncharged, and the cancellation is recorded.
+    if (error instanceof GenerationCancelledError || dependencies.signal?.aborted) {
+      const outcome = await finishFailure(user, claim, { state: "FAILED", code: "AI_GENERATION_CANCELLED", error: "The generation was cancelled. No credit was charged." }, 499);
+      await schoolAiTransaction(user, tx => tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "school_ai_requests", recordId: claim.id, newValue: { action: "paper_generation.cancelled", idempotencyKey: input.idempotencyKey, charged: false, at: new Date().toISOString() } } })).catch(() => undefined);
+      return outcome;
+    }
     if (error instanceof PIILeakError) return finishFailure(user, claim, { state: "FAILED", code: "AI_SENSITIVE_CONTENT_BLOCKED", error: "Review the source text and remove personal identifiers before generating. No credit was charged." }, 422);
     if (error instanceof AIProviderQuotaError) return finishFailure(user, claim, { state: "FAILED", code: error.code, error: "The configured AI provider has exhausted its API quota. No credit was charged." }, error.status);
     if (error instanceof z.ZodError || generated && !(error instanceof SchoolAiError)) return finishFailure(user, claim, { state: "FAILED", code: "AI_GENERATION_INVALID_OUTPUT", error: "The generated paper was incomplete or could not be saved. No credit was charged; check the receipt before starting another request." }, 422);

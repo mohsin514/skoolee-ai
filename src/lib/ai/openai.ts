@@ -202,10 +202,13 @@ async function completeWithOpenAI({
   messages,
   temperature,
   maxTokens,
+  signal,
 }: {
   messages: ChatMessage[];
   temperature: number;
   maxTokens: number;
+  /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
+  signal?: AbortSignal;
 }): Promise<ProviderResult> {
   if (process.env.OPENAI_BASE_URL) {
     let url: URL;
@@ -219,7 +222,7 @@ async function completeWithOpenAI({
     messages,
     temperature,
     max_tokens: maxTokens,
-  }, { timeout: AI_TIMEOUT_MS });
+  }, { timeout: AI_TIMEOUT_MS, ...(signal ? { signal } : {}) });
 
   const text = response.choices[0]?.message?.content?.trim() || "";
   if (!text) throw new Error("OpenAI returned an empty response");
@@ -235,10 +238,13 @@ async function completeWithPollinations({
   messages,
   temperature,
   maxTokens,
+  signal,
 }: {
   messages: ChatMessage[];
   temperature: number;
   maxTokens: number;
+  /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
+  signal?: AbortSignal;
 }): Promise<ProviderResult> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -255,7 +261,7 @@ async function completeWithPollinations({
 
   for (const url of urls) {
     const response = await fetch(url, {
-      signal: requestSignal(),
+      signal: signal ? AbortSignal.any([requestSignal(), signal]) : requestSignal(),
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -292,14 +298,17 @@ async function completeWithOllama({
   messages,
   temperature,
   maxTokens,
+  signal,
 }: {
   messages: ChatMessage[];
   temperature: number;
   maxTokens: number;
+  /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
+  signal?: AbortSignal;
 }): Promise<ProviderResult> {
   validateOllamaDestination();
   const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
-    signal: requestSignal(),
+    signal: signal ? AbortSignal.any([requestSignal(), signal]) : requestSignal(),
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
@@ -334,6 +343,7 @@ async function completeWithProvider(
     messages: ChatMessage[];
     temperature: number;
     maxTokens: number;
+    signal?: AbortSignal;
   }
 ) {
   // Apply the same full-payload scanner to every destination, including a
@@ -357,18 +367,23 @@ async function completeChat({
   messages,
   temperature,
   maxTokens,
+  signal,
 }: {
   messages: ChatMessage[];
   temperature: number;
   maxTokens: number;
+  /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
+  signal?: AbortSignal;
 }): Promise<ProviderResult> {
   const failures: string[] = [];
 
   for (const provider of providerOrder()) {
     try {
-      return await completeWithProvider(provider, { messages, temperature, maxTokens });
+      return await completeWithProvider(provider, { messages, temperature, maxTokens, signal });
     } catch (error) {
       if (error instanceof PIILeakError) throw error;
+      // A cancelled request is not a provider outage: never retry it against a fallback.
+      if (signal?.aborted) throw new GenerationCancelledError();
       if (provider === "openai" && isOpenAIQuotaExhausted(error)) {
         // A quota failure is actionable and should never be collapsed into a
         // generic provider outage or retried against an unexpected fallback.
@@ -417,6 +432,11 @@ export interface AIUsageRecordInput {
 
 export class AICreditError extends Error {
   status = 402;
+}
+
+/** SKO-408 R5.12: the caller cancelled; the provider request was aborted and nothing is charged. */
+export class GenerationCancelledError extends Error {
+  constructor() { super("Generation cancelled"); this.name = "GenerationCancelledError"; }
 }
 
 export class AIProviderQuotaError extends Error {
@@ -552,11 +572,14 @@ export async function generateAIDraft({
   prompt,
   temperature = 0.4,
   maxTokens = 700,
+  signal,
 }: {
   system: string;
   prompt: string;
   temperature?: number;
   maxTokens?: number;
+  /** SKO-408 R5.12: aborting stops the provider request; nothing is charged for it. */
+  signal?: AbortSignal;
 }): Promise<AIDraftResult> {
   const result = await completeChat({
     messages: [
@@ -565,6 +588,7 @@ export async function generateAIDraft({
     ],
     temperature,
     maxTokens,
+    signal,
   });
 
   return {

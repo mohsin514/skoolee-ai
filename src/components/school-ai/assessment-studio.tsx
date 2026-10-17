@@ -14,6 +14,7 @@ import { AdvancedQuestionOptions, AdvancedQuestionKey, CurriculumCoverage, Paper
 import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { assessmentCopy } from "./assessment-copy";
 import { schoolAICopy } from "@/lib/school-ai/copy";
+import { decodeFrames } from "@/lib/school-ai/generation-stream";
 import { CoverageGaps, QuestionBank, QuestionBankLabels } from "./question-bank";
 import { CurriculumExecution } from "./curriculum-execution";
 import { LearningPlanEditor, LearningTools } from "./learning-plans";
@@ -40,6 +41,8 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 export function AssessmentStudio({ records, locale, onRefresh, subjects = [], canCreate = true, canApprove = false }: Props) {
+  const generationAbort = useRef<AbortController | null>(null);
+  const [cancellable, setCancellable] = useState(false);
   const t = assessmentCopy(locale), extension = assessmentExtensionCopy(locale), aiCopy = schoolAICopy(locale);
   const [selected, setSelected] = useState<RecordSummary | null>(null);
   const [kind, setKind] = useState<"CURRICULUM" | "PAPER">("CURRICULUM");
@@ -126,14 +129,23 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
     const errors = validateBlueprint(paper.blueprint, linked);
     if (errors.length) { setIssues(errors); return; }
     setBusy(true); setMessage(t.generating);
+    // SKO-408 R5.1, R5.2, R5.12: progress frames, one per item, and a cancel that stops the provider.
+    const controller = new AbortController();
+    generationAbort.current = controller;
+    setCancellable(true);
     try {
-      const response = await fetch("/api/school-ai/generate-paper", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ curriculumId: paper.curriculumId, blueprint: paper.blueprint, language: paper.language, coverageSection: paper.coverageSection, lockedQuestions: paper.questions.filter((question) => question.locked) }) });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.code === "AI_QUOTA_EXHAUSTED" ? aiCopy.AI_QUOTA_EXHAUSTED : payload.code === "AI_SENSITIVE_CONTENT_BLOCKED" ? aiCopy.AI_SENSITIVE_CONTENT_BLOCKED : errorMessage(payload, t.failure));
-      const result = paperDataSchema.parse(payload.paper);
-      changePaper({ ...result, coverageSection: paper.coverageSection, resources: paper.resources }); setMessage(t.draftOnly);
-    } catch (error) { setMessage(error instanceof Error ? error.message : t.failure); }
-    finally { setBusy(false); }
+      const response = await fetch("/api/school-ai/generate-paper/stream", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), curriculumId: paper.curriculumId, curriculumVersion: paper.curriculumVersion, blueprint: paper.blueprint, language: paper.language, coverageSection: paper.coverageSection, lockedQuestions: paper.questions.filter((question) => question.locked) }) });
+      if (!response.ok || !response.body) { const payload = await response.json().catch(() => ({})); throw new Error(payload.code === "AI_QUOTA_EXHAUSTED" ? aiCopy.AI_QUOTA_EXHAUSTED : payload.code === "AI_SENSITIVE_CONTENT_BLOCKED" ? aiCopy.AI_SENSITIVE_CONTENT_BLOCKED : errorMessage(payload, t.failure)); }
+      let produced = 0;
+      for await (const frame of decodeFrames(response.body)) {
+        if (frame.type === "stage") setMessage(t.generatingProgress.replace("{0}", String(frame.produced)).replace("{1}", String(frame.requested)));
+        else if (frame.type === "item") { produced++; setMessage(t.generatingProgress.replace("{0}", String(produced)).replace("{1}", String(paper.blueprint.sections.reduce((sum, section) => sum + section.questionCount, 0)))); }
+        else if (frame.type === "complete") { const result = paperDataSchema.parse(frame.paper); changePaper({ ...result, coverageSection: paper.coverageSection, resources: paper.resources }); setMessage(t.draftOnly); }
+        else if (frame.type === "cancelled") setMessage(t.generationCancelled);
+        else if (frame.type === "error") setMessage(frame.reason === "PROVIDER_UNAVAILABLE" ? aiCopy.AI_QUOTA_EXHAUSTED : t.failure);
+      }
+    } catch (error) { setMessage(controller.signal.aborted ? t.generationCancelled : error instanceof Error ? error.message : t.failure); }
+    finally { generationAbort.current = null; setCancellable(false); setBusy(false); }
   };
   const readiness = () => {
     const errors = curriculum ? validateCurriculumApproval(curriculum) : paper && linked ? validatePaperApproval(paper, linked) : [t.chooseCurriculum];
@@ -197,7 +209,7 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
           <div className="sk-panel space-y-4 p-5"><h3 className="font-bold">{t.sections}</h3><p className="text-sm text-ink-subtle">{t.optional}</p>{paper.blueprint.sections.map((section, index) => {
             const update = (next: Partial<typeof section>) => changePaper({ ...paper, blueprint: { ...paper.blueprint, sections: paper.blueprint.sections.map((item, i) => i === index ? { ...item, ...next } : item) } });
             return <div key={section.id} className="space-y-3 border-b border-border pb-5"><div className="grid gap-3 md:grid-cols-2"><TextField name={`section-${section.id}`} label={t.section} value={section.title} onChange={(value) => update({ title: value })} /><FormField name={`type-${section.id}`} label={t.type}><Select value={section.type} onChange={(event) => update({ type: event.target.value as typeof section.type })}><option value="SINGLE_CHOICE">{t.single}</option><option value="SHORT_TEXT">{t.short}</option><option value="EXTENDED_TEXT">{t.extended}</option><AdvancedQuestionOptions locale={locale} /></Select></FormField></div><div className="grid gap-3 md:grid-cols-3"><NumberField name={`count-${section.id}`} label={t.count} value={section.questionCount} max={100} onChange={(value) => update({ questionCount: value })} /><NumberField name={`answer-count-${section.id}`} label={t.answerCount} value={section.answerCount} max={100} onChange={(value) => update({ answerCount: value })} /><NumberField name={`marks-${section.id}`} label={t.perQuestion} value={section.marksPerQuestion} min={0.25} step={0.25} max={100} onChange={(value) => update({ marksPerQuestion: value })} /></div><fieldset><legend className="mb-2 text-sm font-semibold">{t.selectOutcome}</legend>{linked?.outcomes.filter((outcome) => outcome.included && outcome.taught).map((outcome) => <Toggle key={outcome.id} label={outcome.title} checked={section.outcomeIds.includes(outcome.id)} onChange={(checked) => update({ outcomeIds: checked ? [...section.outcomeIds, outcome.id] : section.outcomeIds.filter((id) => id !== outcome.id) })} />)}</fieldset><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={paper.questions.length >= 100} onClick={() => addQuestion(section)}><Plus />{t.addQuestion}</Button><Button variant="ghost" disabled={paper.blueprint.sections.length <= 1 || paper.questions.some((question) => question.sectionId === section.id)} onClick={() => changePaper({ ...paper, blueprint: { ...paper.blueprint, sections: paper.blueprint.sections.filter((item) => item.id !== section.id) } })}>{t.remove}</Button></div></div>;
-          })}<Button variant="outline" disabled={paper.blueprint.sections.length >= 20} onClick={() => changePaper({ ...paper, blueprint: { ...paper.blueprint, sections: [...paper.blueprint.sections, { id: uid(), title: "", questionCount: 1, answerCount: 1, marksPerQuestion: 1, type: "SHORT_TEXT", outcomeIds: [] }] } })}><Plus />{t.addSection}</Button><div className="border-t border-border pt-4"><Button disabled={!linked} onClick={generate}><Sparkles />{busy ? t.generating : t.generate}</Button><p className="mt-2 text-sm text-ink-subtle">{t.draftOnly}</p></div></div>
+          })}<Button variant="outline" disabled={paper.blueprint.sections.length >= 20} onClick={() => changePaper({ ...paper, blueprint: { ...paper.blueprint, sections: [...paper.blueprint.sections, { id: uid(), title: "", questionCount: 1, answerCount: 1, marksPerQuestion: 1, type: "SHORT_TEXT", outcomeIds: [] }] } })}><Plus />{t.addSection}</Button><div className="border-t border-border pt-4"><Button disabled={!linked || busy} onClick={generate}><Sparkles />{busy ? t.generating : t.generate}</Button>{busy && cancellable ? <Button variant="outline" className="ms-2" onClick={() => generationAbort.current?.abort()} data-cancel-generation>{t.cancelGeneration}</Button> : null}<p className="mt-2 text-sm text-ink-subtle">{t.draftOnly}</p></div></div>
           {linked && <CoverageGaps paper={paper} curriculum={linked} locale={locale} />}
           {!readonly && linked && linkedRecord?.campusId && <QuestionBank key={`${paper.curriculumId}:${selected?.id ?? "new"}`} paper={paper} curriculum={linked} campusId={linkedRecord.campusId} locale={locale} onReuse={changePaper} onBusyChange={setBusy} />}
           {paper.questions.map((question, index) => <div key={question.id} className="sk-panel space-y-4 p-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold">{t.question} {index + 1} · {paper.blueprint.sections.find((section) => section.id === question.sectionId)?.title}</h3><Toggle label={t.locked} checked={question.locked} onChange={(value) => updateQuestion(index, { locked: value })} /></div><TextField name={`question-${question.id}`} label={t.prompt} value={question.prompt} long maxLength={12000} onChange={(value) => updateQuestion(index, { prompt: value })} /><PaperFigureEditor key={`figures:${selected?.id??paper.curriculumId}:${question.id}`} paper={paper} question={question} records={records} locale={locale} onChange={figures => updateQuestion(index, { figures })} /><NumberField name={`question-marks-${question.id}`} label={t.fieldMarks} value={question.marks} min={0.25} max={100} step={0.25} onChange={(value) => updateQuestion(index, { marks: value })} />
