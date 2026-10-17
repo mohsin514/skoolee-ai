@@ -43,6 +43,16 @@ export async function POST(request: Request) {
         } as any },
       });
       if (changed.count !== 1) throw new ApiError("This request was reviewed by another operator", 409);
+      // SKO-373: an approval applies only what the reviewer can safely apply here.
+      if (input.decision === "APPROVE_REQUEST" && current.kind === "GRACE_EXTENSION") {
+        const until = new Date(String((current.details as { requestedUntil?: string }).requestedUntil));
+        if (!Number.isFinite(until.valueOf()) || until <= new Date()) throw new ApiError("The requested grace date has passed; ask for a new request", 409);
+        await tx.school.update({ where: { id: current.schoolId }, data: { status: "ACTIVE", subscriptionLifecycleState: "APPROVED_GRACE", graceEndsAt: until } });
+      }
+      if (input.decision === "APPROVE_REQUEST" && current.kind === "CANCELLATION") {
+        const school = await tx.school.findUnique({ where: { id: current.schoolId }, select: { planEndsAt: true } });
+        await tx.school.update({ where: { id: current.schoolId }, data: { subscriptionLifecycleState: "CANCELLATION_SCHEDULED", cancellationEffectiveAt: current.effectiveAt ?? school?.planEndsAt ?? null } });
+      }
       await tx.auditLog.create({
         data: { schoolId: current.schoolId, userId: reviewer.userId, tableName: "subscription_request",
           recordId: current.id, oldValue: { state: current.state }, newValue: { state, decision: input.decision, reason: input.reason } },
@@ -50,6 +60,8 @@ export async function POST(request: Request) {
     });
     return Response.json({ success: true, state, note: current.kind === "REFUND"
       ? "The refund request review is recorded. This decision does not submit or confirm a provider refund."
+      : current.kind === "GRACE_EXTENSION" && state === "REVIEWED_APPROVED" ? "Grace is extended to the requested date; access is restored until then."
+      : current.kind === "CANCELLATION" && state === "REVIEWED_APPROVED" ? "Cancellation is scheduled for the effective date; records are retained."
       : "The request review is recorded. Any provider change must still be confirmed by the authorized billing owner." });
   } catch (error) {
     return errorResponse(error, "[owner/subscription-requests] POST failed");

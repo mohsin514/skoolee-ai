@@ -431,6 +431,14 @@ model StripeWebhookReceipt {
   error         String?  @db.Text
   receivedAt    DateTime @default(now()) @map("received_at")
   processedAt   DateTime? @map("processed_at")
+  // SKO-373: one receipt table for every billing provider. NEEDS_REVIEW holds
+  // a verified event the system could not safely apply (unknown institution,
+  // missing amount); a platform operator resolves it with a recorded note.
+  provider      String   @default("STRIPE")
+  schoolId      String?  @map("school_id")
+  reviewNote    String?  @map("review_note") @db.Text
+  reviewedById  String?  @map("reviewed_by_id")
+  reviewedAt    DateTime? @map("reviewed_at")
   @@index([state, receivedAt])
   @@map("stripe_webhook_receipts")
 }

@@ -326,7 +326,7 @@ export default function SuperAdminDashboard() {
   const navItems: RoleNavItem[] = [
     { icon: LayoutGrid, label: "Schools", active: activeView === "schools" && !selectedCampus, onClick: openSchools },
     { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: openFees },
-    { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", onClick: openBilling },
+    { icon: CreditCard, label: "Billing & plan", active: activeView === "billing", onClick: openBilling },
     { icon: Settings, label: "School Settings", active: activeView === "settings", onClick: openSettings },
     { icon: BookOpen, label: "Curriculum Templates", active: activeView === "curriculum-templates", onClick: openCurriculumTemplates },
     { icon: ShieldCheck, label: "Support Approvals", active: activeView === "support", onClick: () => setActiveView("support") },
@@ -375,9 +375,9 @@ const bottomItems: RoleNavItem[] = [];
             icon={<CreditCard className="w-4 h-4" />}
             onClick={openBilling}
             className="min-h-10 px-3 sm:px-4 rounded-xl whitespace-nowrap"
-            title="Plans & Billing"
+            title="Billing & plan"
           >
-            <span className="hidden lg:inline">Plans & Billing</span>
+            <span className="hidden lg:inline">Billing & plan</span>
           </BrandButton>
         </div>
       }
@@ -390,7 +390,7 @@ const bottomItems: RoleNavItem[] = [];
             <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Owner billing control</p>
-                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Plans & Billing</h2>
+                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Billing & plan</h2>
                 <p className="mt-2 text-sm font-semibold text-ink-muted">
                   SaaS plan, upgrades, and AI credit control.
                 </p>
@@ -884,7 +884,7 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
             <CreditCard className="h-7 w-7" />
           </div>
           <div>
-            <p className="text-[9px] font-black uppercase tracking-normal text-white/50">Plans & Billing</p>
+            <p className="text-[9px] font-black uppercase tracking-normal text-white/50">Billing & plan</p>
             <h3 className="mt-1 text-2xl font-black tracking-normal">{plan} Plan</h3>
             <p className="mt-1 text-xs font-bold uppercase tracking-normal text-[#cfc2d6]">Status: {status}</p>
           </div>

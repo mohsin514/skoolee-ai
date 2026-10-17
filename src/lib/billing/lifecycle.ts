@@ -62,7 +62,7 @@ export async function saveSubscriptionRequest(input: {
   schoolId: string;
   userId: string;
   idempotencyKey: string;
-  kind: "PLAN_CHANGE" | "CANCELLATION" | "REFUND" | "RENEWAL_RECOVERY" | "PAYMENT_REPORT";
+  kind: "PLAN_CHANGE" | "CANCELLATION" | "REFUND" | "RENEWAL_RECOVERY" | "PAYMENT_REPORT" | "GRACE_EXTENSION" | "RESUME";
   state?: string;
   requestedPlan?: PlanType;
   effectiveAt?: Date | null;
@@ -170,4 +170,28 @@ export function parsePlan(value: unknown): PlanType | null {
   if (typeof value !== "string") return null;
   const plan = normalizePlan(value);
   return validPlans.has(plan) ? plan : null;
+}
+
+/**
+ * SKO-373: what a cancellation means, shown before it is confirmed. Access and
+ * records stay until the effective date; nothing is deleted at any point.
+ */
+export async function previewCancellation(schoolId: string) {
+  const school = await prisma.school.findUnique({ where: { id: schoolId }, select: { plan: true, planEndsAt: true, stripeSubscriptionId: true, subscriptionLifecycleState: true, cancellationEffectiveAt: true } });
+  if (!school) throw Object.assign(new Error("Institution not found"), { status: 404 });
+  const providerManaged = Boolean(school.stripeSubscriptionId);
+  return {
+    plan: school.plan,
+    alreadyScheduled: school.subscriptionLifecycleState === "CANCELLATION_SCHEDULED",
+    effectiveAt: school.cancellationEffectiveAt ?? school.planEndsAt,
+    providerManaged,
+    reviewRequired: !providerManaged,
+    consequences: [
+      "Access continues for every campus until the effective date.",
+      "The subscription does not renew after the effective date.",
+      "All institution records are kept; nothing is deleted when the subscription ends.",
+      "You can resume the subscription any time before the effective date.",
+      ...(providerManaged ? [] : ["Without an automatic payment provider, billing review confirms the effective date."]),
+    ],
+  };
 }

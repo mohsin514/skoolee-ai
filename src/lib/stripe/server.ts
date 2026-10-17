@@ -12,10 +12,15 @@ const stripeApiVersion = (
   process.env.STRIPE_API_VERSION || "2026-04-22.dahlia"
 ) as StripeConfig["apiVersion"];
 
+// STRIPE_API_BASE points the client at a local stand-in for isolated tests
+// (e.g. http://127.0.0.1:55442); production leaves it unset.
+const stripeApiBase = process.env.STRIPE_API_BASE ? new URL(process.env.STRIPE_API_BASE) : null;
+
 export const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: stripeApiVersion,
       typescript: true,
+      ...(stripeApiBase ? { host: stripeApiBase.hostname, port: Number(stripeApiBase.port), protocol: stripeApiBase.protocol.replace(":", "") as "http" | "https" } : {}),
     })
   : null;
 
@@ -54,9 +59,13 @@ export async function createStripeCustomer(
 export async function createPortalSession(
   customerId: string
 ): Promise<string> {
+  // SKO-373: the portal is for payment recovery only. Plan changes and
+  // cancellation go through the reviewed lifecycle, so the session opens on
+  // the payment-method flow instead of the full self-service portal.
   const session = await requireStripe().billingPortal.sessions.create({
     customer: customerId,
     return_url: `${appUrl()}/dashboard/billing`,
+    flow_data: { type: "payment_method_update" },
   });
   return session.url;
 }

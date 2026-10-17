@@ -79,11 +79,12 @@ export async function assertSchoolOperational(schoolId: string, client: DbClient
     throw new BillingAccessError("School not found", 404);
   }
 
-  const graceExpired = school.subscriptionLifecycleState === "PAST_DUE_GRACE" &&
-    Boolean(school.graceEndsAt && school.graceEndsAt <= new Date());
+  // SKO-373: an operator-approved grace extension ends the same way as automatic grace.
+  const inGraceState = school.subscriptionLifecycleState === "PAST_DUE_GRACE" || school.subscriptionLifecycleState === "APPROVED_GRACE";
+  const graceExpired = inGraceState && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date());
   if (graceExpired) {
     await client.school.updateMany({
-      where: { id: schoolId, subscriptionLifecycleState: "PAST_DUE_GRACE", graceEndsAt: { lte: new Date() } },
+      where: { id: schoolId, subscriptionLifecycleState: { in: ["PAST_DUE_GRACE", "APPROVED_GRACE"] }, graceEndsAt: { lte: new Date() } },
       data: { status: "SUSPENDED", subscriptionLifecycleState: "PAST_DUE" },
     });
   }
@@ -294,8 +295,9 @@ export async function applySchoolPlan(schoolId: string, plan: PlanType, status: 
 /**
  * Record a verified plan purchase. A renewal extends the account from the
  * later of (today, current paid-through date), so upgrading or renewing early
- * never shortens the period the customer has already paid for. Idempotent by
- * design — safe to call from webhooks and the sandbox simulator.
+ * never shortens the period the customer has already paid for. NOT idempotent:
+ * every call extends the period, so callers must dedupe by provider order
+ * (see claimProviderEvent) before calling it.
  */
 export async function activatePlan(schoolId: string, plan: PlanType, client: DbClient = prisma, periodDays: number = PLAN_PERIOD_DAYS, contract?: PlanContract | null) {
   const school = await client.school.findUnique({

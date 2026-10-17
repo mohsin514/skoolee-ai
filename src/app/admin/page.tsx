@@ -981,7 +981,7 @@ export default function CampusAdminDashboard() {
     data?.role === "ADMIN" || (data?.role === "CAMPUS_ADMIN" && data?.isStandaloneCampus);
   if (canManagePlans) {
     navItems.push(
-      { icon: CreditCard, label: "Plans & Billing", active: activeView === "billing", module: moduleForView("billing"), onClick: () => setActiveView("billing") },
+      { icon: CreditCard, label: "Billing & plan", active: activeView === "billing", module: moduleForView("billing"), onClick: () => setActiveView("billing") },
     );
   }
   const filteredNavItems: SidebarEntry[] = navItems;

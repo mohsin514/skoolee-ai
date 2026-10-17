@@ -1,13 +1,14 @@
 import { z } from "zod";
 import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
-import { parsePlan, previewPlanChange, saveSubscriptionRequest } from "@/lib/billing/lifecycle";
+import { parsePlan, previewCancellation, previewPlanChange, saveSubscriptionRequest } from "@/lib/billing/lifecycle";
 import { stripe } from "@/lib/stripe/server";
 
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
-  action: z.enum(["preview", "request-change", "cancel", "refund"]),
+  action: z.enum(["preview", "request-change", "cancel-preview", "cancel", "resume", "grace", "refund"]),
+  graceUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   plan: z.string().optional(),
   billingPeriod: z.enum(["monthly", "annual"]).optional().default("monthly"),
   reason: z.string().trim().max(1000).optional(),
@@ -68,6 +69,44 @@ export async function POST(request: Request) {
         details: { preview, reason: input.reason || null, recordsRetained: true },
       });
       return Response.json({ success: true, request: requestRow, preview }, { status: 202 });
+    }
+
+    if (input.action === "cancel-preview") return Response.json({ preview: await previewCancellation(user.schoolId) });
+
+    if (input.action === "resume") {
+      // SKO-373: a scheduled cancellation can be withdrawn before it takes effect.
+      const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { subscriptionLifecycleState: true, cancellationEffectiveAt: true, stripeSubscriptionId: true } });
+      if (!school) throw new ApiError("Institution not found", 404);
+      const pendingCancellation = await prisma.subscriptionRequest.findFirst({ where: { schoolId: user.schoolId, kind: "CANCELLATION", state: { in: ["PENDING_REVIEW", "SCHEDULED", "REVIEWED_APPROVED"] } }, orderBy: { createdAt: "desc" } });
+      if (school.subscriptionLifecycleState !== "CANCELLATION_SCHEDULED" && !pendingCancellation) throw new ApiError("No cancellation is scheduled", 409);
+      if (school.cancellationEffectiveAt && school.cancellationEffectiveAt <= new Date()) throw new ApiError("The cancellation has already taken effect. Choose a plan to subscribe again.", 409);
+      let providerConfirmed = false;
+      if (school.stripeSubscriptionId && stripe) {
+        const subscription = await stripe.subscriptions.update(school.stripeSubscriptionId, { cancel_at_period_end: false });
+        if (subscription.cancel_at_period_end) throw new ApiError("The provider did not confirm the resumed subscription", 502);
+        providerConfirmed = true;
+      }
+      const requestRow = await saveSubscriptionRequest({ schoolId: user.schoolId, userId: user.userId, idempotencyKey: input.idempotencyKey, kind: "RESUME", state: "COMPLETED",
+        details: { providerConfirmed, withdrawnCancellationId: pendingCancellation?.id ?? null, reason: input.reason || null } });
+      await prisma.$transaction([
+        prisma.school.updateMany({ where: { id: user.schoolId, subscriptionLifecycleState: "CANCELLATION_SCHEDULED" }, data: { subscriptionLifecycleState: "ACTIVE", cancellationEffectiveAt: null } }),
+        ...(pendingCancellation ? [prisma.subscriptionRequest.update({ where: { id: pendingCancellation.id }, data: { state: "WITHDRAWN" } })] : []),
+      ]);
+      return Response.json({ success: true, request: requestRow, providerConfirmed });
+    }
+
+    if (input.action === "grace") {
+      // SKO-373: extra grace is a reviewed exception, never automatic.
+      const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { status: true, subscriptionLifecycleState: true, graceEndsAt: true } });
+      if (!school) throw new ApiError("Institution not found", 404);
+      if (!["PAST_DUE", "PAST_DUE_GRACE", "APPROVED_GRACE"].includes(school.subscriptionLifecycleState) && school.status !== "SUSPENDED") throw new ApiError("Grace can be requested only while a payment is overdue", 409);
+      if ((input.reason || "").length < 10) throw new ApiError("Explain why more time is needed", 400);
+      const until = input.graceUntil ? new Date(`${input.graceUntil}T23:59:59.000Z`) : null;
+      const latest = Date.now() + 30 * 86_400_000;
+      if (!until || until.getTime() <= Date.now() || until.getTime() > latest) throw new ApiError("Choose a date within the next 30 days", 400);
+      const requestRow = await saveSubscriptionRequest({ schoolId: user.schoolId, userId: user.userId, idempotencyKey: input.idempotencyKey, kind: "GRACE_EXTENSION", effectiveAt: until,
+        details: { requestedUntil: until.toISOString(), currentGraceEndsAt: school.graceEndsAt?.toISOString() ?? null, reason: input.reason, status: "REVIEW_REQUIRED" } });
+      return Response.json({ success: true, reviewRequired: true, request: requestRow }, { status: 202 });
     }
 
     if (input.action === "refund") {

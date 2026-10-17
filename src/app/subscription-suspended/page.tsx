@@ -1,9 +1,19 @@
+"use client";
+
 import Link from "next/link";
-import { CreditCard, ShieldAlert } from "lucide-react";
+import { CreditCard, LogOut, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
+// SKO-373: the suspended screen keeps recovery reachable for the payer, tells
+// everyone else who to contact, and always offers a way out (sign out).
 export default function SubscriptionSuspendedPage() {
+  const ui = useUiText();
+  const signOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    window.location.assign("/login");
+  };
   return (
     <main className="min-h-screen bg-[#fbf0fe] px-6 py-12 text-[#1f1a23]">
       <div className="mx-auto flex min-h-[70vh] max-w-3xl items-center">
@@ -14,18 +24,22 @@ export default function SubscriptionSuspendedPage() {
                 <ShieldAlert className="h-6 w-6" />
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl font-black">Subscription needs attention</h1>
+                <h1 className="text-2xl font-black">{ui("Subscription needs attention")}</h1>
                 <p className="mt-2 text-sm font-medium leading-6 text-ink">
-                  Access to school operations is paused until billing is updated. Your records stay in place, and
-                  administrators can still open billing to restore the subscription.
+                  {ui("Access to school operations is paused until billing is updated. Your records stay in place, and the billing owner can still open billing to restore the subscription.")}
                 </p>
+                <p className="mt-2 text-sm leading-6 text-ink-muted">{ui("If you do not manage billing, billing shows who to contact.")}</p>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Link href="/dashboard/billing">
                     <Button>
                       <CreditCard className="h-4 w-4" />
-                      Open billing
+                      {ui("Open billing")}
                     </Button>
                   </Link>
+                  <Button variant="outline" onClick={() => void signOut()}>
+                    <LogOut className="h-4 w-4" />
+                    {ui("Sign out")}
+                  </Button>
                 </div>
               </div>
             </div>

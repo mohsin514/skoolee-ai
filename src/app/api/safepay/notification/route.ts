@@ -7,6 +7,7 @@ import { recordPayment } from "@/lib/fees/payment";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 import { decodePlanContractMetadata } from "@/config/commercial-contract";
 import { settleVerifiedCheckoutIntent } from "@/lib/billing/checkout-intents";
+import { claimProviderEvent, finishProviderEvent, NeedsReview } from "@/lib/billing/provider-events";
 
 const ANNUAL_PERIOD_DAYS = 365;
 
@@ -144,36 +145,40 @@ async function handleNotification(req: NextRequest) {
         }
       } else if (event === "order.completed" && orderRef && schoolId && plan) {
         // Plan purchase — license record: plan, status, paid-through date.
-        // The signature already protects metadata integrity, but the paid
-        // amount is validated against the server-side plan price as a second
-        // layer: only a real payment for the selected plan can activate it.
-        const planType = normalizePlan(plan);
-        const isAnnual = billingPeriod === "annual";
-        const snapshot = quotedContract ? null : await getBillingSnapshot(schoolId);
-        const planPrice = quotedContract?.price ?? (snapshot?.plans[planType] as { price?: number | null } | undefined)?.price;
-        const paid = parsePaidAmount(data.amount ?? data.order?.amount);
-
-        if (planPrice == null) {
-          throw new Error(`[safepay] no price defined for plan ${planType}`);
-        }
-        const expected = planPrice * (isAnnual ? (1 - ANNUAL_DISCOUNT) * 12 : 1);
-
-        if (paid != null) {
-          // Normalize paisa → PKR when the reported amount is clearly paisa
-          // (at least 100x the expected price — the exact multiple is what
-          // SafePay sends for paisa-denominated orders).
+        // SKO-373: one receipt per order, claimed before any effect, so a
+        // replayed confirmation never extends the paid-through date twice.
+        const eventId = `safepay:${event}:${orderRef}`;
+        const claim = await claimProviderEvent({ provider: "SAFEPAY", eventId, eventType: event, eventCreated: Math.floor(Date.now() / 1000) });
+        if (claim === "duplicate") return Response.json({ success: true, duplicate: true });
+        if (claim === "in_progress") return Response.json({ success: true, pending: true }, { status: 202 });
+        try {
+          if (!(await prisma.school.findUnique({ where: { id: schoolId }, select: { id: true } }))) throw new NeedsReview("No institution matches this SafePay order.");
+          // The signature protects metadata integrity; the paid amount is
+          // still checked against the plan price so only a real payment for
+          // the selected plan can activate it.
+          const planType = normalizePlan(plan);
+          const isAnnual = billingPeriod === "annual";
+          const snapshot = quotedContract ? null : await getBillingSnapshot(schoolId);
+          const planPrice = quotedContract?.price ?? (snapshot?.plans[planType] as { price?: number | null } | undefined)?.price;
+          if (planPrice == null) throw new NeedsReview(`No price is defined for plan ${planType}; the plan was not activated.`, schoolId);
+          const expected = planPrice * (isAnnual ? (1 - ANNUAL_DISCOUNT) * 12 : 1);
+          const paid = parsePaidAmount(data.amount ?? data.order?.amount);
+          if (paid == null) throw new NeedsReview("SafePay reported no paid amount; the plan was not activated.", schoolId);
+          // Normalize paisa → PKR when the reported amount is clearly paisa.
           const paidPkr = paid >= expected * 100 ? paid / 100 : paid;
-          if (Math.abs(paidPkr - expected) >= 1) {
-            console.error(
-              `[safepay] amount mismatch for ${orderRef}: paid ${paidPkr}, expected ${expected} (${planType} ${billingPeriod})`
-            );
-            return Response.json({ error: "Amount mismatch" }, { status: 400 });
+          if (Math.abs(paidPkr - expected) >= 1) throw new NeedsReview(`Paid ${paidPkr} does not match the expected ${expected} for ${planType} ${billingPeriod}; the plan was not activated.`, schoolId);
+          await prisma.$transaction(async tx => {
+            await activatePlan(schoolId, planType, tx, isAnnual ? ANNUAL_PERIOD_DAYS : undefined, quotedContract);
+            await tx.stripeWebhookReceipt.update({ where: { eventId }, data: { state: "PROCESSED", processedAt: new Date(), schoolId, error: null } });
+          });
+        } catch (error) {
+          if (error instanceof NeedsReview) {
+            await finishProviderEvent(eventId, "NEEDS_REVIEW", { error: error.message, schoolId: error.schoolId ?? null });
+            return Response.json({ success: true, review: true });
           }
-        } else {
-          console.warn(`[safepay] no amount reported for ${orderRef}; relying on signature only`);
+          await finishProviderEvent(eventId, "FAILED", { error }).catch(() => undefined);
+          throw error;
         }
-
-        await activatePlan(schoolId, planType, prisma, isAnnual ? ANNUAL_PERIOD_DAYS : undefined, quotedContract);
       }
     }
 

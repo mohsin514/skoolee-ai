@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { findApprovedPlanChange, saveSubscriptionRequest } from "@/lib/billing/lifecycle";
 import { z } from "zod";
@@ -37,26 +36,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const config = await prisma.platformConfig.findUnique({ where: { key: "payment_requests" } });
-    const requests = ((config?.value ?? []) as any[]) || [];
-    const newRequest = {
-      id: report.id,
-      schoolId: user.schoolId,
-      schoolName: user.fullName || user.email,
-      plan,
-      receiptRef: receiptRef || null,
-      billingPeriod,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-    requests.push(newRequest);
-
-    await prisma.platformConfig.upsert({
-      where: { key: "payment_requests" },
-      create: { key: "payment_requests", value: requests as any },
-      update: { value: requests as any },
-    });
-
+    // The reviewed SubscriptionRequest is the record; replaying the same key returns it unchanged.
     return Response.json({ success: true, requestId: report.id, message: "Payment report submitted for platform review." }, { status: 202 });
   } catch (error) {
     return errorResponse(error, "[billing/payment-request] POST failed");

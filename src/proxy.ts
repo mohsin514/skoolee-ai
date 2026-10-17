@@ -222,6 +222,8 @@ export async function proxy(req: NextRequest) {
       isSuperBillingView;
     const billingAllowedPath =
       pathname === "/subscription-suspended" ||
+      // SKO-373: the payer's recovery screen must stay reachable while suspended.
+      pathname === "/subscription" ||
       isBillingWorkspace ||
       pathname.startsWith("/api/billing") ||
       pathname.startsWith("/api/stripe") ||

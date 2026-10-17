@@ -35,7 +35,7 @@ export function SubscriptionRequestReview() {
     try {
       const response = await fetch("/api/owner/subscription-requests", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId: row.id, decision, reason: reasons[row.id] || "Reviewed under current commercial policy." }),
+        body: JSON.stringify({ requestId: row.id, decision, reason: (reasons[row.id] || "").trim() }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Review failed");
@@ -57,8 +57,50 @@ export function SubscriptionRequestReview() {
         </div>
         <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs">{JSON.stringify(row.details, null, 2)}</pre>
         <label className="block text-sm">Review reason<Textarea className="mt-1 block w-full p-2" value={reasons[row.id] || ""} onChange={event => setReasons(previous => ({ ...previous, [row.id]: event.target.value }))} placeholder="Reason recorded in the audit log" /></label>
-        <div className="flex gap-2"><Button variant="default" disabled={busy === row.id}  onClick={() => void review(row, "APPROVE_REQUEST")}>Approve request</Button><Button variant="outline" disabled={busy === row.id}  onClick={() => void review(row, "DECLINE_REQUEST")}>Decline request</Button></div>
+        {(reasons[row.id] || "").trim().length < 8 ? <p className="text-xs text-ink-muted">Write a reason of at least 8 characters; it is recorded in the audit log.</p> : null}
+        <div className="flex gap-2"><Button variant="default" disabled={busy === row.id || (reasons[row.id] || "").trim().length < 8} onClick={() => void review(row, "APPROVE_REQUEST")}>Approve request</Button><Button variant="outline" disabled={busy === row.id || (reasons[row.id] || "").trim().length < 8} onClick={() => void review(row, "DECLINE_REQUEST")}>Decline request</Button></div>
       </article>)}
     </div>}
+    <ProviderEventQueue />
   </div>;
+}
+
+type ProviderEvent = { eventId: string; provider: string; eventType: string; state: string; error: string | null; schoolId: string | null; attemptCount: number; receivedAt: string };
+
+/** SKO-373: verified provider events that failed or could not be applied automatically. */
+function ProviderEventQueue() {
+  const [events, setEvents] = useState<ProviderEvent[] | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const response = await fetch("/api/owner/provider-events", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not load provider events");
+    setEvents(data.events);
+  }, []);
+  useEffect(() => { void load().catch(error => toast.error(error.message)); }, [load]);
+  const resolve = async (row: ProviderEvent) => {
+    setBusy(row.eventId);
+    try {
+      const response = await fetch("/api/owner/provider-events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: row.eventId, note: (notes[row.eventId] || "").trim() }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not resolve the event");
+      toast.success("Event marked as handled");
+      await load();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not resolve the event"); }
+    finally { setBusy(null); }
+  };
+  return <section className="mt-10" aria-labelledby="provider-events-title" data-provider-events>
+    <h2 id="provider-events-title" className="text-xl font-bold">Payment provider events needing review</h2>
+    <p className="mt-1 text-sm text-ink-muted">Verified events the system did not apply automatically. Marking one handled records your note only; correct any billing state through a reviewed request or the provider.</p>
+    {events === null ? <p role="status" className="mt-4 text-sm">Loading events…</p> : events.length === 0 ? <p className="mt-4 rounded-xl border p-5">No provider events need review.</p> : <div className="mt-4 space-y-3">
+      {events.map(row => <article key={row.eventId} className="space-y-2 rounded-xl border bg-white p-4" data-provider-event={row.eventId} data-state={row.state}>
+        <p className="font-semibold">{row.provider} · {row.eventType} · {row.state === "NEEDS_REVIEW" ? "Needs review" : "Failed"}</p>
+        <p className="text-sm text-ink-muted"><bdi>{row.eventId}</bdi> · {new Date(row.receivedAt).toLocaleString()} · attempts {row.attemptCount}{row.schoolId ? ` · institution ${row.schoolId}` : " · no matching institution"}</p>
+        {row.error ? <p className="text-sm">{row.error}</p> : null}
+        <label className="block text-sm">How was this handled?<Textarea className="mt-1 block w-full p-2" value={notes[row.eventId] || ""} onChange={event => setNotes(previous => ({ ...previous, [row.eventId]: event.target.value }))} /></label>
+        <Button variant="outline" disabled={busy === row.eventId || (notes[row.eventId] || "").trim().length < 8} onClick={() => void resolve(row)}>Mark handled</Button>
+      </article>)}
+    </div>}
+  </section>;
 }

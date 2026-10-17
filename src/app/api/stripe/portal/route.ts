@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     await saveSubscriptionRequest({
       schoolId: user.schoolId,
       userId: user.userId,
-      idempotencyKey: parsed.data.idempotencyKey || `recovery-${crypto.randomUUID()}`,
+      // One recovery record per payer per day, however often the portal is opened.
+      idempotencyKey: `recovery-${new Date().toISOString().slice(0, 10)}`,
       kind: "RENEWAL_RECOVERY",
       effectiveAt: null,
       details: { provider: "STRIPE", action: "billing_portal_opened", policy: "provider-controlled recovery" },

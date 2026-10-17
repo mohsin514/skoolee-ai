@@ -78,6 +78,9 @@ export async function PATCH(
         throw new ApiError("status must be ACTIVE or SUSPENDED", 400);
       }
       updateData.status = status;
+      // SKO-373: an operator restore also clears an expired payment state, or the
+      // next request would re-suspend the school from its stale grace date.
+      if (status === "ACTIVE") { updateData.subscriptionLifecycleState = "ACTIVE"; updateData.graceEndsAt = null; }
       // Restoring a soft-deleted tenant clears the tombstone, otherwise the
       // school reads as ACTIVE while still carrying a deletedAt timestamp.
       if (school.status === "DELETED") updateData.deletedAt = null;
@@ -105,7 +108,7 @@ export async function PATCH(
         targetName: school.name,
         oldValues: { plan: school.plan, status: school.status },
         newValues: { plan: plan || school.plan, status: status || school.status },
-      }).catch(() => {});
+      }).catch(error => console.error("[owner/schools] audit write failed", error));
     }
 
     return Response.json({

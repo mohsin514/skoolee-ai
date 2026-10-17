@@ -104,7 +104,9 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
         if (!billingRes.ok) throw new Error(billingData.error || "Could not load fee structures");
         setFeeStructures(billingData.feeStructures || []);
 
-        if (!billingData.billing?.isOperational) {
+        // SKO-373: tuition staff who do not manage the software subscription
+        // get no plan snapshot (billing is null); that must not hide tuition invoices.
+        if (billingData.billing && !billingData.billing.isOperational) {
           setInvoices([]);
           setClasses([]);
           return;
@@ -237,7 +239,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
       <div className="space-y-6">
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
-            { label: "Invoices", value: stats.total, icon: Receipt, color: "text-blue-600" },
+            { label: "Tuition invoices", value: stats.total, icon: Receipt, color: "text-blue-600" },
             { label: "Paid", value: stats.paid, icon: CheckCircle2, color: "text-green-600" },
             { label: "Pending", value: stats.pending, icon: AlertCircle, color: "text-red-500" },
             { label: "Due", value: stats.due, icon: Clock, color: "text-amber-600" },
