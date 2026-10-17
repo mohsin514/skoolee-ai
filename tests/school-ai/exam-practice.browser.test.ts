@@ -115,6 +115,13 @@ test("the lead drafts practice from released items, approves it, and compares wi
   await practice.getByText("35.7% · items: 3 · candidates: 2").waitFor();
   await practice.scrollIntoViewIfNeeded();
   await shot(page, "practice-approved-compare-en-1440");
+  // R18.8: the approved practice schedules a formative check that starts as a draft paper.
+  await practice.getByRole("button", { name: "Schedule a formative check" }).click();
+  await practice.locator("[data-formative-notice]").waitFor();
+  const check = await raw.schoolAiRecord.findFirstOrThrow({ where: { schoolId, kind: "PAPER", title: { startsWith: "Formative check" } } });
+  assert.equal(check.status, "DRAFT");
+  await practice.locator("[data-formative-notice]").scrollIntoViewIfNeeded();
+  await shot(page, "practice-formative-scheduled-en-1440");
   assert.deepEqual(errors, []); await ctx.close();
 });
 

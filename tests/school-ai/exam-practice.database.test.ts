@@ -8,7 +8,7 @@ import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/school-ai/repository";
 import { createSchoolAiExam, reviewSchoolAiAttempt, saveSchoolAiAttempt, startSchoolAiExam } from "../../src/lib/school-ai/exam-service";
 import { releaseResults } from "../../src/lib/school-ai/exam-release-service";
-import { draftPractice, learnerPractice, outcomeComparison } from "../../src/lib/school-ai/practice-service";
+import { draftPractice, formativeComparison, learnerPractice, outcomeComparison, scheduleFormativeCheck } from "../../src/lib/school-ai/practice-service";
 import { assessmentFixture } from "./assessment-fixture";
 
 // SKO-408 R18.4-R18.10 against the isolated database: practice from released items only, learner access after approval, and an earlier/later comparison.
@@ -22,8 +22,8 @@ const studentIds = learners.map(() => randomUUID());
 let paperId = "", earlierId = "", laterId = "";
 const as = <T>(user: AuthUser, fn: () => Promise<T>) => runWithTenantContext({ schoolId, campusId, userId: user.userId, role: user.role }, fn);
 
-async function sit(startOffsetMs: number, marks: [number, number]) {
-  const id = (await as(author, () => createSchoolAiExam(author, { idempotencyKey: randomUUID(), paperId, title: `Synthetic check ${startOffsetMs}`, startsAt: new Date(Date.now() + startOffsetMs).toISOString(), endsAt: new Date(Date.now() + 3_600_000).toISOString(), studentIds: studentIds.slice(0, 2), mode: "STANDARD" }))).id;
+async function sit(startOffsetMs: number, marks: [number, number], paper = () => paperId) {
+  const id = (await as(author, () => createSchoolAiExam(author, { idempotencyKey: randomUUID(), paperId: paper(), title: `Synthetic check ${startOffsetMs}`, startsAt: new Date(Date.now() + startOffsetMs).toISOString(), endsAt: new Date(Date.now() + 3_600_000).toISOString(), studentIds: studentIds.slice(0, 2), mode: "STANDARD" }))).id;
   for (const [index, learner] of learners.slice(0, 2).entries()) {
     await as(learner, () => startSchoolAiExam(learner, id));
     const attempt = await raw.schoolAiExamAttempt.findFirstOrThrow({ where: { assignmentId: id, userId: learner.userId } });
@@ -91,4 +91,30 @@ test("the earlier and later exams sit side by side with item and candidate count
   assert.deepEqual(comparison.outcomes.map(row => [row.outcomeId, row.earlier, row.later]), [["outcome-1", { percentage: 35.7, items: 3, candidates: 2 }, { percentage: 71.4, items: 3, candidates: 2 }]]);
   await assert.rejects(() => as(author, () => outcomeComparison(author, laterId, earlierId)), { status: 409 });
   assert.equal(JSON.stringify(comparison).includes("teacher"), false, "no teacher measure (R18.11)");
+});
+
+test("a formative check from approved practice travels the ordinary paper path and sits beside the exam it follows up (R18.8)", async () => {
+  const practice = await raw.schoolAiRecord.findFirstOrThrow({ where: { schoolId, kind: "PRACTICE", status: "APPROVED" } });
+  const draft = await as(author, () => draftPractice(author, earlierId, {}));
+  await assert.rejects(() => as(author, () => scheduleFormativeCheck(author, draft.id, {})), { status: 409 }, "only approved practice is scheduled");
+  const check = await as(author, () => scheduleFormativeCheck(author, practice.id, {}));
+  assert.equal(check.kind, "PAPER");
+  assert.equal(check.status, "DRAFT", "it starts as a draft paper, not a delivered exam");
+  const data = check.data as { formativeOf: { practiceRecordId: string; sourceAssignmentIds: string[] }; questions: Array<{ id: string; correctOptionId: string | null; review?: unknown }> };
+  assert.deepEqual([data.formativeOf.practiceRecordId, data.formativeOf.sourceAssignmentIds], [practice.id, [earlierId]]);
+  assert.ok(data.questions.some(question => question.correctOptionId), "the check carries its keys for marking");
+  assert.equal(data.questions.some(question => question.review), false, "item review starts afresh");
+  // A forged link to someone else's sources is refused on save.
+  await assert.rejects(() => as(author, () => updateWorkspaceRecord(author, check.id, { version: check.version, data: { ...data, formativeOf: { ...data.formativeOf, sourceAssignmentIds: [randomUUID()] } } as unknown as Record<string, unknown> })), { status: 403 });
+  // The same path as any paper: review, approval, a sitting, release.
+  const reviewed = await updateWorkspaceRecord(author, check.id, { version: check.version, action: "review" });
+  await updateWorkspaceRecord(lead, check.id, { version: reviewed.version, action: "approve" });
+  const formativeId = await sit(-30_000, [3, 2], () => check.id);
+  await assert.rejects(() => as(author, () => formativeComparison(author, formativeId)), { status: 409 }, "no comparison before results are released");
+  await release(formativeId);
+  const comparison = await as(author, () => formativeComparison(author, formativeId));
+  assert.equal(comparison.earlier.id, earlierId);
+  assert.equal(comparison.later.id, formativeId);
+  assert.ok(comparison.outcomes.every(row => row.earlier && row.later && row.later.candidates === 2), "both sides state their sample sizes");
+  await assert.rejects(() => as(author, () => formativeComparison(author, earlierId)), { status: 409 }, "an ordinary exam is not a formative check");
 });

@@ -141,6 +141,10 @@ export const paperDataSchema = z.object({
   // lowercase hex to match `canonicalDigest` and the existing `paperFigureSchema.sha256` convention.
   formSet: z.object({ id, label: z.enum(["A", "B", "C", "D"]), blueprintHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
   itemGroupIds: z.record(id, id).optional(), // questionId -> shared item group id, joining parallel language versions
+  // SKO-408 R18.8: a formative check scheduled from approved practice names that practice and the
+  // released exams it follows up. It is otherwise an ordinary paper — reviewed, rehearsed, sealed
+  // and assigned through the same path — and the link lets the later result sit beside the earlier.
+  formativeOf: z.object({ practiceRecordId: id, sourceAssignmentIds: z.array(id).min(1).max(5), outcomeIds: z.array(id).min(1).max(50) }).strict().optional(),
   // Form-level staleness. Written by `applyStaleness` in `item-review.ts`; read by the rehearsal and
   // release gates, which own the refusal in R6.7. Absence means no rehearsal result has been recorded.
   staleness: z.object({

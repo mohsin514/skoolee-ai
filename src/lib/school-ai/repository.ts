@@ -182,6 +182,14 @@ async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId:
       const { validatePaperBankProvenance } = await import("./question-bank-service");
       await validatePaperBankProvenance(user, paper, campusId, db, permissions);
     }
+    if (paper.formativeOf) {
+      // The link must name approved practice of this class and subject, and only its own source exams.
+      const practice = await scopedRecord(user, paper.formativeOf.practiceRecordId, "read", db, permissions);
+      if (practice.kind !== "PRACTICE" || practice.status !== "APPROVED" || practice.campusId !== campusId || practice.classId !== paper.classId || practice.subjectId !== paper.subjectId) throw new SchoolAiError("A formative check follows approved practice of the same class and subject.", 403);
+      const { practiceSetSchema } = await import("./practice");
+      const sources = practiceSetSchema.parse(dataOf(practice)).sourceAssignmentIds;
+      if (paper.formativeOf.sourceAssignmentIds.some(sourceId => !sources.includes(sourceId))) throw new SchoolAiError("A formative check names only the exams its practice came from.", 403);
+    }
   }
   if (kind === "WORKFLOW") {
     for (const id of data.sourceIds as string[]) {

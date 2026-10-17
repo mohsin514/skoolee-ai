@@ -88,3 +88,74 @@ export async function outcomeComparison(user: AuthUser, earlierId: string, later
     outcomes: [...new Set([...a.keys(), ...b.keys()])].map(outcomeId => ({ outcomeId, title: titles.get(outcomeId) ?? null, earlier: rate(a.get(outcomeId)), later: rate(b.get(outcomeId)) })),
   };
 }
+
+export const scheduleFormativeCheckSchema = z.strictObject({ durationMinutes: z.number().int().min(5).max(180).optional() });
+
+/**
+ * R18.8: a formative check for the outcomes an approved practice set addresses. It is created as a
+ * draft PAPER from the released items' approved revisions (keys and rubrics included, review state
+ * reset), so it goes through the same item review, approval, rehearsal, sealing and assignment path
+ * as any other form; nothing about it is delivered until that path is complete.
+ */
+export async function scheduleFormativeCheck(user: AuthUser, practiceRecordId: string, raw: unknown) {
+  const input = scheduleFormativeCheckSchema.parse(raw ?? {});
+  const practice = await prisma.schoolAiRecord.findFirst({ where: { id: practiceRecordId, schoolId: user.schoolId, kind: "PRACTICE", ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
+  if (!practice) throw new ApiError("Practice set unavailable.", 404);
+  if (practice.status !== "APPROVED") throw new ApiError("Approve the practice set before scheduling its formative check.", 409);
+  const set = practiceSetSchema.parse(practice.data);
+  const questions: PaperData["questions"] = [];
+  let base: PaperData | null = null;
+  const usedIds = new Set<string>();
+  for (const sourceId of set.sourceAssignmentIds) {
+    const { assignment } = await releasedExam(user, sourceId);
+    const revision = await prisma.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, recordId: assignment.paperId, version: assignment.paperVersion }, select: { data: true } });
+    if (!revision) throw new ApiError("The released paper behind this practice is no longer available.", 409);
+    const source = paperDataSchema.parse(revision.data);
+    base ??= source;
+    for (const item of set.items.filter(entry => entry.sourceAssignmentId === sourceId)) {
+      const original = source.questions.find(question => question.id === item.questionId);
+      if (!original) continue;
+      const { review: _review, reusedFrom: _origin, ...copy } = original;
+      // Item ids are local to a paper; two source papers can both have "q1".
+      let questionId = copy.id;
+      for (let n = 2; usedIds.has(questionId); n++) questionId = `${copy.id}-${n}`;
+      usedIds.add(questionId);
+      questions.push({ ...copy, id: questionId, locked: false });
+    }
+  }
+  if (!base || !questions.length) throw new ApiError("None of this practice set's items are still available in their released papers.", 409);
+  // One blueprint section per (type, marks), every item required: the check is short and complete.
+  const groups = new Map<string, PaperData["questions"]>();
+  for (const question of questions) groups.set(`${question.type}:${question.marks}`, [...(groups.get(`${question.type}:${question.marks}`) ?? []), question]);
+  const sections = [...groups.values()].map((group, index) => ({
+    id: `formative-${index + 1}`, title: `Part ${index + 1}`, questionCount: group.length, answerCount: group.length, marksPerQuestion: group[0].marks, type: group[0].type,
+    outcomeIds: [...new Set(group.flatMap(question => question.outcomeIds))].filter(outcomeId => set.outcomeIds.includes(outcomeId)).slice(0, 50),
+  }));
+  for (const [index, group] of [...groups.values()].entries()) for (const question of group) question.sectionId = sections[index].id;
+  for (const section of sections) if (!section.outcomeIds.length) section.outcomeIds = [...new Set(groups.get(`${section.type}:${section.marksPerQuestion}`)!.flatMap(question => question.outcomeIds))].slice(0, 50);
+  const totalMarks = questions.reduce((sum, question) => sum + question.marks, 0);
+  const paper: PaperData = paperDataSchema.parse({
+    curriculumId: base.curriculumId, curriculumVersion: base.curriculumVersion, subjectId: set.subjectId, classId: set.classId, language: base.language,
+    blueprint: { title: `Formative check · ${practice.title}`.slice(0, 240), durationMinutes: input.durationMinutes ?? Math.max(10, Math.min(60, questions.length * 3)), totalMarks, instructions: base.blueprint.instructions, sections },
+    ...(base.coverageSection ? { coverageSection: base.coverageSection } : {}),
+    questions,
+    generation: { kind: "MANUAL", model: null, generatedAt: null },
+    formativeOf: { practiceRecordId: practice.id, sourceAssignmentIds: set.sourceAssignmentIds, outcomeIds: set.outcomeIds },
+  });
+  return createWorkspaceRecord(user, { kind: "PAPER", campusId: practice.campusId, title: paper.blueprint.title, data: paper as unknown as Record<string, unknown>, idempotencyKey: randomUUID() });
+}
+
+/**
+ * R18.8-R18.10: once a formative check's results are released, it sits beside the exam it followed
+ * up, through the same sample-sized, non-causal comparison as any earlier/later pair.
+ */
+export async function formativeComparison(user: AuthUser, assignmentId: string) {
+  const { assignment } = await scopedAssignment(user, assignmentId);
+  const revision = await prisma.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, recordId: assignment.paperId, version: assignment.paperVersion }, select: { data: true } });
+  const parsed = revision ? paperDataSchema.safeParse(revision.data) : null;
+  const link = parsed?.success ? parsed.data.formativeOf : undefined;
+  if (!link) throw new ApiError("This exam is not a formative check.", 409);
+  const sources = await prisma.schoolAiExamAssignment.findMany({ where: { id: { in: link.sourceAssignmentIds }, schoolId: user.schoolId, campusId: assignment.campusId, classId: assignment.classId, startsAt: { lt: assignment.startsAt }, resultsReleasedAt: { not: null } }, orderBy: { startsAt: "desc" }, select: { id: true } });
+  if (!sources.length) throw new ApiError("The exam this check follows up is not released for this class.", 409);
+  return outcomeComparison(user, sources[0].id, assignment.id);
+}

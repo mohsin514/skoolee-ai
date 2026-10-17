@@ -90,15 +90,24 @@ export default function ImproveSpace({ language, scope, capabilities, records, r
 }
 
 type PracticeRecord = StudioSpaceProps["records"][number];
-type Comparison = { outcomes: Array<{ outcomeId: string; title: string | null; earlier: { percentage: number; items: number; candidates: number } | null; later: { percentage: number; items: number; candidates: number } | null }> };
+type Comparison = { earlier: { id: string; title: string }; later: { id: string; title: string }; outcomes: Array<{ outcomeId: string; title: string | null; earlier: { percentage: number; items: number; candidates: number } | null; later: { percentage: number; items: number; candidates: number } | null }> };
 
 /** R18.4-R18.10: practice from released items through teacher approval, and an earlier/later comparison with sample sizes. */
 function PracticeFollowUp({ examId, exams, language, records, canApprove, canCreate, reload, released }: { examId: string; exams: Exam[]; language: StudioSpaceProps["language"]; records: StudioSpaceProps["records"]; canApprove: boolean; canCreate: boolean; reload: () => void; released: boolean }) {
   const t = studioSpacesCopy(language);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [later, setLater] = useState("");
   const [comparison, setComparison] = useState<Comparison | null>(null);
+  // R18.8: a released formative check is shown beside the exam it followed up without being asked.
+  const [formative, setFormative] = useState<Comparison | null>(null);
+  useEffect(() => {
+    let live = true;
+    setFormative(null);
+    void fetch(`/api/school-ai/exams/${encodeURIComponent(examId)}/formative-comparison`, { cache: "no-store" }).then(async response => { const payload = await response.json().catch(() => ({})); if (live && response.ok) setFormative(payload.comparison); });
+    return () => { live = false; };
+  }, [examId]);
   const practice = records.filter(record => record.kind === "PRACTICE" && Array.isArray(record.data.sourceAssignmentIds) && (record.data.sourceAssignmentIds as string[]).includes(examId));
   const current = exams.find(exam => exam.id === examId);
   const laterExams = exams.filter(exam => exam.id !== examId && current && exam.classId === current.classId && new Date(exam.startsAt) > new Date(current.startsAt));
@@ -108,12 +117,13 @@ function PracticeFollowUp({ examId, exams, language, records, canApprove, canCre
     void fetch(`/api/school-ai/exams/${encodeURIComponent(examId)}/compare?later=${encodeURIComponent(later)}`, { cache: "no-store" }).then(async response => { const payload = await response.json().catch(() => ({})); if (!live) return; if (response.ok) { setComparison(payload.comparison); setError(""); } else setError(typeof payload.error === "string" ? payload.error : t.failed); });
     return () => { live = false; };
   }, [examId, later, t.failed]);
-  const act = async (path: string, init: RequestInit) => {
-    setBusy(true); setError("");
+  const act = async (path: string, init: RequestInit, done?: string) => {
+    setBusy(true); setError(""); setNotice("");
     const response = await fetch(path, { ...init, headers: { "Content-Type": "application/json" } });
     const payload = await response.json().catch(() => ({}));
     setBusy(false);
     if (!response.ok) { setError(typeof payload.error === "string" ? payload.error : t.failed); return; }
+    if (done) setNotice(done);
     reload();
   };
   const sample = (value: { percentage: number; items: number; candidates: number } | null) => value ? fillStudioCopy(t.sample, [new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value.percentage), new Intl.NumberFormat(language).format(value.items), new Intl.NumberFormat(language).format(value.candidates)]) : "—";
@@ -126,16 +136,19 @@ function PracticeFollowUp({ examId, exams, language, records, canApprove, canCre
       <span className="flex gap-2">
         {record.status === "DRAFT" && canCreate && <Button size="sm" variant="outline" disabled={busy} onClick={() => void act(`/api/school-ai/workspace/${encodeURIComponent(record.id)}`, { method: "PATCH", body: JSON.stringify({ version: record.version, action: "review" }) })}>{t.sendReview}</Button>}
         {record.status === "IN_REVIEW" && canApprove && <Button size="sm" disabled={busy} onClick={() => void act(`/api/school-ai/workspace/${encodeURIComponent(record.id)}`, { method: "PATCH", body: JSON.stringify({ version: record.version, action: "approve" }) })}>{t.approveForLearners}</Button>}
+        {record.status === "APPROVED" && canCreate && <Button size="sm" variant="outline" disabled={busy} data-schedule-formative onClick={() => void act(`/api/school-ai/workspace/${encodeURIComponent(record.id)}/formative-check`, { method: "POST", body: "{}" }, t.formativeScheduled)}>{t.scheduleFormative}</Button>}
       </span>
     </li>)}</ul>}
     {canCreate && <Button variant="outline" disabled={busy} onClick={() => void act(`/api/school-ai/exams/${encodeURIComponent(examId)}/practice`, { method: "POST", body: "{}" })}>{t.draftPractice}</Button>}
     {error && <p role="alert" className="text-sm text-status-error-text"><bdi dir="auto">{error}</bdi></p>}
+    {notice && <p role="status" className="text-sm text-status-success-text" data-formative-notice>{notice}</p>}
     <div className="space-y-2 border-t pt-3" data-compare>
       <h4 className="text-sm font-semibold">{t.compareTitle}</h4>
       <p className="text-xs text-ink-subtle">{t.compareHint}</p>
       {!laterExams.length ? <p className="text-sm text-ink-subtle">{t.noLater}</p> : <label className="grid max-w-md gap-1 text-sm font-semibold">{t.laterExam}<Select aria-label={t.laterExam} value={later} onChange={event => setLater(event.target.value)}><option value="">—</option>{laterExams.map(exam => <option key={exam.id} value={exam.id}>{exam.title}</option>)}</Select></label>}
-      {comparison && <div className="overflow-x-auto"><table className="w-full min-w-[34rem] text-sm"><thead><tr className="text-xs text-ink-subtle"><th className="p-2 text-start">{t.outcomeCol}</th><th className="p-2 text-start">{t.earlierCol}</th><th className="p-2 text-start">{t.laterCol}</th></tr></thead>
-        <tbody>{comparison.outcomes.map(row => <tr key={row.outcomeId} className="border-t" data-compare-row><td className="p-2"><bdi dir="auto">{row.title ?? row.outcomeId}</bdi></td><td className="p-2 tabular-nums">{sample(row.earlier)}</td><td className="p-2 tabular-nums">{sample(row.later)}</td></tr>)}</tbody></table></div>}
+      {!comparison && formative && <p className="text-sm" data-formative-compared>{fillStudioCopy(t.formativeCompared, [formative.earlier.title])}</p>}
+      {(comparison ?? formative) && <div className="overflow-x-auto"><table className="w-full min-w-[34rem] text-sm"><thead><tr className="text-xs text-ink-subtle"><th className="p-2 text-start">{t.outcomeCol}</th><th className="p-2 text-start">{t.earlierCol}</th><th className="p-2 text-start">{t.laterCol}</th></tr></thead>
+        <tbody>{(comparison ?? formative)!.outcomes.map(row => <tr key={row.outcomeId} className="border-t" data-compare-row><td className="p-2"><bdi dir="auto">{row.title ?? row.outcomeId}</bdi></td><td className="p-2 tabular-nums">{sample(row.earlier)}</td><td className="p-2 tabular-nums">{sample(row.later)}</td></tr>)}</tbody></table></div>}
     </div>
   </section>;
 }
