@@ -154,3 +154,29 @@ test("Arabic lead sees the review desk right-to-left without overflow at 390px",
   await shotOf(page, panel, "release-review-ar-390");
   assert.deepEqual(errors, []); await ctx.close();
 });
+
+test("a reviewer compares a regenerated item beside the current one and keeps the current one (R5.5, R5.7)", async () => {
+  const ctx = await context("lead"), page = await ctx.newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const record = await raw.schoolAiRecord.findUniqueOrThrow({ where: { id: draftPaperId } });
+  const first = (record.data as { questions: Array<{ id: string; prompt: string; marks: number; options: Array<{ id: string; text: string }>; modelAnswer: string; correctOptionId: string | null }> }).questions[0];
+  // The provider is not configured in this isolated environment, so only the candidate is synthetic;
+  // the server path (receipt, pinning, acceptance) is covered by exam-item-regenerate.database.test.ts.
+  await page.route("**/regenerate", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+    key: randomUUID(), version: record.version,
+    previous: { prompt: first.prompt, marks: first.marks, options: first.options, modelAnswer: first.modelAnswer, correctOptionId: first.correctOptionId },
+    candidate: { prompt: `${first.prompt} Show how you know.`, marks: first.marks, options: first.options, modelAnswer: first.modelAnswer, correctOptionId: first.correctOptionId },
+    differingFields: ["prompt"],
+  }) }));
+  const panel = await openPanel(page, "Curriculum & papers");
+  await panel.locator(`[data-regenerate="${first.id}"]`).click();
+  const compare = panel.locator("[data-item-compare]");
+  await compare.waitFor();
+  assert.match(await compare.locator('[data-compare-side="candidate"]').innerText(), /Show how you know\./);
+  assert.match(await compare.innerText(), /Changed: Question/);
+  await shotOf(page, compare, "release-item-compare-en-1440");
+  await compare.getByRole("button", { name: "Keep the current item" }).click();
+  await compare.waitFor({ state: "detached" });
+  assert.equal((await raw.schoolAiRecord.findUniqueOrThrow({ where: { id: draftPaperId } })).version, record.version, "keeping the current item writes nothing");
+  assert.deepEqual(errors, []); await ctx.close();
+});

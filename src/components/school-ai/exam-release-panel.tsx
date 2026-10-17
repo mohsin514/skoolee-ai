@@ -28,6 +28,7 @@ export type Readiness = {
   rehearsal: { id: string; paperVersion: number; results: Array<{ check: Check; severity: "BLOCKING" | "ADVISORY"; questionIds: string[]; detail: string }>; createdAt: string } | null;
   blockers: Array<{ code: "ITEM_NOT_APPROVED" | "REHEARSAL_INVALID" | "REHEARSAL_BLOCKER" | "NOT_REHEARSED"; check?: Check; questionIds: string[] }>;
 };
+type CompareItem = { prompt: string; marks: number; options: Array<{ id: string; text: string }>; modelAnswer: string; correctOptionId: string | null };
 async function call(path: string, body?: unknown) {
   const response = await fetch(path, { cache: "no-store", ...(body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
   const data = await response.json().catch(() => ({}));
@@ -44,6 +45,9 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [rechecked, setRechecked] = useState<Record<string, boolean>>({});
+  // SKO-408 R5.3–R5.7: one item regenerated beside the current one; nothing is saved until accepted.
+  const [compare, setCompare] = useState<{ questionId: string; key: string; version: number; previous: CompareItem; candidate: CompareItem; differingFields: string[] } | null>(null);
+  const [regenerating, setRegenerating] = useState<string | null>(null);
   const api = `/api/school-ai/workspace/${encodeURIComponent(recordId)}`;
   const load = useCallback(async () => { const readiness = (await call(`${api}/rehearsal`)).readiness as Readiness; setView(readiness); onLoaded?.(readiness); }, [api, onLoaded]);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
@@ -67,9 +71,25 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
           {editable && ["DRAFT", "NEEDS_SOURCE", "NEEDS_CORRECTION", "CHANGED_AFTER_APPROVAL"].includes(item.state) && <Button size="sm" variant="outline" disabled={busy || (item.invalidated.length > 0 && !rechecked[item.id])} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "READY_FOR_REVIEW", itemRevision: item.itemRevision, ...(item.invalidated.length ? { confirmRechecked: item.invalidated } : {}) }), true)}>{t.ready}</Button>}
           {editable && canApprove && item.state === "READY_FOR_REVIEW" && <Button size="sm" disabled={busy} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "APPROVED", itemRevision: item.itemRevision }), true)}>{t.approve}</Button>}
           {onInspect && inspectLabel && <Button size="sm" variant="outline" onClick={() => onInspect(item.id)}>{inspectLabel}</Button>}
+          {editable && view.status === "DRAFT" && <Button size="sm" variant="outline" data-regenerate={item.id} disabled={busy || regenerating !== null} onClick={() => { const key = crypto.randomUUID(); setRegenerating(item.id); setStatus(null); call(`${api}/items/${encodeURIComponent(item.id)}/regenerate`, { idempotencyKey: key, version: view.version }).then(data => setCompare({ questionId: item.id, ...data })).catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })).finally(() => setRegenerating(null)); }}>{regenerating === item.id ? t.regenerating : t.regenerate}</Button>}
           {editable && ["READY_FOR_REVIEW", "APPROVED"].includes(item.state) && <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "NEEDS_CORRECTION" }), true)}>{t.correction}</Button>}
         </div>
       </div>
+      {compare?.questionId === item.id && <div className="space-y-2 rounded-xl border border-[#cfc2d6] p-3" data-item-compare>
+        <p className="text-sm font-semibold">{t.compareTitle}</p>
+        <p className="text-xs text-ink-subtle">{t.changedFields}: {compare.differingFields.length ? compare.differingFields.map(field => t.fieldLabels[field as keyof typeof t.fieldLabels] ?? field).join(locale === "en" ? ", " : "، ") : t.noChange}</p>
+        <div className="grid gap-2 md:grid-cols-2">{([[t.previousItem, compare.previous], [t.candidateItem, compare.candidate]] as const).map(([label, version], index) => <div key={index} className={`space-y-1 rounded-lg border p-2 text-sm ${index === 1 ? "border-[#8127cf]/40 bg-[#faf7fc]" : ""}`} data-compare-side={index === 0 ? "previous" : "candidate"}>
+          <p className="text-xs font-semibold text-ink-subtle">{label}</p>
+          <p dir="auto" className={compare.differingFields.includes("prompt") ? "rounded bg-amber-50 px-1" : ""}>{version.prompt}</p>
+          {version.options.length ? <ul className={`list-disc ps-5 ${compare.differingFields.includes("options") ? "rounded bg-amber-50" : ""}`}>{version.options.map(option => <li key={option.id} dir="auto">{option.text}{option.id === version.correctOptionId ? " ✓" : ""}</li>)}</ul> : null}
+          <p className={`text-xs ${compare.differingFields.includes("marks") ? "rounded bg-amber-50 px-1" : ""}`}>{t.fieldLabels.marks}: {version.marks}</p>
+          {version.modelAnswer ? <p dir="auto" className={`text-xs text-ink-subtle ${compare.differingFields.includes("modelAnswer") ? "rounded bg-amber-50 px-1" : ""}`}>{t.fieldLabels.modelAnswer}: {version.modelAnswer}</p> : null}
+        </div>)}</div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" disabled={busy} onClick={() => void run(async () => { await call(`${api}/items/${encodeURIComponent(item.id)}/regenerate/accept`, { idempotencyKey: compare.key, version: compare.version }); setCompare(null); }, true)}>{t.acceptCandidate}</Button>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setCompare(null)}>{t.keepPrevious}</Button>
+        </div>
+      </div>}
       {item.invalidated.length > 0 && editable && <label className="flex items-start gap-2 rounded-lg border border-status-warning-border p-2 text-sm"><input type="checkbox" className="mt-1" checked={!!rechecked[item.id]} onChange={event => setRechecked(previous => ({ ...previous, [item.id]: event.target.checked }))} /><span>{t.recheck}: {item.invalidated.map(artifact => t.artifacts[artifact as keyof typeof t.artifacts] ?? artifact).join(", ")}</span></label>}
       <details className="text-sm"><summary className="cursor-pointer text-xs font-semibold">{t.evidence} ({item.sourceRefs.length})</summary><ul className="mt-1 list-disc ps-5">{item.sourceRefs.map((ref, index) => <li key={index}><span className="text-ink-subtle">{t.page} <bdi dir="ltr">{ref.page}</bdi>:</span> <q dir="auto">{ref.excerpt}</q></li>)}</ul></details>
     </li>)}</ol>

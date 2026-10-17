@@ -2,6 +2,8 @@ import type { AssessmentLocale } from "@/lib/school-ai/assessment";
 
 // SKO-408: item review desk, rehearsal and release readiness.
 const en = {
+  regenerate: "Regenerate this item", regenerating: "Regenerating…", compareTitle: "Compare before you choose", previousItem: "Current item", candidateItem: "Regenerated item", changedFields: "Changed", noChange: "No field changed", acceptCandidate: "Use the regenerated item", keepPrevious: "Keep the current item",
+  fieldLabels: { prompt: "Question", modelAnswer: "Model answer", options: "Options", correctOptionId: "Answer key", correctOptionIds: "Answer keys", numericKey: "Numeric key", marks: "Marks", rubric: "Rubric", figures: "Figures", outcomeIds: "Outcomes", sourceRefs: "Sources" },
   title: "Review, rehearse and release", intro: "Approve each item against its cited evidence, rehearse the exact version a learner will receive, then release. Nothing here publishes anything.",
   legacy: "This paper has not entered item review. It can still be assigned, sealed by its content hash, but without a recorded rehearsal.",
   states: { DRAFT: "Draft", NEEDS_SOURCE: "Needs source", NEEDS_CORRECTION: "Needs correction", READY_FOR_REVIEW: "Ready for review", APPROVED: "Approved", CHANGED_AFTER_APPROVAL: "Changed after approval" },
@@ -16,6 +18,8 @@ const en = {
 };
 type Copy = typeof en;
 const ar: Copy = {
+  regenerate: "أعد توليد هذا البند", regenerating: "جارٍ إعادة التوليد…", compareTitle: "قارن قبل أن تختار", previousItem: "البند الحالي", candidateItem: "البند المُعاد توليده", changedFields: "ما تغيّر", noChange: "لم يتغيّر أي حقل", acceptCandidate: "استخدم البند المُعاد توليده", keepPrevious: "أبقِ البند الحالي",
+  fieldLabels: { prompt: "السؤال", modelAnswer: "الإجابة النموذجية", options: "الخيارات", correctOptionId: "مفتاح الإجابة", correctOptionIds: "مفاتيح الإجابة", numericKey: "المفتاح الرقمي", marks: "الدرجات", rubric: "سلم التقدير", figures: "الأشكال", outcomeIds: "نواتج التعلم", sourceRefs: "المصادر" },
   title: "المراجعة والتجربة والإصدار", intro: "اعتمد كل سؤال مقابل الدليل المستشهد به، وجرّب النسخة نفسها التي سيستلمها الطالب، ثم أصدرها. لا شيء هنا يُنشر.",
   legacy: "لم تدخل هذه الورقة مراجعة الأسئلة. يمكن إسنادها ومختومة ببصمة المحتوى، لكن دون تجربة مسجلة.",
   states: { DRAFT: "مسودة", NEEDS_SOURCE: "يحتاج مصدراً", NEEDS_CORRECTION: "يحتاج تصحيحاً", READY_FOR_REVIEW: "جاهز للمراجعة", APPROVED: "معتمد", CHANGED_AFTER_APPROVAL: "تغيّر بعد الاعتماد" },
@@ -28,6 +32,8 @@ const ar: Copy = {
   sealed: "ورقة مختومة", exitSeb: "الخروج من Safe Exam Browser", releaseResults: "إصدار النتائج للطلاب", released: "صدرت النتائج", releaseHint: "يرى الطلاب والأسر النتائج المراجعة فقط بعد هذا الإصدار.",
 };
 const ur: Copy = {
+  regenerate: "یہ سوال دوبارہ بنائیں", regenerating: "دوبارہ بنایا جا رہا ہے…", compareTitle: "انتخاب سے پہلے موازنہ کریں", previousItem: "موجودہ سوال", candidateItem: "دوبارہ بنایا گیا سوال", changedFields: "کیا بدلا", noChange: "کوئی خانہ نہیں بدلا", acceptCandidate: "دوبارہ بنایا گیا سوال استعمال کریں", keepPrevious: "موجودہ سوال رکھیں",
+  fieldLabels: { prompt: "سوال", modelAnswer: "نمونہ جواب", options: "انتخابات", correctOptionId: "جوابی کلید", correctOptionIds: "جوابی کلیدیں", numericKey: "عددی کلید", marks: "نمبر", rubric: "روبرک", figures: "اشکال", outcomeIds: "تعلیمی نتائج", sourceRefs: "ماخذ" },
   title: "جائزہ، مشق اور اجرا", intro: "ہر سوال کو اس کے حوالہ شدہ ثبوت کے مقابل منظور کریں، وہی ورژن آزمائیں جو طالب علم کو ملے گا، پھر جاری کریں۔ یہاں سے کچھ شائع نہیں ہوتا۔",
   legacy: "یہ پرچہ سوالات کے جائزے میں داخل نہیں ہوا۔ اسے تفویض کیا جا سکتا ہے اور مواد کی شناخت سے مہر بند ہوگا، مگر درج شدہ مشق کے بغیر۔",
   states: { DRAFT: "مسودہ", NEEDS_SOURCE: "ماخذ درکار", NEEDS_CORRECTION: "درستی درکار", READY_FOR_REVIEW: "جائزے کے لیے تیار", APPROVED: "منظور شدہ", CHANGED_AFTER_APPROVAL: "منظوری کے بعد تبدیل" },
