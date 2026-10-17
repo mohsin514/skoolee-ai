@@ -80,6 +80,7 @@ import { AcademicModelPanel } from "@/components/academic/AcademicModelPanel";
 import { RoomsManager } from "@/components/academic/RoomsManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { YearEndPanel } from "@/components/academic/YearEndPanel";
+import { RolloverReview } from "@/components/academic/rollover-review";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
@@ -1215,6 +1216,7 @@ export default function CampusAdminDashboard() {
           */}
           {activeView === "promote-archive" ? (
             <div className="space-y-6">
+              <RolloverReview campusId={data.campusId} />
               <YearEndPanel campusId={data.campusId} />
               <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
               <ArchivedClassesPanel version={studentsVersion} onRestored={() => setStudentsVersion((v) => v + 1)} />

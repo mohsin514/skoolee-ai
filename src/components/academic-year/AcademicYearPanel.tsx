@@ -160,15 +160,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
     finally { setClosing(false); }
   }, [campusId, load]);
 
-  const openPromotionWizard = (sourceClassId?: string) => {
-    setShowPromoteModal(true);
-    setPromoteStep("source");
-    setPromoteSourceId(sourceClassId || "");
-    setPromoteTargetId("");
-    setGradeResults([]);
-    setGradeError("");
-    setStudentDecisions(new Map());
-    setPromotionResults(null);
+  // SKO-404: promotion is reviewed as one versioned year-end plan, so every
+  // entry point leads there; the per-class wizard below no longer opens (its
+  // endpoint is retired) and is kept only until its contract baseline is reviewed.
+  const openPromotionWizard = (_sourceClassId?: string) => {
+    const plan = document.getElementById("year-end-rollover");
+    if (plan) { plan.scrollIntoView({ behavior: "smooth", block: "start" }); plan.focus(); return; }
+    toast.info("Promotion is reviewed as a year-end plan under Promote Students.");
   };
 
   const loadStudentsFallback = useCallback(async (classId: string) => {

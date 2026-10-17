@@ -1216,6 +1216,8 @@ model Class {
   // SINGLE  = the class teacher takes every subject
   // SUBJECT = each subject has its own teacher
   teachingMode   String  @default("SINGLE") @map("teaching_mode")
+  // SKO-404: seats for rollover checks; null = not set (warned, never assumed).
+  capacity       Int?
 
   // Relations
   students            Student[]
@@ -5903,4 +5905,76 @@ model SchoolAiLanguageProposal {
 
   @@index([schoolId, formSetId, recordId, recordVersion])
   @@map("school_ai_language_proposals")
+}
+
+// ─── SKO-404: year-end rollover plans ──────────────────────
+// One reviewed plan per campus and source year. Every eligible learner has one
+// decision row; missing evidence is NEEDS_REVIEW, never pass or fail. Approval
+// binds to an exact version; execution is bounded, resumable and revalidates.
+model RolloverPlan {
+  id                 String    @id @default(uuid())
+  schoolId           String    @default("") @map("school_id")
+  campusId           String    @map("campus_id")
+  sourceYear         Int       @map("source_year")
+  destinationYear    Int       @map("destination_year")
+  version            Int       @default(1)
+  status             String    @default("DRAFT") // DRAFT, APPROVED, EXECUTING, PAUSED, EXCEPTIONS, COMPLETED
+  effectiveDate      DateTime  @db.Date @map("effective_date")
+  classMap           Json      @default("{}") @map("class_map")
+  approvedVersion    Int?      @map("approved_version")
+  approvedById       String?   @map("approved_by_id")
+  approvedAt         DateTime? @map("approved_at")
+  baseline           Json?
+  leaseUntil         DateTime? @map("lease_until")
+  notifiedAt         DateTime? @map("notified_at")
+  createdById        String    @map("created_by_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, sourceYear])
+  @@index([schoolId])
+  @@map("rollover_plans")
+}
+
+model RolloverDecision {
+  id                 String    @id @default(uuid())
+  schoolId           String    @default("") @map("school_id")
+  planId             String    @map("plan_id")
+  studentId          String    @map("student_id")
+  sourceClassId      String    @map("source_class_id")
+  sourceEnrollmentId String    @map("source_enrollment_id")
+  sourceRollNo       String    @map("source_roll_no")
+  evidence           String    // PASSED, FAILED, MISSING
+  evidenceDetail     Json?     @map("evidence_detail")
+  decision           String    // PROMOTE, RETAIN, GRADUATE, TRANSFER_OUT, NEEDS_REVIEW
+  destinationClassId String?   @map("destination_class_id")
+  reason             String?
+  reviewedById       String?   @map("reviewed_by_id")
+  reviewedAt         DateTime? @map("reviewed_at")
+  executionStatus    String    @default("PENDING") @map("execution_status") // PENDING, DONE, BLOCKED, REVERSED
+  executionNote      String?   @map("execution_note")
+  newEnrollmentId    String?   @map("new_enrollment_id")
+  newRollNo          String?   @map("new_roll_no")
+  executedAt         DateTime? @map("executed_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@unique([planId, studentId])
+  @@index([planId, executionStatus])
+  @@index([schoolId])
+  @@map("rollover_decisions")
+}
+
+model RolloverEvent {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  planId    String   @map("plan_id")
+  version   Int
+  kind      String
+  actorId   String   @map("actor_id")
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([planId, createdAt])
+  @@index([schoolId])
+  @@map("rollover_events")
 }

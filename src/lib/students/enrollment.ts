@@ -99,15 +99,16 @@ export async function withdrawalImpact(tx: TxClient, studentId: string, effectiv
   if (futureAttendance || futureReports || futureInvoices) throw new ApiError("Attendance, invoices or reports already exist on or after this date. Choose a later withdrawal boundary.", 409);
   return { pupil, from, preserved: { attendance, reports, invoices } };
 }
-export async function applyWithdrawal(tx: TxClient, input: { studentId: string; effectiveDate: Date; actorId: string; reason: string }) {
+export async function applyWithdrawal(tx: TxClient, input: { studentId: string; effectiveDate: Date; actorId: string; reason: string; outcome?: "WITHDRAWN" | "GRADUATED" | "TRANSFERRED" }) {
   const impact = await withdrawalImpact(tx, input.studentId, input.effectiveDate);
-  await tx.studentEnrollment.update({ where: { id: impact.from.id }, data: { endDate: input.effectiveDate, status: "WITHDRAWN" } });
+  const outcome = input.outcome ?? "WITHDRAWN";
+  await tx.studentEnrollment.update({ where: { id: impact.from.id }, data: { endDate: input.effectiveDate, status: outcome } });
   await tx.student.update({ where: { id: input.studentId }, data: { status: "archived", archivedAt: input.effectiveDate, archiveReason: input.reason } });
   if (impact.pupil.studentUserId) {
     await tx.user.updateMany({ where: { id: impact.pupil.studentUserId, role: "STUDENT" }, data: { isActive: false, accessVersion: { increment: 1 } } });
     await tx.loginSession.updateMany({ where: { userId: impact.pupil.studentUserId, isActive: true }, data: { isActive: false, logoutAt: new Date() } });
   }
-  await tx.studentTimelineEvent.create({ data: { studentId: input.studentId, kind: "WITHDRAWN", title: "Enrollment withdrawn", detail: JSON.stringify({ enrollmentId: impact.from.id, effectiveDate: input.effectiveDate.toISOString().slice(0, 10), reason: input.reason, preserved: impact.preserved }), actorId: input.actorId } });
-  await tx.auditLog.create({ data: { tableName: "student_enrollments", recordId: impact.from.id, userId: input.actorId, oldValue: { status: "ACTIVE" }, newValue: { status: "WITHDRAWN", effectiveDate: input.effectiveDate.toISOString(), reason: input.reason, preserved: impact.preserved } } });
+  await tx.studentTimelineEvent.create({ data: { studentId: input.studentId, kind: outcome, title: outcome === "GRADUATED" ? "Graduated" : outcome === "TRANSFERRED" ? "Transferred out" : "Enrollment withdrawn", detail: JSON.stringify({ enrollmentId: impact.from.id, effectiveDate: input.effectiveDate.toISOString().slice(0, 10), reason: input.reason, preserved: impact.preserved }), actorId: input.actorId } });
+  await tx.auditLog.create({ data: { tableName: "student_enrollments", recordId: impact.from.id, userId: input.actorId, oldValue: { status: "ACTIVE" }, newValue: { status: outcome, effectiveDate: input.effectiveDate.toISOString(), reason: input.reason, preserved: impact.preserved } } });
   return impact;
 }

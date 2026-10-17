@@ -114,6 +114,7 @@ import { StaffSubnav, STAFF_VIEWS } from "@/components/staff/StaffSubnav";
 import { StudentSubnav, STUDENT_VIEWS } from "@/components/student/StudentSubnav";
 import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
+import { RolloverReview } from "@/components/academic/rollover-review";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 import {
@@ -710,22 +711,7 @@ export default function PrincipalDashboard() {
         */}
         {activeView === "promote-archive" ? (
           <div className="space-y-6">
-            <div className="sk-panel p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
-                    <GraduationCap className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">Year-End Promotion</h3>
-                    <p className="text-xs font-bold text-ink-muted">Batch promote students with final grades, pass/fail outcomes and fee carry-forward</p>
-                  </div>
-                </div>
-                <BrandButton variant="dark" icon={<ArrowRightLeft className="w-4 h-4" />} onClick={() => setActiveView("year-cycle")}>
-                  Open Promotion Wizard
-                </BrandButton>
-              </div>
-            </div>
+            <RolloverReview campusId={data.campusId} />
             <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
               <ArchivedClassesPanel version={studentsVersion} onRestored={() => setStudentsVersion((v) => v + 1)} />
           </div>
