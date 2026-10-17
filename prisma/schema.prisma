@@ -232,6 +232,7 @@ model School {
   schoolAiExamClarifications SchoolAiExamClarification[]
   schoolAiExamClarificationAcks SchoolAiExamClarificationAck[]
   schoolAiExamRemedies SchoolAiExamRemedy[]
+  schoolAiExamFormAllocations SchoolAiExamFormAllocation[]
   assignments             Assignment[]
   assignmentRubricVersions AssignmentRubricVersion[]
   assignmentVersions      AssignmentVersion[]
@@ -4429,7 +4430,8 @@ model SchoolAiExamFormSet {
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String   @map("campus_id")
   campus        Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
-  briefRecordId String   @map("brief_record_id")
+  /// SKO-408: optional; a form set made from a paper has no brief until one is linked.
+  briefRecordId String?  @map("brief_record_id")
   blueprintHash String   @map("blueprint_hash")
   maxForms      Int      @default(4) @map("max_forms")
   status        String   @default("DRAFT")
@@ -4438,6 +4440,7 @@ model SchoolAiExamFormSet {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
   releases      SchoolAiExamFormRelease[]
+  allocations   SchoolAiExamFormAllocation[]
 
   @@unique([id, schoolId, campusId])
   @@index([schoolId, campusId, status, updatedAt], map: "school_ai_exam_form_sets_scope_status_updated_at_idx")
@@ -4469,6 +4472,25 @@ model SchoolAiExamFormRelease {
   @@unique([paperId, paperVersion, language], map: "school_ai_exam_form_releases_paper_version_language_key")
   @@index([schoolId, campusId, contentHash], map: "school_ai_exam_form_releases_scope_content_hash_idx")
   @@map("school_ai_exam_form_releases")
+}
+
+/// SKO-408 R10.8-R10.10: exactly one form per candidate in a form set, recorded before the attempt starts.
+model SchoolAiExamFormAllocation {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  formSetId    String   @map("form_set_id")
+  formSet      SchoolAiExamFormSet @relation(fields: [formSetId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade)
+  studentId    String   @map("student_id")
+  formLabel    String   @map("form_label")
+  assignmentId String   @map("assignment_id")
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([formSetId, studentId])
+  @@index([schoolId, campusId, assignmentId])
+  @@map("school_ai_exam_form_allocations")
 }
 
 // One row per item placed in front of a cohort, so an author adding an item can

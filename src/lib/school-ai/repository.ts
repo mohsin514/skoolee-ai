@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { validateKnowledgeReferences } from "./knowledge-service";
 import { Prisma, type SchoolAiRecord as StoredRecord } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
@@ -24,7 +25,10 @@ function json(value: unknown): Prisma.InputJsonValue { return JSON.parse(JSON.st
 function dataOf(record: StoredRecord): Record<string, unknown> { return record.data as Record<string, unknown>; }
 function preparePaperWrite(user: AuthUser, incoming: Record<string, unknown>, previous?: Record<string, unknown>): Record<string, unknown> {
   try {
-    return preparePaperContentWrite(previous ? paperDataSchema.parse(previous) : null, paperDataSchema.parse(incoming), { actorId: user.userId, at: new Date().toISOString() });
+    const before = previous ? paperDataSchema.parse(previous) : null, after = paperDataSchema.parse(incoming);
+    // SKO-408: form-set membership and item groups are written only by the form-set service.
+    if (!isDeepStrictEqual(before?.formSet, after.formSet) || !isDeepStrictEqual(before?.itemGroupIds, after.itemGroupIds)) throw new SchoolAiError("Form-set membership and item groups change only through the parallel-forms workspace.", 403, "PAPER_FORM_SET_AUTHORITY");
+    return preparePaperContentWrite(before, after, { actorId: user.userId, at: new Date().toISOString() });
   } catch (error) {
     if (error instanceof PaperReviewWriteError) throw new SchoolAiError(error.message, error.status, "PAPER_REVIEW_AUTHORITY");
     throw error;
