@@ -4,6 +4,7 @@ import { ApiError, assertSharedModuleRead, errorResponse, requireAuthUser } from
 import { studentScope } from "@/lib/auth/policy";
 import { reconcileStatement, schoolToday } from "@/lib/fees/statement";
 import { installmentStates, type Installment } from "@/lib/fees/installments";
+import { familyAdjustment } from "@/lib/fees/adjustments-service";
 
 // GET /api/fees/family-statement?studentId=&currency=
 // SKO-431: the whole statement for one authorized child in one currency (no silent conversion), with
@@ -34,6 +35,8 @@ export async function GET(req: NextRequest) {
     // Approved instalment plans replace an invoice's single due date with their own schedule.
     const plans = await prisma.paymentPlan.findMany({ where: { invoiceId: { in: inCurrency.map(invoice => invoice.id) }, status: "active" }, select: { invoiceId: true, installmentsJson: true, paidAtCreation: true } });
     const schedule = new Map(plans.map(plan => [plan.invoiceId!, plan]));
+    // SKO-433: decided refunds, credits and waivers, with the family-facing explanation only.
+    const adjustments = (await prisma.financialAdjustment.findMany({ where: { invoiceId: { in: inCurrency.map(invoice => invoice.id) } }, orderBy: { createdAt: "asc" } })).map(familyAdjustment).filter((row): row is NonNullable<ReturnType<typeof familyAdjustment>> => Boolean(row));
     const rows = inCurrency.map(invoice => {
       const plan = schedule.get(invoice.id);
       return { id: invoice.id, status: invoice.status, totalAmount: invoice.totalAmount, totalAmountPaid: invoice.totalAmountPaid, balanceDue: invoice.balanceDue, dueDate: invoice.dueDate.toISOString().slice(0, 10),
@@ -48,7 +51,7 @@ export async function GET(req: NextRequest) {
         summary: { ...summary, states: undefined },
         invoices: inCurrency.map((invoice, index) => ({
           id: invoice.id, invoiceNumber: invoice.invoiceNumber, currency: invoice.currency, status: invoice.status,
-          dueState: summary.states[invoice.id], dueDate: rows[index].dueDate, installments: rows[index].installments ?? null,
+          dueState: summary.states[invoice.id], dueDate: rows[index].dueDate, installments: rows[index].installments ?? null, adjustments: adjustments.filter(row => row.invoiceId === invoice.id).map(({ invoiceId: _invoiceId, ...row }) => row),
           totalAmount: invoice.totalAmount, paid: invoice.totalAmountPaid, balance: invoice.balanceDue,
           receipts: invoice.payments.map(payment => ({ id: payment.id, amount: payment.amount, receiptNo: payment.receiptNo, paymentDate: payment.paymentDate.toISOString().slice(0, 10), method: payment.paymentMethod })),
         })),

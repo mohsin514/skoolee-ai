@@ -1,6 +1,7 @@
 "use client";
 
 import { ReconciliationsPanel } from "./reconciliations-panel";
+import { AdjustmentsQueue } from "./adjustments-panel";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -270,6 +271,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         />
       )}
 
+      <div className="mt-6"><AdjustmentsQueue version={reconciliationVersion} /></div>
       <div className="mt-6"><ReconciliationsPanel campusId={campusId} version={reconciliationVersion} onPosted={() => void loadPayments()} /></div>
 
       {showBankImport && (

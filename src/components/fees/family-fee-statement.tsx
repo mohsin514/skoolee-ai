@@ -15,7 +15,8 @@ type Statement = {
   student: { id: string; fullName: string }; currency: string | null; currencies: string[]; today: string;
   summary: { charges: number; payments: number; closing: number; outstanding: number; overdue: number; dueToday: number; notYetDue: number; reconciles: boolean };
   invoices: { id: string; invoiceNumber: string | null; currency: string; status: string; dueState: DueState; dueDate: string; totalAmount: number; paid: number; balance: number; receipts: { id: string; amount: number; receiptNo: string | null; paymentDate: string; method: string }[];
-    installments: { dueDate: string; amount: number; paid: number; remaining: number; state: "PAID" | "PART_PAID" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE" }[] | null }[];
+    installments: { dueDate: string; amount: number; paid: number; remaining: number; state: "PAID" | "PART_PAID" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE" }[] | null;
+    adjustments?: { id: string; kind: "REFUND" | "CREDIT_NOTE" | "WAIVER"; status: string; amount: number; publicExplanation: string }[] }[];
 };
 const STATE_STYLE: Record<DueState, string> = { PAID: "bg-emerald-50 text-emerald-700", CANCELLED: "bg-gray-100 text-gray-500", OVERDUE: "bg-rose-50 text-rose-700", DUE_TODAY: "bg-amber-50 text-amber-700", NOT_YET_DUE: "bg-sky-50 text-sky-700" };
 const STATE_LABEL: Record<DueState, string> = { PAID: "Paid", CANCELLED: "Cancelled", OVERDUE: "Overdue", DUE_TODAY: "Due today", NOT_YET_DUE: "Not yet due" };
@@ -87,6 +88,8 @@ function InvoiceCard({ invoice, focused, fmt, onPending }: { invoice: Statement[
       <div><dt className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Balance")}</dt><dd className={`font-black tabular-nums ${invoice.balance > 0 && invoice.dueState !== "CANCELLED" ? "text-rose-600" : "text-ink-muted"}`}><bdi>{fmt(invoice.balance)}</bdi></dd></div>
     </dl>
     {invoice.installments && <div className="mt-3 space-y-1"><p className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Instalment plan")}</p><InstallmentSchedule installments={invoice.installments} currency={invoice.currency} /></div>}
+    {(invoice.adjustments ?? []).length > 0 && <ul className="mt-3 space-y-1 text-xs" data-invoice-adjustments>{invoice.adjustments!.map(row => <li key={row.id} className="rounded-lg bg-sky-50 px-3 py-1.5" data-family-adjustment={row.status}>
+      <span className="font-bold">{row.kind === "REFUND" ? (row.status === "DISBURSED" ? ui("Refund paid: {0}", [fmt(row.amount)]) : ui("Refund approved: {0} — waiting to be paid out", [fmt(row.amount)])) : row.kind === "WAIVER" ? ui("Waiver: {0} less owed (not a cash refund)", [fmt(row.amount)]) : ui("Credit note: {0} less owed (not a cash refund)", [fmt(row.amount)])}</span> · <bdi>{row.publicExplanation}</bdi></li>)}</ul>}
     {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <a className="font-bold text-primary underline-offset-2 hover:underline" href={`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`} data-receipt-download>{ui("Download receipt")}</a></li>)}</ul>}
     {invoice.balance > 0 && !["CANCELLED", "PAID"].includes(invoice.dueState) && <OnlinePayAction invoiceId={invoice.id} onPending={onPending} />}
   </div>;
