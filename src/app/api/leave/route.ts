@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/scope";
 import { getBatchLeaveBalances, getLeaveBalances, rangeTenths } from "@/lib/leave";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
+import { resolveSourceActions } from "@/lib/notifications/actions";
 import { notify } from "@/lib/notifications/in-app";
 
 // Leave requests.
@@ -171,6 +172,7 @@ export async function POST(req: NextRequest) {
     notify("LEAVE_APPLIED", {
       schoolId: user.schoolId,
       campusId,
+      leaveId: request.id,
       actorId: user.userId,
       actorName: user.fullName,
       leaveTypeName: leaveType.name,
@@ -205,6 +207,8 @@ export async function PATCH(req: NextRequest) {
       data: { status: "CANCELLED" },
     });
     if (changed.count !== 1) throw new ApiError("This request was already reviewed or cancelled. Refresh its status.", 409);
+    // SKO-416: reviewers' "review this leave" actions close because the request was withdrawn.
+    await resolveSourceActions({ schoolId: user.schoolId, sourceType: "leave", sourceId: id, resolution: "CANCELLED" });
     const updated = await prisma.leaveRequest.findFirstOrThrow({ where: { id, schoolId: user.schoolId, userId: user.userId } });
     return Response.json({ success: true, data: updated });
   } catch (error) {

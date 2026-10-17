@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { getLeaveBalances, tenthsToDays } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
+import { resolveSourceActions } from "@/lib/notifications/actions";
 
 // PATCH /api/leave/review
 // body: { id, status: APPROVED | REJECTED, reviewNote?, override? }
@@ -77,6 +78,9 @@ export async function PATCH(req: NextRequest) {
 
       return { request, updated };
     });
+
+    // SKO-416: every reviewer's action for this request is resolved by the decision itself.
+    await resolveSourceActions({ schoolId: user.schoolId, sourceType: "leave", sourceId: request.id, resolution: "COMPLETED" });
 
     notify("LEAVE_REVIEWED", {
       schoolId: user.schoolId,

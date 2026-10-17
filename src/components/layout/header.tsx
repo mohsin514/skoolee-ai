@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 
 const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
   Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
@@ -83,7 +84,7 @@ export function Header({ title, description, actions }: HeaderProps) {
   const [cycle, setCycle] = useState<ActiveCycle | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
-  const { notifications: liveNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications: liveNotifications, unreadCount, markAsRead, refresh: refreshNotifications } = useNotifications();
 
   useEffect(() => {
     let cancelled = false;
@@ -233,57 +234,7 @@ export function Header({ title, description, actions }: HeaderProps) {
                     <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[10px] font-semibold text-[#8127cf]">{unreadCount} new</span>
                   )}
                 </div>
-                <div className="max-h-[360px] space-y-0.5 overflow-y-auto p-1.5">
-                  {liveNotifications.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <Bell className="mx-auto mb-3 h-8 w-8 text-ink-subtle" />
-                      <p className="text-sm font-bold text-ink-subtle">No notifications yet</p>
-                      <p className="mt-1 text-xs font-medium text-ink-subtle">You&#39;re all caught up</p>
-                    </div>
-                  ) : (
-                    liveNotifications.map((n) => {
-                      const Icon = resolveNotifIcon(n.icon);
-                      return (
-                        <div
-                          key={n.id}
-                          onClick={() => {
-                            if (!n.isRead) markAsRead([n.id]);
-                          }}
-                          className={cn(
-                            "flex cursor-pointer items-start gap-3 rounded-2xl px-4 py-3 transition-all hover:bg-[#fbf0fe]/60",
-                            !n.isRead && "bg-[#fbf0fe]/30"
-                          )}
-                        >
-                          <div className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                            !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-ink-muted"
-                          )}>
-                            <Icon className="h-[18px] w-[18px]" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className={cn("truncate text-sm", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-ink")}>{n.title}</p>
-                              {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
-                            </div>
-                            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-ink-muted">{n.message}</p>
-                            <p className="mt-1 text-[10px] font-semibold text-ink-subtle">{relativeTime(n.createdAt)}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-                {unreadCount > 0 && (
-                  <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
-                    <Button variant="secondary" size="sm"
-                      type="button"
-                      onClick={markAllAsRead}
-                      className="w-full"
-                    >
-                      Mark all as read
-                    </Button>
-                  </div>
-                )}
+                <NotificationCenter formatTime={relativeTime} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
               </div>
             )}
           </div>

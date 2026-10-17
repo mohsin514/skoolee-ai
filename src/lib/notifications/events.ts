@@ -14,6 +14,11 @@ interface NotificationEventDef {
   icon: string;
   link?: string;
   recipients: (ctx: NotificationEventPayload) => Promise<string[]>;
+  /** SKO-416: ACTION items need work in the source workflow; MENTION items are addressed to the reader. */
+  category?: "UPDATE" | "MENTION" | "ACTION";
+  /** The record the notification is about, so access is rechecked on open and the source can resolve it. */
+  source?: (ctx: Record<string, unknown>) => { type: string; id: string } | null;
+  dueAt?: (ctx: Record<string, unknown>) => Date | null;
 }
 
 // ─── Recipient Resolvers ─────────────────────────────────
@@ -386,10 +391,14 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
   },
   // ── Leave Management ───────────────────────────────────
   LEAVE_APPLIED: {
-    title: () => "Leave request submitted",
+    title: () => "Leave request to review",
     message: (c) => `${s(c.actorName)} applied for ${s(c.leaveTypeName)} leave (${s(c.fromDate)} → ${s(c.toDate)})`,
     icon: "Plane",
-    link: "/admin",
+    link: "/admin?view=leave",
+    category: "ACTION",
+    source: (c) => (c.leaveId ? { type: "leave", id: s(c.leaveId) } : null),
+    // Due the day before the leave starts, so the reviewer decides before it begins.
+    dueAt: (c) => (c.fromDate ? new Date(new Date(`${s(c.fromDate)}T00:00:00.000Z`).getTime() - 86_400_000) : null),
     recipients: (c) => getAdminsAndPrincipal(c.schoolId, c.campusId),
   },
   LEAVE_REVIEWED: {

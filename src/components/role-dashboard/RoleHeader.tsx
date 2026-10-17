@@ -36,7 +36,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
-import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
+import { useNotifications } from "@/hooks/use-notifications";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
 import { Button, buttonVariants } from "@/components/ui/button";
 
@@ -95,7 +96,7 @@ export function RoleHeader({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const notifRef = useRef<HTMLDivElement | null>(null);
   const prevUnreadRef = useRef(0);
-  const { notifications: liveNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications: liveNotifications, unreadCount, markAsRead, refresh: refreshNotifications } = useNotifications();
   const toastedNotifIds = useRef<Set<string>>(new Set());
   const displayName = (headerProfile?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
   const displayRole = headerProfile?.roleLabel || userRole;
@@ -195,20 +196,6 @@ export function RoleHeader({
     window.location.href = "/login";
   };
 
-  const handleNotificationClick = (notification: AppNotification) => {
-    // Mark as read
-    if (!notification.isRead) {
-      markAsRead([notification.id]);
-    }
-
-    // Close the dropdown
-    setNotifOpen(false);
-
-    // Navigate to the link if available
-    if (notification.link) {
-      router.push(notification.link);
-    }
-  };
 
   return (
     <>
@@ -258,54 +245,7 @@ export function RoleHeader({
                   <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount}{" "}<UiText>{"new"}</UiText></span>
                 )}
               </div>
-              <div className="max-h-[360px] overflow-y-auto p-1.5 space-y-0.5">
-                {liveNotifications.length === 0 ? (
-                  <div className="py-10 text-center">
-                    <Bell className="mx-auto h-8 w-8 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle"><UiText>{"No notifications yet"}</UiText></p>
-                    <p className="text-xs font-medium text-ink-subtle mt-1"><UiText>{"You're all caught up"}</UiText></p>
-                  </div>
-                ) : (
-                  liveNotifications.map((n) => {
-                    const Icon = resolveNotifIcon(n.icon);
-                    return (
-                      <Button variant="ghost"
-                        key={n.id}
-                        type="button"
-                        onClick={() => handleNotificationClick(n)}
-                        className={cn(
-                          "w-full flex justify-start items-start gap-3 text-start",
-                          !n.isRead && "bg-[#fbf0fe]/30"
-                        )}
-                      >
-                        <div className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                          !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-ink-muted"
-                        )}>
-                          <Icon className="w-[18px] h-[18px]" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className={cn("text-sm truncate", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-ink")}>{n.title}</p>
-                            {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
-                          </div>
-                          <p className="text-xs font-medium text-ink-muted mt-0.5 leading-snug line-clamp-2">{n.message}</p>
-                          <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt, language, timezone)}</p>
-                        </div>
-                      </Button>
-                    );
-                  })
-                )}
-              </div>
-              {unreadCount > 0 && (
-                <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
-                  <Button variant="secondary" size="sm"
-                    type="button"
-                    onClick={markAllAsRead}
-                    className="w-full"
-                  ><UiText>{"Mark all as read"}</UiText></Button>
-                </div>
-              )}
+              <NotificationCenter formatTime={(iso) => relativeTime(iso, language, timezone)} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
             </div>
           )}
         </div>

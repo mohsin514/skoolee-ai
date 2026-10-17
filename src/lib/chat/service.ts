@@ -783,8 +783,16 @@ async function notifyAbsentMembers(
         ? `New message from ${user.fullName ?? "a colleague"}`
         : `${user.fullName ?? "A member"} posted in ${row.title ?? "a conversation"}`;
 
+    // SKO-416: one unread notification per conversation and person. Further messages bump the existing
+    // one (reminder count) rather than stacking identical rows; a direct message is a mention.
+    const existing = await prisma.notification.findMany({ where: { userId: { in: offline }, sourceType: "chat", sourceId: row.id, isRead: false }, select: { id: true, userId: true } });
+    if (existing.length) await prisma.notification.updateMany({ where: { id: { in: existing.map((n) => n.id) } }, data: { reminderCount: { increment: 1 }, lastRemindedAt: new Date(), title, message: message.isUrgent ? "Urgent message. Open Messages to read it." : "Open Messages to read it." } });
+    const bumped = new Set(existing.map((n) => n.userId));
+    const fresh = offline.filter((userId) => !bumped.has(userId));
+    if (fresh.length === 0) return;
+
     const rows = await prisma.notification.createManyAndReturn({
-      data: offline.map((userId) => ({
+      data: fresh.map((userId) => ({
         schoolId: user.schoolId,
         campusId: row.campusId,
         userId,
@@ -797,6 +805,9 @@ async function notifyAbsentMembers(
         link: `/messages?c=${row.id}`,
         actorId: user.userId,
         actorName: user.fullName ?? null,
+        category: row.kind === "DIRECT" ? "MENTION" : "UPDATE",
+        sourceType: "chat",
+        sourceId: row.id,
       })),
       select: {
         id: true,
