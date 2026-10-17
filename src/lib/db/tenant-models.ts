@@ -121,6 +121,7 @@ export const TENANT_MODELS = new Set<string>([
   "phoneCallLog",
   "phoneCallback",
   "phoneCallbackEvent",
+  "postalEvent",
   "postalRecord",
   "promptTemplate",
   "readinessTask",

@@ -29,6 +29,7 @@ import {
   FileText,
   MessageCircle,
   PhoneCall,
+  Mail,
   Plane,
   Shield,
   GraduationCap,
@@ -94,6 +95,7 @@ import {
   DormitoryPanel,
   ComplaintsPanel,
   PhoneCallsPanel,
+  PostalPanel,
   LibraryPanel,
   InventoryPanel,
 } from "@/components/operations";
@@ -187,10 +189,11 @@ type PrincipalView =
   | "dormitory"
   | "complaints"
   | "phone-calls"
+  | "postal"
   | "library"
   | "inventory"
 ;
-const WORKSPACE_VIEWS: readonly PrincipalView[] = ["overview", "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "student-setup", "promote-archive", "leave", "permissions", "attendance", "year-cycle", "academic-hub", "year-setup", "academic-model", "exam-cycles", "grading-rules", "fees", "timetable", "class-rooms", "period-setup", "school-calendar", "teacher-performance", "report-cards", "ai", "engagement", "transport", "dormitory", "complaints", "phone-calls", "library", "inventory"];
+const WORKSPACE_VIEWS: readonly PrincipalView[] = ["overview", "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "student-setup", "promote-archive", "leave", "permissions", "attendance", "year-cycle", "academic-hub", "year-setup", "academic-model", "exam-cycles", "grading-rules", "fees", "timetable", "class-rooms", "period-setup", "school-calendar", "teacher-performance", "report-cards", "ai", "engagement", "transport", "dormitory", "complaints", "phone-calls", "postal", "library", "inventory"];
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 
 const principalAIFeatures = [
@@ -548,6 +551,7 @@ export default function PrincipalDashboard() {
         { icon: Building2, label: "Hostel", active: activeView === "dormitory", module: moduleForView("dormitory"), onClick: () => setActiveView("dormitory") },
         { icon: MessageSquare, label: "Complaints", active: activeView === "complaints", module: moduleForView("complaints"), onClick: () => setActiveView("complaints") },
         { icon: PhoneCall, label: "Phone Calls", active: activeView === "phone-calls", module: moduleForView("phone-calls"), onClick: () => setActiveView("phone-calls") },
+        { icon: Mail, label: "Postal", active: activeView === "postal", module: moduleForView("postal"), onClick: () => setActiveView("postal") },
         { icon: Package, label: "Inventory", active: activeView === "inventory", module: moduleForView("inventory"), onClick: () => setActiveView("inventory") },
         { icon: BookOpen, label: "Library", active: activeView === "library", module: moduleForView("library"), onClick: () => setActiveView("library") },
       ],
@@ -777,6 +781,7 @@ export default function PrincipalDashboard() {
         {activeView === "dormitory" ? <DormitoryPanel /> : null}
           {activeView === "complaints" ? <ComplaintsPanel /> : null}
           {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
+          {activeView === "postal" ? <PostalPanel /> : null}
         {activeView === "library" ? <LibraryPanel /> : null}
         {activeView === "inventory" ? <InventoryPanel /> : null}
       </section>

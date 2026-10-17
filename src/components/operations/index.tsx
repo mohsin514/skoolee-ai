@@ -26,6 +26,7 @@ import { DormitoryAllocations } from "./dormitory-allocations";
 import { VisitorRegister } from "./visitor-register";
 import { ComplaintsDesk } from "./complaints-desk";
 import { PhoneCallLog } from "./phone-call-log";
+import { PostalRegister } from "./postal-register";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
 import { formatPKR } from "@/components/fees/fee-utils";
@@ -49,7 +50,6 @@ import {
   ITEM_TRANSACTION_KINDS,
   libraryMemberSchema,
   PAGE_SIZES,
-  postalFormSchema,
   POSTAL_DIRECTIONS,
   supplierSchema,
   transportRouteFormSchema,
@@ -1225,88 +1225,8 @@ export function ComplaintsPanel() {
 }
 
 export function PostalPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/postal"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // PostalRecord is (direction, fromName, toName, referenceNo, date, note) and
-  // direction stores RECEIVE/DISPATCH. Every one of those names differed in the
-  // old form, and `date` — which the route requires — was never sent, so this
-  // panel could not save a record and its table read six fields that are never
-  // returned. Note there was also no client-side guard at all here.
-  const form = useValidatedForm({
-    schema: postalFormSchema,
-    initialValues: {
-      direction: "RECEIVE",
-      fromName: "",
-      toName: "",
-      referenceNo: "",
-      date: new Date().toISOString().slice(0, 10),
-      note: "",
-    },
-    onSubmit: async (values) => {
-      if (!(await submitTo("/api/front-desk/postal", values, form))) return;
-      toast.success("Postal record added");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Mail} title="Postal Records" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Record</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Type" error={form.errors.direction}>
-            <SystemSelect className={`${inputCls} w-32`} {...form.field("direction")}>
-              <option value="RECEIVE">Received</option>
-              <option value="DISPATCH">Dispatched</option>
-            </SystemSelect>
-          </OpField>
-          <OpField label="Sender" error={form.errors.fromName}>
-            <SystemInput className={`${inputCls} w-32`} {...form.field("fromName")} />
-          </OpField>
-          <OpField label="Receiver" error={form.errors.toName}>
-            <SystemInput className={`${inputCls} w-32`} {...form.field("toName")} />
-          </OpField>
-          <OpField label="Ref #" error={form.errors.referenceNo}>
-            <SystemInput className={`${inputCls} w-28`} {...form.field("referenceNo")} />
-          </OpField>
-          <OpField label="Date" error={form.errors.date}>
-            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("date")} />
-          </OpField>
-          <OpField label="Note" error={form.errors.note} width="flex-1">
-            <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Type", "Sender", "Receiver", "Ref #", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No postal records" /> : rows.map((p: any) => (
-              <tr key={p.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{p.date ? new Date(p.date).toLocaleDateString() : new Date(p.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${p.direction === "RECEIVE" ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}>{p.direction === "RECEIVE" ? "Received" : "Dispatched"}</span></td>
-                <td className={tdCls}>{p.fromName || "—"}</td>
-                <td className={tdCls}>{p.toName || "—"}</td>
-                <td className={tdCls}>{p.referenceNo || "—"}</td>
-                <td className={tdCls}>{p.note || "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-464: handoff tracking, corrections and history live in PostalRegister.
+  return <PostalRegister />;
 }
 
 export function PhoneCallsPanel() {

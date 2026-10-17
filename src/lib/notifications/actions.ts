@@ -39,6 +39,15 @@ export async function sourceView(user: AuthUser, row: { sourceType: string | nul
     if (callback.ownerId !== user.userId) return { state: "resolved", link, resolution: "REASSIGNED" };
     return { state: "open", link };
   }
+  if (row.sourceType === "postal") {
+    // SKO-464: open until the item is handed over or given to another owner.
+    const item = await db.postalRecord.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, ownerId: true, campusId: true } });
+    if (!item || (user.role !== "SUPER_ADMIN" && item.campusId !== user.campusId) || !FRONT_DESK.includes(user.role)) return { state: "unavailable", link: null };
+    const link = user.role === "RECEPTIONIST" ? "/receptionist?view=postal" : user.role === "PRINCIPAL" ? "/principal?view=postal" : "/admin?view=postal";
+    if (["COLLECTED", "DELIVERED"].includes(item.status)) return { state: "resolved", link, resolution: "COMPLETED" };
+    if (item.ownerId !== user.userId) return { state: "resolved", link, resolution: "REASSIGNED" };
+    return { state: "open", link };
+  }
   if (row.sourceType === "chat") {
     try { await requireMembership(user, row.sourceId, db); }
     catch { return { state: "unavailable", link: null }; }

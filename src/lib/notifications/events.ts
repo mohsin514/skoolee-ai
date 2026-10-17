@@ -401,6 +401,16 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     dueAt: (c) => (c.dueAt ? new Date(s(c.dueAt)) : null),
     recipients: async (c) => (c.ownerId ? [s(c.ownerId)] : []),
   },
+  // SKO-464: the accountable owner of a postal item until it is handed over.
+  POSTAL_ASSIGNED: {
+    title: () => "Postal item assigned to you",
+    message: (c) => `${s(c.actorName)} made you responsible for handing over ${s(c.itemCode)}`,
+    icon: "Mail",
+    link: "/receptionist?view=postal",
+    category: "ACTION",
+    source: (c) => (c.postalId ? { type: "postal", id: s(c.postalId) } : null),
+    recipients: async (c) => (c.ownerId ? [s(c.ownerId)] : []),
+  },
   // ── Leave Management ───────────────────────────────────
   LEAVE_APPLIED: {
     title: () => "Leave request to review",

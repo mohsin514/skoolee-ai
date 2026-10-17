@@ -196,6 +196,7 @@ model School {
   complaintEvents         ComplaintEvent[]
   phoneCallbacks          PhoneCallback[]
   phoneCallbackEvents     PhoneCallbackEvent[]
+  postalEvents            PostalEvent[]
   bookCategories          BookCategory[]
   books                   Book[]
   libraryMembers          LibraryMember[]
@@ -683,6 +684,7 @@ model User {
   @@map("users")
   ownedComplaints Complaint[] @relation("ComplaintOwner")
   ownedCallbacks  PhoneCallback[] @relation("PhoneCallbackOwner")
+  ownedPostal     PostalRecord[]  @relation("PostalOwner")
 }
 
 // Staff records depth: payroll, bank, documents and timeline for faculty.
@@ -3612,11 +3614,51 @@ model PostalRecord {
   referenceNo String?  @map("reference_no")
   date        DateTime
   note        String?
+  // Legacy; no route serves it and the API no longer accepts it (SKO-464).
   fileKey     String?  @map("file_key")
   createdAt   DateTime @default(now()) @map("created_at")
+  // SKO-464: an item is tracked to a handoff. RECEIVE: RECEIVED → ASSIGNED → COLLECTED.
+  // DISPATCH: PREPARED → DISPATCHED → DELIVERED. A log save or tracking number is not delivery.
+  itemCode       String?        @map("item_code")
+  courier        String?
+  status         String         @default("RECEIVED")
+  ownerId        String?        @map("owner_id")
+  owner          User?          @relation("PostalOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  handedTo       String?        @map("handed_to")
+  closedAt       DateTime?      @map("closed_at")
+  recordedById   String?        @map("recorded_by_id")
+  version        Int            @default(1)
+  idempotencyKey String?        @map("idempotency_key")
+  requestHash    String?        @map("request_hash")
+  events         PostalEvent[]
 
+  @@unique([campusId, itemCode])
+  @@unique([campusId, idempotencyKey])
+  @@index([campusId, status])
   @@index([schoolId])
   @@map("postal_records")
+}
+
+/// Every step of a postal item, including corrections with the values they replaced.
+model PostalEvent {
+  id         String       @id @default(uuid())
+  schoolId   String       @default("") @map("school_id")
+  school     School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId   String       @map("campus_id")
+  postalId   String       @map("postal_id")
+  postal     PostalRecord @relation(fields: [postalId], references: [id], onDelete: Cascade)
+  kind       String // CREATED | ASSIGNED | DISPATCHED | COLLECTED | DELIVERED | CORRECTED
+  fromStatus String?      @map("from_status")
+  toStatus   String?      @map("to_status")
+  ownerId    String?      @map("owner_id")
+  changes    Json?
+  note       String?      @db.Text
+  actorId    String       @map("actor_id")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@index([postalId, createdAt])
+  @@index([schoolId])
+  @@map("postal_events")
 }
 
 model PhoneCallLog {
