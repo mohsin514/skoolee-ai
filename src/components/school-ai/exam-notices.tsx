@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
@@ -10,19 +10,25 @@ import { examIncidentCopy, fill } from "./exam-incident-copy";
 // acknowledged one by one. Polled while the attempt is in progress; the paper itself never changes.
 type Notice = { id: string; version: number; revised: boolean; text: string; question: number | null; createdAt: string; acknowledged: boolean };
 
-export function ExamNotices({ id, locale, active }: { id: string; locale: AssessmentLocale; active: boolean }) {
+export function ExamNotices({ id, locale, active, onPaused }: { id: string; locale: AssessmentLocale; active: boolean; onPaused?: (pausedAt: string | null) => void }) {
   const t = examIncidentCopy(locale);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const api = `/api/school-ai/exams/${encodeURIComponent(id)}/clarifications`;
+  // Held in a ref so a parent's inline callback never restarts the poll.
+  const pausedRef = useRef(onPaused);
+  useEffect(() => { pausedRef.current = onPaused; }, [onPaused]);
   const load = useCallback(async () => {
     const response = await fetch(api, { cache: "no-store" }).catch(() => null);
-    if (response?.ok) setNotices(((await response.json()) as { notices: Notice[] }).notices ?? []);
+    if (!response?.ok) return;
+    const payload = (await response.json()) as { notices: Notice[]; pausedAt?: string | null };
+    setNotices(payload.notices ?? []);
+    pausedRef.current?.(payload.pausedAt ?? null);
   }, [api]);
   useEffect(() => {
     void load();
     if (!active) return;
-    const timer = window.setInterval(() => void load(), 15000);
+    const timer = window.setInterval(() => void load(), 8000);
     return () => window.clearInterval(timer);
   }, [active, load]);
   if (!notices.length) return null;

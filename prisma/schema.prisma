@@ -233,6 +233,7 @@ model School {
   schoolAiExamClarificationAcks SchoolAiExamClarificationAck[]
   schoolAiExamRemedies SchoolAiExamRemedy[]
   schoolAiExamFormAllocations SchoolAiExamFormAllocation[]
+  schoolAiExamPauses SchoolAiExamPause[]
   assignments             Assignment[]
   assignmentRubricVersions AssignmentRubricVersion[]
   assignmentVersions      AssignmentVersion[]
@@ -4021,6 +4022,8 @@ model SchoolAiExamAttempt {
   scoreProposal Json? @map("score_proposal")
   /// SKO-410: the effective timing and access settings bound at start; later plan changes never alter it.
   accommodationSnapshot Json? @map("accommodation_snapshot")
+  /// SKO-408 R15.4: set while an invigilator holds a supervised pause; the timer resumes with the paused time restored.
+  pausedAt     DateTime? @map("paused_at")
   reviewedAt   DateTime? @map("reviewed_at")
   reviewedById String? @map("reviewed_by_id")
   review       Json?
@@ -5060,6 +5063,26 @@ model SchoolAiExamClarification {
   @@unique([assignmentId, version])
   @@index([schoolId, campusId, assignmentId])
   @@map("school_ai_exam_clarifications")
+}
+
+/// SKO-408 R15.4: a supervised pause of one attempt, its reason, who paused and resumed it, and the time restored.
+model SchoolAiExamPause {
+  id           String    @id @default(uuid())
+  schoolId     String    @default("") @map("school_id")
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String    @map("campus_id")
+  assignmentId String    @map("assignment_id")
+  attemptId    String    @map("attempt_id")
+  reason       String
+  startedById  String    @map("started_by_id")
+  startedAt    DateTime  @default(now()) @map("started_at")
+  endedById    String?   @map("ended_by_id")
+  endedAt      DateTime? @map("ended_at")
+  restoredMs   Int?      @map("restored_ms")
+
+  @@index([schoolId, campusId, assignmentId])
+  @@index([attemptId])
+  @@map("school_ai_exam_pauses")
 }
 
 /// SKO-408 R17.2: one display acknowledgement per notice per attempt.

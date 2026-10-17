@@ -37,21 +37,21 @@ export async function listClarifications(user: AuthUser, assignmentId: string) {
     const rows = await tx.schoolAiExamClarification.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { version: "asc" } });
     const number = (questionId: string | null) => questionId ? paper.questions.findIndex(question => question.id === questionId) + 1 || null : null;
     if (student) {
-      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId }, select: { id: true } });
-      if (!attempt) return { notices: [] };
+      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId }, select: { id: true, pausedAt: true } });
+      if (!attempt) return { notices: [], pausedAt: null };
       const mine = latest(rows.filter(row => inAudience(row.audience, attempt.id)));
       const acks = new Set((await tx.schoolAiExamClarificationAck.findMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, clarificationId: { in: mine.map(row => row.id) } }, select: { clarificationId: true } })).map(row => row.clarificationId));
-      return { notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
+      return { pausedAt: attempt.pausedAt, notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
     }
     await staffExamAccess(user, assignment, "view", tx);
-    const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { id: true, status: true, studentId: true } });
+    const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { id: true, status: true, studentId: true, pausedAt: true, deadlineAt: true } });
     const acks = await tx.schoolAiExamClarificationAck.findMany({ where: { schoolId: user.schoolId, clarificationId: { in: rows.map(row => row.id) } }, select: { clarificationId: true } });
     const people = new Map((await tx.user.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(row => row.issuedById) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
     const names = new Map((await tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: attempts.map(row => row.studentId) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
     const current = new Set(latest(rows).map(row => row.id));
     return {
       questions: paper.questions.map((question, index) => ({ id: question.id, number: index + 1 })),
-      attempts: attempts.map(row => ({ id: row.id, status: row.status, name: names.get(row.studentId) ?? null })),
+      attempts: attempts.map(row => ({ id: row.id, studentId: row.studentId, status: row.status, name: names.get(row.studentId) ?? null, pausedAt: row.pausedAt, deadlineAt: row.deadlineAt })),
       notices: rows.map(row => ({
         id: row.id, version: row.version, revisesId: row.revisesId, current: current.has(row.id), text: row.text, question: number(row.questionId), audience: row.audience as Audience,
         audienceSize: attempts.filter(attempt => inAudience(row.audience, attempt.id)).length, acknowledged: acks.filter(ack => ack.clarificationId === row.id).length,
@@ -187,5 +187,47 @@ export async function applyRemedy(user: AuthUser, assignmentId: string, remedyId
     if (updated.count !== 1) throw new ApiError("This remedy was applied meanwhile.", 409);
     await writeAuditEvent(tx, user, { table: "school_ai_exam_remedies", recordId: claim.id, action: "UPDATE", campusId: claim.campusId, before: { status: "PROPOSED" }, after: { status: "APPLIED", applied: outcomes.filter(row => row.outcome === "APPLIED").length, skipped: outcomes.filter(row => row.outcome === "SKIPPED_CHANGED").length, failed: outcomes.filter(row => row.outcome === "FAILED").length, notify: claim.notify } });
     return { id: claim.id, status: "APPLIED" as const, outcomes };
+  });
+}
+
+// ─── Supervised pause (R15.4, §3K) ──────────────────────────────────
+export const pauseSchema = z.strictObject({ action: z.enum(["pause", "resume"]), attemptIds: z.array(id).min(1).max(500), reason: z.string().trim().min(3).max(300).optional() });
+
+/**
+ * An invigilator stops the clock for named attempts, with a reason; answers cannot be saved and the
+ * deadline cannot close the attempt while it is paused. Resuming restores exactly the paused time to
+ * the deadline. Every attempt's outcome is reported, so a partial action is never silent.
+ */
+export async function superviseAttempts(user: AuthUser, assignmentId: string, raw: unknown) {
+  const input = pauseSchema.parse(raw);
+  if (input.action === "pause" && !input.reason) throw new ApiError("Give the reason for the pause.", 422);
+  return schoolAiTransaction(user, async tx => {
+    const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
+    if (student) throw new ApiError("Only exam staff can pause an attempt.", 403);
+    await staffExamAccess(user, assignment, "add", tx);
+    const now = new Date();
+    const outcomes: Array<{ attemptId: string; outcome: "PAUSED" | "RESUMED" | "NOT_IN_PROGRESS" | "ALREADY_PAUSED" | "NOT_PAUSED"; restoredMs?: number; deadlineAt?: Date }> = [];
+    for (const attemptId of [...new Set(input.attemptIds)]) {
+      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
+      if (!attempt || attempt.status !== "IN_PROGRESS" || (!attempt.pausedAt && attempt.deadlineAt <= now)) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
+      if (input.action === "pause") {
+        if (attempt.pausedAt) { outcomes.push({ attemptId, outcome: "ALREADY_PAUSED" }); continue; }
+        const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", pausedAt: null }, data: { pausedAt: now } });
+        if (moved.count !== 1) { outcomes.push({ attemptId, outcome: "ALREADY_PAUSED" }); continue; }
+        await tx.schoolAiExamPause.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, reason: input.reason!, startedById: user.userId, startedAt: now } });
+        await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: assignment.campusId, before: { pausedAt: null }, after: { pausedAt: now.toISOString(), reason: input.reason! } });
+        outcomes.push({ attemptId, outcome: "PAUSED", deadlineAt: attempt.deadlineAt });
+      } else {
+        if (!attempt.pausedAt) { outcomes.push({ attemptId, outcome: "NOT_PAUSED" }); continue; }
+        const restoredMs = Math.max(0, now.getTime() - attempt.pausedAt.getTime());
+        const deadlineAt = new Date(attempt.deadlineAt.getTime() + restoredMs);
+        const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", pausedAt: attempt.pausedAt }, data: { pausedAt: null, deadlineAt } });
+        if (moved.count !== 1) { outcomes.push({ attemptId, outcome: "NOT_PAUSED" }); continue; }
+        await tx.schoolAiExamPause.updateMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, endedAt: null }, data: { endedAt: now, endedById: user.userId, restoredMs } });
+        await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: assignment.campusId, before: { deadlineAt: attempt.deadlineAt.toISOString() }, after: { deadlineAt: deadlineAt.toISOString(), restoredMs } });
+        outcomes.push({ attemptId, outcome: "RESUMED", restoredMs, deadlineAt });
+      }
+    }
+    return { outcomes };
   });
 }

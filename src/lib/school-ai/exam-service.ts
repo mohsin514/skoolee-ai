@@ -134,8 +134,8 @@ export async function getSchoolAiExam(user: AuthUser, id: string) {
   return { secureBrowser, paperVersion: assignment.paperVersion, contentHashPrefix: assignment.contentHash ? contentHashPrefix(assignment.contentHash) : null, version: assignment.version, integrityPolicy: examIntegrityDisclosure(assignment.proctorPolicy), cameraRequired: recording.requireCamera && !accommodation?.cameraExempt, cameraRetentionDays: recording.retentionDays, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false, cameraExempt: accommodation?.cameraExempt ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
 }
 
-function receipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; responses: unknown; submittedAt: Date | null }, paper: PaperData, now: Date) {
-  return { id: attempt.id, status: attempt.status, startedAt: attempt.startedAt, deadlineAt: attempt.deadlineAt, sequence: attempt.sequence, responses: responsesSchema.parse(attempt.responses), submittedAt: attempt.submittedAt, serverNow: now.toISOString(), paper: candidatePaper(paper) };
+function receipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; responses: unknown; submittedAt: Date | null; pausedAt?: Date | null }, paper: PaperData, now: Date) {
+  return { id: attempt.id, status: attempt.status, pausedAt: attempt.pausedAt ?? null, startedAt: attempt.startedAt, deadlineAt: attempt.deadlineAt, sequence: attempt.sequence, responses: responsesSchema.parse(attempt.responses), submittedAt: attempt.submittedAt, serverNow: now.toISOString(), paper: candidatePaper(paper) };
 }
 
 /** Both approval and start lock the assignment row, so an approval cannot overtake a start. */
@@ -178,7 +178,7 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
       return started;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
     const responseTime = now ?? new Date();
-    if (attempt.status === "IN_PROGRESS" && responseTime >= attempt.deadlineAt) return getSchoolAiAttempt(user, id, responseTime);
+    if (attempt.status === "IN_PROGRESS" && !attempt.pausedAt && responseTime >= attempt.deadlineAt) return getSchoolAiAttempt(user, id, responseTime);
     return receipt(attempt, paper, responseTime);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") throw new ApiError("The exam changed while starting. Check readiness and retry; an existing attempt will resume.", 409);
@@ -256,8 +256,9 @@ export async function getSchoolAiAttempt(user: AuthUser, id: string, now = new D
   let attempt = await prisma.schoolAiExamAttempt.findFirst({ where: { assignmentId: id, userId: user.userId, schoolId: user.schoolId, campusId: student.campusId } });
   if (!attempt) return null;
   if (attempt.status === "IN_PROGRESS" && now < attempt.deadlineAt) await assertSecureAdmission(prisma, assignment, student.id);
-  if (attempt.status === "IN_PROGRESS" && now >= attempt.deadlineAt) {
-    await prisma.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", sequence: attempt.sequence }, data: { status: "SUBMITTED", submittedAt: now, scoreProposal: json(scoreObjectiveResponses(paper, responsesSchema.parse(attempt.responses))) } });
+  // SKO-408 R15.4: a paused attempt's clock is stopped, so it is never closed at the deadline while paused.
+  if (attempt.status === "IN_PROGRESS" && !attempt.pausedAt && now >= attempt.deadlineAt) {
+    await prisma.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", pausedAt: null, sequence: attempt.sequence }, data: { status: "SUBMITTED", submittedAt: now, scoreProposal: json(scoreObjectiveResponses(paper, responsesSchema.parse(attempt.responses))) } });
     attempt = await prisma.schoolAiExamAttempt.findFirstOrThrow({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId } });
   }
   return receipt(attempt, paper, now);
@@ -271,6 +272,7 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     await assertSecureAdmission(tx, assignment, student.id);
     const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId: id, userId: user.userId, schoolId: user.schoolId, campusId: student.campusId } });
     if (!attempt) throw new ApiError("Start the exam before saving responses.", 409);
+    if (attempt.status === "IN_PROGRESS" && attempt.pausedAt) throw new ApiError("Your exam is paused by the invigilator. Your answers are safe; wait for the exam to resume.", 423);
     const currentTime = now ?? new Date();
     const decision = examSaveDecision({ status: attempt.status, sequence: input.sequence, currentSequence: attempt.sequence, deadlineAt: attempt.deadlineAt, now: currentTime, submit: !!input.submit });
     if (decision === "FINISHED") return { ...receipt(attempt, paper, currentTime), accepted: false };
@@ -285,7 +287,7 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     const errors = validateResponses(paper, responses);
     if (errors.length) throw new ApiError(errors.join(" "));
     const submit = expired || input.submit;
-    const changed = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId, status: "IN_PROGRESS", sequence: attempt.sequence }, data: { responses: json(responses), sequence: expired ? attempt.sequence : input.sequence, ...(submit ? { status: "SUBMITTED", submittedAt: currentTime, scoreProposal: json(scoreObjectiveResponses(paper, responses)) } : {}) } });
+    const changed = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId, status: "IN_PROGRESS", pausedAt: null, sequence: attempt.sequence }, data: { responses: json(responses), sequence: expired ? attempt.sequence : input.sequence, ...(submit ? { status: "SUBMITTED", submittedAt: currentTime, scoreProposal: json(scoreObjectiveResponses(paper, responses)) } : {}) } });
     if (changed.count !== 1) throw new ApiError("Another answer version was saved first. Reload the saved attempt.", 409);
     // Autosaves are draft answers; the event marks the final hand-in (or deadline close).
     if (submit) await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: student.campusId, before: { status: attempt.status, sequence: attempt.sequence }, after: { status: "SUBMITTED", sequence: expired ? attempt.sequence : input.sequence, deadlineExpired: expired } });
@@ -299,7 +301,7 @@ export async function listSchoolAiAttempts(user: AuthUser, id: string, now = new
   await staffExamAccess(user, assignment);
   const attempts = await prisma.schoolAiExamAttempt.findMany({ where: { assignmentId: id, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { startedAt: "asc" }, take: 500 });
   // Finalize only persisted answers when a staff member opens the marking desk.
-  for (const attempt of attempts) if (attempt.status === "IN_PROGRESS" && now >= attempt.deadlineAt) {
+  for (const attempt of attempts) if (attempt.status === "IN_PROGRESS" && !attempt.pausedAt && now >= attempt.deadlineAt) {
     await prisma.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", sequence: attempt.sequence }, data: { status: "SUBMITTED", submittedAt: now, scoreProposal: json(scoreObjectiveResponses(paper, responsesSchema.parse(attempt.responses))) } });
   }
   const results = await prisma.schoolAiExamAttempt.findMany({ where: { assignmentId: id, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { startedAt: "asc" }, take: 500 });

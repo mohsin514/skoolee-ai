@@ -133,6 +133,7 @@ export const TENANT_MODELS = new Set<string>([
   "schoolAiExamFormRelease",
   "schoolAiExamFormSet",
   "schoolAiExamIntegrityEvent",
+  "schoolAiExamPause",
   "schoolAiExamRemedy",
   "schoolAiExamResultRevision",
   "schoolAiExecution",

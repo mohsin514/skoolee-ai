@@ -16,6 +16,7 @@ import { examRoomCopy } from "./exam-room-copy";
 import { ExamResults } from "./exam-results";
 import { LearnerFeedback } from "./outcome-feedback";
 import { ExamNotices } from "./exam-notices";
+import { examIncidentCopy, fill } from "./exam-incident-copy";
 import { AdvancedAnswer } from "./assessment-extensions";
 import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { ExamPreflight, type ExamInfo, type CameraStartEvidence } from "./exam-preflight";
@@ -29,7 +30,7 @@ import { examRecoveryCopy } from "./exam-recovery-copy";
 import { SecureBrowserGate } from "./secure-browser";
 import { examReleaseCopy } from "./exam-release-copy";
 
-type Attempt = { id: string; status: string; startedAt: string; deadlineAt: string; sequence: number; responses: ExamResponses; submittedAt: string | null; serverNow: string; paper: CandidatePaper; accepted?: boolean };
+type Attempt = { id: string; status: string; pausedAt?: string | null; startedAt: string; deadlineAt: string; sequence: number; responses: ExamResponses; submittedAt: string | null; serverNow: string; paper: CandidatePaper; accepted?: boolean };
 type PendingSave = { sequence: number; responses: ExamResponses; submit: boolean };
 const same = (a: ExamResponses, b: ExamResponses) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 
@@ -155,14 +156,16 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     const timeout = window.setTimeout(() => { void save(); }, 1200);
     return () => window.clearTimeout(timeout);
   }, [answers, dirty, conflict, busy, error, attempt?.status, save]);
-  const remaining = attempt ? Math.max(0, Math.ceil((new Date(attempt.deadlineAt).getTime() - now - offset.current) / 1000)) : 0;
+  // SKO-408 R15.4: while an invigilator holds a pause the clock is stopped at the time it was paused.
+  const paused = attempt?.status === "IN_PROGRESS" && !!attempt.pausedAt;
+  const remaining = attempt ? Math.max(0, Math.ceil((new Date(attempt.deadlineAt).getTime() - (paused ? new Date(attempt.pausedAt!).getTime() : now + offset.current)) / 1000)) : 0;
   const integrityClock = useCallback(() => clockNow() + offset.current, [clockNow]);
   const { report, monitoringAvailable } = useExamIntegrity({ id, policy: exam?.integrityPolicy, attemptId: attempt?.id, active: attempt?.status === "IN_PROGRESS" && remaining > 0, clockNow: integrityClock });
   useEffect(() => {
     if (attempt && (attempt.status !== "IN_PROGRESS" || remaining === 0)) changeCameraStream(null);
   }, [attempt, remaining, changeCameraStream]);
   useEffect(() => {
-    if (attempt?.status === "IN_PROGRESS" && remaining === 0 && !busy && !expiredRequested.current) {
+    if (attempt?.status === "IN_PROGRESS" && !paused && remaining === 0 && !busy && !expiredRequested.current) {
       expiredRequested.current = true; void save(true);
     }
   }, [attempt?.status, remaining, busy, save]);
@@ -204,7 +207,12 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     {finished && <ExamResults id={id} locale={locale} student />}
     {finished && <LearnerFeedback id={id} language={locale} />}
     {finished && (exam?.secureBrowser?.required && exam.secureBrowser.via === "SEB" ? <a href={`/ai/exams/${encodeURIComponent(id)}?seb=quit`} className={buttonVariants({ variant: "outline" })}>{examReleaseCopy(locale).exitSeb}</a> : <Link href="/student" className={buttonVariants({ variant: "outline" })}>{t.studentHome}</Link>)}
-    {attempt && <ExamNotices id={id} locale={locale} active={!finished} />}
+    {attempt && <ExamNotices id={id} locale={locale} active={!finished} onPaused={pausedAt => { if ((pausedAt ?? null) !== (attemptRef.current?.pausedAt ?? null)) void load(); }} />}
+    {attempt && !finished && paused && <section role="status" aria-live="polite" className="sk-panel space-y-2 border-status-warning-border bg-status-warning-surface p-6 text-status-warning-text" data-exam-paused>
+      <h2 className="text-xl font-bold">{examIncidentCopy(locale).pausedTitle}</h2>
+      <p>{examIncidentCopy(locale).pausedBody}</p>
+      <p className="font-semibold tabular-nums">{fill(examIncidentCopy(locale).pausedRemaining, [`${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`])}</p>
+    </section>}
     {attempt && <ExamIntegrityNotice policy={exam?.integrityPolicy} locale={locale} />}
     {attempt && <ExamProctorCapture id={id} attemptId={attempt.id} active={!finished && remaining > 0} deadlineAt={new Date(new Date(attempt.deadlineAt).getTime() - offset.current).toISOString()} locale={locale} clockNow={clockNow} initialCameraStream={cameraStream} cameraRequired={exam?.cameraRequired} onIntegrityEvent={report} />}
     {attempt && !finished && !monitoringAvailable && <p role="status" className="sk-panel p-4 text-sm text-ink-subtle">{cameraCopy.monitoringUnavailable}</p>}
@@ -218,7 +226,7 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
         <Button variant="outline" onClick={() => { writeDraft(window.localStorage, null, attempt.id); setDraftDecision({ kind: "NONE" }); }}>{draftDecision.kind === "RESTORABLE" ? recovery.discard : recovery.dismiss}</Button>
       </div>
     </section>}
-    {attempt && !finished && <>
+    {attempt && !finished && !paused && <>
       <div className="sk-panel sticky top-3 z-10 flex flex-wrap items-center justify-between gap-3 p-4"><div className="flex items-center gap-2" role="timer" aria-label={t.time}><Clock3 aria-hidden="true" /><span className="font-mono text-lg font-bold" dir="ltr">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span></div><p role="status" className="text-sm">{busy ? t.saving : dirty ? t.unsaved : t.saved}</p><p className="text-sm">{t.answered}: {answered} / {attempt.paper.questions.length}</p><Button variant="outline" disabled={busy || conflict} onClick={() => save(remaining === 0)}><Save />{room.saveNow}</Button></div>
       {remaining === 0 && <p role="alert" className="sk-panel p-4">{t.expired}</p>}<p className="text-sm text-ink-subtle">{t.savingHint}</p><p className="whitespace-pre-wrap">{attempt.paper.instructions}</p>
       {!!attempt.paper.resources?.length && <section className="sk-panel space-y-3 p-5"><h2 className="font-bold">{extension.resources}</h2>{attempt.paper.resources.map(resource => <details key={resource.id} className="rounded-xl border border-border p-3"><summary className="cursor-pointer font-semibold">{resource.title}</summary><p className="mt-3 whitespace-pre-wrap">{resource.content}</p></details>)}</section>}
