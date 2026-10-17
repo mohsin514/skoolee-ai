@@ -3,9 +3,9 @@ import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { SchoolAiError, assertSchoolAiAccess, isSchoolAiManager, loadWorkspacePermissionSnapshot } from "./access";
-import { candidatePaper, paperDataSchema, type PaperData, type Question } from "./assessment";
+import { candidatePaper, curriculumDataSchema, paperDataSchema, type PaperData, type Question } from "./assessment";
 import { itemReviewStateSchema, type ItemReview } from "./assessment";
-import { itemReviewTransition, itemStateCounts, itemStateFor, releaseBlockers } from "./item-review";
+import { itemReviewTransition, itemStateCounts, itemStateFor, releaseBlockers, stalenessNotices } from "./item-review";
 import { assertKeyFreeProjection, contentHash, contentHashPrefix, formLabelOf, releasePreconditions } from "./release";
 import { getWorkspaceRecordInTransaction, resolveScopeDeliveryPolicy } from "./repository";
 import { assertStudioAction, recordStudioAction } from "./studio-access";
@@ -110,17 +110,51 @@ export async function recordRehearsal(user: AuthUser, recordId: string, raw: unk
   });
 }
 
+/**
+ * The evidence drawer (R4.7, R4.8, R6.8): for each item the cited source with its title, the outcome
+ * mapping in words, the reuse origin, approvals and the full review history with reviewer names,
+ * and every invalidated check with its trigger, actor and time. Keys and rubrics are included only
+ * for a reader who holds READ_PROTECTED_KEY (R4.11).
+ */
+async function itemEvidence(tx: TxClient, user: AuthUser, record: { schoolId: string; campusId: string | null; subjectId: string | null; classId: string | null }, paper: PaperData, permissions: Awaited<ReturnType<typeof loadWorkspacePermissionSnapshot>>) {
+  const canReadKey = await assertStudioAction(user, "READ_PROTECTED_KEY", studioContext(record), permissions, tx).then(() => true, () => false);
+  const curriculumRow = await tx.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, recordId: paper.curriculumId, version: paper.curriculumVersion }, select: { data: true } });
+  const curriculum = curriculumRow ? curriculumDataSchema.safeParse(curriculumRow.data) : null;
+  const outcomes = new Map((curriculum?.success ? curriculum.data.outcomes : []).map(outcome => [outcome.id, outcome.title]));
+  const sources = new Map((curriculum?.success ? curriculum.data.sources : []).map(source => [source.id, source.title]));
+  const notices = stalenessNotices(paper);
+  const actorIds = new Set<string>(notices.map(notice => notice.actorId));
+  for (const question of paper.questions) for (const entry of question.review?.history ?? []) actorIds.add(entry.actorId);
+  const people = new Map((await tx.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...actorIds] } }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
+  const name = (id: string) => people.get(id) ?? null;
+  const byItem = new Map(paper.questions.map(question => [question.id, {
+    prompt: question.prompt, type: question.type, marks: question.marks,
+    sources: question.sourceRefs.map(ref => ({ title: sources.get(ref.sourceId) ?? null, page: ref.page, excerpt: ref.excerpt })),
+    outcomes: question.outcomeIds.map(id => ({ id, title: outcomes.get(id) ?? null })),
+    reusedFrom: question.reusedFrom ?? null,
+    approvedBy: question.review?.approvedBy ? { ...question.review.approvedBy, name: name(question.review.approvedBy.actorId) } : null,
+    reviewHistory: (question.review?.history ?? []).map(entry => ({ state: entry.state, at: entry.at, note: entry.note ?? null, name: name(entry.actorId) })),
+    key: canReadKey ? {
+      correct: question.options.filter(option => option.id === question.correctOptionId || question.correctOptionIds?.includes(option.id)).map(option => option.text),
+      numeric: question.numericKey ?? null, modelAnswer: question.modelAnswer, rubric: question.rubric.map(row => ({ criterion: row.criterion, marks: row.marks })),
+    } : null,
+  }]));
+  return { canReadKey, byItem, notices: notices.map(notice => ({ scope: notice.scope, questionId: notice.questionId, artifact: notice.artifact, change: notice.change, at: notice.at, name: name(notice.actorId) })) };
+}
+
 /** What the studio shows: the key-free candidate preview, item states, rehearsals of this version and release blockers. */
 export async function releaseReadiness(user: AuthUser, recordId: string) {
   return schoolAiTransaction(user, async tx => {
-    const { record, paper } = await paperRecord(tx, user, recordId);
+    const { record, paper, permissions } = await paperRecord(tx, user, recordId);
     const rehearsals = await tx.schoolAiRehearsal.findMany({ where: { schoolId: user.schoolId, recordId: record.id }, orderBy: { createdAt: "desc" }, take: 20 });
     const current = rehearsals.find(row => row.paperVersion === record.version) ?? null;
     const results = (current?.results ?? []) as RehearsalResult[];
     const workbench = paper.questions.some(question => question.review);
+    const evidence = await itemEvidence(tx, user, record, paper, permissions);
     return {
       version: record.version, status: record.status, workbench,
-      counts: itemStateCounts(paper), items: paper.questions.map(question => ({ id: question.id, state: itemStateFor(question), itemRevision: question.review?.itemRevision ?? 1, invalidated: [...new Set(question.review?.invalidated.map(entry => entry.artifact) ?? [])], sourceRefs: question.sourceRefs.map(ref => ({ page: ref.page, excerpt: ref.excerpt })) })),
+      generation: paper.generation, notices: evidence.notices, canReadKey: evidence.canReadKey,
+      counts: itemStateCounts(paper), items: paper.questions.map(question => ({ id: question.id, state: itemStateFor(question), itemRevision: question.review?.itemRevision ?? 1, invalidated: [...new Set(question.review?.invalidated.map(entry => entry.artifact) ?? [])], sourceRefs: question.sourceRefs.map(ref => ({ page: ref.page, excerpt: ref.excerpt })), ...evidence.byItem.get(question.id)! })),
       preview: candidatePaper(paper),
       contentHashPrefix: (() => { try { return contentHashPrefix(contentHash(paper)); } catch { return null; } })(),
       rehearsal: current ? { id: current.id, paperVersion: current.paperVersion, results, createdAt: current.createdAt } : null,

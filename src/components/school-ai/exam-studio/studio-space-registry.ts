@@ -40,7 +40,12 @@ export interface StudioSpaceProps {
   records: readonly AiWorkspaceRecord[];
   /** Re-reads the studio scope from the server. A space calls it after it writes. */
   reload: () => void;
+  /** Opens one of the existing full editors behind the studio, for work a space links to rather than repeats. */
+  openTool?: (tool: StudioTool) => void;
 }
+
+/** The existing workspace editors a space may hand over to. */
+export type StudioTool = "sources" | "curriculum" | "examPlanning" | "history";
 
 export type StudioSpaceComponent = ComponentType<StudioSpaceProps>;
 

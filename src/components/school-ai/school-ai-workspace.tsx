@@ -12,6 +12,8 @@ import { schoolAICopy } from "@/lib/school-ai/copy";
 import { readSetupDraft, setupReadiness, type SetupDraft, type SetupAnswers } from "@/lib/school-ai/onboarding";
 import type { AiWorkspaceRecord, SourceData, WorkspaceCapabilities } from "@/lib/school-ai/types";
 import { StudioOverview, type StudioWorkspaceTab } from "./exam-studio/studio-overview";
+import { StudioSpaces } from "./exam-studio/studio-spaces";
+import { resolveStudioScope } from "./exam-studio/studio-scope";
 import { studioShellCopy } from "./exam-studio/studio-shell-copy";
 import { EXAM_STUDIO_HREF } from "@/lib/school-ai/navigation";
 import { moduleWorkspaceHref } from "@/lib/school-ai/navigation";
@@ -103,10 +105,14 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
       const result = await workspaceRequest<WorkspaceResponse>("/api/school-ai/workspace");
       if (!mounted.current || sequence !== requestSequence.current) return;
       setRecords(result.records); setCapabilities(result.capabilities); setNextCursor(result.nextCursor || null); setError("");
-      if (!scopeInitialized.current) { scopeInitialized.current = true; setSelectedCampus(result.capabilities.campuses.length === 1 ? result.capabilities.campuses[0].id : ""); }
+      if (!scopeInitialized.current) {
+        scopeInitialized.current = true; setSelectedCampus(result.capabilities.campuses.length === 1 ? result.capabilities.campuses[0].id : "");
+        // Exam Studio: a teacher with exactly one assigned subject works in it, as `resolveStudioScope` does.
+        if (examOnly && result.capabilities.role === "TEACHER" && result.capabilities.subjects.length === 1) setSelectedSubject(result.capabilities.subjects[0].id);
+      }
     } catch { if (mounted.current && sequence === requestSequence.current) setError("failed"); }
     finally { if (mounted.current && sequence === requestSequence.current) setLoading(false); }
-  }, []);
+  }, [examOnly]);
   useEffect(() => {
     mounted.current = true;
     void refresh();
@@ -214,7 +220,10 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     {!examOnly && hasKind("PAPER") && <div className="mb-5 flex flex-wrap gap-3"><Link className={buttonVariants({ variant: "default" })} href={EXAM_STUDIO_HREF}><Sparkles aria-hidden="true" />{studioCopy.openStudio}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Link><Link className={buttonVariants({ variant: "outline" })} href="/ai/exams"><BookOpen aria-hidden="true" />{c.exams}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Link></div>}
     {error && <div className="mb-5"><TaskFeedback kind="error" title={c[error as "failed" | "serviceUnavailable" | "uploadInvalid"] || c.failed} action={<Button variant="outline" onClick={() => guard(() => void refresh())}><RefreshCw aria-hidden="true" />{c.reload}</Button>} /></div>}
     {notice && <p role="status" className={`${styles.notice} mb-5`}><CheckCircle2 className="mt-1 size-4 shrink-0" aria-hidden="true" />{notice}</p>}
-    {tab === "overview" && examOnly && <StudioOverview records={visibleRecords} language={language} scopeReady={!needsCampus && !needsSubject} canReadSources={hasKind("SOURCE")} canReadPapers={hasKind("PAPER")} onNavigate={navigateStudio} />}
+    {tab === "overview" && examOnly && capabilities && <StudioSpaces language={language} capabilities={capabilities} records={visibleRecords} reload={() => void refresh()} openTool={navigateStudio}
+      scope={resolveStudioScope(capabilities, { campusId: campusId ?? "", subjectId: selectedSubject })}>
+      <StudioOverview records={visibleRecords} language={language} scopeReady={!needsCampus && !needsSubject} canReadSources={hasKind("SOURCE")} canReadPapers={hasKind("PAPER")} onNavigate={navigateStudio} />
+    </StudioSpaces>}
     {tab === "overview" && !examOnly && <>
       {nextCursor && <p className="text-xs text-ink-muted">{c.loadedRecords}</p>}
       <div className={styles.metrics}>{[{ label: c.savedPlans, count: active.filter(record => record.kind === "WORKFLOW").length }, { label: c.reviewCount, count: active.filter(record => record.status === "IN_REVIEW").length }, { label: c.approvedSources, count: active.filter(record => record.kind === "SOURCE" && record.status === "APPROVED").length }].map(metric => <div className={`sk-panel ${styles.metric}`} key={metric.label}><span className={styles.metricNumber}>{new Intl.NumberFormat(language).format(metric.count)}</span><span className={styles.metricLabel}>{metric.label}</span></div>)}</div>

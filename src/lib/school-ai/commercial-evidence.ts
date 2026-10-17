@@ -377,7 +377,7 @@ export const CLAIM_EVIDENCE = [
     id: "MANAGED_MODE_FAILS_CLOSED",
     claim: "A delivery mode other than the standard browser is refused by default, and is admitted only when an approved policy revision carries a dated pass for every named validation gate.",
     requirements: ["12.5", "12.6", "12.8", "12.9", "12.10", "12.17", "12.18"],
-    citations: [{ path: "src/lib/school-ai/exam.ts", test: "tests/school-ai/assessment.test.ts", case: "unsupported secure/proctored modes fail closed" }],
+    citations: [{ path: "src/lib/school-ai/exam.ts", test: "tests/school-ai/assessment.test.ts", case: "unsupported proctored mode fails closed; secure browser needs an approved profile at assignment (SKO-449)" }],
     gates: ["MANAGED_CLIENT_DEVICE_VALIDATION"],
     remaining: "The delivery policy record, the admission decision with reason codes and the local release recording are not written yet; today the blanket refusal stands.",
   },

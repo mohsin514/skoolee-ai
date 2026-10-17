@@ -14,6 +14,7 @@ import type { ExamResponses } from "@/lib/school-ai/exam";
 import { examCopy } from "./exam-copy";
 import { examRoomCopy } from "./exam-room-copy";
 import { ExamResults } from "./exam-results";
+import { LearnerFeedback } from "./outcome-feedback";
 import { AdvancedAnswer } from "./assessment-extensions";
 import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { ExamPreflight, type ExamInfo, type CameraStartEvidence } from "./exam-preflight";
@@ -200,6 +201,7 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     {!attempt && exam && (!exam.secureBrowser?.required || exam.secureBrowser.admitted) && <ExamPreflight key={`${id}:${exam.version}`} id={id} exam={exam} locale={locale} busy={busy} serverNow={now + offset.current} onChecked={(value) => { setExam(value); offset.current = new Date(value.serverNow).getTime() - clockNow(); }} onStart={start} cameraStream={cameraStream} onCameraStream={changeCameraStream} />}
     {finished && <div role="status" className="sk-panel space-y-2 p-6"><CheckCircle2 aria-hidden="true" className="size-7 text-status-success-text" /><h2 className="text-xl font-bold">{t.receipt}</h2><p>{t.receiptHint}</p>{lateAnswers && <p role="alert" className="text-status-error-text">{t.lateAnswers}</p>}<p className="break-all text-sm text-ink-subtle">{t.receiptId}: {attempt.id}</p>{attempt.submittedAt && <p className="text-sm">{new Date(attempt.submittedAt).toLocaleString(locale)}</p>}</div>}
     {finished && <ExamResults id={id} locale={locale} student />}
+    {finished && <LearnerFeedback id={id} language={locale} />}
     {finished && (exam?.secureBrowser?.required && exam.secureBrowser.via === "SEB" ? <a href={`/ai/exams/${encodeURIComponent(id)}?seb=quit`} className={buttonVariants({ variant: "outline" })}>{examReleaseCopy(locale).exitSeb}</a> : <Link href="/student" className={buttonVariants({ variant: "outline" })}>{t.studentHome}</Link>)}
     {attempt && <ExamIntegrityNotice policy={exam?.integrityPolicy} locale={locale} />}
     {attempt && <ExamProctorCapture id={id} attemptId={attempt.id} active={!finished && remaining > 0} deadlineAt={new Date(new Date(attempt.deadlineAt).getTime() - offset.current).toISOString()} locale={locale} clockNow={clockNow} initialCameraStream={cameraStream} cameraRequired={exam?.cameraRequired} onIntegrityEvent={report} />}

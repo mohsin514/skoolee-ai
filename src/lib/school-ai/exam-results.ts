@@ -17,7 +17,7 @@ const json = (value: unknown) => value as Prisma.InputJsonValue;
 /** Result snapshots omit the private key, rubric, source material and other students. */
 export async function getExamResults(user: AuthUser, assignmentId: string, attemptId?: string) {
  return schoolAiTransaction(user, async tx => {
-  const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
+  const { assignment, student, paper } = await scopedAssignment(user, assignmentId, tx);
   if (!student) await staffExamAccess(user, assignment, "view", tx);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, ...(student ? { studentId: student.id, userId: user.userId } : { id: attemptId ?? "" }) } });
   // SKO-408: learners see moderated results only after an explicit release, never automatically.
@@ -25,7 +25,7 @@ export async function getExamResults(user: AuthUser, assignmentId: string, attem
   const revisions = await tx.schoolAiExamResultRevision.findMany({ where: { attemptId: attempt.id, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { version: "desc" }, take: 100 });
   const appeals = await tx.schoolAiExamAppeal.findMany({ where: { attemptId: attempt.id, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { createdAt: "desc" }, take: 100 });
   // Criterion IDs and teacher evidence are authoring data. Students receive reviewed feedback only.
-  const candidateReview = (value: unknown) => { const stored = value as { marks: unknown; note: unknown }; const parsed = examReviewSchema.parse({ marks: stored.marks, note: stored.note }); return { note: parsed.note, marks: parsed.marks.map(({ questionId, marks, feedback }) => ({ questionId, marks, feedback })), total: parsed.marks.reduce((sum, item) => sum + item.marks, 0) }; };
+  const candidateReview = (value: unknown) => { const stored = value as { marks: unknown; note: unknown }; const parsed = examReviewSchema.parse({ marks: stored.marks, note: stored.note }); return { note: parsed.note, marks: parsed.marks.map(({ questionId, marks, feedback }) => ({ questionId, number: paper.questions.findIndex(question => question.id === questionId) + 1, marks, feedback })), total: parsed.marks.reduce((sum, item) => sum + item.marks, 0) }; };
   return {
    released: !!assignment.resultsReleasedAt, resultsReleasedAt: assignment.resultsReleasedAt,
    attempt: { id: attempt.id, status: attempt.status, reviewVersion: attempt.reviewVersion, review: attempt.review ? candidateReview(attempt.review) : null },

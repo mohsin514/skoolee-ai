@@ -10,9 +10,20 @@ import { examReleaseCopy } from "./exam-release-copy";
 // SKO-408: the review desk and rehearsal for one saved paper version.
 type ItemState = "DRAFT" | "NEEDS_SOURCE" | "NEEDS_CORRECTION" | "READY_FOR_REVIEW" | "APPROVED" | "CHANGED_AFTER_APPROVAL";
 type Check = "KEY_MISSING" | "OPTIONS_TOO_FEW" | "PROJECTION_LEAK" | "SECTION_COUNT" | "REPORTED_DEFECT";
-type Readiness = {
+/** The evidence drawer's view of one item (R4.7, R4.8). Keys arrive only for READ_PROTECTED_KEY holders. */
+export type ItemEvidence = {
+  prompt: string; type: string; marks: number;
+  sources: Array<{ title: string | null; page: string; excerpt: string }>; outcomes: Array<{ id: string; title: string | null }>;
+  reusedFrom: { paperId: string; paperVersion: number; questionId: string } | null;
+  approvedBy: { itemRevision: number; at: string; name: string | null } | null;
+  reviewHistory: Array<{ state: ItemState; at: string; note: string | null; name: string | null }>;
+  key: { correct: string[]; numeric: { value: number; tolerance: number } | null; modelAnswer: string; rubric: Array<{ criterion: string; marks: number }> } | null;
+};
+export type Readiness = {
   version: number; status: string; workbench: boolean; counts: Record<ItemState, number>;
-  items: Array<{ id: string; state: ItemState; itemRevision: number; invalidated: string[]; sourceRefs: Array<{ page: string; excerpt: string }> }>;
+  items: Array<{ id: string; state: ItemState; itemRevision: number; invalidated: string[]; sourceRefs: Array<{ page: string; excerpt: string }> } & ItemEvidence>;
+  generation: { kind: "MANUAL" | "AI"; model: string | null; generatedAt: string | null }; canReadKey: boolean;
+  notices: Array<{ scope: "ITEM" | "FORM"; questionId: string | null; artifact: string; change: string; at: string; name: string | null }>;
   preview: CandidatePaper; contentHashPrefix: string | null;
   rehearsal: { id: string; paperVersion: number; results: Array<{ check: Check; severity: "BLOCKING" | "ADVISORY"; questionIds: string[]; detail: string }>; createdAt: string } | null;
   blockers: Array<{ code: "ITEM_NOT_APPROVED" | "REHEARSAL_INVALID" | "REHEARSAL_BLOCKER" | "NOT_REHEARSED"; check?: Check; questionIds: string[] }>;
@@ -24,7 +35,8 @@ async function call(path: string, body?: unknown) {
   return data;
 }
 
-export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onChanged }: { recordId: string; locale: AssessmentLocale; canApprove: boolean; disabled: boolean; onChanged: () => Promise<void> }) {
+export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onChanged, onInspect, inspectLabel, onLoaded }: { recordId: string; locale: AssessmentLocale; canApprove: boolean; disabled: boolean; onChanged: () => Promise<void>;
+  /** The review desk opens its evidence drawer from each item. */ onInspect?: (questionId: string) => void; inspectLabel?: string; onLoaded?: (view: Readiness) => void }) {
   const t = examReleaseCopy(locale);
   const [view, setView] = useState<Readiness | null>(null);
   const [findings, setFindings] = useState<Array<{ questionId: string; severity: "BLOCKING" | "ADVISORY"; detail: string }>>([]);
@@ -33,7 +45,7 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
   const [busy, setBusy] = useState(false);
   const [rechecked, setRechecked] = useState<Record<string, boolean>>({});
   const api = `/api/school-ai/workspace/${encodeURIComponent(recordId)}`;
-  const load = useCallback(async () => setView((await call(`${api}/rehearsal`)).readiness), [api]);
+  const load = useCallback(async () => { const readiness = (await call(`${api}/rehearsal`)).readiness as Readiness; setView(readiness); onLoaded?.(readiness); }, [api, onLoaded]);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const run = async (work: () => Promise<unknown>, reloadRecord = false) => {
     setBusy(true); setStatus(null);
@@ -54,6 +66,7 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
         <div className="flex flex-wrap gap-2">
           {editable && ["DRAFT", "NEEDS_SOURCE", "NEEDS_CORRECTION", "CHANGED_AFTER_APPROVAL"].includes(item.state) && <Button size="sm" variant="outline" disabled={busy || (item.invalidated.length > 0 && !rechecked[item.id])} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "READY_FOR_REVIEW", itemRevision: item.itemRevision, ...(item.invalidated.length ? { confirmRechecked: item.invalidated } : {}) }), true)}>{t.ready}</Button>}
           {editable && canApprove && item.state === "READY_FOR_REVIEW" && <Button size="sm" disabled={busy} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "APPROVED", itemRevision: item.itemRevision }), true)}>{t.approve}</Button>}
+          {onInspect && inspectLabel && <Button size="sm" variant="outline" onClick={() => onInspect(item.id)}>{inspectLabel}</Button>}
           {editable && ["READY_FOR_REVIEW", "APPROVED"].includes(item.state) && <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "NEEDS_CORRECTION" }), true)}>{t.correction}</Button>}
         </div>
       </div>
