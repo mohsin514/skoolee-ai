@@ -11,7 +11,9 @@ export async function POST(req: NextRequest) {
     }
     const body = await req.json();
     const result = await completeSignupStep2(body);
-    return Response.json(result, { status: result.success ? 200 : 400 });
+    // The account id is not returned: a new and an existing address must read identically (SKO-457).
+    if (result.success) return Response.json({ success: true, ...(result.warning ? { warning: result.warning } : {}) });
+    return Response.json(result, { status: 400 });
   } catch (error: any) {
     console.error("[api/signup-step2]", error);
     if (error?.code === "P2002") {

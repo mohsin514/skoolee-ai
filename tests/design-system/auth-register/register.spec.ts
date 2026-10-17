@@ -185,7 +185,7 @@ for (const institution of ["school_group", "single_campus"] as const) {
     await page.keyboard.press("Enter");
     expect(requests).toHaveLength(1);
     release();
-    await expect(page.getByRole("heading", { name: "Account created!" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
     expect(requests).toHaveLength(2);
     expect(requests[0].data).toEqual({ email: "registration-fixture@example.test", registrationType: institution });
     expect(requests[1].data).toEqual({ email: "registration-fixture@example.test", fullName: "Synthetic Administrator", phone: "+92 300 0000000", schoolName: "Synthetic Fixture School", country: "AE", regId });

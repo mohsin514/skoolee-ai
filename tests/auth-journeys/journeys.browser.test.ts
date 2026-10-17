@@ -183,3 +183,44 @@ test("an invitation cancelled while the page is open is refused with translated 
   assert.equal(await db.user.count({ where: { schoolId, role: "TEACHER", fullName: "Synthetic Invitee" } }), 0);
   assert.deepEqual(errors, []); await ctx.close();
 });
+
+test("signing up with an address that already owns a school reads exactly like a new signup", async () => {
+  const email = `${randomUUID()}@example.invalid`;
+  const signup = async (name: string) => {
+    // A fresh synthetic client address per run keeps the per-IP signup throttle out of the comparison.
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce", extraHTTPHeaders: { "x-forwarded-for": `198.18.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250) + 1}` } }), page = await ctx.newPage();
+    const replies: Array<{ status: number; body: string }> = [];
+    page.on("response", async response => { if (response.url().endsWith("/api/auth/signup-step2")) replies.push({ status: response.status(), body: await response.text() }); });
+    await page.goto(`${base}/register`);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.locator("#name").fill("Synthetic Founder");
+    await page.locator("#email").fill(email);
+    await page.locator("#phone").fill("+92 300 0000000");
+    await page.locator("#schoolName").fill(name);
+    await page.locator("#password").fill(password);
+    await page.locator("#confirmPassword").fill(password);
+    await page.getByRole("checkbox", { name: /I agree to/ }).focus();
+    await page.keyboard.press("Space");
+    await page.getByRole("button", { name: "Create Account", exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector("#schoolName"), undefined, { timeout: 20_000 });
+    await settled(page);
+    const text = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+    return { ctx, page, replies, text };
+  };
+  try {
+    const first = await signup("Synthetic Willow School");
+    assert.equal(await db.school.count({ where: { contactEmail: email } }), 1);
+    const second = await signup("Synthetic Willow School Two");
+    await shot(second.page, "signup-existing-address-en-1440");
+    assert.deepEqual(second.replies, first.replies, "same status and body for a new and an existing address");
+    assert.deepEqual(first.replies.map(reply => [reply.status, JSON.parse(reply.body).user]), [[200, undefined]], "no account id is returned");
+    // Only what the applicant typed (address and school name) may differ between the two screens.
+    assert.equal(second.text.replace(email, "").replace("Synthetic Willow School Two", "{school}"), first.text.replace(email, "").replace("Synthetic Willow School", "{school}"), "the confirmation screen is identical");
+    assert.equal(await db.school.count({ where: { contactEmail: email } }), 1, "no second school");
+    assert.equal(await db.pendingRegistration.count({ where: { email } }), 0, "the step-one draft is consumed either way");
+    await first.ctx.close(); await second.ctx.close();
+  } finally {
+    const schools = await db.school.findMany({ where: { contactEmail: email }, select: { id: true } });
+    for (const school of schools) { await db.user.deleteMany({ where: { schoolId: school.id } }); await db.school.delete({ where: { id: school.id } }).catch(() => undefined); }
+  }
+});

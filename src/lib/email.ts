@@ -221,6 +221,24 @@ export async function sendInviteEmail(email: string, role: string, campusName: s
   }
 }
 
+/**
+ * SKO-457: someone tried to register a new school with an address that already owns one. The
+ * signup screen answers exactly as for a new address; only the owner of the address learns
+ * this, here, with the way back in.
+ */
+export async function sendExistingAccountNotice(email: string) {
+  const base = getBaseUrl();
+  const text = [
+    "Someone tried to register a new school on SkooleeAI with this email address, which already has a school account.",
+    `If it was you, sign in: ${base}/login`,
+    `Forgot your password? Reset it here: ${base}/forgot-password`,
+    "If it was not you, you can ignore this email. No new account was created.",
+  ].join("\n\n");
+  const result = await sendEmailMessage({ to: email, subject: "You already have a SkooleeAI account", text });
+  if (!result.success) throw new Error("error" in result && result.error ? String(result.error) : "Email dispatch failed");
+  return result;
+}
+
 export async function sendPasswordResetEmail(email: string, token: string) {
   try {
     const actionUrl = `${getBaseUrl()}/forgot-password?token=${token}`;
