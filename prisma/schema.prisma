@@ -163,6 +163,7 @@ model School {
   ledgerEntries           LedgerEntry[]
   feeFineRules            FeeFineRule[]
   onlinePaymentOrders     OnlinePaymentOrder[]
+  receiptSequences ReceiptSequence[]
   paymentPlans            PaymentPlan[]
   bankReconciliations     BankReconciliation[]
   aIInsights              AIInsight[]
@@ -520,6 +521,7 @@ model Campus {
   feeCarryForwards      FeeCarryForward[]
   feeFineRules          FeeFineRule[]
   onlinePaymentOrders   OnlinePaymentOrder[]
+  receiptSequences ReceiptSequence[]
   chartOfAccounts       ChartOfAccount[]
   paymentMethodRefs     PaymentMethodRef[]
   bankAccounts          BankAccount[]
@@ -2138,6 +2140,11 @@ model Payment {
   createdAt       DateTime     @default(now()) @map("created_at")
   ledgerEntry     LedgerEntry? @relation("PaymentLedgerEntry")
 
+  // SKO-432/475: a manual collection replays to its original receipt under the same operation key.
+  idempotencyKey  String?      @map("idempotency_key")
+  requestHash     String?      @map("request_hash")
+  @@unique([schoolId, recordedBy, idempotencyKey])
+  @@unique([campusId, receiptNo])
   @@unique([campusId, paymentDate, referenceNumber])
   @@index([invoiceId])
   @@index([studentId])
@@ -2275,6 +2282,19 @@ model OnlinePaymentOrder {
   @@index([invoiceId, status])
   @@index([schoolId])
   @@map("online_payment_orders")
+}
+
+// SKO-432: receipt numbers come from one atomic counter per campus and year.
+model ReceiptSequence {
+  campusId  String @map("campus_id")
+  campus    Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  schoolId  String @default("") @map("school_id")
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  year      Int
+  lastValue Int    @map("last_value")
+  @@id([campusId, year])
+  @@index([schoolId])
+  @@map("receipt_sequences")
 }
 
 // ─── 13b. PAYMENT PLANS ────────────────────────────────────

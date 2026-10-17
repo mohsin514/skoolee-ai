@@ -7,7 +7,7 @@ import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Banknote,
   ChevronLeft,
@@ -370,24 +370,30 @@ function PaymentModal({
   };
 
   const currency = invoices.find((invoice) => invoice.id === selectedInvoiceId)?.currency || "PKR";
+  const collectKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const handleRecordPayment = async () => {
     if (!selectedInvoiceId || !amount) { toast.error(tr("Invoice and amount required")); return; }
     setSaving(true);
     try {
+      const payload = {
+        studentId: selectedStudent?.id,
+        invoiceId: selectedInvoiceId,
+        amount: rupeesToPaisa(amount, currency),
+        fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : undefined,
+        discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : undefined,
+        paymentDate,
+        paymentMethod,
+        referenceNumber: referenceNumber || undefined,
+        note: note || undefined,
+      };
+      // SKO-475: the same payment keeps its operation key across retries (a lost response replays the
+      // original receipt); any change to the payment starts a new key.
+      const fingerprint = JSON.stringify(payload);
+      if (collectKey.current?.fingerprint !== fingerprint) collectKey.current = { fingerprint, key: crypto.randomUUID() };
       const res = await fetch(`${API}/collect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId: selectedStudent?.id,
-          invoiceId: selectedInvoiceId,
-          amount: rupeesToPaisa(amount, currency),
-          fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : undefined,
-          discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : undefined,
-          paymentDate,
-          paymentMethod,
-          referenceNumber: referenceNumber || undefined,
-          note: note || undefined,
-        }),
+        body: JSON.stringify({ ...payload, idempotencyKey: collectKey.current.key }),
       });
       const json = await res.json();
       if (json.success) {
@@ -405,6 +411,8 @@ function PaymentModal({
           paymentMethod,
           note: json.data?.note || "",
         });
+        if (json.data?.replayed) toast.info(tr("This payment was already recorded; no duplicate was posted."));
+        collectKey.current = null;
         setStep("receipt");
       } else {
         toast.error(tr(json.error || "Payment failed"));

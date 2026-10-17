@@ -118,6 +118,7 @@ export const TENANT_MODELS = new Set<string>([
   "postalRecord",
   "promptTemplate",
   "readinessTask",
+  "receiptSequence",
   "reportCard",
   "reportVersion",
   "rolePermission",

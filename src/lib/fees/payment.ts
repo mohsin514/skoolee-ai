@@ -24,6 +24,9 @@ export interface RecordPaymentInput {
   note?: string | null;
   recordedBy?: string | null;
   orderRef?: string | null;
+  /** SKO-475: the caller's operation key and request fingerprint for manual collections. */
+  idempotencyKey?: string | null;
+  requestHash?: string | null;
 }
 
 export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
@@ -41,20 +44,17 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   if (amount < 0) throw new Error("Amount cannot be negative");
   if (amount <= 0) throw new Error("Amount must be greater than zero");
 
-  // use unique key
+  // SKO-432: one atomic counter per campus and year. The first issue for a campus/year continues
+  // from the highest number already printed, and (campus, receipt_no) is unique in the database.
   const shortId = input.campusId.split("-").pop()?.slice(0, 4).toUpperCase() ?? "XX";
   const year = input.paymentDate.getFullYear();
-  const maxReceipt = await tx.payment.findFirst({
-    where: { campusId: input.campusId },
-    orderBy: { createdAt: "desc" },
-    select: { receiptNo: true },
-  });
-  let seq = 1;
-  if (maxReceipt?.receiptNo) {
-    const parts = maxReceipt.receiptNo.split("-");
-    const last = parseInt(parts[parts.length - 1] ?? "0", 10);
-    if (!isNaN(last)) seq = last + 1;
-  }
+  const [{ last_value: seq }] = await tx.$queryRaw<{ last_value: number }[]>`
+    INSERT INTO receipt_sequences (campus_id, school_id, year, last_value)
+    VALUES (${input.campusId}, ${invoice.schoolId}, ${year}, COALESCE((
+      SELECT MAX(NULLIF(substring(receipt_no from '-([0-9]+)$'), '')::int) FROM payments
+      WHERE campus_id = ${input.campusId} AND receipt_no LIKE ${`RCP-${year}-%`}), 0) + 1)
+    ON CONFLICT (campus_id, year) DO UPDATE SET last_value = receipt_sequences.last_value + 1
+    RETURNING last_value`;
   const receiptNo = `RCP-${year}-${shortId}-${String(seq).padStart(5, "0")}`;
 
   // SKO-431: ownership comes from the locked invoice, not the request context, because verified
@@ -75,6 +75,8 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
       note: input.note ?? null,
       receiptNo,
       recordedBy: input.recordedBy ?? null,
+      idempotencyKey: input.idempotencyKey ?? null,
+      requestHash: input.requestHash ?? null,
     },
   });
 
