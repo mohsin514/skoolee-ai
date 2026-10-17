@@ -158,3 +158,117 @@ test("Arabic admin reads the impact dialog right-to-left without overflow at 390
   await shot(page, "classes-subject-impact-ar-390");
   assert.deepEqual(errors, []); await ctx.close();
 });
+
+/** A section with enrolled pupils and an empty sibling section; admission creates each pupil's first enrollment. */
+async function sectionsWithPupils(name: string, count: number, enrolledOn = "2026-04-01") {
+  const fromId = randomUUID(), toId = randomUUID();
+  await db.class.create({ data: { id: fromId, schoolId, campusId, name, section: "A", academicYear: 2026 } });
+  await db.class.create({ data: { id: toId, schoolId, campusId, name, section: "B", academicYear: 2026 } });
+  const pupils: string[] = [];
+  for (let i = 1; i <= count; i++) {
+    const id = randomUUID(); pupils.push(id);
+    await db.student.create({ data: { id, schoolId, campusId, classId: fromId, fullName: `Synthetic ${name} pupil ${i}`, rollNo: `${name}-${i}`, gender: "MALE", status: "active", enrollmentDate: new Date(enrolledOn) } });
+  }
+  return { fromId, toId, pupils };
+}
+
+test("an occupied section moves all its pupils or none, keeps their history, archives once and is safe to retry", async () => {
+  const blocked = await sectionsWithPupils("Grade 4", 2, "2026-10-10");
+  const refused = await api.post(`${base}/api/classes/transfer`, { data: { fromClassId: blocked.fromId, toClassId: blocked.toId, effectiveDate: "2026-10-01", action: "apply", archiveAfter: true } });
+  assert.equal(refused.status(), 409, "pupils whose enrollment starts after the move date block the whole move");
+  assert.equal(await db.student.count({ where: { classId: blocked.fromId } }), 2, "nobody was moved");
+  const { fromId, toId, pupils } = await sectionsWithPupils("Grade 5", 3);
+  const preview = await (await api.post(`${base}/api/classes/transfer`, { data: { fromClassId: fromId, toClassId: toId, effectiveDate: "2026-10-01" } })).json();
+  assert.deepEqual([preview.preview.students, preview.preview.ready, preview.preview.blocked.length], [3, 3, 0]);
+  assert.equal(await db.student.count({ where: { classId: toId } }), 0, "a preview changes nothing");
+  const [first, second] = await Promise.all([0, 1].map(() => api.post(`${base}/api/classes/transfer`, { data: { fromClassId: fromId, toClassId: toId, effectiveDate: "2026-10-01", action: "apply", archiveAfter: true } })));
+  const bodies = await Promise.all([first.json(), second.json()]);
+  const moved = bodies.filter(body => body.success).reduce((sum, body) => sum + body.moved, 0);
+  assert.equal(moved, 3, `two concurrent applies move each pupil once: ${JSON.stringify(bodies)}`);
+  assert.equal(await db.student.count({ where: { classId: toId } }), 3);
+  assert.ok((await db.class.findUniqueOrThrow({ where: { id: fromId } })).archivedAt, "the emptied section is archived");
+  const history = await db.studentEnrollment.findMany({ where: { studentId: pupils[0] }, orderBy: { startDate: "asc" } });
+  assert.deepEqual(history.map(row => [row.classId, row.status, row.endDate?.toISOString().slice(0, 10) ?? null]), [[fromId, "ENDED", "2026-10-01"], [toId, "ACTIVE", null]], "the old placement is closed, not rewritten");
+  const retry = await (await api.post(`${base}/api/classes/transfer`, { data: { fromClassId: fromId, toClassId: toId, effectiveDate: "2026-10-01", action: "apply", archiveAfter: true } })).json();
+  assert.deepEqual([retry.moved, retry.archived], [0, false], "a retry after success is a no-op");
+  assert.equal((await api.post(`${base}/api/classes/transfer`, { data: { fromClassId: toId, toClassId: occupiedId, effectiveDate: "2026-10-01" } })).status(), 200);
+  const otherYear = randomUUID();
+  await db.class.create({ data: { id: otherYear, schoolId, campusId, name: "Grade 5", section: "C", academicYear: 2027 } });
+  assert.equal((await api.post(`${base}/api/classes/transfer`, { data: { fromClassId: toId, toClassId: otherYear, effectiveDate: "2026-10-01" } })).status(), 409, "another year is a promotion, not a transfer");
+});
+
+test("the section settings drawer previews and performs the move, then archives (EN 1440)", async () => {
+  const { fromId, toId } = await sectionsWithPupils("Grade 6", 2);
+  const ctx = await context("admin"), page = await ctx.newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto(`${base}/admin?view=classes`);
+  await page.getByText("Grade 6", { exact: true }).first().click();
+  await page.getByRole("button", { name: /Manage/ }).first().click();
+  await page.getByText("Section A", { exact: true }).first().waitFor();
+  await page.locator('button[title="Section settings"]').first().click();
+  const transfer = page.getByTestId("section-transfer");
+  await transfer.waitFor();
+  await transfer.getByLabel("Effective from").first().fill("2026-10-01");
+  await transfer.getByRole("button", { name: "Preview move" }).click();
+  await transfer.getByRole("status").filter({ hasText: "2 student(s) move to Grade 6 B" }).waitFor();
+  await shot(page, "classes-transfer-preview-en-1440");
+  await transfer.getByRole("button", { name: "Move 2 student(s) and archive" }).click();
+  await page.getByText(/Moved 2 student\(s\) to Grade 6 B/).first().waitFor();
+  assert.equal(await db.student.count({ where: { classId: toId } }), 2);
+  assert.ok((await db.class.findUniqueOrThrow({ where: { id: fromId } })).archivedAt);
+  assert.deepEqual(errors, []); await ctx.close();
+});
+
+test("a teacher change can take effect from an earlier date, and the history says so", async () => {
+  const classId = randomUUID(), subjectId = randomUUID();
+  await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 3", section: "Z", academicYear: 2026, teachingMode: "SUBJECT", classTeacherId: teacherA } });
+  await db.subject.create({ data: { id: subjectId, schoolId, campusId, classId, name: "Geography", teacherId: teacherA } });
+  await db.teachingAssignment.create({ data: { schoolId, campusId, classId, subjectId, role: "SUBJECT_TEACHER", teacherId: teacherA, effectiveFrom: new Date("2026-09-01"), createdById: people.get("admin")!.id } });
+  const ctx = await context("admin"), page = await ctx.newPage(), bodies: unknown[] = [];
+  page.on("request", request => { if (request.method() === "PATCH" && request.url().endsWith("/api/subjects")) bodies.push(request.postDataJSON()); });
+  await page.goto(`${base}/admin?view=classes`);
+  await page.getByText("Grade 3", { exact: true }).first().click();
+  await page.getByRole("button", { name: /Manage/ }).first().click();
+  const date = page.getByTestId("assignment-effective-date").first();
+  await date.scrollIntoViewIfNeeded();
+  await date.fill("2026-10-03");
+  await shot(page, "classes-teacher-effective-date-en-1440");
+  // The subject's own picker is the first "Change" control in the section (the homeroom one follows).
+  await page.getByRole("button", { name: /Synthetic teacher-a.*Change/i }).first().click();
+  await page.getByRole("button", { name: /Synthetic teacher-b/ }).first().click();
+  await page.waitForResponse(response => response.request().method() === "PATCH" && response.url().endsWith("/api/subjects"));
+  assert.deepEqual(bodies.map(body => (body as { effectiveFrom?: string }).effectiveFrom), ["2026-10-03"]);
+  const history = await db.teachingAssignment.findMany({ where: { schoolId, subjectId }, orderBy: { effectiveFrom: "asc" } });
+  assert.deepEqual(history.map(row => [row.teacherId, row.effectiveFrom.toISOString().slice(0, 10), row.effectiveTo?.toISOString().slice(0, 10) ?? null]), [[teacherA, "2026-09-01", "2026-10-03"], [teacherB, "2026-10-03", null]]);
+  await ctx.close();
+});
+
+test("class screens fit 390 and 1440 in EN/AR/UR, including the dashboard and teacher routes", async () => {
+  const urAdmin = await person("admin-ur", "CAMPUS_ADMIN", campusId, "ur");
+  void urAdmin;
+  const failures: string[] = [];
+  for (const [key, language] of [["admin", "en"], ["admin-ar", "ar"], ["admin-ur", "ur"]] as const) {
+    for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1000 }]) {
+      const ctx = await context(key, viewport), page = await ctx.newPage(), errors: string[] = [];
+      page.on("pageerror", error => errors.push(error.message));
+      for (const path of ["/admin?view=classes", "/dashboard/classes"]) {
+        await page.goto(`${base}${path}`, { waitUntil: "networkidle" });
+        const state = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - window.innerWidth, dir: document.documentElement.getAttribute("dir") || document.body.getAttribute("dir"), text: document.body.innerText }));
+        if (state.overflow > 1) failures.push(`${language} ${path} @${viewport.width}: ${state.overflow}px overflow`);
+        if ((language === "en" ? "ltr" : "rtl") !== state.dir) failures.push(`${language} ${path} @${viewport.width}: dir=${state.dir}`);
+        if (!state.text.includes("Grade 7")) failures.push(`${language} ${path} @${viewport.width}: class list missing`);
+      }
+      if (language === "ur" && viewport.width === 390) { await page.goto(`${base}/admin?view=classes`, { waitUntil: "networkidle" }); await shot(page, "classes-console-ur-390"); }
+      if (errors.length) failures.push(`${language} @${viewport.width}: ${errors.join("; ")}`);
+      await ctx.close();
+    }
+  }
+  const teacherCtx = await context("teacher-a", { width: 390, height: 844 }), teacherPage = await teacherCtx.newPage();
+  await teacherPage.goto(`${base}/teacher/classes`, { waitUntil: "networkidle" });
+  const teacherState = await teacherPage.evaluate(() => ({ overflow: document.documentElement.scrollWidth - window.innerWidth, text: document.body.innerText }));
+  if (teacherState.overflow > 1) failures.push(`/teacher/classes @390: ${teacherState.overflow}px overflow`);
+  if (!/Grade 7/.test(teacherState.text)) failures.push("/teacher/classes: the teacher's own class is missing");
+  await shot(teacherPage, "teacher-classes-en-390");
+  await teacherCtx.close();
+  assert.deepEqual(failures, []);
+});

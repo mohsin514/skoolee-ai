@@ -51,8 +51,12 @@ import {
   EmptyInline,
 } from "@/components/shared-admin";
 import { cn } from "@/lib/utils";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+
+/** Console rows carry the class as `class.id`; API rows as `classId`. */
+const studentClassId = (student: any): string | undefined => student.classId ?? student.class?.id;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -92,6 +96,8 @@ interface ClassManagerProps {
     classId: string,
     subjectId: string,
     teacherId: string,
+    /** SKO-462: ISO date the change takes effect; omitted means today. */
+    effectiveFrom?: string,
   ) => void;
   onAddStudent: () => void;
   onViewStudent: (student: any) => void;
@@ -161,7 +167,7 @@ function sectionStudentCount(
   section: any,
   allStudents: any[],
 ): number {
-  return allStudents.filter((s: any) => s.classId === section.id).length;
+  return allStudents.filter((s: any) => studentClassId(s) === section.id).length;
 }
 
 /** Collect unique subjects across all sections by name. */
@@ -201,22 +207,101 @@ function useFlashCell() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Section transfer (SKO-462)                                         */
+/* ------------------------------------------------------------------ */
+
+type TransferPreview = { students: number; ready: number; blocked: Array<{ studentId: string; name: string; reason: string }>; to: { label: string }; preserved: { attendance: number; reports: number; invoices: number } };
+
+/** The safe way out of an occupied section: preview, then move every pupil and archive, all or nothing. */
+function SectionTransfer({ section, siblings, ui, onDone }: { section: any; siblings: any[]; ui: ReturnType<typeof useUiText>; onDone: () => void }) {
+  const [target, setTarget] = useState(siblings[0]?.id ?? "");
+  const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [preview, setPreview] = useState<TransferPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const call = async (action: "preview" | "apply") => {
+    setBusy(true); setError("");
+    try {
+      const res = await fetch("/api/classes/transfer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fromClassId: section.id, toClassId: target, effectiveDate, action, archiveAfter: action === "apply" }) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Transfer failed");
+      if (action === "preview") { setPreview(json.preview); return; }
+      toast.success(ui("Moved {0} student(s) to {1}; the section is archived.", [json.moved, json.preview.to.label]));
+      onDone();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Transfer failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-3xl border border-[#cfc2d6]/40 bg-[#faf7fc] p-5" data-testid="section-transfer">
+      <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">{ui("Move students to another section")}</p>
+      {siblings.length === 0 ? (
+        <p className="mt-2 text-[11px] font-bold text-ink-muted">{ui("Add another section first, then move the students there.")}</p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <label className="block space-y-1 text-[11px] font-bold text-ink">
+            <span>{ui("Move to section")}</span>
+            <SystemSelect aria-label={ui("Move to section")} value={target} onChange={(event) => { setTarget(event.target.value); setPreview(null); }}>
+              {siblings.map((sibling) => <option key={sibling.id} value={sibling.id}>{classLabel(sibling)}</option>)}
+            </SystemSelect>
+          </label>
+          <label className="block space-y-1 text-[11px] font-bold text-ink">
+            <span>{ui("Effective from")}</span>
+            <SystemInput type="date" aria-label={ui("Effective from")} value={effectiveDate} max={new Date().toISOString().slice(0, 10)} onChange={(event) => { setEffectiveDate(event.target.value); setPreview(null); }} />
+          </label>
+          {error ? <p role="alert" className="text-[11px] font-bold text-status-error-text">{error}</p> : null}
+          {preview ? (
+            <div role="status" className="space-y-2 rounded-2xl bg-white p-3 text-[11px] font-bold text-ink">
+              <p>{ui("{0} student(s) move to {1}. {2} attendance, {3} report and {4} invoice record(s) stay with their original enrollment.", [preview.ready, preview.to.label, preview.preserved.attendance, preview.preserved.reports, preview.preserved.invoices])}</p>
+              {preview.blocked.length ? (
+                <div className="text-status-error-text">
+                  <p>{ui("{0} student(s) cannot move on this date:", [preview.blocked.length])}</p>
+                  <ul className="list-disc ps-4">{preview.blocked.map((row) => <li key={row.studentId}>{row.name}: {row.reason}</li>)}</ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {preview && !preview.blocked.length ? (
+            <SystemButton type="button" variant="dark" disabled={busy || !target} onClick={() => call("apply")} className="h-11 w-full">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Move {0} student(s) and archive", [preview.ready])}
+            </SystemButton>
+          ) : (
+            <SystemButton type="button" variant="secondary" disabled={busy || !target || !effectiveDate} onClick={() => call("preview")} className="h-11 w-full">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Preview move")}
+            </SystemButton>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Settings Drawer                                                    */
 /* ------------------------------------------------------------------ */
 
 function SettingsDrawer({
   section,
+  siblings,
+  enrolled,
   classUpdateBusy,
   onUpdateClass,
   onDeleteClass,
+  onRefresh,
   onClose,
 }: {
   section: any;
+  siblings: any[];
+  enrolled: number;
   classUpdateBusy: boolean;
   onUpdateClass: ClassManagerProps["onUpdateClass"];
   onDeleteClass: ClassManagerProps["onDeleteClass"];
+  onRefresh?: () => void;
   onClose: () => void;
 }) {
+  const ui = useUiText();
   const [editName, setEditName] = useState(section.name || "");
   const [editSection, setEditSection] = useState(section.section || "");
   const [editYear, setEditYear] = useState(
@@ -319,6 +404,10 @@ function SettingsDrawer({
               )}
             </SystemButton>
           </div>
+
+          {enrolled > 0 ? (
+            <SectionTransfer section={section} siblings={siblings} ui={ui} onDone={() => { onRefresh?.(); onClose(); }} />
+          ) : null}
 
           <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5">
             <p className="text-[9px] font-black uppercase tracking-wider text-amber-800">
@@ -1621,6 +1710,12 @@ export function ClassManager({
     string | "all"
   >(cls.id);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // SKO-462: teacher changes are effective-dated; earlier dates keep who taught before.
+  const today = new Date().toISOString().slice(0, 10);
+  const [assignmentDate, setAssignmentDate] = useState(today);
+  const ui = useUiText();
+  const changeSubjectTeacher: ClassManagerProps["onChangeSubjectTeacher"] = (classId, subjectId, teacherId) =>
+    onChangeSubjectTeacher(classId, subjectId, teacherId, assignmentDate === today ? undefined : assignmentDate);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [addingSection, setAddingSection] = useState(false);
 
@@ -1654,7 +1749,7 @@ export function ClassManager({
     () =>
       selectedSection
         ? allStudents.filter(
-            (s: any) => s.classId === selectedSection.id,
+            (s: any) => studentClassId(s) === selectedSection.id,
           )
         : [],
     [selectedSection, allStudents],
@@ -2040,6 +2135,10 @@ export function ClassManager({
           {/* Main Area */}
           <div className="flex-1 overflow-y-auto bg-gradient-to-b from-[#faf7fc] to-white p-4 sm:p-6 lg:p-8 custom-scrollbar">
             <div className="mx-auto max-w-5xl">
+              <label className="mb-4 flex flex-wrap items-center justify-end gap-2 text-[11px] font-bold text-ink-muted">
+                <span>{ui("Teacher changes take effect from")}</span>
+                <SystemInput type="date" aria-label={ui("Teacher changes take effect from")} value={assignmentDate} onChange={(event) => setAssignmentDate(event.target.value || today)} className="h-9 w-auto" data-testid="assignment-effective-date" />
+              </label>
               {selectedSectionId === "all" ? (
                 <>
                   <div className="mb-6 flex items-center gap-3">
@@ -2062,7 +2161,7 @@ export function ClassManager({
                     teachers={teachers}
                     availability={availability}
                     subjectBusyId={subjectBusyId}
-                    onChangeSubjectTeacher={onChangeSubjectTeacher}
+                    onChangeSubjectTeacher={changeSubjectTeacher}
                     refreshAvailability={refreshAvailability}
                     flashKey={flashKey}
                     flash={flash}
@@ -2126,7 +2225,7 @@ export function ClassManager({
                     onChangeTeacher={onChangeTeacher}
                     onChangeTeachingMode={onChangeTeachingMode}
                     onCreateSubject={onCreateSubject}
-                    onChangeSubjectTeacher={onChangeSubjectTeacher}
+                    onChangeSubjectTeacher={changeSubjectTeacher}
                     onAddStudent={onAddStudent}
                     onViewStudent={onViewStudent}
                     onDeleteSubject={onDeleteSubject}
@@ -2181,9 +2280,12 @@ export function ClassManager({
       {settingsOpen && selectedSection ? (
         <SettingsDrawer
           section={selectedSection}
+          siblings={sortedSections.filter((s: any) => s.id !== selectedSection.id && !s.archivedAt && (s.academicYear ?? selectedSection.academicYear) === selectedSection.academicYear)}
+          enrolled={selectedStudents.filter((s: any) => (s.status ?? "active") === "active" && !s.archivedAt).length}
           classUpdateBusy={classUpdateBusy}
           onUpdateClass={onUpdateClass}
           onDeleteClass={onDeleteClass}
+          onRefresh={onRefresh}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

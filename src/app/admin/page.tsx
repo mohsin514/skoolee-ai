@@ -591,22 +591,22 @@ export default function CampusAdminDashboard() {
     }
   };
 
-  const handleChangeSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
+  const handleChangeSubjectTeacher = async (classId: string, subjectId: string, teacherId: string, effectiveFrom?: string) => {
     // SKO-462: a scheduled or already-marked subject shows what moves before the teacher changes.
     const impact = await fetchAcademicImpact("subject", subjectId).catch(() => null);
     if (impact && (impact.counts.timetableSlots || impact.counts.marks)) {
-      setConfirmAction({ title: ui("Change the teacher of {0}?", [impact.label]), description: teacherChangeText(impact, ui), confirmLabel: ui("Change Teacher"), tone: "warning", run: async () => { await saveSubjectTeacher(classId, subjectId, teacherId); } });
+      setConfirmAction({ title: ui("Change the teacher of {0}?", [impact.label]), description: teacherChangeText(impact, ui, effectiveFrom), confirmLabel: ui("Change Teacher"), tone: "warning", run: async () => { await saveSubjectTeacher(classId, subjectId, teacherId, effectiveFrom); } });
       return;
     }
-    await saveSubjectTeacher(classId, subjectId, teacherId);
+    await saveSubjectTeacher(classId, subjectId, teacherId, effectiveFrom);
   };
-  const saveSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
+  const saveSubjectTeacher = async (classId: string, subjectId: string, teacherId: string, effectiveFrom?: string) => {
     setSavingSubjectId(subjectId);
     try {
       const res = await fetch("/api/subjects", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: subjectId, teacherId: teacherId || null }),
+        body: JSON.stringify({ id: subjectId, teacherId: teacherId || null, ...(effectiveFrom ? { effectiveFrom } : {}) }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Subject teacher could not be updated");

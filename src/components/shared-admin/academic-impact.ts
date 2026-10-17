@@ -30,7 +30,8 @@ export function subjectRemovalText(impact: AcademicImpact, ui: UiText) {
 }
 
 /** The outcome of moving a subject to another teacher from today. */
-export function teacherChangeText(impact: AcademicImpact, ui: UiText) {
+export function teacherChangeText(impact: AcademicImpact, ui: UiText, effectiveFrom?: string) {
+  if (effectiveFrom) return ui("From {3}, {0} timetable lesson(s) of {1} move to the new teacher. {2} existing mark(s) keep their original marker, and the previous assignment stays in the teaching history.", [impact.counts.timetableSlots ?? 0, impact.label, impact.counts.marks ?? 0, effectiveFrom]);
   return ui("From today, {0} timetable lesson(s) of {1} move to the new teacher. {2} existing mark(s) keep their original marker, and the previous assignment stays in the teaching history.", [impact.counts.timetableSlots ?? 0, impact.label, impact.counts.marks ?? 0]);
 }
 
