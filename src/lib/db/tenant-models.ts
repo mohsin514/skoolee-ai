@@ -132,6 +132,8 @@ export const TENANT_MODELS = new Set<string>([
   "postalEvent",
   "postalRecord",
   "promptTemplate",
+  "queueItemEvent",
+  "queueItemState",
   "readinessTask",
   "receiptSequence",
   "reportCard",

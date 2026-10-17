@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionQueue } from "@/components/principal/action-queue";
 import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
 import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { Button } from "@/components/ui/button";
@@ -605,6 +606,7 @@ export default function PrincipalDashboard() {
         ) : null}
         {activeView === "overview" ? (
           <div className="space-y-6">
+            <ActionQueue campusId={data.campusId} />
             <AcademicOverview
               data={data}
               onNavigate={(view) => setActiveView(view as PrincipalView)}

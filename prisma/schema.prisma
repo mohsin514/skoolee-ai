@@ -194,6 +194,8 @@ model School {
   dormRooms               DormRoom[]
   dormAllocations         DormAllocation[]
   complaintEvents         ComplaintEvent[]
+  queueItemStates         QueueItemState[]
+  queueItemEvents         QueueItemEvent[]
   phoneCallbacks          PhoneCallback[]
   phoneCallbackEvents     PhoneCallbackEvent[]
   postalEvents            PostalEvent[]
@@ -3480,6 +3482,51 @@ model DormAllocation {
   @@index([studentId, startDate])
   @@index([schoolId])
   @@map("dorm_allocations")
+}
+
+// SKO-417: the principal queue is derived from live source conditions (missing attendance, pending
+// leave, unapproved report versions, failed deliveries, ownerless or late complaints, adjustments awaiting
+// approval). Only what the queue itself adds is stored here — who it is assigned to, acknowledgement and a
+// reasoned snooze — keyed by a deterministic item key, with an append-only history. Closure always comes
+// from the source condition disappearing, never from this table.
+model QueueItemState {
+  id             String    @id @default(uuid())
+  schoolId       String    @default("") @map("school_id")
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String    @map("campus_id")
+  itemKey        String    @map("item_key")
+  assigneeId     String?   @map("assignee_id")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  acknowledgedById String? @map("acknowledged_by_id")
+  snoozedUntil   DateTime? @map("snoozed_until")
+  snoozeReason   String?   @map("snooze_reason")
+  resolvedAt     DateTime? @map("resolved_at")
+  title          String?
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, itemKey])
+  @@index([schoolId])
+  @@map("queue_item_states")
+}
+
+model QueueItemEvent {
+  id           String    @id @default(uuid())
+  schoolId     String    @default("") @map("school_id")
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String    @map("campus_id")
+  itemKey      String    @map("item_key")
+  kind         String // ASSIGNED | ACKNOWLEDGED | SNOOZED | UNSNOOZED | RESOLVED
+  assigneeId   String?   @map("assignee_id")
+  snoozedUntil DateTime? @map("snoozed_until")
+  note         String?
+  actorId      String?   @map("actor_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([campusId, itemKey, createdAt])
+  @@index([schoolId])
+  @@map("queue_item_events")
 }
 
 // Library
