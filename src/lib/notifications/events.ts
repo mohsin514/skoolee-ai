@@ -344,6 +344,14 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     icon: "LayoutGrid",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-413: one notice per published datesheet version, to the affected classes' families and invigilators.
+  EXAM_DATESHEET_PUBLISHED: {
+    title: (c) => (c.first ? "Exam datesheet published" : "Exam datesheet changed"),
+    message: (c) => c.first ? `${s(c.sessionTitle)} datesheet is published (version ${s(c.version)}).` : `${s(c.sessionTitle)} datesheet changed in version ${s(c.version)} (${s(c.changeCount)} change(s)).`,
+    icon: "CalendarClock",
+    source: (c) => ({ type: "datesheet-version", id: s(c.versionId) }),
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   TIMETABLE_PUBLISHED: {
     title: (c) => "Timetable published",
     message: (c) => `Timetable published for ${s(c.className)}`,

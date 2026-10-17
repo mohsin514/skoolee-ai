@@ -474,12 +474,18 @@ export async function getSeatingPlan(campusId: string, scheduleId: string, clien
     };
   });
 
+  // SKO-413: compare with the live roster, so a pupil who joined after
+  // seating is reported instead of silently missing from the plan.
+  const schedule = await db.examSchedule.findFirst({ where: { id: scheduleId, campusId }, select: { exam: { select: { classId: true } } } });
+  const seatedIds = new Set(rooms.flatMap(r => r.seats.map(seat => seat.student.id)));
+  const roster = schedule ? await db.student.findMany({ where: { classId: schedule.exam.classId, status: "active", archivedAt: null }, select: { id: true } }) : [];
+
   return {
     scheduleId,
     totalStudents: mapped.reduce((n, r) => n + r.seated, 0),
     totalCapacity: mapped.reduce((n, r) => n + r.capacity, 0),
     totalTeachingCapacity: mapped.reduce((n, r) => n + r.teachingCapacity, 0),
-    unseated: 0,
+    unseated: roster.filter(pupil => !seatedIds.has(pupil.id)).length,
     rooms: mapped,
   };
 }

@@ -34,6 +34,7 @@ import { EXAM_TYPE_LABELS, type ExamType } from "@/lib/academic/exam-permissions
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { SessionWizard } from "@/components/academic/exams/SessionWizard";
 import { MasterDatesheet } from "@/components/academic/exams/MasterDatesheet";
+import { DatesheetPublication } from "./DatesheetPublication";
 import { SeatingPlanner } from "@/components/academic/exams/SeatingPlanner";
 import { ExamDetailDialog } from "@/components/academic/exams/ExamDetailDialog";
 import { Meter, Panel, ProgressStat, StepEmpty } from "@/components/academic/exams/shared";
@@ -419,6 +420,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
               <div className="space-y-4">
                 <ExamDutyControl sessionId={active.id} />
                 <SeatingPlanner sessionId={active.id} campusId={campusId} onChanged={() => load(true)} />
+                <DatesheetPublication sessionId={active.id} />
               </div>
             ) : null}
 

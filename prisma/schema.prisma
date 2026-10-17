@@ -6016,3 +6016,27 @@ model RolloverEvent {
   @@index([schoolId])
   @@map("rollover_events")
 }
+
+// ─── SKO-413: published exam datesheet versions ─────────────
+// A session's datesheet and seating are drafts until an officer publishes a
+// version, after every hard check passes. Families read only the published
+// snapshot; a later change is a new reviewed version with its diff and the
+// exact people it affects, and documents print the version they show.
+model ExamDatesheetVersion {
+  id            String   @id @default(uuid())
+  schoolId      String   @default("") @map("school_id")
+  campusId      String   @map("campus_id")
+  sessionId     String   @map("session_id")
+  version       Int
+  snapshot      Json
+  seatingHash   String   @map("seating_hash")
+  changes       Json?
+  affected      Json?
+  reason        String?  @db.Text
+  publishedById String   @map("published_by_id")
+  publishedAt   DateTime @default(now()) @map("published_at")
+
+  @@unique([sessionId, version])
+  @@index([schoolId])
+  @@map("exam_datesheet_versions")
+}

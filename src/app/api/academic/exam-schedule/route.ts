@@ -1,5 +1,6 @@
 import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
 import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
+import { publishedPapersForClasses } from "@/lib/academic/datesheet-publication";
 import { NextRequest } from "next/server";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { studentScope } from "@/lib/auth/policy";
@@ -88,6 +89,7 @@ export async function GET(req: NextRequest) {
     // exam the office is still drafting. Without this, any signed-in student
     // could read every class's papers on the campus.
     let audienceScope: Record<string, unknown> = {};
+    let familyClassIds: string[] = [];
     if (isFamilyRole(user)) {
       const students = await prisma.student.findMany({
         where:
@@ -98,7 +100,10 @@ export async function GET(req: NextRequest) {
       });
       const classIds = Array.from(new Set(students.map((s) => s.classId)));
       if (classIds.length === 0) return Response.json({ success: true, data: [] });
-      audienceScope = { classId: { in: classIds }, status: { not: "DRAFT" } };
+      // SKO-413: live rows only for exams outside a formal session; session
+      // papers come from the published datesheet version below.
+      audienceScope = { classId: { in: classIds }, status: { not: "DRAFT" }, sessionId: null };
+      familyClassIds = classIds;
     }
 
     const schedules = await prisma.examSchedule.findMany({
@@ -116,6 +121,16 @@ export async function GET(req: NextRequest) {
       orderBy: [{ date: "asc" }, { periodDefinition: { periodNumber: "asc" } }],
     });
 
+    if (familyClassIds.length) {
+      const published = (await publishedPapersForClasses(user.schoolId, familyClassIds))
+        .filter(p => (!sessionId || p.sessionId === sessionId) && (!examId || p.examId === examId))
+        .map(p => ({ id: p.scheduleId, examId: p.examId, subjectId: p.subjectId, date: p.date, datesheetVersion: p.version,
+          subject: { id: p.subjectId, name: p.subjectName, totalMarks: p.totalMarks },
+          periodDefinition: p.startTime && p.endTime ? { startTime: p.startTime, endTime: p.endTime } : null,
+          room: p.rooms[0] ? { roomNumber: p.rooms[0].roomNumber } : null, rooms: p.rooms.map(r => ({ room: { roomNumber: r.roomNumber } })),
+          exam: { id: p.examId, title: p.examTitle, classId: p.classId } }));
+      return Response.json({ success: true, data: [...schedules, ...published].sort((a, b) => String(a.date instanceof Date ? a.date.toISOString() : a.date).localeCompare(String(b.date instanceof Date ? b.date.toISOString() : b.date))) });
+    }
     return Response.json({ success: true, data: schedules });
   } catch (error) {
     return errorResponse(error, "[academic/exam-schedule] GET failed");
