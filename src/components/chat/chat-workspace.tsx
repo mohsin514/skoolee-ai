@@ -9,6 +9,7 @@ import { ConversationList } from "./conversation-list";
 import { MessageThread } from "./message-thread";
 import { NewConversationDialog } from "./new-conversation-dialog";
 import { Button } from "@/components/ui/button";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 
 interface ChatWorkspaceProps {
@@ -23,6 +24,7 @@ interface ChatWorkspaceProps {
 export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProps) {
   const { activeId, closeConversation, error, clearError } = useChat();
   const [isNewOpen, setIsNewOpen] = useState(false);
+  const ui = useUiText();
 
   const stacked = layout === "stacked";
 
@@ -39,11 +41,11 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
             className="absolute inset-x-3 top-3 z-40 flex items-start gap-2.5 rounded-2xl border border-rose-200/80 bg-rose-50/95 px-3.5 py-3 shadow-[0_16px_40px_-14px_rgba(190,18,60,0.4)] backdrop-blur-xl"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden />
-            <p className="flex-1 text-[11px] font-bold leading-relaxed text-rose-700">{error}</p>
+            <p className="flex-1 text-[11px] font-bold leading-relaxed text-rose-700">{ui(error)}</p>
             <Button variant="destructive" size="icon"
               type="button"
               onClick={clearError}
-              aria-label="Dismiss"
+              aria-label={ui("Dismiss")}
 
             >
               <X className="h-3.5 w-3.5" />

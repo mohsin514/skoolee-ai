@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import type { ChatSettings } from "@/lib/chat/policy";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 
 interface ChatSettingsDialogProps {
@@ -64,6 +65,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSaved, setHasSaved] = useState(false);
+  const ui = useUiText();
 
   useEffect(() => {
     if (!open) return;
@@ -99,12 +101,12 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json.error ?? "Could not save");
+        setError(json.error ?? ui("Could not save"));
         return;
       }
       setHasSaved(true);
     } catch {
-      setError("Could not save — check your connection");
+      setError(ui("Could not save — check your connection"));
     } finally {
       setIsSaving(false);
     }
@@ -112,9 +114,9 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
 
   return (
     <Modal
-      title="Messaging policy"
-      eyebrow="Messaging"
-      subtitle="Applies to everyone in your school."
+      title={ui("Messaging policy")}
+      eyebrow={ui("Messaging")}
+      subtitle={ui("Applies to everyone in your school.")}
       icon={Settings2}
       size="sm"
       onClose={onClose}
@@ -130,17 +132,17 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
             {error
               ? error
               : isSaving
-                ? "Saving…"
+                ? ui("Saving…")
                 : hasSaved
-                  ? "Saved"
-                  : "Changes save as you make them"}
+                  ? ui("Saved")
+                  : ui("Changes save as you make them")}
           </p>
           <Button variant="default" size="sm"
             type="button"
             onClick={onClose}
 
           >
-            Done
+            {ui("Done")}
           </Button>
         </div>
       }
@@ -149,7 +151,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
             {!settings ? (
               <p className="flex items-center justify-center gap-2 py-10 text-xs font-bold text-ink-muted">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                Loading
+                {ui("Loading")}
               </p>
             ) : (
               <div className="space-y-1">
@@ -165,10 +167,10 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                           htmlFor={`chat-setting-${toggle.key}`}
                           className="block cursor-pointer text-xs font-black text-[#1f1a23]"
                         >
-                          {toggle.label}
+                          {ui(toggle.label)}
                         </label>
                         <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-ink-muted">
-                          {toggle.help}
+                          {ui(toggle.help)}
                         </p>
                       </div>
 
@@ -196,13 +198,13 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                   <div className="flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/60 px-3 py-3">
                     <TimeField
                       id="quiet-start"
-                      label="Quiet from"
+                      label={ui("Quiet from")}
                       value={settings.quietHoursStart}
                       onChange={(v) => save({ ...settings, quietHoursStart: v })}
                     />
                     <TimeField
                       id="quiet-end"
-                      label="until"
+                      label={ui("until")}
                       value={settings.quietHoursEnd}
                       onChange={(v) => save({ ...settings, quietHoursEnd: v })}
                     />

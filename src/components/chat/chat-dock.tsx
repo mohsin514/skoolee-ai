@@ -20,6 +20,7 @@ import { useChat } from "./chat-provider";
 import { ChatWorkspace } from "./chat-workspace";
 import { chatHeader, chatUnreadBadge } from "./chat-styles";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 const MotionButton = motion.create(Button);
 
@@ -28,6 +29,8 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
   const { unreadTotal, viewer, closeConversation } = useChat();
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const ui = useUiText();
+  const rtl = useLocale().language !== "en";
 
   // The dedicated page already shows all of this; a floating copy on top of it
   // would be two live threads competing for the same scroll.
@@ -64,7 +67,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
       <MotionButton variant="default" size="icon"
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        aria-label={hasUnread ? `Messages, ${unreadTotal} unread` : "Messages"}
+        aria-label={hasUnread ? ui("Messages, {0} unread", [unreadTotal]) : ui("Messages")}
         aria-expanded={isOpen}
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.92 }}
@@ -125,12 +128,12 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
             />
 
             <motion.section
-              aria-label="Messages"
+              aria-label={ui("Messages")}
               initial={{ opacity: 0, y: 24, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.97 }}
               transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              style={{ transformOrigin: "bottom right" }}
+              style={{ transformOrigin: rtl ? "bottom left" : "bottom right" }}
               className={cn(
                 "fixed z-[58] flex flex-col overflow-hidden rounded-3xl border border-border bg-card",
 
@@ -140,10 +143,10 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
               )}
             >
               <header className={cn(chatHeader, "justify-between")}>
-                <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><MessageCircle className="h-5 w-5" /></span><p className="text-sm font-semibold text-foreground">School messaging</p></div>
+                <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><MessageCircle className="h-5 w-5" /></span><p className="text-sm font-semibold text-foreground">{ui("School messaging")}</p></div>
                 <div className="flex items-center gap-1">
-                  <Link href="/messages" onClick={() => setIsOpen(false)} aria-label="Open full messages page" title="Open full page" className={buttonVariants({ variant: "ghost", size: "icon" })}><Maximize2 className="h-4 w-4" /></Link>
-                  <Button variant="ghost" size="icon" type="button" onClick={() => setIsOpen(false)} aria-label="Close messages"><X className="h-4 w-4" /></Button>
+                  <Link href="/messages" onClick={() => setIsOpen(false)} aria-label={ui("Open full messages page")} title={ui("Open full page")} className={buttonVariants({ variant: "ghost", size: "icon" })}><Maximize2 className="h-4 w-4" /></Link>
+                  <Button variant="ghost" size="icon" type="button" onClick={() => setIsOpen(false)} aria-label={ui("Close messages")}><X className="h-4 w-4" /></Button>
                 </div>
               </header>
 

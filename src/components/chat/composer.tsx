@@ -9,6 +9,8 @@ import type { ChatMessageView } from "@/lib/chat/types";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { fill } from "./chat-text";
 
 const MotionButton = motion.create(Button);
 
@@ -43,6 +45,7 @@ export function Composer({
   onSubmitEdit,
 }: ComposerProps) {
   const { sendMessage, notifyTyping, viewer } = useChat();
+  const ui = useUiText();
   const [urgent, setUrgent] = useState(false);
   // Families never raise urgency; staff choose it per message (SKO-415).
   const canMarkUrgent = Boolean(viewer && viewer.role !== "PARENT" && viewer.role !== "STUDENT");
@@ -101,7 +104,7 @@ export function Composer({
 
       if (!presign.ok) {
         const json = await presign.json().catch(() => ({}));
-        return { file, error: json.error ?? "Upload was refused" };
+        return { file, error: json.error ?? ui("Upload was refused") };
       }
 
       const { storageKey, uploadUrl } = await presign.json();
@@ -112,7 +115,7 @@ export function Composer({
         body: file,
       });
 
-      if (!put.ok) return { file, error: "Upload failed" };
+      if (!put.ok) return { file, error: ui("Upload failed") };
 
       return {
         file,
@@ -124,7 +127,7 @@ export function Composer({
         },
       };
     } catch {
-      return { file, error: "Upload failed" };
+      return { file, error: ui("Upload failed") };
     }
   }
 
@@ -191,8 +194,10 @@ export function Composer({
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black text-[#8127cf]">
                   {editing
-                    ? "Editing your message"
-                    : `Replying to ${replyTo?.sender?.fullName ?? "message"}`}
+                    ? ui("Editing your message")
+                    : replyTo?.sender?.fullName
+                      ? fill(ui("Replying to {0}"), [replyTo.sender.fullName])
+                      : ui("Replying to a message")}
                 </p>
                 <p className="truncate text-[11px] font-semibold text-ink-muted">
                   {(editing ?? replyTo)?.body}
@@ -200,7 +205,7 @@ export function Composer({
               </div>
               <Button variant="outline" size="icon"
                 type="button"
-                aria-label={editing ? "Cancel edit" : "Cancel reply"}
+                aria-label={editing ? ui("Cancel edit") : ui("Cancel reply")}
                 onClick={() => {
                   if (editing) {
                     onClearEditing();
@@ -247,22 +252,22 @@ export function Composer({
                 {f.file.type.startsWith("image/") && (
                   <ImageIcon className="h-3 w-3 shrink-0" aria-hidden />
                 )}
-                <span className="max-w-[150px] truncate">{f.file.name}</span>
-                {f.error && <span role="alert">· {f.error}. Your message draft is still here.</span>}
+                <bdi className="max-w-[150px] truncate">{f.file.name}</bdi>
+                {f.error && <span role="alert">· {fill(ui("{0}. Your message draft is still here."), [f.error])}</span>}
                 {f.error && (
-                  <Button variant="outline" size="sm" type="button" aria-label={`Retry upload of ${f.file.name}`}
+                  <Button variant="outline" size="sm" type="button" aria-label={ui("Retry upload of {0}", [f.file.name])}
                     onClick={async () => {
                       const file = f.file;
                       setFiles((prev) => prev.map((p) => (p.file === file ? { file } : p)));
                       const result = await uploadFile(file);
                       setFiles((prev) => prev.map((p) => (p.file === file ? result : p)));
                     }}>
-                    Retry
+                    {ui("Retry")}
                   </Button>
                 )}
                 <Button variant="outline" size="icon"
                   type="button"
-                  aria-label={`Remove ${f.file.name}`}
+                  aria-label={ui("Remove {0}", [f.file.name])}
                   onClick={() => setFiles((prev) => prev.filter((_, index) => index !== i))}
 
                 >
@@ -277,7 +282,7 @@ export function Composer({
       {canMarkUrgent && !editing && (
         <label className="mb-1.5 flex w-fit items-center gap-1.5 text-[11px] font-bold text-ink-muted">
           <input type="checkbox" checked={urgent} onChange={(event) => setUrgent(event.target.checked)} data-urgent-toggle />
-          Urgent: notify even during quiet hours
+          {ui("Urgent: notify even during quiet hours")}
         </label>
       )}
       <InputGroup className="items-end gap-2 p-1.5">
@@ -298,8 +303,8 @@ export function Composer({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={files.length >= 5}
-              aria-label="Attach a file"
-              title="Attach a file"
+              aria-label={ui("Attach a file")}
+              title={ui("Attach a file")}
               className="shrink-0"
             >
               <Paperclip className="h-4 w-4" />
@@ -308,7 +313,7 @@ export function Composer({
         )}
 
         <label className="sr-only" htmlFor="chat-composer">
-          Write a message
+          {ui("Write a message")}
         </label>
         <SystemTextarea
           id="chat-composer"
@@ -332,7 +337,7 @@ export function Composer({
               setValue("");
             }
           }}
-          placeholder={editing ? "Edit your message…" : "Write a message…"}
+          placeholder={editing ? ui("Edit your message…") : ui("Write a message…")}
           className="max-h-[150px] min-h-12 flex-1 resize-none px-2 py-3 text-sm"
         />
 
@@ -340,7 +345,7 @@ export function Composer({
           type="button"
           onClick={submit}
           disabled={!canSend}
-          aria-label={editing ? "Save changes" : "Send message"}
+          aria-label={editing ? ui("Save changes") : ui("Send message")}
           whileTap={canSend ? { scale: 0.9 } : undefined}
           animate={canSend ? { scale: 1 } : { scale: 0.94 }}
           transition={{ type: "spring", stiffness: 500, damping: 28 }}
@@ -359,11 +364,11 @@ export function Composer({
       {remaining < 200 && (
         <p
           className={cn(
-            "mt-1 pr-1 text-right text-[10px] font-bold",
+            "mt-1 pe-1 text-end text-[10px] font-bold",
             remaining < 40 ? "text-rose-500" : "text-ink-faint"
           )}
         >
-          {remaining} characters left
+          {ui("{0} characters left", [remaining])}
         </p>
       )}
     </div>

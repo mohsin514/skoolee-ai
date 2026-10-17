@@ -12,6 +12,10 @@ import { ChatAvatar } from "./chat-avatar";
 import type { ConversationView } from "@/lib/chat/types";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { localeTag } from "@/lib/locale/package";
+
+type Ui = ReturnType<typeof useUiText>;
 
 
 const FILTERS: { value: ConversationFilter; label: string }[] = [
@@ -21,16 +25,16 @@ const FILTERS: { value: ConversationFilter; label: string }[] = [
 ];
 
 /** "now", "3m", "2h", "Tue", "14 Aug" — enough to place a message without a date. */
-function relativeTime(iso: string | null) {
+function relativeTime(iso: string | null, ui: Ui, tag: string) {
   if (!iso) return "";
   const then = new Date(iso);
   const minutes = Math.round((Date.now() - then.getTime()) / 60_000);
 
-  if (minutes < 1) return "now";
-  if (minutes < 60) return `${minutes}m`;
-  if (minutes < 24 * 60) return `${Math.round(minutes / 60)}h`;
-  if (minutes < 7 * 24 * 60) return then.toLocaleDateString(undefined, { weekday: "short" });
-  return then.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  if (minutes < 1) return ui("now");
+  if (minutes < 60) return ui("{0}m", [minutes]);
+  if (minutes < 24 * 60) return ui("{0}h", [Math.round(minutes / 60)]);
+  if (minutes < 7 * 24 * 60) return then.toLocaleDateString(tag, { weekday: "short" });
+  return then.toLocaleDateString(tag, { day: "numeric", month: "short" });
 }
 
 const KIND_BADGE: Record<string, { label: string; className: string }> = {
@@ -53,6 +57,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
     isConnected,
     unreadTotal,
   } = useChat();
+  const ui = useUiText();
 
   return (
     <MotionConfig reducedMotion="user">
@@ -62,7 +67,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
 
           <div className="relative flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <h2 className="text-base font-semibold tracking-tight text-foreground">Inbox</h2>
+              <h2 className="text-base font-semibold tracking-tight text-foreground">{ui("Inbox")}</h2>
               {unreadTotal > 0 && (
                 <span className={chatUnreadBadge}>
                   {unreadTotal > 99 ? "99+" : unreadTotal}
@@ -73,12 +78,12 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
                   "flex items-center",
                   isConnected ? "text-emerald-500" : "text-amber-500"
                 )}
-                title={isConnected ? "Live" : "Reconnecting"}
+                title={isConnected ? ui("Live") : ui("Reconnecting")}
               >
                 {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
               </span>
               <span className="sr-only" role="status">
-                {isConnected ? "Live updates connected" : "Reconnecting to live updates"}
+                {isConnected ? ui("Live updates connected") : ui("Reconnecting to live updates")}
               </span>
             </div>
 
@@ -88,7 +93,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               className="shrink-0"
             >
               <SquarePen className="relative h-3.5 w-3.5" />
-              <span className="relative">New</span>
+              <span className="relative">{ui("New")}</span>
             </Button>
           </div>
 
@@ -101,8 +106,8 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search conversations"
-              aria-label="Search conversations"
+              placeholder={ui("Search conversations")}
+              aria-label={ui("Search conversations")}
               className="w-full py-2.5 ps-9 pe-3"
             />
           </InputGroup>
@@ -110,7 +115,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
           <div
             className="relative flex gap-1 rounded-2xl bg-muted p-1"
             role="tablist"
-            aria-label="Filter conversations"
+            aria-label={ui("Filter conversations")}
           >
             {FILTERS.map((f) => (
               <Button data-selected={filter === f.value} variant="choice" size="sm"
@@ -122,7 +127,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
                 className="relative flex-1 border-transparent data-[selected=true]:border-border data-[selected=true]:bg-card data-[selected=true]:text-primary data-[selected=true]:shadow-sm"
               >
 
-                <span className="relative">{f.label}</span>
+                <span className="relative">{ui(f.label)}</span>
               </Button>
             ))}
           </div>
@@ -165,6 +170,8 @@ function ConversationRow({
   viewerId?: string;
   onOpen: () => void;
 }) {
+  const ui = useUiText();
+  const locale = useLocale();
   const badge = KIND_BADGE[c.kind];
   const unread = c.unreadCount > 0;
   const sentByMe = Boolean(viewerId) && c.lastMessageSenderId === viewerId;
@@ -196,17 +203,17 @@ function ConversationRow({
               unread ? "font-semibold text-foreground" : "font-medium text-ink"
             )}
           >
-            {c.title}
+            <bdi>{c.title}</bdi>
           </span>
-          {c.isPinned && <Pin className="h-3 w-3 shrink-0 self-center text-[#8127cf]" aria-label="Pinned" />}
-          {c.isMuted && <BellOff className="h-3 w-3 shrink-0 self-center text-ink-faint" aria-label="Muted" />}
+          {c.isPinned && <Pin className="h-3 w-3 shrink-0 self-center text-[#8127cf]" aria-label={ui("Pinned")} />}
+          {c.isMuted && <BellOff className="h-3 w-3 shrink-0 self-center text-ink-faint" aria-label={ui("Muted")} />}
           <span
             className={cn(
               "shrink-0 text-[10px] font-bold",
               unread ? "text-[#b10e6b]" : "text-ink-faint"
             )}
           >
-            {relativeTime(c.lastMessageAt)}
+            {relativeTime(c.lastMessageAt, ui, localeTag(locale))}
           </span>
         </span>
 
@@ -218,7 +225,7 @@ function ConversationRow({
                 badge.className
               )}
             >
-              {badge.label}
+              {ui(badge.label)}
             </span>
           )}
           <span
@@ -227,8 +234,8 @@ function ConversationRow({
               unread ? "font-bold text-ink" : "font-semibold text-ink-muted"
             )}
           >
-            {sentByMe && <span className="text-ink-faint">You: </span>}
-            {c.lastMessagePreview || c.subtitle || "No messages yet"}
+            {sentByMe && <span className="text-ink-faint">{ui("You:")} </span>}
+            {c.lastMessagePreview || c.subtitle ? <bdi>{c.lastMessagePreview || c.subtitle}</bdi> : ui("No messages yet")}
           </span>
 
           {unread && (
@@ -240,7 +247,7 @@ function ConversationRow({
 
         {c.kind === "DIRECT" && c.counterpart && (
           <span className="mt-1 block truncate text-[11px] font-medium text-ink-faint">
-            {roleLabel(c.counterpart.role)}
+            {roleLabel(c.counterpart.role, locale.language)}
           </span>
         )}
       </span>
@@ -271,6 +278,7 @@ function EmptyList({
   filter: ConversationFilter;
   onNewChat: () => void;
 }) {
+  const ui = useUiText();
   const copy =
     filter === "unread"
       ? { title: "Nothing unread", body: "You are all caught up." }
@@ -287,8 +295,8 @@ function EmptyList({
         <Inbox className="h-7 w-7" />
       </span>
       <div>
-        <p className="text-sm font-semibold text-foreground">{copy.title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink-muted">{copy.body}</p>
+        <p className="text-sm font-semibold text-foreground">{ui(copy.title)}</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-muted">{ui(copy.body)}</p>
       </div>
       {filter === "all" && (
         <Button variant="default" size="sm"
@@ -296,7 +304,7 @@ function EmptyList({
           onClick={onNewChat}
           className="hover:-translate-y-0.5"
         >
-          Start a conversation
+          {ui("Start a conversation")}
         </Button>
       )}
     </div>

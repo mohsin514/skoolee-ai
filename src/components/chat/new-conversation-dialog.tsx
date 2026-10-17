@@ -14,6 +14,8 @@ import { ChatPortal } from "./chat-portal";
 import type { DirectoryContact } from "@/lib/chat/types";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { fill } from "./chat-text";
 
 
 /**
@@ -52,6 +54,8 @@ interface NewConversationDialogProps {
 
 export function NewConversationDialog({ open, onClose }: NewConversationDialogProps) {
   const { viewer, searchDirectory, startDirect, createGroup } = useChat();
+  const ui = useUiText();
+  const { language } = useLocale();
 
   const [query, setQuery] = useState("");
   const [contacts, setContacts] = useState<DirectoryContact[]>([]);
@@ -118,11 +122,13 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
       buckets.set(label, list);
     }
 
+    // Bucketed on the English label (see LABEL_ORDER); shown in the reader's language.
     return LABEL_ORDER.filter((label) => buckets.has(label)).map((label) => ({
       label,
+      heading: roleLabel(buckets.get(label)![0].role, language),
       contacts: buckets.get(label)!,
     }));
-  }, [contacts, viewer?.id]);
+  }, [contacts, viewer?.id, language]);
 
   const total = grouped.reduce((n, g) => n + g.contacts.length, 0);
 
@@ -186,7 +192,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/25 bg-gradient-to-br from-white via-white to-[#fbf0fe]/70 px-5 pb-4 pt-4">
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-[#8127cf]/10 blur-3xl"
+                  className="pointer-events-none absolute -end-12 -top-16 h-40 w-40 rounded-full bg-[#8127cf]/10 blur-3xl"
                 />
 
                 <div className="relative flex items-center justify-between gap-3">
@@ -199,10 +205,10 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                         id="new-conversation-title"
                         className="truncate text-sm font-black tracking-tight text-[#1f1a23]"
                       >
-                        {mode === "group" ? "New group" : "New conversation"}
+                        {mode === "group" ? ui("New group") : ui("New conversation")}
                       </h2>
                       <p className="truncate text-[10px] font-semibold text-ink-muted">
-                        {total} {total === 1 ? "person" : "people"} you can reach
+                        {total === 1 ? ui("{0} person you can reach", [total]) : ui("{0} people you can reach", [total])}
                       </p>
                     </div>
                   </div>
@@ -210,7 +216,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   <Button variant="secondary" size="icon"
                     type="button"
                     onClick={onClose}
-                    aria-label="Close"
+                    aria-label={ui("Close")}
                     className="shrink-0"
                   >
                     <X className="h-4 w-4" />
@@ -233,14 +239,14 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] font-black text-[#1f1a23]">
-                        {viewer.fullName}
+                        <bdi>{viewer.fullName}</bdi>
                       </span>
                       <span className="block truncate text-[9px] font-semibold text-ink-muted">
-                        Signed in as {viewer.roleLabel} · you are not in this list
+                        {fill(ui("Signed in as {0} · you are not in this list"), [roleLabel(viewer.role, language)])}
                       </span>
                     </span>
                     <span className="shrink-0 rounded-full bg-[#8127cf] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
-                      You
+                      {ui("You")}
                     </span>
                   </div>
                 )}
@@ -252,7 +258,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   <div
                     className="relative flex gap-1 rounded-xl bg-[#f4ecf8]/70 p-1"
                     role="tablist"
-                    aria-label="Conversation type"
+                    aria-label={ui("Conversation type")}
                   >
                     {(["direct", "group"] as const).map((m) => (
                       <Button data-selected={mode === m} variant="choice" size="sm"
@@ -267,7 +273,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                         className="relative flex-1"
                       >
 
-                        <span className="relative">{m === "direct" ? "One to one" : "Group"}</span>
+                        <span className="relative">{m === "direct" ? ui("One to one") : ui("Group")}</span>
                       </Button>
                     ))}
                   </div>
@@ -282,13 +288,13 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       className="space-y-2 overflow-hidden"
                     >
                       <label className="sr-only" htmlFor="group-title">
-                        Group name
+                        {ui("Group name")}
                       </label>
                       <SystemInput
                         id="group-title"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Group name — e.g. Grade 6 Teachers"
+                        placeholder={ui("Group name — e.g. Grade 6 Teachers")}
                         maxLength={120}
                         className="w-full px-3 py-2.5"
                       />
@@ -299,13 +305,13 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                               key={c.id}
                               initial={{ opacity: 0, scale: 0.85 }}
                               animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-1 rounded-full bg-[#fbf0fe] py-0.5 pl-0.5 pr-1.5 text-[10px] font-bold text-[#8127cf] ring-1 ring-[#8127cf]/20"
+                              className="flex items-center gap-1 rounded-full bg-[#fbf0fe] py-0.5 ps-0.5 pe-1.5 text-[10px] font-bold text-[#8127cf] ring-1 ring-[#8127cf]/20"
                             >
                               <ChatAvatar name={c.fullName} seed={c.id} size="sm" className="scale-[0.78]" />
-                              <span className="max-w-[110px] truncate">{c.fullName}</span>
+                              <bdi className="max-w-[110px] truncate">{c.fullName}</bdi>
                               <Button variant="outline" size="icon"
                                 type="button"
-                                aria-label={`Remove ${c.fullName}`}
+                                aria-label={ui("Remove {0}", [c.fullName])}
                                 onClick={() => setSelected((prev) => prev.filter((s) => s.id !== c.id))}
 
                               >
@@ -321,19 +327,19 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
 
                 <InputGroup surfaceClassName="bg-white" className="relative">
                   <Search data-field-affix="start"
-                    className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
+                    className="pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
                     aria-hidden
                   />
                   <label className="sr-only" htmlFor="directory-search">
-                    Search people
+                    {ui("Search people")}
                   </label>
                   <SystemInput
                     id="directory-search"
                     type="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search by name"
-                    className="w-full py-2.5 pl-9 pr-3"
+                    placeholder={ui("Search by name")}
+                    className="w-full py-2.5 ps-9 pe-3"
                   />
                 </InputGroup>
               </div>
@@ -354,7 +360,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   {isLoading ? (
                     <p className="flex items-center justify-center gap-2 py-12 text-xs font-bold text-ink-muted">
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      Loading your contacts
+                      {ui("Loading your contacts")}
                     </p>
                   ) : total === 0 ? (
                     <div className="flex flex-col items-center gap-3 px-8 py-12 text-center">
@@ -363,12 +369,12 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       </span>
                       <div>
                         <p className="text-xs font-black text-[#1f1a23]">
-                          {query ? "Nobody matches that" : "No contacts available"}
+                          {query ? ui("Nobody matches that") : ui("No contacts available")}
                         </p>
                         <p className="mt-1 max-w-[260px] text-[11px] font-semibold leading-relaxed text-ink-muted">
                           {query
-                            ? "Try a different name."
-                            : "Your school decides who you can message. Contact the office if someone is missing."}
+                            ? ui("Try a different name.")
+                            : ui("Your school decides who you can message. Contact the office if someone is missing.")}
                         </p>
                       </div>
                     </div>
@@ -376,7 +382,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     grouped.map((group) => (
                       <section key={group.label}>
                         <h3 className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-[#cfc2d6]/20 bg-white/95 px-5 py-2 text-[10px] font-black uppercase tracking-wider text-ink-faint backdrop-blur-md">
-                          {group.label}
+                          {group.heading}
                           <span className="font-bold text-ink-faint/70">{group.contacts.length}</span>
                         </h3>
 
@@ -389,7 +395,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                   type="button"
                                   disabled={isSubmitting}
                                   onClick={() => choose(contact)}
-                                  className="flex justify-start w-full items-center gap-3 text-left"
+                                  className="flex justify-start w-full items-center gap-3 text-start"
                                 >
                                   <ChatAvatar
                                     name={contact.fullName}
@@ -400,7 +406,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
 
                                   <span className="min-w-0 flex-1">
                                     <span className="block truncate text-xs font-black text-[#1f1a23]">
-                                      {contact.fullName}
+                                      <bdi>{contact.fullName}</bdi>
                                     </span>
                                     {/* Never the bare role label — it only
                                         repeats the heading above and leaves two
@@ -411,7 +417,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                         somebody else. */}
                                     {(contact.context ?? contact.email ?? contact.campusName) && (
                                       <span className="block truncate text-[10px] font-semibold text-ink-muted">
-                                        {contact.context ?? contact.email ?? contact.campusName}
+                                        <bdi>{contact.context ?? contact.email ?? contact.campusName}</bdi>
                                       </span>
                                     )}
                                   </span>
@@ -456,8 +462,10 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     className="w-full hover:-translate-y-0.5"
                   >
                     {isSubmitting
-                      ? "Creating…"
-                      : `Create group${selected.length ? ` · ${selected.length}` : ""}`}
+                      ? ui("Creating…")
+                      : selected.length
+                        ? ui("Create group · {0}", [selected.length])
+                        : ui("Create group")}
                   </Button>
                 </footer>
               )}
