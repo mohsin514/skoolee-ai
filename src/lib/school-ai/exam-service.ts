@@ -1,4 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { DELIVERED_EXAM_MODES } from "./exam";
+import { approvedProfileFor, assertSecureAdmission, secureAdmission, supervisedAlternatives } from "./secure-browser-service";
 import { effectiveSettings } from "@/lib/accommodations/plan";
 import { activePlanFor } from "@/lib/accommodations/service";
 import { createHash } from "node:crypto";
@@ -42,7 +44,7 @@ export async function staffExamAccess(user: AuthUser, assignment: { createdById:
 export async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma) {
   const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   if (!assignment) throw new ApiError("Exam unavailable.", 404);
-  if (assignment.mode !== "STANDARD") throw new ApiError("This exam mode has not been configured for delivery.", 409);
+  if (!DELIVERED_EXAM_MODES.includes(assignment.mode)) throw new ApiError("This exam mode has not been configured for delivery.", 409);
   if (user.role === "STUDENT") {
     const student = await studentFor(user, db);
     if (assignment.status !== "ACTIVE" || assignment.classId !== student.classId || !Array.isArray(assignment.studentIds) || !assignment.studentIds.includes(student.id)) throw new ApiError("Exam unavailable.", 404);
@@ -55,7 +57,7 @@ export async function scopedAssignment(user: AuthUser, id: string, db: TxClient 
 export async function listSchoolAiExams(user: AuthUser) {
   if (user.role === "STUDENT") {
     const student = await studentFor(user);
-    return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, classId: student.classId, studentIds: { array_contains: [student.id] }, status: "ACTIVE", mode: "STANDARD" }, select: { ...selection, attempts: { where: { userId: user.userId, schoolId: user.schoolId }, select: { id: true, status: true, submittedAt: true } } }, orderBy: { startsAt: "desc" }, take: 100 });
+    return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, classId: student.classId, studentIds: { array_contains: [student.id] }, status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES } }, select: { ...selection, attempts: { where: { userId: user.userId, schoolId: user.schoolId }, select: { id: true, status: true, submittedAt: true } } }, orderBy: { startsAt: "desc" }, take: 100 });
   }
   await assertSchoolAiAccess(user, "view"); await assertWorkspacePermission(user, "exams", "view");
   if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Exam access is restricted to teaching staff.", 403);
@@ -107,7 +109,10 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
     if (currentCount !== input.studentIds.length) throw new ApiError("Every selected student must have an active account in this paper's class.", 403);
     const currentWindowError = validateExamWindow(startsAt, endsAt, now ?? new Date());
     if (currentWindowError) throw new ApiError(currentWindowError);
-    const created = await tx.schoolAiExamAssignment.create({ data: { id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: "STANDARD", status: "ACTIVE" }, select: selection });
+    // SKO-449: a secure exam pins the approved profile version it is delivered with.
+    if (input.mode !== "SECURE_BROWSER" && input.secureProfileId) throw new ApiError("A secure browser profile applies only to Safe Exam Browser exams.", 400);
+    const secureProfile = input.mode === "SECURE_BROWSER" ? await approvedProfileFor(tx, user, record.campusId!, input.secureProfileId ?? "") : null;
+    const created = await tx.schoolAiExamAssignment.create({ data: { ...(secureProfile ? { secureProfileId: secureProfile.id, secureProfileVersion: secureProfile.version } : {}), id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: input.mode, status: "ACTIVE" }, select: selection });
     await writeAuditEvent(tx, user, { table: "school_ai_exam_assignments", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { paperId: record.id, paperVersion: created.paperVersion, classId: created.classId, status: created.status, mode: created.mode, students: input.studentIds.length, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() } });
     return created;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
@@ -120,7 +125,8 @@ export async function getSchoolAiExam(user: AuthUser, id: string) {
   const accommodation = { ...effective.capabilities, extraMinutes: effective.extraMinutes, breakMinutes: effective.breakMinutes };
   const extraMinutes = effective.extraMinutes, breakMinutes = effective.breakMinutes;
   const recording = proctorPolicy(assignment.proctorPolicy);
-  return { version: assignment.version, integrityPolicy: examIntegrityDisclosure(assignment.proctorPolicy), cameraRequired: recording.requireCamera && !accommodation?.cameraExempt, cameraRetentionDays: recording.retentionDays, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false, cameraExempt: accommodation?.cameraExempt ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
+  const secureBrowser = student ? await secureAdmission(prisma, assignment, student.id) : { required: assignment.mode === "SECURE_BROWSER" };
+  return { secureBrowser, version: assignment.version, integrityPolicy: examIntegrityDisclosure(assignment.proctorPolicy), cameraRequired: recording.requireCamera && !accommodation?.cameraExempt, cameraRetentionDays: recording.retentionDays, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false, cameraExempt: accommodation?.cameraExempt ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
 }
 
 function receipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; responses: unknown; submittedAt: Date | null }, paper: PaperData, now: Date) {
@@ -137,15 +143,17 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
       // A per-assignment lock alone allows two simultaneous active exams.
       const account = await tx.user.updateMany({ where: { id: user.userId, schoolId: user.schoolId, campusId: student.campusId, role: "STUDENT", isActive: true, ...(user.accessVersion === undefined ? {} : { accessVersion: user.accessVersion }) }, data: { accessVersion: { increment: 0 } } });
       if (account.count !== 1) throw new ApiError("Your exam access changed. Sign in again.", 403);
-      const activeElsewhere = await tx.schoolAiExamAttempt.findFirst({ where: { schoolId: user.schoolId, userId: user.userId, studentId: student.id, campusId: student.campusId, assignmentId: { not: id }, status: "IN_PROGRESS", deadlineAt: { gt: now ?? new Date() }, assignment: { status: "ACTIVE", mode: "STANDARD", classId: student.classId, studentIds: { array_contains: [student.id] } } }, select: { id: true } });
+      const activeElsewhere = await tx.schoolAiExamAttempt.findFirst({ where: { schoolId: user.schoolId, userId: user.userId, studentId: student.id, campusId: student.campusId, assignmentId: { not: id }, status: "IN_PROGRESS", deadlineAt: { gt: now ?? new Date() }, assignment: { status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES }, classId: student.classId, studentIds: { array_contains: [student.id] } } }, select: { id: true } });
       if (activeElsewhere) throw new ApiError("Finish your active exam before starting another one.", 409);
-      const locked = await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, campusId: student.campusId, version: assignment.version, status: "ACTIVE", mode: "STANDARD" }, data: { version: { increment: 0 } } });
+      const locked = await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, campusId: student.campusId, version: assignment.version, status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES } }, data: { version: { increment: 0 } } });
       if (locked.count !== 1) throw new ApiError("The exam changed. Check readiness again before starting.", 409);
       const existing = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId: id, userId: user.userId, schoolId: user.schoolId, campusId: student.campusId } });
       if (existing) return existing;
       if (expectedVersion !== undefined && expectedVersion !== assignment.version) throw new ApiError("The exam changed. Check readiness again before starting.", 409);
       const currentStudent = await tx.student.findFirst({ where: { id: student.id, studentUserId: user.userId, schoolId: user.schoolId, campusId: student.campusId, classId: assignment.classId, archivedAt: null, status: "active" }, select: { id: true } });
       if (!currentStudent) throw new ApiError("Exam unavailable.", 404);
+      // SKO-449: before any timer or paper, a secure exam requires a verified SEB request or a recorded supervised alternative.
+      await assertSecureAdmission(tx, assignment, student.id);
       // Sample production time after the lock/read on every rolled-back retry.
       // An explicit clock remains fixed for deterministic service tests.
       const currentTime = now ?? new Date();
@@ -186,18 +194,19 @@ export async function getSchoolAiAccommodations(user: AuthUser, id: string) {
   const canApprove = await canApproveAccommodation(user);
   const accommodations = examAccommodationsSchema.parse(assignment.accommodations);
   const studentIds = Array.isArray(assignment.studentIds) ? assignment.studentIds.filter((value): value is string => typeof value === "string") : [];
-  const [students, attempts, plans, live] = await Promise.all([
+  const [students, attempts, plans, alternatives, live] = await Promise.all([
     prisma.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: assignment.campusId, classId: assignment.classId, archivedAt: null, status: "active" }, select: { id: true, fullName: true, rollNo: true }, orderBy: { rollNo: "asc" } }),
     prisma.schoolAiExamAttempt.findMany({ where: { assignmentId: id, schoolId: user.schoolId, campusId: assignment.campusId }, select: { studentId: true, deadlineAt: true, status: true } }),
     prisma.accommodationPlan.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", studentId: { in: studentIds } } }),
+    supervisedAlternatives(prisma, user.schoolId, id).then(rows => rows),
     prisma.accommodationLiveAdjustment.findMany({ where: { schoolId: user.schoolId, assignmentId: id }, orderBy: { createdAt: "asc" }, select: { studentId: true, addedMinutes: true, reason: true, oldDeadline: true, newDeadline: true, createdAt: true } }),
   ]);
-  return { version: assignment.version, canApprove: canApprove && assignment.status === "ACTIVE" && assignment.endsAt > new Date(), baseDurationMinutes: paper.blueprint.durationMinutes, endsAt: assignment.endsAt, students: students.map((student) => {
+  return { mode: assignment.mode, version: assignment.version, canApprove: canApprove && assignment.status === "ACTIVE" && assignment.endsAt > new Date(), baseDurationMinutes: paper.blueprint.durationMinutes, endsAt: assignment.endsAt, students: students.map((student) => {
     const exam = accommodations[student.id];
     // Invigilators see the operational result and its source, never supporting records.
     const effective = effectiveSettings({ baseMinutes: paper.blueprint.durationMinutes, type: "EXAM", at: assignment.startsAt, examApproval: exam ?? null, plan: exam ? null : plans.find(plan => plan.studentId === student.id) ?? null });
     const approved = exam ?? (effective.source === "PLAN" ? { ...effective.capabilities, extraMinutes: effective.extraMinutes, breakMinutes: effective.breakMinutes, reason: undefined, approvedAt: undefined } : undefined);
-    return { ...student, source: effective.source, planVersion: effective.planVersion, instructions: effective.instructions, totalMinutes: effective.totalMinutes, liveAdjustments: live.filter(row => row.studentId === student.id), extraMinutes: approved?.extraMinutes ?? 0, breakMinutes: approved?.breakMinutes ?? 0, reader: approved?.reader ?? false, scribe: approved?.scribe ?? false, largeText: approved?.largeText ?? false, cameraExempt: approved?.cameraExempt ?? false, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
+    return { ...student, supervisedAlternative: alternatives.find(row => row.studentId === student.id) ?? null, source: effective.source, planVersion: effective.planVersion, instructions: effective.instructions, totalMinutes: effective.totalMinutes, liveAdjustments: live.filter(row => row.studentId === student.id), extraMinutes: approved?.extraMinutes ?? 0, breakMinutes: approved?.breakMinutes ?? 0, reader: approved?.reader ?? false, scribe: approved?.scribe ?? false, largeText: approved?.largeText ?? false, cameraExempt: approved?.cameraExempt ?? false, ...(canApprove && approved ? { reason: approved.reason, approvedAt: approved.approvedAt } : {}), attempt: attempts.find((attempt) => attempt.studentId === student.id) ?? null };
   }) };
 }
 
@@ -210,7 +219,7 @@ export async function approveSchoolAiAccommodation(user: AuthUser, id: string, r
     return await retryDatabaseTransaction(() => prisma.$transaction(async (tx) => {
       await staffExamAccess(user, assignment, "edit", tx);
       // A write lock serializes this operation with attempt creation. The version also prevents lost staff edits.
-      const locked = await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, campusId: assignment.campusId, version: input.version, status: "ACTIVE", mode: "STANDARD", endsAt: { gt: now ?? new Date() } }, data: { version: { increment: 0 } } });
+      const locked = await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, campusId: assignment.campusId, version: input.version, status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES }, endsAt: { gt: now ?? new Date() } }, data: { version: { increment: 0 } } });
       if (locked.count !== 1) throw new ApiError("The exam changed or closed. Refresh before approving extra time.", 409);
       const current = await tx.schoolAiExamAssignment.findFirstOrThrow({ where: { id, schoolId: user.schoolId, campusId: assignment.campusId } });
       if (!Array.isArray(current.studentIds) || !current.studentIds.includes(input.studentId)) throw new ApiError("This student is not assigned to the exam.", 404);
@@ -237,10 +246,11 @@ export async function approveSchoolAiAccommodation(user: AuthUser, id: string, r
 }
 
 export async function getSchoolAiAttempt(user: AuthUser, id: string, now = new Date()) {
-  const { paper, student } = await scopedAssignment(user, id);
+  const { assignment, paper, student } = await scopedAssignment(user, id);
   if (!student) throw new ApiError("Only students can read this attempt endpoint.", 403);
   let attempt = await prisma.schoolAiExamAttempt.findFirst({ where: { assignmentId: id, userId: user.userId, schoolId: user.schoolId, campusId: student.campusId } });
   if (!attempt) return null;
+  if (attempt.status === "IN_PROGRESS" && now < attempt.deadlineAt) await assertSecureAdmission(prisma, assignment, student.id);
   if (attempt.status === "IN_PROGRESS" && now >= attempt.deadlineAt) {
     await prisma.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", sequence: attempt.sequence }, data: { status: "SUBMITTED", submittedAt: now, scoreProposal: json(scoreObjectiveResponses(paper, responsesSchema.parse(attempt.responses))) } });
     attempt = await prisma.schoolAiExamAttempt.findFirstOrThrow({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId } });
@@ -251,8 +261,9 @@ export async function getSchoolAiAttempt(user: AuthUser, id: string, now = new D
 export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now?: Date) {
   const input = saveExamSchema.parse(raw);
   return retryDatabaseTransaction(() => prisma.$transaction(async (tx) => {
-    const { paper, student } = await scopedAssignment(user, id, tx);
+    const { assignment, paper, student } = await scopedAssignment(user, id, tx);
     if (!student) throw new ApiError("Only assigned students can save responses.", 403);
+    await assertSecureAdmission(tx, assignment, student.id);
     const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId: id, userId: user.userId, schoolId: user.schoolId, campusId: student.campusId } });
     if (!attempt) throw new ApiError("Start the exam before saving responses.", 409);
     const currentTime = now ?? new Date();

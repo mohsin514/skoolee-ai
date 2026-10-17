@@ -44,7 +44,7 @@ export async function candidateExamBoundary(actor: { userId: string; schoolId: s
     const attempt = await db.schoolAiExamAttempt.findFirst({
       // Withdrawing exam access must not trap a learner on an inaccessible page.
       // Current pupil membership, not the cookie's campus claim, is authoritative.
-      where: { schoolId: actor.schoolId, userId: actor.userId, studentId: student.id, campusId: student.campusId, status: "IN_PROGRESS", deadlineAt: { gt: now }, assignment: { status: "ACTIVE", mode: "STANDARD", classId: student.classId, studentIds: { array_contains: [student.id] } } },
+      where: { schoolId: actor.schoolId, userId: actor.userId, studentId: student.id, campusId: student.campusId, status: "IN_PROGRESS", deadlineAt: { gt: now }, assignment: { status: "ACTIVE", mode: { in: ["STANDARD", "SECURE_BROWSER"] }, classId: student.classId, studentIds: { array_contains: [student.id] } } },
       select: { id: true, assignmentId: true, deadlineAt: true },
       orderBy: [{ startedAt: "asc" }, { id: "asc" }],
     });

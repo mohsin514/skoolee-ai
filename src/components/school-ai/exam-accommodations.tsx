@@ -12,8 +12,9 @@ import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { examCameraCopy } from "./exam-camera-copy";
 import { examReadinessCopy } from "./exam-readiness-copy";
 import { fillAccess, getAccessCopy } from "@/components/accommodations/access-copy";
+import { SupervisedAlternative } from "./secure-browser";
 
-type Roster = { version: number; canApprove: boolean; baseDurationMinutes: number; endsAt: string; students: Array<{ id: string; fullName: string; rollNo: string; extraMinutes: number; breakMinutes?: number; reader?: boolean; scribe?: boolean; largeText?: boolean; cameraExempt?: boolean; reason?: string; approvedAt?: string; source?: "EXAM_APPROVAL" | "PLAN" | "NONE"; planVersion?: number | null; instructions?: string; liveAdjustments?: Array<{ addedMinutes: number; reason: string; oldDeadline: string; newDeadline: string }>; attempt: { deadlineAt: string; status: string } | null }> };
+type Roster = { mode?: string; version: number; canApprove: boolean; baseDurationMinutes: number; endsAt: string; students: Array<{ id: string; fullName: string; rollNo: string; extraMinutes: number; breakMinutes?: number; reader?: boolean; scribe?: boolean; largeText?: boolean; cameraExempt?: boolean; reason?: string; approvedAt?: string; supervisedAlternative?: { reason: string } | null; source?: "EXAM_APPROVAL" | "PLAN" | "NONE"; planVersion?: number | null; instructions?: string; liveAdjustments?: Array<{ addedMinutes: number; reason: string; oldDeadline: string; newDeadline: string }>; attempt: { deadlineAt: string; status: string } | null }> };
 export function ExamAccommodations({ id, locale }: { id: string; locale: AssessmentLocale }) {
   const access = getAccessCopy(locale);
   const [live, setLive] = useState({ minutes: "10", reason: "" });
@@ -70,6 +71,7 @@ export function ExamAccommodations({ id, locale }: { id: string; locale: Assessm
       {!roster.canApprove && <p className="text-sm">{t.noApprove}</p>}
       {selected && <><p className="text-sm">{t.base}: {roster.baseDurationMinutes} {t.minutes} · {t.close}: {new Date(roster.endsAt).toLocaleString(locale)}</p>{selected.approvedAt && <p className="text-sm">{t.approvedOn}: {new Date(selected.approvedAt).toLocaleString(locale)}</p>}
         {selected.source && selected.source !== "NONE" && <p className="text-sm">{access.adjustmentSource}: {fillAccess(access.source[selected.source], { v: selected.planVersion ?? "" })}{selected.instructions ? <> · <span dir="auto">{selected.instructions}</span></> : null}</p>}
+        {roster.mode === "SECURE_BROWSER" && <SupervisedAlternative id={id} studentId={selected.id} granted={selected.supervisedAlternative ?? null} canGrant={roster.canApprove} locale={locale} onDone={async () => { const keep = studentId; await load(); setStudentId(keep); }} />}
         {!!selected.liveAdjustments?.length && <div className="text-sm"><p className="font-semibold">{access.liveHistory}</p><ul className="list-disc ps-5">{selected.liveAdjustments.map(row => <li key={row.newDeadline}>{fillAccess(access.liveRow, { n: row.addedMinutes, reason: row.reason, old: when(row.oldDeadline), new: when(row.newDeadline) })}</li>)}</ul></div>}
         {selected.attempt ? <div className="space-y-2"><p>{t.locked}</p><p className="text-sm">{t.existingDeadline}: {new Date(selected.attempt.deadlineAt).toLocaleString(locale)}</p>
           {roster.canApprove && selected.attempt.status === "IN_PROGRESS" && <fieldset disabled={busy} className="space-y-2 rounded-xl border p-3"><legend className="px-1 font-semibold">{access.live}</legend><p className="text-xs text-ink-subtle">{access.liveHelp}</p>

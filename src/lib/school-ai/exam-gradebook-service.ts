@@ -29,7 +29,7 @@ async function readSource(user: AuthUser, id: string, db: TxClient) {
   const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) } });
   if (!assignment) fail("GRADEBOOK_SCOPE", 404);
   const paper = paperDataSchema.parse(assignment.paperSnapshot);
-  if (paper.classId !== assignment.classId || assignment.mode !== "STANDARD") fail("GRADEBOOK_SCOPE");
+  if (paper.classId !== assignment.classId || !["STANDARD", "SECURE_BROWSER"].includes(assignment.mode)) fail("GRADEBOOK_SCOPE");
   const scope = { schoolId: user.schoolId, campusId: assignment.campusId };
   const roster = z.array(z.string().min(1).max(128)).min(1).max(500).parse(assignment.studentIds);
   if (new Set(roster).size !== roster.length) fail("GRADEBOOK_SOURCE_INVALID");

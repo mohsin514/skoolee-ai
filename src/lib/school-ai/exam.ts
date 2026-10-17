@@ -10,6 +10,7 @@ export const examAssignmentSchema = z.object({
   endsAt: z.string().datetime(),
   studentIds: z.array(id).min(1).max(500),
   mode: z.enum(["STANDARD", "SECURE_BROWSER", "PROCTORED"]),
+  secureProfileId: id.optional(),
 }).strict();
 
 export const responsesSchema = z.record(id, z.string().max(20000)).refine((value) => Object.keys(value).length <= 100, "At most 100 answers are allowed.");
@@ -122,8 +123,10 @@ export function validateExamReview(paper: PaperData, responses: ExamResponses, r
   return errors;
 }
 
+export const DELIVERED_EXAM_MODES = ["STANDARD", "SECURE_BROWSER"];
 export function assertSupportedExamMode(mode: "STANDARD" | "SECURE_BROWSER" | "PROCTORED"): void {
-  if (mode !== "STANDARD") throw new Error("Secure browser and recorded proctoring require a configured, tested integration and are not enabled. Use a standard browser exam or supervised classroom assessment.");
+  // SKO-449: SECURE_BROWSER is delivered only with an approved, tested Safe Exam Browser profile (checked at assignment).
+  if (mode === "PROCTORED") throw new Error("Recorded proctoring mode requires a configured, tested integration and is not enabled. Use a standard browser exam or supervised classroom assessment.");
 }
 
 export type SaveDecision = "SAVE" | "REPLAY" | "STALE" | "EXPIRED" | "FINISHED";

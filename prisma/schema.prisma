@@ -226,6 +226,8 @@ model School {
   accommodationSupportRecords AccommodationSupportRecord[]
   accommodationRehearsals AccommodationRehearsal[]
   accommodationLiveAdjustments AccommodationLiveAdjustment[]
+  secureBrowserProfiles SecureBrowserProfile[]
+  secureBrowserExceptions SecureBrowserException[]
   assignments             Assignment[]
   assignmentRubricVersions AssignmentRubricVersion[]
   assignmentVersions      AssignmentVersion[]
@@ -3968,6 +3970,9 @@ model SchoolAiExamAssignment {
   studentIds   Json @map("student_ids")
   accommodations Json @default("{}")
   gradebookPublication Json? @map("gradebook_publication")
+  /// SKO-449: a SECURE_BROWSER exam pins the approved Safe Exam Browser profile version it was assigned with.
+  secureProfileId      String? @map("secure_profile_id")
+  secureProfileVersion Int?    @map("secure_profile_version")
   status       String @default("DRAFT")
   mode         String @default("STANDARD")
   version      Int @default(1)
@@ -4939,4 +4944,47 @@ model AccommodationLiveAdjustment {
 
   @@index([schoolId, assignmentId])
   @@map("accommodation_live_adjustments")
+}
+
+/// SKO-449: a tested Safe Exam Browser delivery profile. Revisions are immutable rows; keys are the
+/// Config Keys and Browser Exam Keys reported by the tested client, never derived from a user agent.
+model SecureBrowserProfile {
+  id               String    @id @default(uuid())
+  schoolId         String    @default("") @map("school_id")
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId         String    @map("campus_id")
+  profileKey       String    @map("profile_key")
+  version          Int
+  name             String
+  status           String    @default("DRAFT") // DRAFT | APPROVED | RETIRED
+  minClientVersion String    @map("min_client_version")
+  configKeys       String[]  @map("config_keys")
+  browserExamKeys  String[]  @map("browser_exam_keys")
+  allowedResources String[]  @map("allowed_resources")
+  testedDevices    Json      @map("tested_devices")
+  createdById      String    @map("created_by_id")
+  approvedById     String?   @map("approved_by_id")
+  approvedAt       DateTime? @map("approved_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@unique([schoolId, profileKey, version])
+  @@index([schoolId, campusId, status])
+  @@map("secure_browser_profiles")
+}
+
+/// An audited, per-learner supervised alternative for a SECURE_BROWSER exam (e.g. unsupported device or assistive tool).
+model SecureBrowserException {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  assignmentId String   @map("assignment_id")
+  studentId    String   @map("student_id")
+  reason       String
+  approvedById String   @map("approved_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([assignmentId, studentId])
+  @@index([schoolId, assignmentId])
+  @@map("secure_browser_exceptions")
 }

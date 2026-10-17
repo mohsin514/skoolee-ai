@@ -143,6 +143,8 @@ export const TENANT_MODELS = new Set<string>([
   "schoolAiSetupTaskRevision",
   "schoolAiSubstituteDuty",
   "schoolReadiness",
+  "secureBrowserException",
+  "secureBrowserProfile",
   "staffAppointment",
   "staffDesignation",
   "staffDocument",
