@@ -37,6 +37,7 @@ export const TENANT_MODELS = new Set<string>([
   "conversationMember",
   "correction",
   "correctionNote",
+  "curriculumObjectiveMapping",
   "dataLegalHold",
   "dataLifecycleRequest",
   "dataRetentionSchedule",

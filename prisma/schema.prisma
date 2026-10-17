@@ -221,6 +221,7 @@ model School {
   readinessTasks          ReadinessTask[]
   learningResources       LearningResource[]
   learningResourceVersions LearningResourceVersion[]
+  curriculumObjectiveMappings CurriculumObjectiveMapping[]
 
   @@map("schools")
 }
@@ -4629,4 +4630,29 @@ model LearningResourceVersion {
 
   @@unique([resourceId, version])
   @@map("learning_resource_versions")
+}
+
+/// SKO-406: a reviewed decision that an objective in one curriculum version is the same as,
+/// partly overlaps or is not equivalent to an objective in another. Matching titles or codes
+/// never merge objectives; only these decisions relate them. Rows are append-only: the latest
+/// decision for a pair is current, earlier ones remain as history.
+model CurriculumObjectiveMapping {
+  id            String   @id @default(uuid())
+  schoolId      String   @default("") @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String   @map("campus_id")
+  fromRecordId  String   @map("from_record_id")
+  fromVersion   Int      @map("from_version")
+  fromOutcomeId String   @map("from_outcome_id")
+  toRecordId    String   @map("to_record_id")
+  toVersion     Int      @map("to_version")
+  toOutcomeId   String   @map("to_outcome_id")
+  relation      String   // SAME | PARTIAL | NOT_EQUIVALENT
+  note          String   @default("")
+  decidedById   String   @map("decided_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, fromRecordId, fromVersion])
+  @@index([schoolId, toRecordId, toVersion])
+  @@map("curriculum_objective_mappings")
 }

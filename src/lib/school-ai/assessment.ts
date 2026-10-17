@@ -33,7 +33,18 @@ export const curriculumDataSchema = z.object({
     sourcePage: draftText(80),
     taught: z.boolean(),
     included: z.boolean(),
+    // SKO-406: optional objective-map fields. `id` stays the stable identity across versions;
+    // `code` is the external framework code, namespaced by the pack, never used to merge objectives.
+    code: draftText(80).optional(),
+    description: draftText(2000).optional(),
+    prerequisiteIds: z.array(id).max(20).optional(),
   }).strict()).max(200),
+  pack: z.object({
+    authority: draftText(200),
+    edition: draftText(80),
+    language: assessmentLanguageSchema,
+    rights: z.enum(["APPROVED", "UNDER_REVIEW", "MANUAL"]),
+  }).strict().optional(),
 }).strict();
 
 export const blueprintSchema = z.object({
@@ -159,6 +170,32 @@ export type AssessmentLocale = z.infer<typeof assessmentLanguageSchema>;
 const unique = (values: string[]) => new Set(values).size === values.length;
 const equalMarks = (a: number, b: number) => Math.abs(a - b) < 0.00001;
 
+/** Duplicate codes, unknown prerequisites and prerequisite cycles are explained before saving. */
+export function objectiveStructureIssues(curriculum: Pick<CurriculumData, "outcomes">): string[] {
+  const errors: string[] = [];
+  const codes = curriculum.outcomes.flatMap(outcome => outcome.code?.trim() ? [outcome.code.trim().toLowerCase()] : []);
+  if (!unique(codes)) errors.push("Objective codes must be unique within a curriculum version.");
+  const ids = new Set(curriculum.outcomes.map(outcome => outcome.id));
+  for (const outcome of curriculum.outcomes) {
+    for (const prerequisite of outcome.prerequisiteIds ?? []) {
+      if (prerequisite === outcome.id) errors.push(`Objective ${outcome.code || outcome.id} cannot be its own prerequisite.`);
+      else if (!ids.has(prerequisite)) errors.push(`Objective ${outcome.code || outcome.id} has a prerequisite that is not in this curriculum.`);
+    }
+  }
+  const state = new Map<string, "visiting" | "done">();
+  const edges = new Map(curriculum.outcomes.map(outcome => [outcome.id, outcome.prerequisiteIds ?? []]));
+  const visit = (node: string): boolean => {
+    if (state.get(node) === "done") return false;
+    if (state.get(node) === "visiting") return true;
+    state.set(node, "visiting");
+    const cyclic = (edges.get(node) ?? []).some(next => next !== node && ids.has(next) && visit(next));
+    state.set(node, "done");
+    return cyclic;
+  };
+  if (curriculum.outcomes.some(outcome => visit(outcome.id))) errors.push("Prerequisites form a cycle; remove one link so every objective can be taught in order.");
+  return errors;
+}
+
 export function validateCurriculumApproval(curriculum: CurriculumData): string[] {
   const errors: string[] = [];
   if (!curriculum.academicYear.trim()) errors.push("Academic year is required.");
@@ -180,6 +217,7 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
       errors.push(`Outcome ${outcome.title || outcome.id} needs an approved source and page reference.`);
     }
   }
+  errors.push(...objectiveStructureIssues(curriculum));
   if (curriculum.lessonPlans) {
     if (!unique(curriculum.lessonPlans.map(plan => plan.id))) errors.push("Learning plan identifiers must be unique.");
     for (const plan of curriculum.lessonPlans) { errors.push(...validateLessonPlan(plan, curriculum)); if (!plan.confirmed) errors.push(`Learning plan ${plan.title} needs teacher confirmation.`); }

@@ -10,7 +10,7 @@ export function moduleForHref(href?: string): PermissionModule | null {
   const leaf = segments[1];
   const modules: Record<string, PermissionModule> = {
     students: 'students', classes: 'timetable', coursework: 'timetable', resources: 'timetable', timetable: 'timetable', calendar: 'timetable',
-    attendance: 'attendance', marks: 'exams', tests: 'exams', reports: 'reports', results: 'reports', fees: 'fees',
+    attendance: 'attendance', marks: 'exams', tests: 'exams', curriculum: 'exams', reports: 'reports', results: 'reports', fees: 'fees',
     leave: 'leave', ai: 'ai', insights: 'ai', 'staff-hierarchy': 'staff', analytics: 'reports', communications: 'reports',
   };
   return modules[leaf] ?? null;

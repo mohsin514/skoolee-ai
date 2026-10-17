@@ -8,6 +8,7 @@ import { teacherClassIds } from "@/lib/chat/policy";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { createPrivateUploadUrl, MAX_PRIVATE_UPLOAD_BYTES } from "@/lib/storage/private-upload";
 import { readPrivateObject } from "@/lib/storage/s3";
+import { assertObjectivesExist } from "@/lib/curriculum/service";
 
 // SKO-400 learning resource library. Learners and families only ever reach the
 // published version of a resource addressed to them; staff can open every
@@ -147,6 +148,7 @@ export async function createResource(user: AuthUser, raw: unknown) {
   return schoolAiTransaction(user, async tx => {
     const klass = await assertAuthor(tx, user, input.classId);
     if (input.subjectId && !(await tx.subject.findFirst({ where: { id: input.subjectId, schoolId: user.schoolId, classId: klass.id }, select: { id: true } }))) throw new ApiError("Choose a subject of this class.", 400);
+    if (input.objectives) await assertObjectivesExist(tx, user, klass.id, input.objectives);
     const resource = await tx.learningResource.create({ data: { schoolId: user.schoolId, campusId: klass.campusId, classId: klass.id, subjectId: input.subjectId ?? null, title: input.title, kind: input.kind, audience: input.audience, language: input.language, sourceRights: input.sourceRights, objectives: input.objectives ?? undefined, ownerId: user.userId, latestVersion: 1 } });
     const { uploadUrl } = await reserveVersion(tx, user, resource, 1, input.description, input.content);
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: resource.campusId, tableName: "learning_resources", recordId: resource.id, userId: user.userId, newValue: { status: "DRAFT", version: 1 } } });
@@ -197,6 +199,17 @@ export async function publishResource(user: AuthUser, resourceId: string, raw: u
     const updated = await tx.learningResource.update({ where: { id: resource.id }, data: { status: "PUBLISHED", publishedVersion: input.version, sourceRights } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: resource.campusId, tableName: "learning_resources", recordId: resource.id, userId: user.userId, oldValue: { status: resource.status, version: resource.publishedVersion ?? 0 }, newValue: { status: "PUBLISHED", version: input.version } } });
     return updated;
+  });
+}
+
+export const objectivesInput = z.object({ objectives: objectives.unwrap().unwrap() }).strict();
+/** SKO-406: link a resource to objectives of one exact curriculum version; an empty list makes it unmapped review work. */
+export async function linkResourceObjectives(user: AuthUser, resourceId: string, raw: unknown) {
+  const { objectives: value } = objectivesInput.parse(raw);
+  return schoolAiTransaction(user, async tx => {
+    const resource = await authorResource(tx, user, resourceId);
+    await assertObjectivesExist(tx, user, resource.classId, value);
+    return tx.learningResource.update({ where: { id: resource.id }, data: { objectives: value } });
   });
 }
 
