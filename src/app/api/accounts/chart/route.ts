@@ -15,10 +15,12 @@ import {
 // Chart of Accounts CRUD
 // GET /api/accounts/chart?campusId=        → list (campus-scoped)
 // POST /api/accounts/chart {campusId,name,type}
-// PATCH /api/accounts/chart {id, name?, type?, isSystem?}
-// DELETE /api/accounts/chart?id=           → blocked when entries exist
+// PATCH /api/accounts/chart {id, name?, type?, isActive?}  → type is fixed once entries exist
+// DELETE /api/accounts/chart?id=           → blocked when entries exist; deactivate instead
 
 const TYPES = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"];
+// Campus staff may only change accounts in their own campus; school owners may change any campus.
+const campusFence = (user: { role: string; schoolId: string; campusId?: string | null }) => ({ schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }) });
 
 export async function GET(req: NextRequest) {
   try {
@@ -83,12 +85,16 @@ export async function PATCH(req: NextRequest) {
     if (!body.id) throw new ApiError("id is required", 400);
 
     const account = await prisma.chartOfAccount.findFirst({
-      where: { id: body.id, campus: { schoolId: user.schoolId } },
+      where: { id: body.id, ...campusFence(user) },
+      include: { _count: { select: { entries: true } } },
     });
     if (!account) throw new ApiError("Account not found", 404);
 
     const type = body.type ? String(body.type).toUpperCase() : account.type;
     if (!TYPES.includes(type)) throw new ApiError("Invalid account type", 400);
+    // Changing the type of a used account would silently move posted money between income and expense.
+    if (account.isSystem && (body.isActive === false || type !== account.type)) throw new ApiError("Fee and payroll postings use this system account, so it stays active with its type.", 409);
+    if (type !== account.type && account._count.entries > 0) throw new ApiError("This account already has ledger entries, so its type cannot change. Create a new account instead.", 409);
 
     if (body.name && String(body.name).trim() !== account.name) {
       const dup = await prisma.chartOfAccount.findFirst({
@@ -103,13 +109,13 @@ export async function PATCH(req: NextRequest) {
         data: {
           name: body.name ? String(body.name).trim() : undefined,
           type: body.type ? type : undefined,
-          isSystem: typeof body.isSystem === "boolean" ? body.isSystem : undefined,
+          isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
         },
       });
       await writeAuditEvent(tx, user, {
         table: "chart_of_accounts", recordId: next.id, action: "UPDATE", campusId: next.campusId,
-        before: { type: account.type, isSystem: account.isSystem },
-        after: { type: next.type, isSystem: next.isSystem },
+        before: { type: account.type, isActive: account.isActive },
+        after: { type: next.type, isActive: next.isActive },
       });
       return next;
     });
@@ -130,15 +136,12 @@ export async function DELETE(req: NextRequest) {
     if (!id) throw new ApiError("id is required", 400);
 
     const account = await prisma.chartOfAccount.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
+      where: { id, ...campusFence(user) },
       include: { _count: { select: { entries: true } } },
     });
     if (!account) throw new ApiError("Account not found", 404);
     if (account._count.entries > 0) {
-      throw new ApiError("Cannot delete: this account has ledger entries", 409);
-    }
-    if (account.isSystem && account._count.entries === 0) {
-      // system accounts can be removed only when they have no entries
+      throw new ApiError("This account has ledger entries and stays for audit. Deactivate it to stop new entries.", 409);
     }
 
     await prisma.$transaction(async (tx) => {

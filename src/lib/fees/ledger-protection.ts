@@ -15,15 +15,16 @@ export async function deleteUnreconciledManualLedgerEntry(user: AuthUser, id: st
     if (!initial) throw new ApiError("Ledger entry not found", 404);
     await lockInvoiceGeneration(db, user.schoolId, initial.campusId);
     await assertCurrentAccountsPermission(db, user, "canDelete");
-    const entry = await db.ledgerEntry.findFirst({ where: entryScope });
+    const entry = await db.ledgerEntry.findFirst({ where: entryScope, include: { reversedBy: { select: { id: true } } } });
     if (!entry) throw new ApiError("Ledger entry not found", 404);
     if (entry.paymentId || entry.payrollLineId) throw new ApiError("Reverse the originating payment or payroll posting instead", 409);
+    if (entry.reversalOfId || entry.reversedBy) throw new ApiError("Corrected entries and their corrections stay in the ledger for audit", 409);
     if (entry.bankAccountId) {
       const reconciliations = await db.bankReconciliation.findMany({ where: { schoolId: user.schoolId, campusId: entry.campusId, bankAccount: entry.bankAccountId, status: "reconciled", statementPeriodFrom: { lte: entry.date }, statementPeriodTo: { gte: new Date(entry.date.toISOString().slice(0, 10) + "T00:00:00.000Z") } }, take: 501, select: { reconciliationDetailsJson: true } });
       if (reconciliations.length > 500 || reconciliations.some(row => {
         const details = row.reconciliationDetailsJson as { rows?: Array<{ ledgerId?: string }> } | null;
         return details && Array.isArray(details.rows) && details.rows.some(line => line.ledgerId === entry.id);
-      })) throw new ApiError("This entry is part of a reconciled bank statement and must remain available for audit", 409);
+      })) throw new ApiError("This entry is part of a reconciled bank statement and must remain available for audit. Post a correction instead.", 409);
     }
     await db.ledgerEntry.delete({ where: { id: entry.id } });
     await db.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "ledger_entries", recordId: entry.id, oldValue: { amount: entry.amount, currency: entry.currency, kind: entry.kind, sourceName: entry.sourceName }, newValue: { deleted: true } } });
@@ -36,7 +37,7 @@ export async function assertBankPeriodOpen(db: TxClient, schoolId: string, campu
   if (closed) throw new SchoolAiError("This bank statement period is reconciled. Use an open accounting period.", 409, "FINANCE_PERIOD_CLOSED");
 }
 
-export async function assertCurrentAccountsPermission(db: TxClient, user: AuthUser, action: "canAdd" | "canDelete") {
+export async function assertCurrentAccountsPermission(db: TxClient, user: AuthUser, action: "canAdd" | "canEdit" | "canDelete") {
   const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
   if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new ApiError("Account access changed", 403);
   const grants = await db.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role } });

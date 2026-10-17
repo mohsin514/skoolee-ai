@@ -66,7 +66,7 @@ const NAV: ConsoleNavItem<AccountantView>[] = [
   { id: "invoices", label: "Invoices", icon: FileText, tone: "fees", group: "Fees", eyebrow: "Fees", summary: "Generate, review and send invoices." },
   { id: "payments", label: "Payments", icon: Wallet, tone: "fees", group: "Fees", eyebrow: "Fees", summary: "Record receipts and reconcile against invoices." },
   { id: "fee-reports", label: "Reports", icon: BarChart3, tone: "reports", group: "Fees", eyebrow: "Fees", summary: "Collection, defaulter and ledger reports." },
-  { id: "accounts", label: "Accounts", icon: Landmark, tone: "fees", group: "Fees", eyebrow: "Fees", summary: "Opening balances and account-level adjustments." },
+  { id: "accounts", label: "Accounts", icon: Landmark, tone: "fees", group: "Fees", eyebrow: "Fees", summary: "Chart of accounts, income and expense ledger, and profit report." },
   { id: "payroll", label: "Payroll", icon: Banknote, tone: "staff", group: "Staff", eyebrow: "Staff", summary: "Salaries, allowances and monthly payroll runs." },
   { id: "leave", label: "Leave", icon: CalendarClock, tone: "leave", group: "Staff", eyebrow: "Staff", summary: "Review and decide staff leave requests." },
 ];

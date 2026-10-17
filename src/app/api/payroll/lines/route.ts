@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
+import { getLocalePackage } from "@/lib/locale/store";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // PATCH /api/payroll/lines
@@ -33,11 +34,15 @@ export async function PATCH(req: NextRequest) {
       const paymentMethodId = body.paymentMethodId ? String(body.paymentMethodId) : null;
       const now = new Date();
 
+      // SKO-468: the ledger posts in the campus currency, and a double-submitted "pay" posts once.
+      const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
       const updated = await prisma.$transaction(async (tx) => {
-        const paid = await tx.payrollLine.update({
-          where: { id },
+        const claimed = await tx.payrollLine.updateMany({
+          where: { id, status: { not: "PAID" } },
           data: { status: "PAID", paidAt: now, paymentMethodId },
         });
+        if (!claimed.count) return null;
+        const paid = await tx.payrollLine.findUniqueOrThrow({ where: { id } });
 
         const account = await tx.chartOfAccount.upsert({
           where: { campusId_name: { campusId, name: "Salaries Expense" } },
@@ -49,6 +54,7 @@ export async function PATCH(req: NextRequest) {
           data: {
             campusId,
             kind: "EXPENSE",
+            currency,
             sourceName: "Payroll",
             accountId: account.id,
             paymentMethod: paymentMethodId ? (await tx.paymentMethodRef.findUnique({ where: { id: paymentMethodId } }))?.name : null,
@@ -66,6 +72,7 @@ export async function PATCH(req: NextRequest) {
         });
         return paid;
       });
+      if (!updated) return Response.json({ success: true, data: await prisma.payrollLine.findUnique({ where: { id } }), alreadyPaid: true });
 
       return Response.json({ success: true, data: updated, alreadyPaid: false });
     }

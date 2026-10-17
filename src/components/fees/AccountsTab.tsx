@@ -5,11 +5,12 @@ import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocalePr
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Banknote,
   Building2,
   CreditCard,
+  Download,
   Landmark,
   Loader,
   Pencil,
@@ -18,6 +19,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  Undo2,
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -44,6 +46,7 @@ const TABS: { key: AccountsTabKey; label: string }[] = [
 ];
 
 export function AccountsTab({ campusId }: { campusId?: string }) {
+  const tr = useUiText();
   const [active, setActive] = useState<AccountsTabKey>("chart");
 
   return (
@@ -60,7 +63,7 @@ export function AccountsTab({ campusId }: { campusId?: string }) {
                 ""
               } `)}
             >
-              {tab.label}
+              {tr(tab.label)}
             </Button>
           );
         })}
@@ -83,6 +86,7 @@ interface AccountRow {
   name: string;
   type: string;
   isSystem: boolean;
+  isActive?: boolean;
   _count?: { entries: number };
 }
 
@@ -156,6 +160,17 @@ function ChartPanel({ campusId }: { campusId?: string }) {
     }
   };
 
+  const toggleActive = async (row: AccountRow) => {
+    try {
+      const res = await fetch(`${API}/accounts/chart`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: row.id, isActive: row.isActive === false }) });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) { toast.success(row.isActive === false ? tr("Account reactivated") : tr("Account deactivated. Its history stays in reports.")); load(); }
+      else toast.error(tr(json.error || "Failed to save"));
+    } catch {
+      toast.error(tr("Failed to save account"));
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleting) return;
     try {
@@ -179,7 +194,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
         <div>
           <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Chart of Accounts"}</UiText></p>
           <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Bookkeeping heads used by the ledger"}</UiText></p>
-          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" — accounts with entries cannot be deleted."}</UiText></p>
+          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" and payroll to \"Salaries Expense\". Accounts with entries keep their type and cannot be deleted; deactivate them to stop new entries."}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Account"}</UiText></BrandButton>
       </div>
@@ -203,7 +218,8 @@ function ChartPanel({ campusId }: { campusId?: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1f1a23]">
                   {acc.name}
-                  {acc.isSystem ? <span className="ml-2 text-[9px] font-black uppercase text-ink-subtle"><UiText>{"System"}</UiText></span> : null}
+                  {acc.isSystem ? <span className="ms-2 text-[9px] font-black uppercase text-ink-subtle"><UiText>{"System"}</UiText></span> : null}
+                  {acc.isActive === false ? <span className="ms-2 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700" data-account-inactive><UiText>{"Inactive"}</UiText></span> : null}
                 </p>
                 <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
                   {acc._count ? tr("{0} entries", [acc._count.entries]) : ""}
@@ -215,7 +231,12 @@ function ChartPanel({ campusId }: { campusId?: string }) {
               <Button variant="secondary" size="icon" type="button" onClick={() => openModal(acc)} className="flex items-center justify-center" aria-label={tr("Edit account")}>
                 <Pencil className="w-4 h-4" />
               </Button>
-              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(acc)} className="flex items-center justify-center" aria-label={tr("Delete account")}>
+              {!acc.isSystem && (acc._count?.entries ?? 0) > 0 ? (
+                <Button variant="secondary" size="sm" type="button" onClick={() => void toggleActive(acc)} data-account-toggle={acc.id}>
+                  {acc.isActive === false ? tr("Reactivate") : tr("Deactivate")}
+                </Button>
+              ) : null}
+              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(acc)} className="flex items-center justify-center" aria-label={tr("Delete account")} disabled={(acc._count?.entries ?? 0) > 0} title={(acc._count?.entries ?? 0) > 0 ? tr("Accounts with entries are kept for audit; deactivate instead.") : undefined}>
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
@@ -229,7 +250,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
             <FormInput label={tr("Account Name")} value={name} placeholder={tr("e.g. Library Fee")} onChange={setName} />
             <label>
               <span className={labelClass}><UiText>{"Type"}</UiText></span>
-              <SystemSelect value={type} onChange={(e) => setType(e.target.value)} className="w-full">
+              <SystemSelect value={type} onChange={(e) => setType(e.target.value)} className="w-full" disabled={Boolean(editing && ((editing._count?.entries ?? 0) > 0 || editing.isSystem))}>
                 <option value="INCOME"><UiText>{"Income"}</UiText></option>
                 <option value="EXPENSE"><UiText>{"Expense"}</UiText></option>
                 <option value="ASSET"><UiText>{"Asset"}</UiText></option>
@@ -630,6 +651,8 @@ function BanksPanel({ campusId }: { campusId?: string }) {
 }
 
 /* ── Income / Expense entries ──────────────────────────── */
+// SKO-468: filters stay visible; totals come from the server for exactly the filtered rows (not the
+// loaded page); the export uses the same filter; posted entries are corrected, never edited.
 
 interface LedgerRow {
   currency: string;
@@ -641,18 +664,32 @@ interface LedgerRow {
   paymentMethod?: string | null;
   note?: string | null;
   paymentId?: string | null;
-  account: { id: string; name: string; type: string };
+  payrollLineId?: string | null;
+  reversalOfId?: string | null;
+  source: "MANUAL" | "FEE" | "PAYROLL" | "CORRECTION";
+  account: { id: string; name: string; type: string; isActive?: boolean };
   bankAccount?: { id: string; name: string } | null;
+  payment?: { receiptNo: string | null; invoiceId: string | null } | null;
+  payrollLine?: { id: string; payrollRun: { month: number; year: number } } | null;
+  reversedBy?: { id: string; date: string } | null;
+  reversalOf?: { id: string; sourceName: string; date: string } | null;
 }
+type LedgerTotals = { income: number; expense: number; net: number; incomeCount: number; expenseCount: number; count: number };
+
+const SOURCE_LABEL: Record<LedgerRow["source"], string> = { MANUAL: "Manual", FEE: "Fee payment", PAYROLL: "Payroll", CORRECTION: "Correction" };
+const PAGE_SIZE = 50;
 
 function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | "EXPENSE" }) {
- const { money: formatPKR } = useLocaleFormat();
+  const { money, date: formatDate } = useLocaleFormat();
   const tr = useUiText();
   const [currency, setCurrency] = useState("");
+  const [from, setFrom] = useState(""), [to, setTo] = useState(""), [filterAccount, setFilterAccount] = useState(""), [source, setSource] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(1);
   const [entries, setEntries] = useState<LedgerRow[]>([]);
+  const [totals, setTotals] = useState<LedgerTotals | null>(null);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [banks, setBanks] = useState<BankRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [sourceName, setSourceName] = useState("");
   const [accountId, setAccountId] = useState("");
@@ -661,69 +698,77 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
   const [bankAccountId, setBankAccountId] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
   const [deleting, setDeleting] = useState<LedgerRow | null>(null);
-  const [total, setTotal] = useState(0);
+  const [correcting, setCorrecting] = useState<LedgerRow | null>(null);
+  const [reason, setReason] = useState(""), [correctionError, setCorrectionError] = useState(""), [acting, setActing] = useState(false);
+  const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
 
-  const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
+  const filterParams = useCallback(() => {
+    const params = new URLSearchParams({ kind });
+    if (campusId) params.set("campusId", campusId);
+    if (currency) params.set("currency", currency);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (filterAccount) params.set("accountId", filterAccount);
+    if (source) params.set("source", source);
+    if (status !== "all") params.set("status", status);
+    return params;
+  }, [campusId, kind, currency, from, to, filterAccount, source, status]);
+  const filtered = Boolean(from || to || filterAccount || source || status !== "all");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
+      const params = filterParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(PAGE_SIZE));
+      const scope = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
       const [eRes, aRes, bRes] = await Promise.all([
-        fetch(`${API}/accounts/ledger${qp ? `${qp}&` : "?"}kind=${kind}${currency ? `&currency=${currency}` : ""}`),
-        fetch(`${API}/accounts/chart${qp}`),
-        fetch(`${API}/accounts/bank-accounts${qp}`),
+        fetch(`${API}/accounts/ledger?${params}`, { cache: "no-store" }),
+        fetch(`${API}/accounts/chart${scope}`, { cache: "no-store" }),
+        fetch(`${API}/accounts/bank-accounts${scope}`, { cache: "no-store" }),
       ]);
-      const [eJson, aJson, bJson] = await Promise.all([eRes.json(), aRes.json(), bRes.json()]);
-      if (eJson.success) {
-        setEntries(eJson.data);
-        if (!currency) setCurrency(eJson.currency);
-        setTotal(eJson.total);
-      }
+      const [eJson, aJson, bJson] = await Promise.all([eRes.json().catch(() => ({})), aRes.json().catch(() => ({})), bRes.json().catch(() => ({}))]);
+      if (!eRes.ok || !eJson.success) throw new Error(eRes.status === 403 ? tr("You do not have access to the ledger for this campus.") : eJson.error || tr("Failed to load ledger"));
+      setEntries(eJson.data);
+      setTotals(eJson.totals);
+      if (!currency) setCurrency(eJson.currency);
       if (aJson.success) setAccounts(aJson.data);
       if (bJson.success) setBanks(bJson.data);
-    } catch {
-      toast.error(tr("Failed to load ledger"));
+    } catch (failure) {
+      setLoadError(failure instanceof Error ? tr(failure.message) : tr("Failed to load ledger"));
     } finally {
       setLoading(false);
     }
-  }, [qp, kind, currency]);
+  }, [filterParams, page, campusId, currency, tr]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
 
+  const openNew = () => { setFormError(""); setShowModal(true); };
   const handleSave = async () => {
-    if (!sourceName.trim() || !accountId || !amount) {
-      toast.error(tr("Source, account and amount required"));
+    setFormError("");
+    if (sourceName.trim().length < 3 || !accountId || !amount || Number(amount) <= 0 || !date) {
+      setFormError(tr("Enter a description, account, amount greater than zero and date."));
       return;
     }
+    const payload = { campusId: campusId || undefined, kind, sourceName: sourceName.trim(), accountId, currency, amount: rupeesToPaisa(amount, currency || "PKR"), date, bankAccountId: bankAccountId || undefined, note: note.trim() || undefined };
+    const fingerprint = JSON.stringify(payload);
+    // A retry of the same entry reuses its key, so a lost response never posts the money twice.
+    if (attempt.current?.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID() };
     setSaving(true);
     try {
-      const res = await fetch(`${API}/accounts/ledger`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          campusId: campusId || undefined,
-          kind,
-          sourceName: sourceName.trim(),
-          accountId,
-          currency,
-          amount: rupeesToPaisa(amount, currency || "PKR"),
-          date,
-          bankAccountId: bankAccountId || undefined,
-          note: note.trim() || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Entry recorded"));
-        setShowModal(false);
-        setSourceName(""); setAmount(""); setBankAccountId(""); setNote("");
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to save"));
-      }
+      const res = await fetch(`${API}/accounts/ledger`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, idempotencyKey: attempt.current.key }) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) { setFormError(tr(json.error || "The entry was not saved. Your details are kept; try again.")); return; }
+      toast.success(json.replayed ? tr("This entry was already recorded; nothing was posted twice.") : tr("Entry recorded"));
+      attempt.current = null;
+      setShowModal(false);
+      setSourceName(""); setAmount(""); setBankAccountId(""); setNote("");
+      void load();
     } catch {
-      toast.error(tr("Failed to save entry"));
+      setFormError(tr("The connection failed before the server answered. Your details are kept; retrying will not post twice."));
     } finally {
       setSaving(false);
     }
@@ -731,91 +776,155 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
 
   const handleDelete = async () => {
     if (!deleting) return;
+    setActing(true);
     try {
       const res = await fetch(`${API}/accounts/ledger?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Entry deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-      }
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) { toast.success(tr("Entry deleted")); setDeleting(null); void load(); }
+      else toast.error(tr(json.error || "Failed to delete"));
     } catch {
       toast.error(tr("Failed to delete entry"));
-    }
+    } finally { setActing(false); }
   };
 
-  const incomeAccounts = accounts.filter((a) => a.type === "INCOME");
-  const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
-  const pickList = kind === "INCOME" ? incomeAccounts : expenseAccounts;
+  const handleCorrect = async () => {
+    if (!correcting) return;
+    if (reason.trim().length < 5) { setCorrectionError(tr("Explain why this entry is being corrected (5–500 characters).")); return; }
+    setActing(true);
+    setCorrectionError("");
+    try {
+      const res = await fetch(`${API}/accounts/ledger`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: correcting.id, action: "reverse", reason: reason.trim() }) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) { setCorrectionError(tr(json.error || "The correction was not posted.")); return; }
+      toast.success(tr("Correction posted. The original entry is kept and now shows as reversed."));
+      setCorrecting(null); setReason(""); void load();
+    } catch {
+      setCorrectionError(tr("The connection failed. Retrying is safe: an entry is only corrected once."));
+    } finally { setActing(false); }
+  };
+
+  const pickList = accounts.filter((a) => a.type === kind);
+  const activePickList = pickList.filter((a) => a.isActive !== false);
+  const shownCurrency = currency || "PKR";
+  const kindTotal = totals ? (kind === "INCOME" ? totals.income : totals.expense) : 0;
+  const pages = totals ? Math.max(1, Math.ceil(totals.count / PAGE_SIZE)) : 1;
+  const exportParams = filterParams(); exportParams.set("format", "csv");
+  const setFilter = (apply: () => void) => { apply(); setPage(1); };
 
   return (
-    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full"><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
-      <div className="flex items-center justify-between">
+    <div className="space-y-4" data-ledger-panel={kind}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}</p>
-          <p className="text-sm font-black text-[#1f1a23]">
-            {kind === "INCOME" ? <span className="text-emerald-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0), currency || "PKR")}</span> : <span className="text-rose-600">{formatPKR(entries.reduce((s, e) => s + e.amount, 0), currency || "PKR")}</span>}<UiText>{"total ·"}</UiText>{total}<UiText>{"records"}</UiText></p>
+          <p className="text-sm font-black text-[#1f1a23]" data-ledger-total={kindTotal} aria-live="polite">
+            <span className={kind === "INCOME" ? "text-emerald-600" : "text-rose-600"}><bdi>{money(kindTotal, shownCurrency)}</bdi></span>{" "}
+            {tr("total across {0} matching records", [totals?.count ?? 0])}
+          </p>
+          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5" data-ledger-scope>
+            {tr("{0} only · {1} to {2} · corrections are negative rows that offset the entry they reverse.", [shownCurrency, from ? formatDate(from) : tr("first entry"), to ? formatDate(to) : tr("today")])}
+          </p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)}>
-          {kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}
-        </BrandButton>
+        <div className="flex flex-wrap gap-2">
+          <a className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-bold hover:border-primary/40" href={`${API}/accounts/ledger?${exportParams}`} data-ledger-export><Download className="w-4 h-4" aria-hidden="true" />{tr("Export these rows (CSV)")}</a>
+          <BrandButton icon={<Plus className="w-4 h-4" />} onClick={openNew}>{kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}</BrandButton>
+        </div>
       </div>
 
+      <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-3 rounded-2xl border border-border p-3" data-ledger-filters>
+        <legend className="px-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{tr("Filters")}</legend>
+        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => setCurrency(e.target.value))} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
+        <label className="text-xs font-bold">{tr("From")}<SystemInput type="date" value={from} onChange={(e) => setFilter(() => setFrom(e.target.value))} className="w-full" /></label>
+        <label className="text-xs font-bold">{tr("To")}<SystemInput type="date" value={to} onChange={(e) => setFilter(() => setTo(e.target.value))} className="w-full" /></label>
+        <label className="text-xs font-bold">{tr("Account")}<SystemSelect value={filterAccount} onChange={(e) => setFilter(() => setFilterAccount(e.target.value))} className="w-full"><option value="">{tr("All accounts")}</option>{pickList.map((a) => <option key={a.id} value={a.id}>{a.name}{a.isActive === false ? ` (${tr("inactive")})` : ""}</option>)}</SystemSelect></label>
+        <label className="text-xs font-bold">{tr("Source")}<SystemSelect value={source} onChange={(e) => setFilter(() => setSource(e.target.value))} className="w-full"><option value="">{tr("All sources")}</option>{(Object.keys(SOURCE_LABEL) as LedgerRow["source"][]).map((key) => <option key={key} value={key}>{tr(SOURCE_LABEL[key])}</option>)}</SystemSelect></label>
+        <label className="text-xs font-bold">{tr("Status")}<SystemSelect value={status} onChange={(e) => setFilter(() => setStatus(e.target.value))} className="w-full"><option value="all">{tr("All")}</option><option value="open">{tr("Posted, not corrected")}</option><option value="reversed">{tr("Corrected and corrections")}</option></SystemSelect></label>
+      </fieldset>
+
       {loading ? (
-        <SkeletonRows />
-      ) : entries.length === 0 ? (
-        <EmptyState
-          icon={kind === "INCOME" ? TrendingUp : TrendingDown}
-          title={kind === "INCOME" ? tr("No income entries") : tr("No expense entries")}
-          description={kind === "INCOME"
-            ? tr("Fee collections post here automatically. Add other income manually.")
-            : tr("Add expenses like salaries and utilities here.")}
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)}>{kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}</BrandButton>}
-        />
-      ) : (
-        <div className="space-y-3">
-          {entries.map((e) => (
-            <div key={e.id} className="sk-panel p-5 flex items-center gap-4">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${e.kind === "INCOME" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
-                {e.kind === "INCOME" ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-[#1f1a23] truncate">{e.sourceName}</p>
-                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
-                  {e.account.name}
-                  {e.bankAccount ? ` · ${e.bankAccount.name}` : ""}
-                  {e.paymentMethod ? ` · ${e.paymentMethod}` : ""}
-                  {" · "}{e.date.split("T")[0]}
-                </p>
-                {e.note ? <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">{e.note}</p> : null}
-              </div>
-              <p className={`text-sm font-black ${e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
-                {e.kind === "INCOME" ? "+" : "−"}{formatPKR(e.amount, e.currency)}
-              </p>
-              {!e.paymentId && (
-                <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(e)} className="flex items-center justify-center" aria-label={tr("Delete entry")}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          ))}
+        <div role="status" aria-label={tr("Loading ledger")}><SkeletonRows /></div>
+      ) : loadError ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700" data-ledger-error>
+          <span>{loadError}</span>
+          <Button size="sm" variant="secondary" onClick={() => void load()}>{tr("Retry")}</Button>
         </div>
+      ) : entries.length === 0 ? (
+        filtered ? (
+          <EmptyState icon={kind === "INCOME" ? TrendingUp : TrendingDown} title={tr("No entries match these filters")} description={tr("Clear or widen the filters to see more of the ledger.")} action={<Button variant="secondary" onClick={() => { setFrom(""); setTo(""); setFilterAccount(""); setSource(""); setStatus("all"); setPage(1); }}>{tr("Clear filters")}</Button>} />
+        ) : (
+          <EmptyState
+            icon={kind === "INCOME" ? TrendingUp : TrendingDown}
+            title={kind === "INCOME" ? tr("No income entries") : tr("No expense entries")}
+            description={kind === "INCOME" ? tr("Fee collections post here automatically. Add other income manually.") : tr("Payroll posts here when salaries are paid. Add other expenses manually.")}
+            action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={openNew}>{kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}</BrandButton>}
+          />
+        )
+      ) : (
+        <>
+          <ul className="space-y-3" aria-label={kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}>
+            {entries.map((e) => {
+              const reference = e.payment?.receiptNo ? tr("Receipt {0}", [e.payment.receiptNo]) : e.payrollLine ? tr("Payroll {0}/{1}", [e.payrollLine.payrollRun.month, e.payrollLine.payrollRun.year]) : e.reversalOf ? tr("Corrects “{0}” of {1}", [e.reversalOf.sourceName, formatDate(e.reversalOf.date)]) : "";
+              const correctable = e.source === "MANUAL" && !e.reversedBy;
+              return (
+                <li key={e.id} className="sk-panel p-5 flex flex-wrap items-center gap-4" data-ledger-row={e.id} data-ledger-source={e.source} data-ledger-reversed={e.reversedBy ? "true" : "false"}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${e.kind === "INCOME" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
+                    {e.kind === "INCOME" ? <TrendingUp className="w-5 h-5" aria-hidden="true" /> : <TrendingDown className="w-5 h-5" aria-hidden="true" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-[#1f1a23] break-words"><bdi>{e.sourceName}</bdi></p>
+                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
+                      <span className="rounded bg-muted px-1.5 py-0.5">{tr(SOURCE_LABEL[e.source])}</span>
+                      {" · "}<bdi>{e.account.name}</bdi>{e.account.isActive === false ? ` (${tr("inactive")})` : ""}
+                      {e.bankAccount ? <> · <bdi>{e.bankAccount.name}</bdi></> : null}
+                      {" · "}{formatDate(e.date)}
+                      {reference ? <> · <bdi>{reference}</bdi></> : null}
+                    </p>
+                    {e.reversedBy ? <p className="text-[10px] font-bold text-amber-700 mt-0.5">{tr("Corrected on {0}; the original stays for audit.", [formatDate(e.reversedBy.date)])}</p> : null}
+                    {e.note ? <p className="text-[10px] font-semibold text-ink-subtle mt-0.5"><bdi>{e.note}</bdi></p> : null}
+                  </div>
+                  <p className={`text-sm font-black ${e.amount < 0 ? "text-ink-muted" : e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(e.amount, e.currency)}</bdi></p>
+                  {correctable && (
+                    <Button variant="secondary" size="sm" type="button" onClick={() => { setReason(""); setCorrectionError(""); setCorrecting(e); }} aria-label={tr("Correct entry {0}", [e.sourceName])}>
+                      <Undo2 className="w-4 h-4" aria-hidden="true" />{tr("Correct")}
+                    </Button>
+                  )}
+                  {correctable && (
+                    <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(e)} className="flex items-center justify-center" aria-label={tr("Delete entry {0}", [e.sourceName])}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {pages > 1 && (
+            <nav className="flex items-center justify-between gap-2 text-xs font-bold" aria-label={tr("Ledger pages")}>
+              <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>{tr("Previous")}</Button>
+              <span>{tr("Page {0} of {1}", [page, pages])}</span>
+              <Button size="sm" variant="secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>{tr("Next")}</Button>
+            </nav>
+          )}
+        </>
       )}
 
       {showModal && (
-        <ModalFrame title={kind === "INCOME" ? tr("Record Income") : tr("Record Expense")} eyebrow={tr("Accounts · Ledger")} onClose={() => setShowModal(false)}>
+        <ModalFrame
+          title={kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}
+          eyebrow={tr("Accounts · Ledger")}
+          subtitle={kind === "INCOME" ? tr("Money received by the school. It increases income for {0}.", [shownCurrency]) : tr("Money paid out by the school. It increases expense for {0}.", [shownCurrency])}
+          onClose={() => setShowModal(false)}
+          dirty={Boolean(sourceName || amount || note)}
+        >
           <div className="space-y-4">
+            {formError ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-ledger-form-error>{formError}</p> : null}
             <FormInput label={tr("Source / Description")} value={sourceName} placeholder={kind === "INCOME" ? tr("e.g. Donation") : tr("e.g. Electricity bill")} onChange={setSourceName} />
             <FormSelect label={tr("Account")} value={accountId} onChange={setAccountId}>
               <option value=""><UiText>{"Select account..."}</UiText></option>
-              {pickList.map((a) => (
+              {activePickList.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </FormSelect>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-              <FormInput label={`${tr("Amount")} (${currency || "PKR"})`} type="number" value={amount} placeholder="0" onChange={setAmount} />
+              <FormInput label={`${tr("Amount")} (${shownCurrency})`} type="number" value={amount} placeholder="0" onChange={setAmount} />
               <FormInput label={tr("Date")} type="date" value={date} placeholder="2026-08-09" onChange={setDate} />
             </div>
             <label>
@@ -828,19 +937,38 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
               </SystemSelect>
             </label>
             <FormInput label={tr("Note (optional)")} value={note} placeholder={tr("Extra detail")} onChange={setNote} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={kind === "INCOME" ? "Record Income" : "Record Expense"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={kind === "INCOME" ? tr("Record Income") : tr("Record Expense")} onClose={() => setShowModal(false)} onSave={() => void handleSave()} hint={tr("Posted entries are not edited. Mistakes are fixed with a correction that keeps the original.")} />
           </div>
         </ModalFrame>
+      )}
+
+      {correcting && (
+        <ConfirmAction
+          open
+          title={tr("Correct this entry?")}
+          description={tr("A correction of {0} is posted today against {1}. “{2}” dated {3} stays in the ledger, marked as corrected.", [money(-correcting.amount, correcting.currency), correcting.account.name, correcting.sourceName, formatDate(correcting.date)])}
+          detail={<div className="space-y-2">
+            <label className="block text-xs font-bold" htmlFor="ledger-correction-reason">{tr("Reason for the correction")}</label>
+            <SystemInput id="ledger-correction-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} aria-invalid={Boolean(correctionError)} aria-describedby={correctionError ? "ledger-correction-error" : undefined} />
+            {correctionError ? <p id="ledger-correction-error" role="alert" className="text-xs font-bold text-rose-700">{correctionError}</p> : null}
+          </div>}
+          confirmLabel={tr("Post correction")}
+          tone="warning"
+          busy={acting}
+          onConfirm={() => void handleCorrect()}
+          onCancel={() => setCorrecting(null)}
+        />
       )}
 
       {deleting && (
         <ConfirmAction
           open
           title={tr("Delete entry?")}
-          description={tr("\"{0}\" ({1}) will be removed.", [deleting.sourceName, formatPKR(deleting.amount, deleting.currency)])}
+          description={tr("\"{0}\" ({1}) will be removed. Entries in a reconciled bank period cannot be deleted; correct them instead.", [deleting.sourceName, money(deleting.amount, deleting.currency)])}
           confirmLabel={tr("Delete")}
           tone="danger"
-          onConfirm={handleDelete}
+          busy={acting}
+          onConfirm={() => void handleDelete()}
           onCancel={() => setDeleting(null)}
         />
       )}
@@ -850,19 +978,15 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
 
 /* ── Profit report ─────────────────────────────────────── */
 
+type ProfitReport = { currency: string; from: string; to: string; income: number; expense: number; net: number; incomeCount: number; expenseCount: number; count: number; breakdown: { accountId: string; accountName: string; accountActive: boolean; type: string; amount: number; entries: number }[]; bySource: Record<string, { income: number; expense: number; count: number }>; otherCurrencies: { currency: string; entries: number }[] };
+
 function ProfitPanel({ campusId }: { campusId?: string }) {
- const { money: formatPKR } = useLocaleFormat();
+  const { money, date: formatDate } = useLocaleFormat();
   const tr = useUiText();
   const [currency, setCurrency] = useState("");
-  const [from, setFrom] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-01-01`;
-  });
-  const [to, setTo] = useState(() => {
-    const d = new Date();
-    return d.toISOString().split("T")[0];
-  });
-  const [report, setReport] = useState<any>(null);
+  const [from, setFrom] = useState(() => `${new Date().getFullYear()}-01-01`);
+  const [to, setTo] = useState(() => new Date().toISOString().split("T")[0]);
+  const [report, setReport] = useState<ProfitReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -873,22 +997,25 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
     try {
       const params = new URLSearchParams({ from, to, ...(currency ? { currency } : {}) });
       if (campusId) params.set("campusId", campusId);
-      const res = await fetch(`${API}/accounts/profit?${params}`);
-      const json = await res.json();
-      if (json.success) { setReport(json.data); if (!currency) setCurrency(json.data.currency); }
+      const res = await fetch(`${API}/accounts/profit?${params}`, { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) { setReport(json.data); if (!currency) setCurrency(json.data.currency); }
       else setError(tr(json.error || "Failed to load report"));
     } catch {
       setError(tr("Failed to load report"));
     } finally {
       setLoading(false);
     }
-  }, [from, to, campusId, currency]);
+  }, [from, to, campusId, currency, tr]);
 
-  useEffect(() => { run(); }, [run]);
+  useEffect(() => { const timer = setTimeout(() => void run(), 0); return () => clearTimeout(timer); }, [run]);
+
+  const exportParams = new URLSearchParams({ from, to, ...(currency ? { currency } : {}), ...(campusId ? { campusId } : {}), format: "csv" });
 
   return (
-    <div className="space-y-4"><label className="block text-sm"><UiText>{"Currency"}</UiText><SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full"><option value=""><UiText>{"School default"}</UiText></option>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
+    <div className="space-y-4" data-profit-panel>
       <div className="flex items-end gap-3 flex-wrap">
+        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
         <label>
           <span className={labelClass}><UiText>{"From"}</UiText></span>
           <SystemInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full" />
@@ -897,37 +1024,52 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
           <span className={labelClass}><UiText>{"To"}</UiText></span>
           <SystemInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full" />
         </label>
-        <BrandButton icon={<Percent className="w-4 h-4" />} onClick={run} disabled={loading}>
+        <BrandButton icon={<Percent className="w-4 h-4" />} onClick={() => void run()} disabled={loading}>
           {loading ? <Loader className="w-4 h-4 animate-spin" /> : tr("Run Report")}
         </BrandButton>
+        <a className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-bold hover:border-primary/40" href={`${API}/accounts/ledger?${exportParams}`} data-profit-export><Download className="w-4 h-4" aria-hidden="true" />{tr("Export the rows behind this report (CSV)")}</a>
       </div>
 
       {error ? (
-        <div className="rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void run()}>{tr("Retry")}</Button></div>
       ) : !report ? (
-        <EmptyState icon={TrendingUp} title={tr("Run the report")} description={tr("Pick a date range to see income, expense and net profit.")} />
+        loading ? <div role="status" aria-label={tr("Loading report")}><SkeletonRows /></div> : <EmptyState icon={TrendingUp} title={tr("Run the report")} description={tr("Pick a date range to see income, expense and net profit.")} />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StatCard icon={TrendingUp} label={tr("Income")} value={formatPKR(report.income, report.currency)} tone="green" />
-            <StatCard icon={TrendingDown} label={tr("Expense")} value={formatPKR(report.expense, report.currency)} tone="rose" />
-            <StatCard icon={Banknote} label={tr("Net Profit")} value={formatPKR(report.net, report.currency)} tone={report.net < 0 ? "rose" : "purple"} />
+          <p className="rounded-2xl bg-muted px-4 py-3 text-xs font-semibold text-ink" data-profit-basis>
+            {tr("Cash basis, {0} only, {1} to {2} inclusive. Includes fee payments and refunds, paid payroll, manual entries and corrections recorded in this period; unpaid invoices and draft payroll are not included. Totals are the sum of the {3} rows in the export.", [report.currency, formatDate(report.from), formatDate(report.to), report.count])}
+          </p>
+          {report.otherCurrencies.length > 0 ? (
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800" data-profit-other-currencies>
+              {tr("This period also has entries in {0}. They are reported separately and never added to {1} totals.", [report.otherCurrencies.map((row) => `${row.currency} (${row.entries})`).join(", "), report.currency])}
+            </p>
+          ) : null}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-profit-totals data-income={report.income} data-expense={report.expense} data-net={report.net}>
+            <StatCard icon={TrendingUp} label={tr("Income")} value={money(report.income, report.currency)} tone="green" />
+            <StatCard icon={TrendingDown} label={tr("Expense")} value={money(report.expense, report.currency)} tone="rose" />
+            <StatCard icon={Banknote} label={tr("Net Profit")} value={money(report.net, report.currency)} tone={report.net < 0 ? "rose" : "purple"} />
           </div>
+
+          {Object.keys(report.bySource).length > 0 ? (
+            <table className="w-full text-xs" data-profit-sources>
+              <caption className="text-start text-[9px] font-black uppercase tracking-wider text-ink-subtle pb-2">{tr("By source")}</caption>
+              <thead><tr className="text-start text-ink-subtle"><th scope="col" className="text-start py-1">{tr("Source")}</th><th scope="col" className="text-end">{tr("Income")}</th><th scope="col" className="text-end">{tr("Expense")}</th><th scope="col" className="text-end">{tr("Rows")}</th></tr></thead>
+              <tbody>{Object.entries(report.bySource).map(([key, row]) => <tr key={key} className="border-t border-border"><th scope="row" className="text-start py-1.5 font-bold">{tr(SOURCE_LABEL[key as LedgerRow["source"]] ?? key)}</th><td className="text-end"><bdi>{money(row.income, report.currency)}</bdi></td><td className="text-end"><bdi>{money(row.expense, report.currency)}</bdi></td><td className="text-end">{row.count}</td></tr>)}</tbody>
+            </table>
+          ) : null}
 
           {report.breakdown.length > 0 ? (
             <div className="space-y-3">
-              {report.breakdown.map((b: any) => (
+              {report.breakdown.map((b) => (
                 <div key={`${b.accountId}-${b.type}`} className="sk-panel p-5 flex items-center gap-4">
                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${b.type === "INCOME" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
-                    {b.type === "INCOME" ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                    {b.type === "INCOME" ? <TrendingUp className="w-5 h-5" aria-hidden="true" /> : <TrendingDown className="w-5 h-5" aria-hidden="true" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-[#1f1a23]">{b.accountName}</p>
-                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{b.entries}<UiText>{"entries"}</UiText></p>
+                    <p className="text-sm font-black text-[#1f1a23]"><bdi>{b.accountName}</bdi>{b.accountActive ? "" : ` (${tr("inactive")})`}</p>
+                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{tr("{0} entries", [b.entries])}</p>
                   </div>
-                  <p className={`text-sm font-black ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}>
-                    {formatPKR(b.amount, report.currency)}
-                  </p>
+                  <p className={`text-sm font-black ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(b.amount, report.currency)}</bdi></p>
                 </div>
               ))}
             </div>

@@ -2171,6 +2171,7 @@ model ChartOfAccount {
   name     String
   type     String // ASSET | LIABILITY | EQUITY | INCOME | EXPENSE
   isSystem Boolean       @default(false) @map("is_system")
+  isActive Boolean       @default(true) @map("is_active")
   entries  LedgerEntry[]
 
   @@unique([campusId, name])
@@ -2236,7 +2237,14 @@ model LedgerEntry {
   payrollLine   PayrollLine?   @relation(fields: [payrollLineId], references: [id], onDelete: SetNull)
   createdById   String?        @map("created_by_id")
   createdAt     DateTime       @default(now()) @map("created_at")
+  // SKO-468: a correction never edits or deletes the original; it posts an opposite entry linked here.
+  reversalOfId   String?       @unique @map("reversal_of_id")
+  reversalOf     LedgerEntry?  @relation("LedgerReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy     LedgerEntry?  @relation("LedgerReversal")
+  idempotencyKey String?       @map("idempotency_key")
+  requestHash    String?       @map("request_hash")
 
+  @@unique([campusId, idempotencyKey])
   @@index([campusId, date])
   @@index([kind])
   @@index([accountId])
