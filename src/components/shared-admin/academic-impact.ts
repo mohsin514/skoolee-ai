@@ -8,6 +8,7 @@ const COUNT_TEMPLATES: Record<string, string> = {
   timetables: "{0} timetable(s)", publishedTimetables: "{0} published timetable(s)", assignmentHistory: "{0} teaching history record(s)",
   examSchedules: "{0} exam schedule(s)", timetableSlots: "{0} timetable lesson(s)", syllabusTopics: "{0} syllabus topic(s)",
   feeStructures: "{0} fee structure(s)", classHistory: "{0} class history record(s)", admissionQueries: "{0} admission enquiry(ies)",
+  reports: "{0} report card(s)", invoices: "{0} invoice(s)", payments: "{0} payment(s)", documents: "{0} document(s)",
 };
 
 export async function fetchAcademicImpact(kind: "class" | "subject", id: string): Promise<AcademicImpact> {
@@ -41,4 +42,9 @@ export function classArchiveText(dependencies: Record<string, number>, ui: UiTex
   return enrolled
     ? ui("This class has {0}. Move its {1} enrolled student(s) to another class first; a class with students is never archived or deleted.", [summary, enrolled])
     : ui("This class has {0}. Archive hides it from current class lists while preserving its academic and financial history. You can restore it later.", [summary]);
+}
+
+/** SKO-389: archive wording for a pupil, from the student archive preview's dependency counts. */
+export function studentArchiveText(name: string, dependencies: Record<string, number>, ui: UiText) {
+  return ui("{0} has {1}. Archive removes the pupil from active lists and frees the current roll number. Marks, receipts, reports, documents and audit history stay preserved, and the pupil can be restored later.", [name, describeCounts(dependencies, ui)]);
 }

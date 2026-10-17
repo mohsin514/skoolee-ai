@@ -57,7 +57,7 @@ import { PlansPanel } from "@/components/billing/PlansPanel";
 import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
-import { classArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
+import { classArchiveText, studentArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
@@ -730,24 +730,30 @@ export default function CampusAdminDashboard() {
   };
 
   const handleDeleteStudent = async (student: any) => {
-    const previewResponse = await fetch(`/api/students?id=${encodeURIComponent(student.id)}&preview=true`, { method: "DELETE" });
-    const preview = await previewResponse.json();
-    if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate student impact");
-    const impacts = Object.entries(preview.dependencies || {}).filter(([, count]) => Number(count) > 0).map(([label, count]) => `${count} ${label}`).join(", ") || "no linked records";
+    // SKO-389: pupils are archived, never deleted; the server's dependency counts are shown before confirming.
+    let preview: { dependencies?: Record<string, number> };
+    try {
+      const previewResponse = await fetch(`/api/students?id=${encodeURIComponent(student.id)}&preview=true`, { method: "DELETE" });
+      preview = await previewResponse.json();
+      if (!previewResponse.ok) throw new Error((preview as { error?: string }).error || ui("Could not calculate student impact"));
+    } catch (error) { toast.error(error instanceof Error ? error.message : ui("Could not calculate student impact")); return; }
     setConfirmAction({
-      title: `Archive ${student.fullName}?`,
-      description: `This student has ${impacts}. Archive removes the student from active lists and frees the current roll number. Marks, receipts, reports, documents and audit history remain preserved.`,
-      confirmLabel: "Archive Student",
+      title: ui("Archive {0}?", [student.fullName]),
+      description: studentArchiveText(student.fullName, preview.dependencies || {}, ui),
+      confirmLabel: ui("Archive Student"),
+      tone: "warning",
       run: async () => {
-        const res = await fetch(`/api/students?id=${student.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
+        // runConfirmedAction keeps the dialog open and reports the server error if this throws.
+        const res = await fetch(`/api/students?id=${encodeURIComponent(student.id)}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
         const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "Student could not be archived");
-        toast.success("Student archived; history preserved");
+        if (!res.ok) throw new Error(result.error || ui("Student could not be archived"));
+        toast.success(ui("Student archived; history preserved"));
         setSelectedStudent(null);
         await loadData();
       },
     });
   };
+
 
   const handleDeleteSubject = async (subject: any) => {
     // SKO-462: the real impact, fetched before anything is confirmed.

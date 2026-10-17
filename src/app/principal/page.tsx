@@ -147,7 +147,7 @@ import {
   StatusPill,
 } from "@/components/shared-admin";
 import { Input as SystemInput } from "@/components/ui/input";
-import { classArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
+import { classArchiveText, studentArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
@@ -313,13 +313,13 @@ export default function PrincipalDashboard() {
 
   const handleChangeClassTeacher = async (classId: string, teacherId: string) => {
     setSavingClassTeacherId(classId);
-    try { const res = await fetch(`/api/classes/${classId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classTeacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class teacher"); toast.success("Class teacher updated"); await refetch(); }
+    try { const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: classId, classTeacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class teacher"); toast.success("Class teacher updated"); await refetch(); }
     catch (error: any) { toast.error(error.message); } finally { setSavingClassTeacherId(null); }
   };
 
   const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
     setSavingClassUpdate(true);
-    try { const res = await fetch(`/api/classes/${classId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class"); toast.success("Class updated"); await refetch(); }
+    try { const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...updates, id: classId }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class"); toast.success("Class updated"); await refetch(); }
     catch (error: any) { toast.error(error.message); } finally { setSavingClassUpdate(false); }
   };
 
@@ -422,8 +422,30 @@ export default function PrincipalDashboard() {
     }
   };
 
-  const handleDeleteStudent = (student: any) => {
-    setConfirmAction({ title: "Delete Student", description: `Delete "${student.fullName}" (Roll: ${student.rollNo})? All associated records will be removed.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/students/${student.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete student"); toast.success("Student deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+  const handleDeleteStudent = async (student: any) => {
+    // SKO-389: pupils are archived, never deleted; the server's dependency counts are shown before confirming.
+    let preview: { dependencies?: Record<string, number> };
+    try {
+      const previewResponse = await fetch(`/api/students?id=${encodeURIComponent(student.id)}&preview=true`, { method: "DELETE" });
+      preview = await previewResponse.json();
+      if (!previewResponse.ok) throw new Error((preview as { error?: string }).error || ui("Could not calculate student impact"));
+    } catch (error) { toast.error(error instanceof Error ? error.message : ui("Could not calculate student impact")); return; }
+    setConfirmAction({
+      title: ui("Archive {0}?", [student.fullName]),
+      description: studentArchiveText(student.fullName, preview.dependencies || {}, ui),
+      confirmLabel: ui("Archive Student"),
+      tone: "warning",
+      run: async () => {
+        setConfirmBusy(true);
+        try {
+          const res = await fetch(`/api/students?id=${encodeURIComponent(student.id)}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error || ui("Student could not be archived"));
+          toast.success(ui("Student archived; history preserved"));
+                    await refetch();
+        } catch (error) { toast.error(error instanceof Error ? error.message : ui("Student could not be archived")); } finally { setConfirmBusy(false); }
+      },
+    });
   };
 
   const handleDeleteSubject = async (subject: any) => {

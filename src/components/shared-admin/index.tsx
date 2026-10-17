@@ -76,6 +76,7 @@ import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/compone
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { RestoreStudentDialog } from "./restore-student-dialog";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
@@ -2952,7 +2953,9 @@ export function StudentDetailModal({
               <SystemButton variant="ghost"
                 key={key}
                 type="button"
-                onClick={() => setStatusChange(key)}
+                // SKO-389: archiving opens the server's dependency preview (marks, invoices, reports) first.
+                onClick={() => (key === "archived" ? onDelete(student) : setStatusChange(key))}
+                {...(key === "archived" ? { "data-archive-student": true } : {})}
                 className={cn(
                   "flex items-center gap-1.5 px-3 justify-start",
                   key === "active"
@@ -2965,9 +2968,6 @@ export function StudentDetailModal({
               </SystemButton>
             );
           })}
-          <SystemButton variant="ghost" type="button" onClick={() => onDelete(student)} className="flex items-center gap-1.5 px-3 justify-start">
-            <Trash2 className="h-3.5 w-3.5" />Delete
-          </SystemButton>
         </div>
         {/* ml-auto, not just justify-between: once the row wraps, a
             justify-between child starts at the left edge of the new line, so
@@ -6864,6 +6864,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   // a bulk archive, which the roster can now do in a single action.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [restoring, setRestoring] = useState<any | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -6961,6 +6962,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
 
   return (
     <div className="sk-panel sk-rise p-6">
+      <RestoreStudentDialog student={restoring} onClose={() => setRestoring(null)} onRestored={message => { toast.success(message); void load(); onVersionBump(); }} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Archive} title="Archived & Inactive Students" />
         <div className="flex items-center gap-2 pb-1.5">
@@ -7095,7 +7097,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
                   variant="soft"
                   icon={<RotateCcw className="w-4 h-4" />}
                   disabled={busyId === s.id}
-                  onClick={() => changeStatus(s, "active", `${s.fullName} restored to the active roll`)}
+                  onClick={() => setRestoring(s)}
                 >
                   {busyId === s.id ? "Working…" : "Restore"}
                 </BrandButton>

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { applyEnrollment } from "@/lib/students/enrollment";
 import { studentSchema, bulkStudentSchema } from "@/lib/validators/schemas";
 import { sendInviteEmail } from "@/lib/email";
 import {
@@ -824,24 +825,46 @@ export async function PATCH(req: NextRequest) {
     if (body?.action === "restore") {
       const id = typeof body.id === "string" ? body.id : "";
       if (!id) throw new ApiError("Student id is required", 400);
+      // SKO-389: a conflicting identifier is resolved by giving the restored pupil a new current roll or
+      // admission number; historical documents keep the values they were issued with.
+      const nextRoll = typeof body.rollNo === "string" && body.rollNo.trim() ? body.rollNo.trim().slice(0, 32) : null;
+      const nextAdmission = typeof body.admissionNo === "string" && body.admissionNo.trim() ? body.admissionNo.trim().slice(0, 64) : null;
       const student = await prisma.student.findFirst({
         where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
         select: { id: true, status: true, archivedAt: true, campusId: true, classId: true, rollNo: true, admissionNo: true },
       });
-      if (!student || !student.archivedAt) throw new ApiError("Archived student not found", 404);
+      if (!student) throw new ApiError("Archived student not found", 404);
+      if (!student.archivedAt) return Response.json({ success: true, restored: false, alreadyActive: true });
+      const rollNo = nextRoll ?? student.rollNo, admissionNo = nextAdmission ?? student.admissionNo;
       const [campus, cls, rollConflict, admissionConflict] = await Promise.all([
         prisma.campus.findFirst({ where: { id: student.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
         prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
-        prisma.student.findFirst({ where: { id: { not: id }, campusId: student.campusId, rollNo: student.rollNo, archivedAt: null }, select: { id: true, fullName: true } }),
-        student.admissionNo ? prisma.student.findFirst({ where: { id: { not: id }, schoolId: user.schoolId, admissionNo: student.admissionNo, archivedAt: null }, select: { id: true, fullName: true } }) : Promise.resolve(null),
+        prisma.student.findFirst({ where: { id: { not: id }, campusId: student.campusId, rollNo, archivedAt: null }, select: { id: true, fullName: true } }),
+        admissionNo ? prisma.student.findFirst({ where: { id: { not: id }, schoolId: user.schoolId, admissionNo, archivedAt: null }, select: { id: true, fullName: true } }) : Promise.resolve(null),
       ]);
       if (!campus || !cls) throw new ApiError("Restore requires an active campus and class", 409);
       if (rollConflict || admissionConflict) {
-        throw new ApiError("Restore conflict: the roll number or admission number is now in use. Assign a new current identifier before restoring; historical documents keep their original values.", 409);
+        return Response.json({ error: "Restore conflict: the roll number or admission number is now in use. Assign a new current identifier before restoring; historical documents keep their original values.", conflict: { rollNo: Boolean(rollConflict), admissionNo: Boolean(admissionConflict) } }, { status: 409 });
       }
-      await prisma.student.update({ where: { id }, data: { archivedAt: null, archiveReason: null, status: "active" } });
-      await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: true }, newValue: { archived: false }, userId: user.userId } });
-      return Response.json({ success: true, restored: true });
+      const restored = await prisma.$transaction(async (tx) => {
+        // The row lock and re-check make a repeated or concurrent restore change nothing twice.
+        await tx.$queryRaw`SELECT id FROM students WHERE id = ${id} FOR UPDATE`;
+        const current = await tx.student.findUnique({ where: { id }, select: { archivedAt: true } });
+        if (!current?.archivedAt) return false;
+        if (rollNo !== student.rollNo) {
+          // A new current roll number is a reviewed enrollment change: the open enrollment ends today and
+          // a new one starts with the new roll, so earlier attendance, reports and invoices keep theirs.
+          const open = await tx.studentEnrollment.findFirst({ where: { studentId: id, endDate: null, status: "ACTIVE" }, select: { id: true } });
+          if (!open) throw new ApiError("This pupil's current placement needs reconciliation before a new roll number can be given.", 409);
+          await applyEnrollment(tx, { studentId: id, fromId: open.id, targetClassId: student.classId, effectiveDate: new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`), rollNo, actorId: user.userId, reason: "Restored from archive with a new current roll number" });
+        }
+        // Un-archived only after the new roll is in place, so the active-roll uniqueness is never violated.
+        await tx.student.update({ where: { id }, data: { archivedAt: null, archiveReason: null, status: "active", admissionNo } });
+        await tx.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: true, rollNo: student.rollNo, admissionNo: student.admissionNo }, newValue: { archived: false, rollNo, admissionNo }, userId: user.userId } });
+        return true;
+      });
+      if (!restored) return Response.json({ success: true, restored: false, alreadyActive: true });
+      return Response.json({ success: true, restored: true, rollNo, admissionNo });
     }
 
     // Bulk status change from the roster's multi-select (§22). Deliberately

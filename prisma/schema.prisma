@@ -1218,7 +1218,7 @@ model Student {
   campusId             String    @map("campus_id")
   campus               Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
   classId              String    @map("class_id")
-  class                Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  class                Class     @relation(fields: [classId], references: [id], onDelete: NoAction)
   studentUserId        String?   @unique @map("student_user_id")
   // Removing a user account must not delete the student record it was linked
   // to — the pupil still exists, they just no longer have a login (INT-1).
@@ -1760,7 +1760,7 @@ model Mark {
   examId        String  @map("exam_id")
   exam          Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
   studentId     String  @map("student_id")
-  student       Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       Student @relation(fields: [studentId], references: [id], onDelete: NoAction)
   subjectId     String  @map("subject_id")
   subject       Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   marksObtained Int     @map("marks_obtained")
@@ -1817,7 +1817,7 @@ model ReportCard {
   campusId          String    @map("campus_id")
   campus            Campus    @relation("CampusReports", fields: [campusId], references: [id], onDelete: Cascade)
   studentId         String    @map("student_id")
-  student           Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student           Student   @relation(fields: [studentId], references: [id], onDelete: NoAction)
   examId            String    @map("exam_id")
   exam              Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
   totalMarks        Int       @default(0) @map("total_marks")
@@ -1865,7 +1865,7 @@ model Attendance {
   classId   String?          @map("class_id")
   class     Class?           @relation(fields: [classId], references: [id])
   studentId String           @map("student_id")
-  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: NoAction)
   date      DateTime         @db.Date
   status    AttendanceStatus
   notes     String?          @db.Text
@@ -2075,7 +2075,7 @@ model Invoice {
   campusId        String        @map("campus_id")
   campus          Campus        @relation(fields: [campusId], references: [id], onDelete: Cascade)
   studentId       String        @map("student_id")
-  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: NoAction)
   invoiceNumber   String?       @unique @map("invoice_number")
   invoiceDate     DateTime      @map("invoice_date")
   dueDate         DateTime      @map("due_date")
@@ -2122,7 +2122,7 @@ model Payment {
   invoiceId       String       @map("invoice_id")
   invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   studentId       String       @map("student_id")
-  student         Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student         Student      @relation(fields: [studentId], references: [id], onDelete: NoAction)
   amount          Int          @map("amount")
   fineAmount      Int          @default(0) @map("fine_amount")
   discountAmount  Int          @default(0) @map("discount_amount")
