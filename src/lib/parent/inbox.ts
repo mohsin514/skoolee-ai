@@ -4,6 +4,7 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { publishedReportsWhere } from "@/lib/auth/policy";
 import { currentGuardianRelationship, type GuardianPermissions } from "@/lib/parent/guardian-access";
 import { EXPLAIN_WINDOW_DAYS } from "@/lib/attendance/rule";
+import { guardianTrips } from "@/lib/family/trips";
 
 // SKO-419: the family action inbox. One list across every child the guardian is verified for, each item
 // read from its own source under that child's current permissions (they can differ per sibling). Every
@@ -14,7 +15,7 @@ import { EXPLAIN_WINDOW_DAYS } from "@/lib/attendance/rule";
 
 export type InboxState = "ACTION" | "WAITING" | "COMPLETED" | "EXPIRED" | "UPDATE";
 export type InboxItem = {
-  id: string; kind: "EXPLAIN_ABSENCE" | "CLARIFY_ABSENCE" | "PAY_FEE" | "FEEDBACK_RETURNED" | "REPORT_PUBLISHED";
+  id: string; kind: "EXPLAIN_ABSENCE" | "CLARIFY_ABSENCE" | "PAY_FEE" | "FEEDBACK_RETURNED" | "REPORT_PUBLISHED" | "TRIP_CONSENT" | "LEAVE_REQUEST";
   state: InboxState; childId: string; childName: string; schoolName: string; campusName: string;
   title: string; detail: string | null; dueAt: string | null; overdue: boolean; at: string; href: string;
   completedByOther: boolean; receipt: string | null; timezone: string;
@@ -49,6 +50,19 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
         items.push({ ...common, id: `attendance:${row.id}`, kind: "EXPLAIN_ABSENCE", state: "COMPLETED", title: explanation.status, detail: explanation.reviewNote ?? day, completedByOther: explanation.submittedById !== guardianUserId, receipt: explanation.id, at: (explanation.reviewedAt ?? explanation.createdAt).toISOString() });
       }
     }
+  }
+
+  // SKO-421: the family's own leave requests, in the school's decision state.
+  if (permissions.attendance) {
+    const leave = await prisma.learnerLeaveRequest.findMany({ where: { schoolId, studentId: child.id, status: { not: "CANCELLED" }, toDate: { gte: new Date(now.getTime() - 30 * DAY) } }, select: { id: true, fromDate: true, toDate: true, status: true, reviewNote: true, requestedById: true, createdAt: true, reviewedAt: true }, orderBy: { fromDate: "asc" } });
+    for (const row of leave) items.push({ ...base, id: `leave:${row.id}`, kind: "LEAVE_REQUEST", state: row.status === "CLARIFICATION" ? "ACTION" : row.status === "PENDING" ? "WAITING" : "COMPLETED", title: row.status, detail: `${row.fromDate.toISOString().slice(0, 10)}–${row.toDate.toISOString().slice(0, 10)}`, dueAt: null, overdue: false, at: (row.reviewedAt ?? row.createdAt).toISOString(), href: `/parent/attendance${linkQuery}`, completedByOther: Boolean(guardianUserId) && row.requestedById !== guardianUserId, receipt: null });
+  }
+
+  // SKO-421: trip permission, answered for one exact version under the trip's signatory rule.
+  for (const trip of await guardianTrips(guardianUserId, schoolId, [child.id], now)) {
+    const mine = trip.myAnswer;
+    const state: InboxState = !trip.canSign ? "UPDATE" : mine ? (trip.status === "PARTIAL" ? "WAITING" : "COMPLETED") : trip.deadlinePassed ? "EXPIRED" : "ACTION";
+    items.push({ ...base, id: `trip:${trip.tripId}:${child.id}`, kind: "TRIP_CONSENT", state, title: trip.version.title, detail: `v${trip.version.version}${trip.earlierAnswer ? " · changed" : ""}`, dueAt: trip.version.respondBy.toISOString(), overdue: false, at: trip.version.publishedAt.toISOString(), href: `/parent/attendance${linkQuery}`, completedByOther: !mine && trip.answeredByOther, receipt: mine?.receiptCode ?? null });
   }
 
   if (permissions.finances) {

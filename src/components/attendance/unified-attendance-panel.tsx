@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AttendanceOverview } from "./attendance-overview";
 import { AttendanceExceptions, AttendanceRulePanel } from "./class-register";
+import { LearnerLeaveQueue, TripsDesk } from "@/components/family/staff-requests";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,7 @@ export function UnifiedAttendancePanel() {
       {activeTab === "students" ? <>
         <AttendanceOverview />
         <div className="grid gap-6 lg:grid-cols-2"><AttendanceExceptions /><AttendanceRulePanel /></div>
+        <div className="grid gap-6 lg:grid-cols-2"><LearnerLeaveQueue /><TripsDesk /></div>
       </> : null}
 
       {activeTab === "teachers" ? (

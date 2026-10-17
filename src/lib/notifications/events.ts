@@ -337,6 +337,14 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/admin",
     recipients: (c) => getAdminsAndPrincipal(c.schoolId, c.campusId),
   },
+  // SKO-421: the family hears the outcome only; the reason and any note stay inside the request.
+  LEARNER_LEAVE_DECIDED: {
+    title: () => "Leave request answered",
+    message: (c) => c.status === "APPROVED" ? "The school approved a leave request." : c.status === "DECLINED" ? "The school declined a leave request." : "The school asked for more detail on a leave request.",
+    icon: "CalendarCheck",
+    link: "/parent/attendance",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-403: sent once per published version, only to affected teachers and the class's families.
   TIMETABLE_CHANGED: {
     title: () => "Timetable updated",

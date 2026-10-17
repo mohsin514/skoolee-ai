@@ -9,6 +9,7 @@ import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 import { GuardianAttendanceExplanations } from "@/components/attendance/class-register";
+import { GuardianLeave, GuardianTrips } from "@/components/family/family-requests";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,9 @@ export default function ParentAttendancePage() {
           </>
         )}
         {selectedStudentId ? <GuardianAttendanceExplanations studentId={selectedStudentId} /> : null}
+        {/* SKO-421: leave for future days and trip permission for this child. */}
+        {selectedStudentId ? <GuardianLeave key={`leave-${selectedStudentId}`} studentId={selectedStudentId} /> : null}
+        {selectedStudentId ? <GuardianTrips key={`trips-${selectedStudentId}`} studentId={selectedStudentId} /> : null}
       </div>
     </ParentPage>
   );
