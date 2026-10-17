@@ -7,6 +7,8 @@ export const bankFiltersSchema = z.object({
   language: assessmentLanguageSchema.optional(), type: questionTypeSchema.optional(), difficulty: bankDifficultySchema.optional(),
   minMarks: z.coerce.number().min(0.25).max(100).optional(), maxMarks: z.coerce.number().min(0.25).max(100).optional(),
   cursor: z.string().max(600).optional(),
+  // SKO-407: the curriculum version the teacher is assembling for, and an optional objective in it.
+  targetCurriculumId: id.optional(), targetCurriculumVersion: z.coerce.number().int().positive().optional(), outcomeId: id.optional(),
 }).strict().refine((value) => value.minMarks === undefined || value.maxMarks === undefined || value.minMarks <= value.maxMarks, "Minimum marks cannot exceed maximum marks.");
 export const bankSourceSchema = z.object({ paperId: id, paperVersion: z.number().int().positive(), questionId: id }).strict();
 export const bankReuseSchema = z.object({
@@ -17,6 +19,7 @@ export const bankReuseSchema = z.object({
 export type BankFilters = z.infer<typeof bankFiltersSchema>;
 export type BankReuseInput = z.infer<typeof bankReuseSchema>;
 export type BankEntry = {
+  alignment?: ReuseAlignment;
   source: z.infer<typeof bankSourceSchema>; paperTitle: string; approvedAt: string; campusId: string;
   language: PaperData["language"]; subjectId: string; classId: string;
   curriculumId: string; curriculumVersion: number;
@@ -75,4 +78,58 @@ export function reuseBankQuestion(input: BankReuseInput, source: { paperId: stri
   const copied: Question = { ...carried, id: newId, sectionId, options, rubric, correctOptionId: correctIndex >= 0 ? options[correctIndex].id : null, ...(correctOptionIds ? { correctOptionIds } : {}), outcomeIds: mappings.map((mapping) => mapping.targetOutcomeId), sourceRefs: refs, locked: true, reusedFrom: { paperId: source.paperId, paperVersion: source.paperVersion, questionId: original.id, curriculumId: source.paper.curriculumId, curriculumVersion: source.paper.curriculumVersion } };
   const questions = replaced ? paper.questions.map((question) => question.id === replaced.id ? copied : question) : [...paper.questions, copied];
   return paperDataSchema.parse({ ...paper, questions });
+}
+
+// ─── SKO-407: reuse across curricula follows reviewed objective decisions ────────
+export type ObjectiveDecision = { fromRecordId: string; fromVersion: number; fromOutcomeId: string; toRecordId: string; toVersion: number; toOutcomeId: string; relation: string; createdAt: Date | string };
+export type CurriculumRef = { curriculumId: string; curriculumVersion: number };
+export type ReuseAlignment =
+  | { mode: "SAME_VERSION" }
+  | { mode: "MAPPED"; targets: Record<string, Array<{ outcomeId: string; relation: "SAME" | "PARTIAL" | "STABLE_ID" }>> };
+
+/** Latest decision per objective pair, read in either direction. NOT_EQUIVALENT and missing decisions allow nothing. */
+export function reuseAlignment(source: CurriculumRef, target: CurriculumRef, sourceOutcomeIds: string[], targetOutcomeIds: string[], decisions: ObjectiveDecision[]): ReuseAlignment {
+  if (source.curriculumId === target.curriculumId && source.curriculumVersion === target.curriculumVersion) return { mode: "SAME_VERSION" };
+  const latest = new Map<string, ObjectiveDecision>();
+  for (const decision of [...decisions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())) {
+    const forward = decision.fromRecordId === source.curriculumId && decision.fromVersion === source.curriculumVersion && decision.toRecordId === target.curriculumId && decision.toVersion === target.curriculumVersion;
+    const backward = decision.toRecordId === source.curriculumId && decision.toVersion === source.curriculumVersion && decision.fromRecordId === target.curriculumId && decision.fromVersion === target.curriculumVersion;
+    if (!forward && !backward) continue;
+    const key = forward ? `${decision.fromOutcomeId}\u0000${decision.toOutcomeId}` : `${decision.toOutcomeId}\u0000${decision.fromOutcomeId}`;
+    if (!latest.has(key)) latest.set(key, decision);
+  }
+  const targets: Record<string, Array<{ outcomeId: string; relation: "SAME" | "PARTIAL" | "STABLE_ID" }>> = {};
+  for (const sourceOutcomeId of sourceOutcomeIds) {
+    const allowed: Array<{ outcomeId: string; relation: "SAME" | "PARTIAL" | "STABLE_ID" }> = [];
+    // Within one curriculum the objective id is its stable identity across versions.
+    if (source.curriculumId === target.curriculumId && targetOutcomeIds.includes(sourceOutcomeId)) allowed.push({ outcomeId: sourceOutcomeId, relation: "STABLE_ID" });
+    for (const targetOutcomeId of targetOutcomeIds) {
+      const decision = latest.get(`${sourceOutcomeId}\u0000${targetOutcomeId}`);
+      if ((decision?.relation === "SAME" || decision?.relation === "PARTIAL") && !allowed.some(item => item.outcomeId === targetOutcomeId)) allowed.push({ outcomeId: targetOutcomeId, relation: decision.relation });
+    }
+    targets[sourceOutcomeId] = allowed;
+  }
+  return { mode: "MAPPED", targets };
+}
+
+/** Every chosen mapping must be allowed by the alignment; title similarity never qualifies. */
+export function alignmentIssues(alignment: ReuseAlignment, mappings: Array<{ sourceOutcomeId: string; targetOutcomeId: string }>): string[] {
+  if (alignment.mode === "SAME_VERSION") return [];
+  return mappings.filter(mapping => !alignment.targets[mapping.sourceOutcomeId]?.some(item => item.outcomeId === mapping.targetOutcomeId))
+    .map(mapping => `Objective ${mapping.sourceOutcomeId} has no recorded same or partial mapping to ${mapping.targetOutcomeId}. A curriculum lead must record the decision in the objective map before reuse.`);
+}
+
+export type CoverageGap = { sectionId: string; sectionTitle: string; outcomeId: string | null; outcomeTitle: string | null; missingMarks: number };
+/** Specific gaps instead of a readiness score: uncovered section objectives and unfilled slots, in marks. */
+export function blueprintCoverageGaps(paper: PaperData, curriculum: CurriculumData): CoverageGap[] {
+  const gaps: CoverageGap[] = [];
+  for (const section of paper.blueprint.sections) {
+    const questions = paper.questions.filter(question => question.sectionId === section.id);
+    for (const outcomeId of section.outcomeIds) {
+      if (!questions.some(question => question.outcomeIds.includes(outcomeId))) gaps.push({ sectionId: section.id, sectionTitle: section.title, outcomeId, outcomeTitle: curriculum.outcomes.find(outcome => outcome.id === outcomeId)?.title ?? outcomeId, missingMarks: section.marksPerQuestion });
+    }
+    const empty = section.questionCount - questions.length;
+    if (empty > 0) gaps.push({ sectionId: section.id, sectionTitle: section.title, outcomeId: null, outcomeTitle: null, missingMarks: empty * section.marksPerQuestion });
+  }
+  return gaps;
 }

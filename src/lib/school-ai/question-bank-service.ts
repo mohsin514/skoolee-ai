@@ -6,7 +6,7 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { z } from "zod";
 import { SchoolAiError, assertSchoolAiAccess, assertWorkspacePermission, assertWorkspaceSubject, isSchoolAiManager, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, type WorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema, paperDataSchema, type PaperData } from "./assessment";
-import { bankFiltersSchema, bankQuestionMatches, bankReuseSchema, bankSourceSchema, reuseBankQuestion, type BankEntry } from "./question-bank";
+import { alignmentIssues, bankFiltersSchema, bankQuestionMatches, bankReuseSchema, bankSourceSchema, reuseAlignment, reuseBankQuestion, type BankEntry, type CurriculumRef, type ReuseAlignment } from "./question-bank";
 import { mergeBankReuseEligibility, type BankReuseEligibility } from "./question-bank-exposure";
 import { bankEligibilityFromFacts, loadBankExposureFacts } from "./question-bank-exposure-service";
 import { schoolAiTransaction } from "./transaction";
@@ -56,6 +56,15 @@ function entry(source: Awaited<ReturnType<typeof approvedSource>>, eligibility: 
   }) };
 }
 
+/** SKO-406 decisions between two curriculum versions, in either direction. */
+async function objectiveDecisions(db: TxClient, schoolId: string, a: CurriculumRef, b: CurriculumRef) {
+  if (a.curriculumId === b.curriculumId && a.curriculumVersion === b.curriculumVersion) return [];
+  return db.curriculumObjectiveMapping.findMany({ where: { schoolId, OR: [
+    { fromRecordId: a.curriculumId, fromVersion: a.curriculumVersion, toRecordId: b.curriculumId, toVersion: b.curriculumVersion },
+    { fromRecordId: b.curriculumId, fromVersion: b.curriculumVersion, toRecordId: a.curriculumId, toVersion: a.curriculumVersion },
+  ] }, orderBy: { createdAt: "desc" }, take: 2000 });
+}
+
 /** Caches only within one read/transaction. The save path always gets a fresh exposure snapshot. */
 function eligibilityReader(user: AuthUser, db: TxClient, permissions: WorkspacePermissionSnapshot, now: Date) {
   const facts = new Map<string, ReturnType<typeof loadBankExposureFacts>>();
@@ -86,6 +95,18 @@ export async function listQuestionBank(user: AuthUser, raw: unknown) {
     const campusId = await resolveWorkspaceCampus(user, filters.campusId);
     await assertWorkspaceSubject(user, campusId, filters);
     const cursor = decodeCursor(filters.cursor);
+    // When the teacher names the curriculum version being assembled, each entry carries the reviewed alignment to it.
+    const targetRecord = filters.targetCurriculumId ? await prisma.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, campusId, recordId: filters.targetCurriculumId, version: filters.targetCurriculumVersion ?? -1, status: "APPROVED", record: { kind: "CURRICULUM" } } }) : null;
+    if (filters.targetCurriculumId && !targetRecord) throw new SchoolAiError("Choose an approved curriculum version from your campus.", 404);
+    const target = targetRecord ? { ref: { curriculumId: targetRecord.recordId, curriculumVersion: targetRecord.version }, outcomes: curriculumDataSchema.parse(targetRecord.data).outcomes.filter(outcome => outcome.included && outcome.taught).map(outcome => outcome.id) } : null;
+    const alignments = new Map<string, Promise<Awaited<ReturnType<typeof objectiveDecisions>>>>();
+    const alignmentFor = async (entryValue: EligibleBankEntry): Promise<ReuseAlignment | undefined> => {
+      if (!target) return undefined;
+      const ref = { curriculumId: entryValue.curriculumId, curriculumVersion: entryValue.curriculumVersion }, key = `${ref.curriculumId}:${ref.curriculumVersion}`;
+      if (!alignments.has(key)) alignments.set(key, objectiveDecisions(prisma, user.schoolId, ref, target.ref));
+      return reuseAlignment(ref, target.ref, entryValue.question.outcomeIds, target.outcomes, await alignments.get(key)!);
+    };
+    const wanted = (alignment: ReuseAlignment | undefined, question: { outcomeIds: string[] }) => !filters.outcomeId || (alignment?.mode === "MAPPED" ? Object.values(alignment.targets).some(list => list.some(item => item.outcomeId === filters.outcomeId)) : question.outcomeIds.includes(filters.outcomeId));
     const where: Prisma.SchoolAiRevisionWhereInput = { schoolId: user.schoolId, campusId, status: "APPROVED", AND: [{ data: { path: ["subjectId"], equals: filters.subjectId } }, { data: { path: ["classId"], equals: filters.classId } }, ...(filters.language ? [{ data: { path: ["language"], equals: filters.language } }] : [])], record: { kind: "PAPER", ...(user.role === "TEACHER" ? { createdById: user.userId, subjectId: filters.subjectId, classId: filters.classId } : {}) } };
     if (cursor && !await prisma.schoolAiRevision.findFirst({ where: { ...where, id: cursor.revisionId }, select: { id: true } })) throw new SchoolAiError("The question-bank page is no longer available.", 404);
     const revisions = await prisma.schoolAiRevision.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 11, ...(cursor ? { cursor: { id: cursor.revisionId } } : {}) });
@@ -101,7 +122,10 @@ export async function listQuestionBank(user: AuthUser, raw: unknown) {
         if (!bankQuestionMatches(question, paper, filters)) continue;
         revisionSource ??= await approvedSource(user, { paperId: revision.recordId, paperVersion: revision.version, questionId: question.id }, prisma, permissions, true);
         const source = { ...revisionSource, question };
-        items.push(entry(source, await readEligibility(source)));
+        const value = entry(source, await readEligibility(source));
+        value.alignment = await alignmentFor(value);
+        if (!wanted(value.alignment, question)) continue;
+        items.push(value);
         if (items.length === 20) return { items, nextCursor: encodeCursor(revision.id, index + 1) };
       }
     }
@@ -124,6 +148,10 @@ export async function prepareQuestionReuseInTransaction(user: AuthUser, raw: unk
     if (!record) throw new SchoolAiError("Choose the current approved curriculum from the same campus before reusing a question.", 409);
     const curriculum = curriculumDataSchema.parse(record.data);
     await assertWorkspaceSubject(user, record.campusId, curriculum, db);
+    const sourceRef = { curriculumId: source.paper.curriculumId, curriculumVersion: source.paper.curriculumVersion }, targetRef = { curriculumId: record.id, curriculumVersion: record.version };
+    const alignment = reuseAlignment(sourceRef, targetRef, source.question.outcomeIds, curriculum.outcomes.map(outcome => outcome.id), await objectiveDecisions(db, user.schoolId, sourceRef, targetRef));
+    const misaligned = alignmentIssues(alignment, input.mappings);
+    if (misaligned.length) throw new SchoolAiError(misaligned.join(" "), 409, "BANK_REUSE_UNMAPPED_OBJECTIVE");
     try { return { paper: reuseBankQuestion(input, source, curriculum, randomUUID()) }; }
     catch (error) { throw new SchoolAiError(error instanceof Error ? error.message : "Review the question mapping before reuse.", 422); }
 }
