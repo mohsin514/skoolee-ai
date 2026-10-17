@@ -74,6 +74,7 @@ export const TENANT_MODELS = new Set<string>([
   "feeStructure",
   "feeType",
   "feesMasterLine",
+  "financialAdjustment",
   "gradeWeightConfig",
   "guardianAccessEvent",
   "guardianAccessVersion",

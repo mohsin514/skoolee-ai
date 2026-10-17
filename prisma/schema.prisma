@@ -165,6 +165,7 @@ model School {
   onlinePaymentOrders     OnlinePaymentOrder[]
   receiptSequences ReceiptSequence[]
   bankTransactionKeys BankTransactionKey[]
+  financialAdjustments FinancialAdjustment[]
   paymentPlans            PaymentPlan[]
   bankReconciliations     BankReconciliation[]
   aIInsights              AIInsight[]
@@ -524,6 +525,7 @@ model Campus {
   onlinePaymentOrders   OnlinePaymentOrder[]
   receiptSequences ReceiptSequence[]
   bankTransactionKeys BankTransactionKey[]
+  financialAdjustments FinancialAdjustment[]
   chartOfAccounts       ChartOfAccount[]
   paymentMethodRefs     PaymentMethodRef[]
   bankAccounts          BankAccount[]
@@ -2376,6 +2378,45 @@ model BankTransactionKey {
   @@index([schoolId])
   @@index([reconciliationId])
   @@map("bank_transaction_keys")
+}
+
+// SKO-433: a controlled financial exception. Requested by one finance user, decided by another; the
+// original invoice and payment are never edited away — the effect is appended and linked here.
+model FinancialAdjustment {
+  id                 String    @id @default(uuid())
+  schoolId           String    @default("") @map("school_id")
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId           String    @map("campus_id")
+  campus             Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  studentId          String    @map("student_id")
+  invoiceId          String    @map("invoice_id")
+  paymentId          String?   @map("payment_id")
+  kind               String
+  currency           String
+  amount             Int
+  invoiceAmount      Int       @default(0) @map("invoice_amount")
+  creditAmount       Int       @default(0) @map("credit_amount")
+  reasonCategory     String    @map("reason_category")
+  reason             String
+  publicExplanation  String    @map("public_explanation")
+  privateNote        String?   @map("private_note")
+  sourceVersion      String    @map("source_version")
+  status             String    @default("REQUESTED")
+  requesterId        String    @map("requester_id")
+  requesterName      String    @map("requester_name")
+  approverId         String?   @map("approver_id")
+  approverName       String?   @map("approver_name")
+  decidedAt          DateTime? @map("decided_at")
+  disbursementRef    String?   @map("disbursement_ref")
+  successorPaymentId String?   @map("successor_payment_id")
+  executedAt         DateTime? @map("executed_at")
+  idempotencyKey     String    @map("idempotency_key")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  @@unique([schoolId, requesterId, idempotencyKey])
+  @@index([schoolId, campusId, status])
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@map("financial_adjustments")
 }
 
 // Durable preview, commit receipt, and guarded reversal record for CSV imports.
