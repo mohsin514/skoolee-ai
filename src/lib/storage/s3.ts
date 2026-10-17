@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -52,6 +53,18 @@ export async function readPrivateObject(key: string): Promise<ReadableStream<Uin
 /** A completed upload cannot be overwritten by replaying a retained upload intent. */
 export async function uploadPrivateObject(key: string, bytes: Uint8Array, contentType: string): Promise<void> {
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: bytes, ContentType: contentType, IfNoneMatch: "*" }), { abortSignal: AbortSignal.timeout(30000) });
+}
+
+/** Size and type of a stored private object, or null when nothing was stored under the key. */
+export async function headPrivateObject(key: string): Promise<{ sizeBytes: number; contentType: string | null } | null> {
+  try {
+    const head = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }), { abortSignal: AbortSignal.timeout(10000) });
+    return { sizeBytes: Number(head.ContentLength ?? -1), contentType: head.ContentType ?? null };
+  } catch (error) {
+    const status = error && typeof error === "object" && "$metadata" in error ? (error.$metadata as { httpStatusCode?: number })?.httpStatusCode : undefined;
+    if (status === 404 || (error instanceof Error && error.name === "NotFound")) return null;
+    throw error;
+  }
 }
 
 /**

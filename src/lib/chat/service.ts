@@ -29,6 +29,8 @@ import {
   type ChatSettings,
 } from "./policy";
 import { publishToUsers, whoIsOnline, isOffline } from "./realtime";
+import { headPrivateObject } from "@/lib/storage/s3";
+import { CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TYPES } from "./attachment-rules";
 import type {
   ChatMessageView,
   ConversationDetail,
@@ -138,6 +140,7 @@ async function serialiseMessage(row: MessageRow): Promise<ChatMessageView> {
     isDeleted,
     createdAt: row.createdAt.toISOString(),
     clientKey: row.clientKey,
+    isUrgent: row.isUrgent,
   };
 }
 
@@ -312,11 +315,25 @@ export async function getConversation(
 export async function listMessages(
   user: AuthUser,
   conversationId: string,
-  options: { cursor?: string; limit?: number } = {}
-): Promise<{ messages: ChatMessageView[]; nextCursor: string | null }> {
+  options: { cursor?: string; limit?: number; after?: string } = {}
+): Promise<{ messages: ChatMessageView[]; nextCursor: string | null; hasMoreAfter?: boolean }> {
   await requireMembership(user, conversationId);
 
   const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), 100);
+
+  // SKO-415 gap recovery: after a reconnect the client asks for everything after the last message it
+  // holds, oldest first, so the thread converges on stored history without holes or duplicates.
+  if (options.after) {
+    const anchor = await prisma.chatMessage.findFirst({ where: { id: options.after, conversationId }, select: { createdAt: true, id: true } });
+    if (!anchor) throw new ApiError("That message is not in this conversation", 400);
+    const newer = await prisma.chatMessage.findMany({
+      where: { conversationId, OR: [{ createdAt: { gt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { gt: anchor.id } }] },
+      include: messageInclude,
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: limit + 1,
+    });
+    return { messages: await Promise.all(newer.slice(0, limit).map(serialiseMessage)), nextCursor: null, hasMoreAfter: newer.length > limit };
+  }
 
   const rows = await prisma.chatMessage.findMany({
     where: { conversationId },
@@ -559,6 +576,7 @@ export interface SendMessageInput {
   kind?: "TEXT" | "FILE" | "IMAGE";
   replyToId?: string;
   clientKey?: string;
+  urgent?: boolean;
   attachments?: {
     storageKey: string;
     fileName: string;
@@ -616,6 +634,33 @@ export async function sendMessage(
     if (!parent) throw new ApiError("The message being replied to is not in this conversation", 400);
   }
 
+  // Families cannot raise urgency; staff use it deliberately and it is labelled on the message.
+  const urgent = input.urgent === true;
+  if (urgent && (user.role === "PARENT" || user.role === "STUDENT")) throw new ApiError("Only school staff can mark a message urgent", 403);
+
+  // A retried send resolves to the message the first attempt stored, but only for its own sender.
+  if (input.clientKey) {
+    const replay = await prisma.chatMessage.findFirst({ where: { conversationId, clientKey: input.clientKey }, include: messageInclude });
+    if (replay) {
+      if (replay.senderId !== user.userId) throw new ApiError("That send identifier belongs to another message. Start a new message.", 409);
+      return serialiseMessage(replay);
+    }
+  }
+
+  // SKO-415: an attachment is accepted only once its file is actually stored, in this conversation's
+  // folder, with the size and type validated at upload. A key from another conversation, an abandoned
+  // upload or a tampered size never becomes a message.
+  for (const attachment of attachments) {
+    const prefix = `chat/${user.schoolId}/${conversationId}/`;
+    const leaf = attachment.storageKey.slice(prefix.length);
+    if (!attachment.storageKey.startsWith(prefix) || !leaf || /[\/\\\u0000-\u001f]/.test(leaf)) throw new ApiError("This attachment does not belong to this conversation. Attach the file again.", 400);
+    if (!CHAT_ATTACHMENT_TYPES.has(attachment.contentType.toLowerCase()) || attachment.sizeBytes > CHAT_ATTACHMENT_MAX_BYTES) throw new ApiError("That file type or size is not allowed in messages", 400);
+    const stored = await headPrivateObject(attachment.storageKey).catch(() => undefined);
+    if (stored === undefined) throw new ApiError("File storage is unavailable. Your message was not sent; try again shortly.", 503);
+    if (!stored) throw new ApiError("An attachment has not finished uploading. Retry the upload, or send the text without it.", 409);
+    if (stored.sizeBytes !== attachment.sizeBytes || (stored.contentType && stored.contentType.split(";")[0].trim().toLowerCase() !== attachment.contentType.toLowerCase())) throw new ApiError("An attachment changed after it was checked. Attach the file again.", 409);
+  }
+
   const kind = input.kind ?? (attachments.length > 0 ? inferKind(attachments) : "TEXT");
   const others = recipientIds(row, user.userId);
 
@@ -630,6 +675,7 @@ export async function sendMessage(
           body,
           replyToId: input.replyToId ?? null,
           clientKey: input.clientKey ?? null,
+          isUrgent: urgent,
           ...(attachments.length
             ? { attachments: { create: attachments.map((a) => ({ ...a, schoolId: user.schoolId })) } }
             : {}),
@@ -669,7 +715,10 @@ export async function sendMessage(
         where: { conversationId, clientKey: input.clientKey },
         include: messageInclude,
       });
-      if (existing) return serialiseMessage(existing);
+      if (existing) {
+        if (existing.senderId !== user.userId) throw new ApiError("That send identifier belongs to another message. Start a new message.", 409);
+        return serialiseMessage(existing);
+      }
     }
     throw error;
   }
@@ -716,9 +765,9 @@ async function notifyAbsentMembers(
       select: { timezone: true },
     });
 
-    const quiet =
-      (user.role === "PARENT" || user.role === "STUDENT") &&
-      isWithinQuietHours(settings, new Date(), school?.timezone ?? "Asia/Karachi");
+    // SKO-415: quiet hours hold back every notification except a message staff explicitly marked
+    // urgent. The message itself is always delivered to the thread and counted as unread.
+    const quiet = !message.isUrgent && isWithinQuietHours(settings, new Date(), school?.timezone ?? "Asia/Karachi");
     if (quiet) return;
 
     const offline: string[] = [];
@@ -741,7 +790,9 @@ async function notifyAbsentMembers(
         userId,
         type: "CHAT_MESSAGE",
         title,
-        message: message.body || "Sent an attachment",
+        // Notification previews never carry the message text: lock screens and shared devices would
+        // otherwise show private school conversations. The thread holds the content.
+        message: message.isUrgent ? "Urgent message. Open Messages to read it." : "Open Messages to read it.",
         icon: "MessageCircle",
         link: `/messages?c=${row.id}`,
         actorId: user.userId,

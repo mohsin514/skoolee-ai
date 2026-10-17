@@ -7,27 +7,13 @@ import { requireMembership } from "@/lib/chat/membership";
 import { getChatSettings } from "@/lib/chat/policy";
 import { chatAttachmentKey } from "@/lib/storage/s3";
 import { createPrivateUploadUrl } from "@/lib/storage/private-upload";
+import { CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TYPES } from "@/lib/chat/attachment-rules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Deliberately narrow. A school messaging system is not a file host, and
-// every type outside this list is one a browser might be talked into
-// executing or rendering as something it is not.
-const ALLOWED_CONTENT_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
-]);
-
-const MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CONTENT_TYPES = CHAT_ATTACHMENT_TYPES;
+const MAX_BYTES = CHAT_ATTACHMENT_MAX_BYTES;
 
 const schema = z.object({
   conversationId: z.string().min(1),

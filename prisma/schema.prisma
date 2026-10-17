@@ -3831,6 +3831,8 @@ model ChatMessage {
   /// Sender-generated id, so a retried POST re-reads the message it already
   /// created instead of posting it twice.
   clientKey String? @map("client_key")
+  /// SKO-415: staff may mark a message urgent so it notifies during quiet hours; it is labelled in the thread.
+  isUrgent  Boolean  @default(false) @map("is_urgent")
 
   createdAt DateTime @default(now()) @map("created_at")
 

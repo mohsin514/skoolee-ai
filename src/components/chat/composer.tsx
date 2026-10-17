@@ -42,7 +42,10 @@ export function Composer({
   onClearEditing,
   onSubmitEdit,
 }: ComposerProps) {
-  const { sendMessage, notifyTyping } = useChat();
+  const { sendMessage, notifyTyping, viewer } = useChat();
+  const [urgent, setUrgent] = useState(false);
+  // Families never raise urgency; staff choose it per message (SKO-415).
+  const canMarkUrgent = Boolean(viewer && viewer.role !== "PARENT" && viewer.role !== "STUDENT");
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -151,8 +154,10 @@ export function Composer({
       if (editing) {
         await onSubmitEdit(body);
       } else {
-        await sendMessage({ body, replyToId: replyTo?.id, attachments });
+        // A failed send stays in the thread with its own Retry/Discard, so the composer can clear.
+        await sendMessage({ body, replyToId: replyTo?.id, attachments, urgent: canMarkUrgent && urgent });
         onClearReply();
+        setUrgent(false);
       }
       setValue("");
       setFiles([]);
@@ -224,6 +229,7 @@ export function Composer({
             {files.map((f, i) => (
               <li
                 key={`${f.file.name}-${i}`}
+                data-upload-state={f.error ? "failed" : f.uploaded ? "ready" : "uploading"}
                 className={cn(
                   "flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[10px] font-bold ring-1",
                   f.error
@@ -242,7 +248,18 @@ export function Composer({
                   <ImageIcon className="h-3 w-3 shrink-0" aria-hidden />
                 )}
                 <span className="max-w-[150px] truncate">{f.file.name}</span>
-                {f.error && <span>· {f.error}</span>}
+                {f.error && <span role="alert">· {f.error}. Your message draft is still here.</span>}
+                {f.error && (
+                  <Button variant="outline" size="sm" type="button" aria-label={`Retry upload of ${f.file.name}`}
+                    onClick={async () => {
+                      const file = f.file;
+                      setFiles((prev) => prev.map((p) => (p.file === file ? { file } : p)));
+                      const result = await uploadFile(file);
+                      setFiles((prev) => prev.map((p) => (p.file === file ? result : p)));
+                    }}>
+                    Retry
+                  </Button>
+                )}
                 <Button variant="outline" size="icon"
                   type="button"
                   aria-label={`Remove ${f.file.name}`}
@@ -257,6 +274,12 @@ export function Composer({
         )}
       </AnimatePresence>
 
+      {canMarkUrgent && !editing && (
+        <label className="mb-1.5 flex w-fit items-center gap-1.5 text-[11px] font-bold text-ink-muted">
+          <input type="checkbox" checked={urgent} onChange={(event) => setUrgent(event.target.checked)} data-urgent-toggle />
+          Urgent: notify even during quiet hours
+        </label>
+      )}
       <InputGroup className="items-end gap-2 p-1.5">
         {!editing && (
           <>

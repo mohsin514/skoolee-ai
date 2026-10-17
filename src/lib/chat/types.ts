@@ -35,6 +35,8 @@ export interface ChatMessageView {
   isDeleted: boolean;
   createdAt: string;
   clientKey: string | null;
+  /** Sent outside quiet-hour suppression by staff; shown as urgent. */
+  isUrgent: boolean;
 }
 
 export interface ConversationMemberView {

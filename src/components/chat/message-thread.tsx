@@ -8,6 +8,9 @@ import {
   BellOff,
   Check,
   CheckCheck,
+  AlertTriangle,
+  Clock,
+  RotateCcw,
   CornerUpLeft,
   Download,
   FileText,
@@ -25,7 +28,7 @@ import {
 import { chatHeader, chatEmptyIcon } from "./chat-styles";
 import { cn } from "@/lib/utils";
 import { roleLabel } from "@/lib/roles";
-import { useChat } from "./chat-provider";
+import { useChat, type SendState } from "./chat-provider";
 import { ChatAvatar } from "./chat-avatar";
 import { Composer } from "./composer";
 import type { ChatMessageView } from "@/lib/chat/types";
@@ -78,6 +81,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     leaveConversation,
     typingUsers,
     closeConversation,
+    sendStates,
+    retryMessage,
+    discardMessage,
+    lastSyncedAt,
+    isConnected,
   } = useChat();
 
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
@@ -332,6 +340,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
             </div>
           )}
 
+          {!isConnected && lastSyncedAt && (
+            <p role="status" className="mb-2 rounded-xl bg-amber-50 px-3 py-2 text-center text-[11px] font-bold text-amber-900" data-chat-offline>
+              Reconnecting. Showing messages up to {clockTime(lastSyncedAt)}; anything sent meanwhile appears when the connection returns.
+            </p>
+          )}
           {isLoadingThread ? (
             <ThreadSkeleton />
           ) : messages.length === 0 ? (
@@ -376,6 +389,10 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         onEdit={() => setEditing(message)}
                         onDelete={() => deleteMessage(message.id)}
                         canModerate={detail.canModerate}
+                        sendState={message.clientKey && message.id.startsWith("pending-") ? sendStates[message.clientKey] : undefined}
+                        seen={isMine && !message.id.startsWith("pending-") && detail.members.some((m) => m.userId !== viewerId && m.lastReadAt !== null && m.lastReadAt >= message.createdAt)}
+                        onRetry={() => message.clientKey && void retryMessage(message.clientKey)}
+                        onDiscard={() => message.clientKey && discardMessage(message.clientKey)}
                       />
                     )}
                   </li>
@@ -484,7 +501,15 @@ function MessageBubble({
   onEdit,
   onDelete,
   canModerate,
+  sendState,
+  seen,
+  onRetry,
+  onDiscard,
 }: {
+  sendState?: SendState;
+  seen: boolean;
+  onRetry: () => void;
+  onDiscard: () => void;
   message: ChatMessageView;
   isMine: boolean;
   grouped: boolean;
@@ -635,16 +660,29 @@ function MessageBubble({
               isMine ? "text-white/70" : "text-ink-faint"
             )}
           >
+            {message.isUrgent && <span className="rounded bg-white/25 px-1 font-black uppercase" data-urgent>Urgent</span>}
             {message.isEdited && !message.isDeleted && <span>edited</span>}
             {clockTime(message.createdAt)}
+            {/* SKO-415: one tick only once the server has stored it; two only when a member has read it.
+                Never a delivery tick for something still on this device. */}
             {isMine &&
               (isPending ? (
-                <Check className="h-2.5 w-2.5" />
+                sendState?.status === "sending" || !sendState ? <span className="inline-flex items-center gap-0.5" data-send-state="sending"><Clock className="h-2.5 w-2.5" aria-hidden />Sending…</span> : null
+              ) : seen ? (
+                <span className="inline-flex items-center" data-send-state="seen" title="Seen"><CheckCheck className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">Seen</span></span>
               ) : (
-                <CheckCheck className="h-2.5 w-2.5" />
+                <span className="inline-flex items-center" data-send-state="sent" title="Sent"><Check className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">Sent</span></span>
               ))}
           </p>
         </div>
+        {isPending && sendState && sendState.status !== "sending" && (
+          <div role="alert" className="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-[10px] font-bold text-rose-700" data-send-state={sendState.status}>
+            <AlertTriangle className="h-3 w-3" aria-hidden />
+            <span>{sendState.status === "unconfirmed" ? sendState.error : `Not sent: ${sendState.error ?? "the server refused it"}`}</span>
+            <Button size="sm" variant="secondary" type="button" onClick={onRetry} aria-label="Retry sending this message"><RotateCcw className="h-3 w-3" aria-hidden />Retry</Button>
+            <Button size="sm" variant="ghost" type="button" onClick={onDiscard} aria-label="Discard this unsent message">Discard</Button>
+          </div>
+        )}
       </div>
 
       {!message.isDeleted && !isPending && (
