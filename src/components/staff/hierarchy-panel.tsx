@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, Layers, Loader2, Network, RefreshCw, TriangleAlert, Users } from "lucide-react";
+import { Building2, Layers, Loader2, Network, RefreshCw, TriangleAlert, Users, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
@@ -20,17 +20,20 @@ import { OrgChart } from "./org-chart";
 import { PositionDialog, type DesignationOption } from "./position-dialog";
 import { DepartmentManager } from "./department-manager";
 import { DesignationLadder } from "./designation-ladder";
+import { WorkloadCover } from "./workload-cover";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import type { OrgChartData, OrgNode } from "@/lib/staff/hierarchy";
 import { Button } from "@/components/ui/button";
 
 
-type Tab = "chart" | "departments" | "ladder";
+type Tab = "chart" | "departments" | "ladder" | "workload";
 
 const TABS: Array<{ key: Tab; label: string; icon: typeof Network }> = [
   { key: "chart", label: "Org chart", icon: Network },
   { key: "departments", label: "Departments", icon: Building2 },
   { key: "ladder", label: "Rank ladder", icon: Layers },
+  { key: "workload", label: "Workload & cover", icon: CalendarClock },
 ];
 
 interface HierarchyResponse extends OrgChartData {
@@ -45,6 +48,7 @@ interface HierarchyResponse extends OrgChartData {
  * campus those roles are allowed to read.
  */
 export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
+  const ui = useUiText();
   const [tab, setTab] = useState<Tab>("chart");
   const [data, setData] = useState<HierarchyResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -140,7 +144,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
               className="flex flex-1 items-center justify-center gap-2"
             >
               <t.icon className="h-3.5 w-3.5" />
-              {t.label}
+              {ui(t.label)}
               {t.key === "ladder" && needsLadder ? (
                 <span className="ml-1 h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="Needs setting up" />
               ) : null}
@@ -193,6 +197,8 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
       ) : null}
 
       {tab === "ladder" ? <DesignationLadder campusId={campusId} onChanged={() => load(true)} /> : null}
+
+      {tab === "workload" ? <WorkloadCover campusId={campusId} /> : null}
 
       {selected && data ? (
         <PositionDialog

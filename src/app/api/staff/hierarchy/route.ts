@@ -82,7 +82,9 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const input = PositionInput.parse(await req.json());
+    const parsed = PositionInput.safeParse(await req.json());
+    if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid position change", 400);
+    const input = parsed.data;
     const { userId, ...rest } = input;
 
     // Nobody may move themselves up their own ladder. A campus admin editing

@@ -404,6 +404,10 @@ export async function setStaffPosition(opts: {
         select: { id: true, fullName: true },
       });
       if (!manager) throw new ApiError("That manager is not an active member of this school", 400);
+      // SKO-399: two simultaneous changes (A→B and B→A) would each pass the walk below on their own
+      // snapshot. One school-wide lock per transaction serialises reporting changes, so the second sees
+      // the first and is refused as a loop.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`staff-reporting:${user.schoolId}`}))`;
       await assertNoReportingCycle(tx, userId, manager.id);
     }
 

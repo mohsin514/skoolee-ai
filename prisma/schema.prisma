@@ -731,6 +731,9 @@ model StaffProfile {
   // Secondary and functional lines live in StaffReportingLine.
   reportsToId String? @map("reports_to_id")
   reportsTo   User?   @relation("StaffManager", fields: [reportsToId], references: [id], onDelete: SetNull)
+  // SKO-399: teaching periods per week this person is contracted for. NULL means unknown, and workload
+  // then shows the count without a percentage rather than inventing a capacity.
+  contractedPeriodsPerWeek Int? @map("contracted_periods_per_week")
 
   employeeCode     String?               @map("employee_code")
   employmentType   StaffEmploymentType   @default(FULL_TIME) @map("employment_type")
