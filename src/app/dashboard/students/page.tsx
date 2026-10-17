@@ -267,7 +267,7 @@ export default function StudentsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Bulk update failed");
-      toast.success(`${data.updated} student${data.updated === 1 ? "" : "s"} set to ${status}`);
+      toast.success(data.unchanged ? ui("{0} student(s) changed; {1} already had this status.", [data.updated, data.unchanged]) : ui("{0} student(s) changed.", [data.updated]));
       setArchiveReview(null);
       await loadStudents();
     } catch (error) {

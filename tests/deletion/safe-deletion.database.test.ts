@@ -112,3 +112,12 @@ test("a whole-school delete still removes everything in one statement", async ()
   await db.school.delete({ where: { id: scratch } });
   assert.equal(await db.student.count({ where: { schoolId: scratch } }), 0);
 });
+
+test("a bulk archive reports each pupil's outcome, including ones already archived", async () => {
+  const fresh = await db.student.create({ data: { schoolId, campusId, classId, fullName: "Synthetic Bulk Pupil", rollNo: "R-77", gender: "FEMALE", enrollmentDate: new Date("2026-04-01Z") } });
+  const first = await (await api.patch("/api/students", { data: { ids: [fresh.id], status: "archived" } })).json();
+  assert.deepEqual([first.updated, first.unchanged], [1, 0]);
+  const again = await (await api.patch("/api/students", { data: { ids: [fresh.id], status: "archived" } })).json();
+  assert.deepEqual(again.outcomes, [{ id: fresh.id, outcome: "unchanged" }]);
+  assert.deepEqual([again.updated, again.unchanged], [0, 1]);
+});

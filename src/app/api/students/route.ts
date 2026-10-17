@@ -938,7 +938,10 @@ export async function PATCH(req: NextRequest) {
         })) });
         return changed;
       });
-      return Response.json({ success: true, updated: result.count, status });
+      // SKO-389: each selected pupil's outcome, so a partly no-op bulk action is explained rather than counted.
+      const changedIds = new Set(changing.map((student) => student.id));
+      const outcomes = owned.map((student) => ({ id: student.id, outcome: changedIds.has(student.id) ? "changed" : "unchanged" as const }));
+      return Response.json({ success: true, updated: result.count, unchanged: outcomes.filter((o) => o.outcome === "unchanged").length, outcomes, status });
     }
 
     const { id, ...updates } = body;
