@@ -233,6 +233,7 @@ model School {
   schoolAiExamClarificationAcks SchoolAiExamClarificationAck[]
   schoolAiExamRemedies SchoolAiExamRemedy[]
   schoolAiEvidencePacks SchoolAiEvidencePack[]
+  schoolAiLanguageProposals SchoolAiLanguageProposal[]
   schoolAiExamFormAllocations SchoolAiExamFormAllocation[]
   schoolAiExamPauses SchoolAiExamPause[]
   teachingAssignments TeachingAssignment[]
@@ -5176,4 +5177,27 @@ model SchoolAiEvidencePack {
 
   @@index([schoolId, campusId, assignmentId, requestedAt])
   @@map("school_ai_evidence_packs")
+}
+
+/// SKO-408 R9.6, R9.7: a model observation over two language versions of one item. The proposal
+/// carries no item edit; it waits for one recorded human decision, which is then frozen.
+model SchoolAiLanguageProposal {
+  id             String    @id @default(uuid())
+  schoolId       String    @default("") @map("school_id")
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String    @map("campus_id")
+  formSetId      String    @map("form_set_id")
+  recordId       String    @map("record_id")
+  recordVersion  Int       @map("record_version")
+  itemGroupId    String    @map("item_group_id")
+  finding        String
+  proposal       Json
+  decisionOutcome String?  @map("decision_outcome")
+  decisionReason String?   @map("decision_reason")
+  decidedById    String?   @map("decided_by_id")
+  decidedAt      DateTime? @map("decided_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, formSetId, recordId, recordVersion])
+  @@map("school_ai_language_proposals")
 }

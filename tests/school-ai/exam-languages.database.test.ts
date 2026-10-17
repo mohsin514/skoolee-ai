@@ -7,7 +7,8 @@ import { prisma } from "../../src/lib/db/prisma";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/school-ai/repository";
 import { recordRehearsal } from "../../src/lib/school-ai/exam-release-service";
-import { addLanguageVersion, assignFormSet, createFormSet, formSetReport } from "../../src/lib/school-ai/form-set-service";
+import { addLanguageVersion, assignFormSet, createFormSet, decideLanguageProposal, formSetReport, proposeLanguageComparison } from "../../src/lib/school-ai/form-set-service";
+import { itemGroupIdFor } from "../../src/lib/school-ai/form-set";
 import { paperDataSchema } from "../../src/lib/school-ai/assessment";
 import { assessmentFixture } from "./assessment-fixture";
 
@@ -67,6 +68,40 @@ test("a marks or key-structure difference blocks the set until it is corrected (
   assert.ok(report.blockers.some(blocker => blocker.code === "KEY_STRUCTURE_MISMATCH"));
   await updateWorkspaceRecord(author, row.id, { version: broken.version, data: translated as unknown as Record<string, unknown> });
   assert.equal((await formSetReport(author, formSetId)).blockers.length, 0);
+});
+
+test("a model comparison proposes quoted findings that wait for one human decision and never edit an item (R9.6, R9.7)", async () => {
+  await raw.school.update({ where: { id: schoolId }, data: { plan: "PRO" } });
+  const row = await arabic(), original = paperDataSchema.parse((await raw.schoolAiRecord.findUniqueOrThrow({ where: { id: paperId } })).data);
+  const group = itemGroupIdFor(original, "q1");
+  let calls = 0;
+  const generator = async () => { calls++; return { text: JSON.stringify({ findings: [
+    { itemGroupId: group, finding: "CHANGED_NOTATION", excerpts: { a: "2 + 2", b: "2 + 2" }, explanation: "Synthetic: the operator is written the same way; listed so a reviewer can confirm the notation.", confidence: 0.4 },
+    { itemGroupId: group, finding: "NEGATION_ADDED", excerpts: { a: "not in the paper", b: "ليس في الورقة" }, explanation: "Synthetic invented quote.", confidence: 0.9 },
+    { itemGroupId: "no-such-group", finding: "CHANGED_UNIT", excerpts: { a: "2", b: "2" }, explanation: "Synthetic unknown item.", confidence: 0.5 },
+  ] }), tokensUsed: 10, model: "synthetic-fixture", promptVersion: "test" }; };
+  const names = ["OPENAI_API_KEY", "OPENAI_BASE_URL", "AI_PROVIDER"] as const, saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  process.env.OPENAI_API_KEY = "synthetic-never-network"; process.env.OPENAI_BASE_URL = "https://api.openai.com/v1"; process.env.AI_PROVIDER = "openai";
+  try {
+    const key = randomUUID();
+    const scoped = <T>(fn: () => Promise<T>) => runWithTenantContext({ schoolId, campusId, userId: author.userId, role: author.role }, fn);
+    const proposals = await scoped(() => proposeLanguageComparison(author, formSetId, { recordId: row.id, idempotencyKey: key }, generator));
+    assert.deepEqual(proposals.map(entry => entry.finding), ["CHANGED_NOTATION"], "a finding that quotes text not in the items, or names an unknown item, is dropped");
+    assert.deepEqual((await scoped(() => proposeLanguageComparison(author, formSetId, { recordId: row.id, idempotencyKey: key }, generator))).map(entry => entry.id), proposals.map(entry => entry.id), "a retry returns the same proposals");
+    assert.equal(calls, 1);
+  } finally { for (const name of names) { if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; } }
+  assert.equal((await arabic()).version, row.version, "no item is edited by a model comparison (R9.7)");
+  let report = await formSetReport(author, formSetId);
+  assert.equal(report.languages[0].proposals.length, 1);
+  assert.equal(report.languages[0].proposals[0].decision, null);
+  assert.ok(report.advisories.some(entry => entry.code === "MODEL_COMPARISON_AWAITING_DECISION"), "it is shown to the approver as awaiting a decision");
+  const proposalId = report.languages[0].proposals[0].id;
+  await assert.rejects(() => decideLanguageProposal(author, formSetId, proposalId, { outcome: "DISMISSED", reason: "Same notation." }), { status: 403 }, "only an approver decides");
+  await decideLanguageProposal(lead, formSetId, proposalId, { outcome: "DISMISSED", reason: "The notation is identical in both versions." });
+  await assert.rejects(() => decideLanguageProposal(lead, formSetId, proposalId, { outcome: "ACCEPTED", reason: "Changed my mind." }), { status: 409 }, "a decision is recorded once");
+  await assert.rejects(() => raw.schoolAiLanguageProposal.update({ where: { id: proposalId }, data: { finding: "CHANGED_MEANING" } }), /immutable/);
+  report = await formSetReport(author, formSetId);
+  assert.deepEqual([report.languages[0].proposals[0].decision?.outcome, report.advisories.length], ["DISMISSED", 0]);
 });
 
 test("each candidate sits the form in their own language when an approved version exists; each language is sealed separately", async () => {

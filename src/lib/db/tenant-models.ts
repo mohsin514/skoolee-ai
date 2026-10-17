@@ -139,6 +139,7 @@ export const TENANT_MODELS = new Set<string>([
   "schoolAiExamResultRevision",
   "schoolAiExecution",
   "schoolAiExposureEntry",
+  "schoolAiLanguageProposal",
   "schoolAiProctorClip",
   "schoolAiProctorSession",
   "schoolAiRecord",

@@ -123,3 +123,30 @@ test("Arabic lead reads the side-by-side review right-to-left without overflow a
   await shot(page, "languages-compare-ar-390");
   assert.deepEqual(errors, []); await ctx.close();
 });
+
+test("the lead reads a model finding with its quotes and records a decision with a reason (R9.6)", async () => {
+  // The provider is not configured in this isolated environment, so the proposal is seeded exactly as
+  // proposeLanguageComparison stores it; exam-languages.database.test.ts covers the model call itself.
+  const row = await arabic(), paper = paperDataSchema.parse(row.data);
+  const group = paper.itemGroupIds?.q1 ?? "q1";
+  const proposal = await raw.schoolAiLanguageProposal.create({ data: { schoolId: row.schoolId, campusId: row.campusId!, formSetId: paper.formSet!.id, recordId: row.id, recordVersion: row.version, itemGroupId: group, finding: "CHANGED_NOTATION", proposal: {
+    itemGroupId: group, finding: "CHANGED_NOTATION", languages: { a: "en", b: "ar" }, excerpts: { a: "2 + 2", b: "2 + 2" },
+    explanation: "Synthetic finding: the operator is written the same way in both versions.", uncertainty: { method: "Model comparison of two language versions (synthetic)", confidence: 0.35, knownBenignCauses: ["Equivalent notation conventions that differ between the two languages"] },
+    proposedBy: { model: "synthetic", at: new Date().toISOString() }, idempotencyKey: randomUUID(),
+  } } });
+  const ctx = await context("lead"), page = await ctx.newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const space = await openForms(page, /Blueprint/);
+  const finding = space.locator(`[data-model-finding="CHANGED_NOTATION"][data-decision="PENDING"]`);
+  await finding.waitFor();
+  await finding.getByText("Confidence 35%").waitFor();
+  await finding.getByLabel("Reason for your decision").fill("The notation is identical in both versions.");
+  await finding.scrollIntoViewIfNeeded();
+  await shot(page, "languages-model-finding-en-1440");
+  await finding.getByRole("button", { name: "Dismiss" }).click();
+  await space.locator(`[data-model-finding="CHANGED_NOTATION"][data-decision="DISMISSED"]`).waitFor();
+  const decided = await raw.schoolAiLanguageProposal.findUniqueOrThrow({ where: { id: proposal.id } });
+  assert.deepEqual([decided.decisionOutcome, decided.decisionReason], ["DISMISSED", "The notation is identical in both versions."]);
+  assert.equal((await arabic()).version, row.version, "deciding never edits the item (R9.7)");
+  assert.deepEqual(errors, []); await ctx.close();
+});

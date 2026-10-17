@@ -22,7 +22,8 @@ const MISMATCH_COPY: Record<string, "mismatchMarks" | "mismatchKey" | "mismatchT
 type Report = {
   id: string; status: string; maxForms: number; difficulty: "NOT_MEASURED";
   forms: Array<{ label: string; language: Lang; original: boolean; recordId: string; title: string; version: number; status: string; items: number; marks: number; outcomes: number; parity: boolean; rehearsed: "CLEAN" | "BLOCKING" | "NONE"; priorExposure: number }>;
-  languages: Array<{ label: string; language: Lang; originalLanguage: Lang; recordId: string; blocking: number; agreed: number; items: Array<{ number: number; codes: string[]; untranslated: boolean; original: Side; translated: Side | null }> }>;
+  languages: Array<{ label: string; language: Lang; originalLanguage: Lang; recordId: string; blocking: number; agreed: number;
+    proposals: Array<{ id: string; number: number; finding: string; excerpts: { a: string; b: string }; explanation: string; confidence: number; method: string; knownBenignCauses: string[]; decision: { outcome: string; reason: string; at: string } | null }>; items: Array<{ number: number; codes: string[]; untranslated: boolean; original: Side; translated: Side | null }> }>;
   shared: number; differing: number; identical: Array<{ label: string; number: number; referenceNumber: number }>;
   blockers: Array<{ code: string; label: string | null; language: Lang | null; subject: string | null }>; assignable: boolean;
 };
@@ -75,14 +76,14 @@ export default function BlueprintSpace({ language, scope, records, capabilities,
         <Button disabled={busy} onClick={() => void post(`/api/school-ai/workspace/${encodeURIComponent(paper.id)}/form-set`, { forms: 2 }).then(result => { if (result) reload(); })}>{t.create}</Button>
         <Button variant="outline" disabled={busy} onClick={() => void post(`/api/school-ai/workspace/${encodeURIComponent(paper.id)}/form-set`, { forms: 1 }).then(result => { if (result) reload(); })}>{t.languagesOnly}</Button>
       </div>}
-    </section> : state && <SpaceStateRegion state={state} language={language}>{report => <FormSetView report={report} language={language} busy={busy} canCreate={capabilities.canCreate}
+    </section> : state && <SpaceStateRegion state={state} language={language}>{report => <FormSetView report={report} language={language} busy={busy} canCreate={capabilities.canCreate} canApprove={capabilities.canApprove} onReviewed={() => void load()}
       onAdd={body => void post(`/api/school-ai/form-sets/${encodeURIComponent(report.id)}`, body).then(result => { if (result) { reload(); void load(); } })}
       onAssign={async body => { const result = await post(`/api/school-ai/form-sets/${encodeURIComponent(report.id)}/assign`, body); if (result) { setNotice({ tone: "ok", text: [t.assignedLead, ...(result.assigned.assignments as Array<{ label: string; candidates: number }>).map(row => fill(t.assigned, [row.label, new Intl.NumberFormat(language).format(row.candidates)]))].join(" ") }); void load(); } }}
       rosterPaperId={report.forms[0]?.recordId ?? paper.id} />}</SpaceStateRegion>}
   </div>;
 }
 
-function FormSetView({ report, language, busy, canCreate, onAdd, onAssign, rosterPaperId }: { report: Report; language: StudioSpaceProps["language"]; busy: boolean; canCreate: boolean; onAdd: (body?: { label: string; language: Lang }) => void; onAssign: (body: Record<string, unknown>) => Promise<void>; rosterPaperId: string }) {
+function FormSetView({ report, language, busy, canCreate, canApprove, onReviewed, onAdd, onAssign, rosterPaperId }: { report: Report; language: StudioSpaceProps["language"]; busy: boolean; canCreate: boolean; canApprove: boolean; onReviewed: () => void; onAdd: (body?: { label: string; language: Lang }) => void; onAssign: (body: Record<string, unknown>) => Promise<void>; rosterPaperId: string }) {
   const t = examFormsCopy(language);
   const number = (value: number) => new Intl.NumberFormat(language).format(value);
   const status = (value: string) => value === "APPROVED" ? t.approved : value === "IN_REVIEW" ? t.inReview : t.draft;
@@ -108,7 +109,7 @@ function FormSetView({ report, language, busy, canCreate, onAdd, onAssign, roste
         <AddLanguage report={report} language={language} busy={busy} onAdd={onAdd} />
       </div>}
     </section>
-    {report.languages.map(version => <LanguageCompare key={version.recordId} version={version} language={language} />)}
+    {report.languages.map(version => <LanguageCompare key={version.recordId} version={version} language={language} formSetId={report.id} canCreate={canCreate} canApprove={canApprove} onReviewed={onReviewed} />)}
     {sealed ? <p role="status" className="sk-panel p-4 text-sm font-semibold">{t.sealed}</p> : report.blockers.length > 0 || !report.assignable
       ? <section role="alert" className="space-y-1 rounded-xl border border-status-warning-border p-3 text-sm"><p className="font-semibold">{t.blockersTitle}</p><ul className="list-disc ps-5">
         {formBlockers.map((blocker, index) => <li key={index} data-blocker={blocker.code}>{fill(t.blocker, [blocker.label!, t[CODE_COPY[blocker.code] ?? "codeOther"]])}</li>)}
@@ -159,7 +160,7 @@ function AddLanguage({ report, language, busy, onAdd }: { report: Report; langua
 }
 
 /** R9.3: the original and its translation side by side, item by item, with every structural difference named. */
-function LanguageCompare({ version, language }: { version: Report["languages"][number]; language: StudioSpaceProps["language"] }) {
+function LanguageCompare({ version, language, formSetId, canCreate, canApprove, onReviewed }: { version: Report["languages"][number]; language: StudioSpaceProps["language"]; formSetId: string; canCreate: boolean; canApprove: boolean; onReviewed: () => void }) {
   const t = examFormsCopy(language);
   const number = (value: number) => new Intl.NumberFormat(language).format(value);
   const side = (value: Side | null, lang: Lang) => value ? <div lang={lang} dir="auto" className="space-y-1">
@@ -172,9 +173,46 @@ function LanguageCompare({ version, language }: { version: Report["languages"][n
     <h3 id={`compare-${version.recordId}`} className="font-semibold">{fill(t.compareTitle, [version.label, t[LANG_COPY[version.language]], t[LANG_COPY[version.originalLanguage]]])}</h3>
     <p className="text-sm text-ink-subtle">{t.compareHint}</p>
     <p className="text-sm">{fill(t.agreed, [number(version.agreed), number(version.items.length)])}</p>
+    <ModelReview version={version} language={language} formSetId={formSetId} canCreate={canCreate} canApprove={canApprove} onReviewed={onReviewed} />
     <ol className="grid gap-2">{version.items.map(item => <li key={item.number} className="rounded-xl border p-3 text-sm" data-language-item={item.number} data-language-codes={item.codes.join(" ")}>
       <p className="mb-2 text-xs font-semibold">{fill(t.form, [version.label])} · #{number(item.number)}{item.codes.map(code => <span key={code} className="ms-2 rounded-full border border-status-error-border px-2 text-status-error-text">{t[MISMATCH_COPY[code] ?? "mismatchKey"]}</span>)}{item.untranslated ? <span className="ms-2 rounded-full border border-status-warning-border px-2 text-status-warning-text">{t.untranslated}</span> : null}</p>
       <div className="grid gap-3 md:grid-cols-2"><div><p className="text-xs font-semibold text-ink-subtle">{t.original}</p>{side(item.original, version.originalLanguage)}</div><div><p className="text-xs font-semibold text-ink-subtle">{t.translated}</p>{side(item.translated, version.language)}</div></div>
     </li>)}</ol>
   </section>;
+}
+
+const FINDING_COPY: Record<string, "findingMeaning" | "findingNegationAdded" | "findingNegationRemoved" | "findingUnit" | "findingNotation"> = { CHANGED_MEANING: "findingMeaning", NEGATION_ADDED: "findingNegationAdded", NEGATION_REMOVED: "findingNegationRemoved", CHANGED_UNIT: "findingUnit", CHANGED_NOTATION: "findingNotation" };
+const DECISION_COPY: Record<string, "decidedAccepted" | "decidedDismissed" | "decidedCorrection"> = { ACCEPTED: "decidedAccepted", DISMISSED: "decidedDismissed", CORRECTION_REQUESTED: "decidedCorrection" };
+
+/** SKO-408 R9.6, R9.7: model findings are proposals; each waits for one recorded human decision. */
+function ModelReview({ version, language, formSetId, canCreate, canApprove, onReviewed }: { version: Report["languages"][number]; language: StudioSpaceProps["language"]; formSetId: string; canCreate: boolean; canApprove: boolean; onReviewed: () => void }) {
+  const t = examFormsCopy(language);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const send = async (path: string, body: unknown) => {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) { setError(typeof payload.error === "string" ? payload.error : t.failed); return; }
+      onReviewed();
+    } finally { setBusy(false); }
+  };
+  const base = `/api/school-ai/form-sets/${encodeURIComponent(formSetId)}/language-review`;
+  return <div className="space-y-2 rounded-xl border p-3" data-model-review>
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-ink-subtle">{t.modelReviewHint}</p>
+      {canCreate && <Button size="sm" variant="outline" disabled={busy} onClick={() => void send(base, { recordId: version.recordId, idempotencyKey: crypto.randomUUID() })}>{busy ? t.modelReviewing : t.modelReview}</Button>}</div>
+    {error && <p role="alert" className="text-sm text-status-error-text"><bdi dir="auto">{error}</bdi></p>}
+    {version.proposals.length === 0 ? <p className="text-sm text-ink-subtle">{t.modelNone}</p> : <ul className="grid gap-2">{version.proposals.map(proposal => <li key={proposal.id} className="space-y-1 rounded-lg border p-2 text-sm" data-model-finding={proposal.finding} data-decision={proposal.decision?.outcome ?? "PENDING"}>
+      <p className="font-semibold">#{new Intl.NumberFormat(language).format(proposal.number)} · {t[FINDING_COPY[proposal.finding]]} <span className="ms-2 text-xs font-normal text-ink-subtle">{fill(t.confidence, [new Intl.NumberFormat(language).format(Math.round(proposal.confidence * 100))])}</span></p>
+      <div className="grid gap-2 md:grid-cols-2"><q dir="auto" className="rounded bg-surface-subtle px-2 py-1">{proposal.excerpts.a}</q><q dir="auto" className="rounded bg-surface-subtle px-2 py-1">{proposal.excerpts.b}</q></div>
+      <p dir="auto">{proposal.explanation}</p>
+      <details className="text-xs text-ink-subtle"><summary>{t.benignCauses}</summary><ul className="list-disc ps-5">{proposal.knownBenignCauses.map((cause, index) => <li key={index}>{cause}</li>)}</ul></details>
+      {proposal.decision ? <p className="text-xs font-semibold">{t[DECISION_COPY[proposal.decision.outcome]]} · <bdi dir="auto">{proposal.decision.reason}</bdi></p>
+        : canApprove ? <div className="flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.decisionReason}<input className="rounded-lg border px-2 py-1 text-sm" value={reasons[proposal.id] ?? ""} onChange={event => setReasons(previous => ({ ...previous, [proposal.id]: event.target.value }))} /></label>
+          {(["ACCEPTED", "DISMISSED", "CORRECTION_REQUESTED"] as const).map(outcome => <Button key={outcome} size="sm" variant={outcome === "ACCEPTED" ? "default" : "outline"} disabled={busy || !(reasons[proposal.id] ?? "").trim()} onClick={() => void send(`${base}/${encodeURIComponent(proposal.id)}`, { outcome, reason: reasons[proposal.id] })}>{outcome === "ACCEPTED" ? t.decideAccept : outcome === "DISMISSED" ? t.decideDismiss : t.decideCorrection}</Button>)}</div>
+        : <p className="text-xs text-status-warning-text">{t.awaitingDecision}</p>}
+    </li>)}</ul>}
+  </div>;
 }
