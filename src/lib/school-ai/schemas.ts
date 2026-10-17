@@ -1,3 +1,4 @@
+import { practiceSetSchema } from "./practice";
 import { extractedPageSchema,documentStructureSchema } from "./intake";
 import { knowledgeSchema } from "./knowledge";
 import { schoolSetupProposalSchema } from "./school-setup";
@@ -96,7 +97,7 @@ const placeholderScopeOnlySchema = z.strictObject({
   if (Boolean(value.subjectId) !== Boolean(value.classId)) ctx.addIssue({ code: "custom", path: ["subjectId"], message: "Choose both the subject and its class." });
 });
 export const briefDataSchema = assessmentBriefSchema;
-export const practiceDataSchema = placeholderScopeOnlySchema;
+export const practiceDataSchema = practiceSetSchema;
 
 /** Discriminated input validation prevents arbitrary bags of JSON becoming trusted workflow state. */
 export const workspaceDataSchema = z.discriminatedUnion("kind", [

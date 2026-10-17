@@ -118,13 +118,13 @@ test("the delivery policy body is the schema that owns it, and the placeholder b
   // `maxForms` configures down from the platform ceiling, never up, and the record is strict.
   assert.throws(() => parseWorkspaceData("DELIVERY_POLICY", policyData({ maxForms: 5 })));
   assert.throws(() => parseWorkspaceData("DELIVERY_POLICY", { ...policyData(), browserExamKey: "secret" }));
-  // PRACTICE is registered before its body is designed, so until its owning task lands a schema the
-  // body is refused rather than waved through as a bag of JSON. BRIEF has since taken its real body
-  // (`assessmentBriefSchema`, SKO-408 task 5.1), which keeps the same paired teaching scope and is
-  // covered by `exam-studio-brief.test.ts`; the scope pairing is asserted here for both.
-  assert.deepEqual(parseWorkspaceData("PRACTICE", { subjectId: "math", classId: "grade-8" }), { subjectId: "math", classId: "grade-8" });
-  assert.throws(() => parseWorkspaceData("PRACTICE", { decisions: {}, readiness: "ready" }), Error);
-  assert.throws(() => parseWorkspaceData("PRACTICE", { subjectId: "math" }), Error, "a subject travels only with its class");
+  // PRACTICE has its real body now (`practiceSetSchema`, SKO-408 R18.4): a bare teaching scope is no
+  // longer a practice set, and an item that names an exam outside the set is refused.
+  const item = { sourceAssignmentId: "exam-1", questionId: "q1", prompt: "What is 2 + 2?", type: "SINGLE_CHOICE", options: [{ id: "a1", text: "4" }], marks: 2, outcomeIds: ["outcome-1"] };
+  assert.equal((parseWorkspaceData("PRACTICE", { subjectId: "math", classId: "grade-8", outcomeIds: ["outcome-1"], sourceAssignmentIds: ["exam-1"], items: [item] }) as { items: unknown[] }).items.length, 1);
+  assert.throws(() => parseWorkspaceData("PRACTICE", { subjectId: "math", classId: "grade-8" }), Error, "a scope alone is not a practice set");
+  assert.throws(() => parseWorkspaceData("PRACTICE", { subjectId: "math", classId: "grade-8", outcomeIds: ["outcome-1"], sourceAssignmentIds: ["exam-2"], items: [item] }), Error, "items come from the set's released exams");
+  assert.throws(() => parseWorkspaceData("PRACTICE", { subjectId: "math", classId: "grade-8", outcomeIds: ["outcome-1"], sourceAssignmentIds: ["exam-1"], items: [{ ...item, correctOptionId: "a1" }] }), Error, "no key travels in practice");
   assert.throws(() => parseWorkspaceData("BRIEF", { subjectId: "math", classId: "grade-8" }), Error, "a brief body is the brief, not a scope on its own");
 });
 

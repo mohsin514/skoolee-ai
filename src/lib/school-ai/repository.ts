@@ -131,6 +131,31 @@ export async function resolveScopeDeliveryPolicy(user: AuthUser, campusId: strin
   return resolveDeliveryPolicy(approved ? { recordId: approved.recordId, version: approved.version, data: approved.data } : null);
 }
 
+/**
+ * SKO-408 R18.4, R18.5: practice items are copied from released exams of the same class and subject,
+ * exactly as delivered, and never from an item group that is scheduled in an exam still to come.
+ */
+async function validatePracticeReferences(user: AuthUser, campusId: string | null, data: Record<string, unknown>, db: TxClient) {
+  const { practiceSetSchema } = await import("./practice");
+  const practice = practiceSetSchema.parse(data);
+  const now = new Date();
+  const assignments = await db.schoolAiExamAssignment.findMany({ where: { id: { in: practice.sourceAssignmentIds }, schoolId: user.schoolId }, select: { id: true, campusId: true, classId: true, endsAt: true, resultsReleasedAt: true, paperSnapshot: true } });
+  for (const sourceId of practice.sourceAssignmentIds) {
+    const assignment = assignments.find(row => row.id === sourceId);
+    if (!assignment || assignment.campusId !== campusId || assignment.classId !== practice.classId) throw new SchoolAiError("Practice can only come from exams of this class and campus.", 403);
+    if (!assignment.resultsReleasedAt || assignment.endsAt > now) throw new SchoolAiError("Practice can only use items from an exam whose results are released.", 409, "PRACTICE_SOURCE_UNRELEASED");
+    if (paperDataSchema.parse(assignment.paperSnapshot).subjectId !== practice.subjectId) throw new SchoolAiError("Practice can only come from exams of this subject.", 403);
+  }
+  const groups: string[] = [];
+  for (const item of practice.items) {
+    const paper = paperDataSchema.parse(assignments.find(row => row.id === item.sourceAssignmentId)!.paperSnapshot);
+    const question = paper.questions.find(entry => entry.id === item.questionId);
+    if (!question || question.prompt !== item.prompt || question.type !== item.type || question.marks !== item.marks || !isDeepStrictEqual(question.options, item.options)) throw new SchoolAiError("A practice item must match the released item exactly.", 409, "PRACTICE_ITEM_CHANGED");
+    groups.push(paper.itemGroupIds?.[question.id] ?? question.id);
+  }
+  if (await db.schoolAiExposureEntry.count({ where: { schoolId: user.schoolId, itemGroupId: { in: groups }, examDate: { gt: now } } })) throw new SchoolAiError("An item in this practice set is scheduled in a future exam and cannot be used for practice.", 409, "PRACTICE_FUTURE_EXPOSURE");
+}
+
 async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId: string | null, data: Record<string, unknown>, db: TxClient, permissions: WorkspacePermissionSnapshot) {
   if(kind==="POLICY")await validateKnowledgeReferences(user,null,campusId,data,db,permissions);
   if (kind === DELIVERY_POLICY_KIND) {
@@ -147,6 +172,7 @@ async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId:
   // source record and version; resolving those against an approved source revision needs a read, so
   // it belongs to the brief service in SKO-408 task 5.2 — as a branch here — and not to the pure
   // schema, which bounds their shape only.
+  if (kind === "PRACTICE") await validatePracticeReferences(user, campusId, data, db);
   if (kind === "PAPER") {
     const paper = paperDataSchema.parse(data);
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);

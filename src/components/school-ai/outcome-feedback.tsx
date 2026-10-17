@@ -31,10 +31,21 @@ export function LearnerFeedback({ id, language }: { id: string; language: Langua
     void fetch(`/api/school-ai/exams/${encodeURIComponent(id)}/improvement`, { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(payload => { if (live) setFeedback(payload?.improvement?.feedback ?? null); }).catch(() => undefined);
     return () => { live = false; };
   }, [id]);
+  const [practice, setPractice] = useState<Array<{ id: string; title: string; items: Array<{ prompt: string; options: string[]; marks: number }> }>>([]);
+  useEffect(() => {
+    let live = true;
+    void fetch("/api/school-ai/practice", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(payload => { if (live) setPractice(payload?.sets ?? []); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [id]);
   if (!feedback?.length) return null;
   return <section aria-labelledby="learner-feedback" className="sk-panel space-y-1 p-5" data-learner-feedback>
     <h2 id="learner-feedback" className="text-lg font-bold">{t.learnerTitle}</h2>
     <p className="text-sm text-ink-subtle">{t.learnerIntro}</p>
     <OutcomeFeedbackList feedback={feedback} language={language} />
+    {practice.length > 0 && <div className="mt-4 space-y-2" data-learner-practice>
+      <h3 className="font-semibold">{t.learnerPracticeTitle}</h3>
+      {practice.map(set => <div key={set.id} className="rounded-lg border p-3 text-sm"><p className="font-semibold"><bdi dir="auto">{set.title}</bdi></p>
+        <ol className="mt-1 list-decimal space-y-1 ps-5">{set.items.map((item, index) => <li key={index}><span dir="auto">{item.prompt}</span>{item.options.length > 0 && <ul className="list-disc ps-5 text-xs">{item.options.map((option, optionIndex) => <li key={optionIndex} dir="auto">{option}</li>)}</ul>}</li>)}</ol></div>)}
+    </div>}
   </section>;
 }
