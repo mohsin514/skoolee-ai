@@ -186,6 +186,9 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     else if (record.kind === "CURRICULUM" || record.kind === "PAPER") setTab("curriculum");
   };
 
+  // SKO-470: a shared run link (#run-<id>) reopens the runs tab, where the panel focuses that run.
+  const runsVisible = !examOnly && manager && Boolean(capabilities?.tools?.length);
+  useEffect(() => { if (!runsVisible || !window.location.hash.startsWith("#run-")) return; const frame = requestAnimationFrame(() => setTab("runs")); return () => cancelAnimationFrame(frame); }, [runsVisible]);
   if (loading) return <TaskLoading label={c.loading} />;
   if (!capabilities) return <TaskFeedback kind="error" title={c.failed} action={<Button onClick={() => { setLoading(true); void refresh(); }}><RefreshCw aria-hidden="true" />{c.retry}</Button>} />;
   const active = visibleRecords.filter(record => record.status !== "ARCHIVED");
