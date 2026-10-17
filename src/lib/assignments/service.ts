@@ -220,7 +220,8 @@ export async function getAssignment(user: AuthUser, assignmentId: string, now = 
       mode: "staff" as const,
       assignment: { ...assignment, rubric: parseRubric(assignment.rubric) },
       release: release ? { ...release } : null, versions, rubrics, queue, resources,
-      newLearners: enrolled.filter(s => !release?.audience.includes(s.id)).length,
+      // A group-targeted task is not expected to reach every new learner in the class.
+      newLearners: assignment.audienceStudentIds?.length ? 0 : enrolled.filter(s => !release?.audience.includes(s.id)).length,
       fileTypeGroups: Object.keys(FILE_TYPE_GROUPS),
     };
   });
@@ -242,12 +243,18 @@ const draftFields = {
   rubric: rubricSchema.default([]),
   objectives: objectives.nullable().optional(),
   resourceIds: z.array(z.string().min(1)).max(10).default([]),
+  // SKO-414: optional learner subset (a lesson group). Omitted on update keeps the current audience.
+  audienceStudentIds: z.array(z.string().min(1)).max(200).optional(),
   externalRef: z.string().regex(/^[a-z][a-z0-9-]{1,30}:[^\s]{1,120}$/, "Namespace external ids, e.g. classroom:12345.").nullable().optional(),
 };
 export const createInput = z.object({ classId: z.string().min(1), ...draftFields }).strict();
 export const updateInput = z.object({ ...draftFields, expectedUpdatedAt: z.string().datetime() }).strict();
 
-async function checkDraftLinks(tx: TxClient, user: AuthUser, classId: string, input: { subjectId?: string | null; objectives?: z.infer<typeof objectives> | null; resourceIds: string[] }) {
+async function checkDraftLinks(tx: TxClient, user: AuthUser, classId: string, input: { subjectId?: string | null; objectives?: z.infer<typeof objectives> | null; resourceIds: string[]; audienceStudentIds?: string[] }) {
+  if (input.audienceStudentIds?.length) {
+    const ids = [...new Set(input.audienceStudentIds)];
+    if (await tx.student.count({ where: { schoolId: user.schoolId, classId, archivedAt: null, id: { in: ids } } }) !== ids.length) throw new ApiError("A group may include only learners in this class.", 400);
+  }
   if (input.subjectId && !(await tx.subject.findFirst({ where: { id: input.subjectId, schoolId: user.schoolId, classId }, select: { id: true } }))) throw new ApiError("Choose a subject of this class.", 400);
   if (input.objectives) await assertObjectivesExist(tx, user, classId, input.objectives);
   if ((await resourcesOf(tx, user, classId, input.resourceIds)).length !== new Set(input.resourceIds).size) throw new ApiError("Attach only published class resources.", 400);
@@ -256,6 +263,7 @@ const draftData = (input: z.infer<typeof updateInput> | z.infer<typeof createInp
   subjectId: input.subjectId ?? null, title: input.title, instructions: input.instructions, submissionMode: input.submissionMode, allowedTypes: input.allowedTypes,
   opensLocal: input.opensLocal ?? null, dueLocal: input.dueLocal ?? null, latePolicy: input.latePolicy, resubmission: input.resubmission,
   rubric: input.rubric, objectives: input.objectives ?? Prisma.DbNull, resourceIds: [...new Set(input.resourceIds)], externalRef: input.externalRef ?? null,
+  ...(input.audienceStudentIds ? { audienceStudentIds: [...new Set(input.audienceStudentIds)] } : {}),
 });
 
 export async function createAssignment(user: AuthUser, raw: unknown) {
@@ -299,7 +307,11 @@ async function planRelease(tx: TxClient, user: AuthUser, assignment: Assignment,
   } catch (error) { issues.push(error instanceof Error ? error.message : "Choose a valid time."); }
   if (dueAt && dueAt <= opensAt) issues.push("The due time must be after the time the work opens.");
   if (dueAt && !assignment.currentVersion && dueAt <= now) issues.push("The due time has already passed.");
-  const roster = await tx.student.findMany({ where: { schoolId: user.schoolId, classId: assignment.classId, archivedAt: null }, select: { id: true, fullName: true, rollNo: true }, orderBy: { rollNo: "asc" } });
+  const classRoster = await tx.student.findMany({ where: { schoolId: user.schoolId, classId: assignment.classId, archivedAt: null }, select: { id: true, fullName: true, rollNo: true }, orderBy: { rollNo: "asc" } });
+  // SKO-414: a group-targeted task releases only to group members still in the class.
+  const subset = assignment.audienceStudentIds ?? [];
+  const roster = subset.length ? classRoster.filter(s => subset.includes(s.id)) : classRoster;
+  if (subset.length && roster.length !== new Set(subset).size) issues.push(`${new Set(subset).size - roster.length} learner(s) in this group are no longer in the class. Update the group in the lesson plan.`);
   if (!roster.length) issues.push("This class has no enrolled learners.");
   const lastRubric = await tx.assignmentRubricVersion.findFirst({ where: { schoolId: user.schoolId, assignmentId: assignment.id }, orderBy: { version: "desc" } });
   const rubricChanged = !lastRubric || !sameRubric(parseRubric(lastRubric.criteria), rubric);

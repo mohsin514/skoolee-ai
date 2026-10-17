@@ -15,6 +15,8 @@ import { DELIVERY_POLICY_KIND, resolveDeliveryPolicy, type ResolvedDeliveryPolic
 import { legacyWorkspaceRequestHash } from "./canonical";
 import { createWorkspaceSchema, parseWorkspaceData, updateWorkspaceSchema, workspaceIdSchema } from "./schemas";
 import { curriculumDataSchema, paperDataSchema, validatePaperApproval } from "./assessment";
+import { protectLessonPlans } from "./learning";
+import { canManageOperations } from "@/lib/api/scope";
 import { PaperReviewWriteError, preparePaperContentWrite } from "./item-review";
 import { nextWorkspaceStatus, protectSourceMetadata, TRUSTED_SOURCE_FIELDS, workspaceApprovalIssues, type TrustedSourceMetadata } from "./workflows";
 import type { AiWorkspaceRecord, WorkspaceCreateInput, WorkspaceKind, WorkspaceRevision, WorkspaceStatus, WorkspaceUpdateInput } from "./types";
@@ -351,7 +353,10 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
     assertApprovalSeparation(user, current, await resolveScopeDeliveryPolicy(user, current.campusId, tx)); // R2.4: may this actor approve *this* version?
   }
   await assertSchoolAiAccess(user, action === "archive" ? "delete" : action === "approve" || current.createdById !== user.userId ? "edit" : "add", permissions);
-  const prepared = current.kind === "SOURCE" && input.data ? protectSourceMetadata(input.data, dataOf(current)) : input.data ?? dataOf(current);
+  const prepared = current.kind === "SOURCE" && input.data ? protectSourceMetadata(input.data, dataOf(current))
+    // SKO-414: lesson-plan ownership, AI origin, groups and delivery cannot be forged through a generic save.
+    : current.kind === "CURRICULUM" && input.data ? protectLessonPlansFor(user, input.data, dataOf(current))
+    : input.data ?? dataOf(current);
   const parsed = parseWorkspaceData(current.kind as WorkspaceKind, prepared);
   const data = current.kind === "PAPER" && input.data ? preparePaperWrite(user, parsed, dataOf(current)) : parsed;
   await assertWorkspaceDomainPermission(user, current.kind as WorkspaceKind, data, "edit", permissions);
@@ -439,4 +444,9 @@ export async function getApprovedWorkspaceRevision(user: AuthUser, id: string, v
       return { ...publicRecord(current), title: saved.title, version: saved.version, status: "APPROVED", data: saved.data as AiWorkspaceRecord["data"], updatedAt: saved.createdAt.toISOString() };
     } catch (error) { return translateDatabaseError(error); }
   });
+}
+
+function protectLessonPlansFor(user: AuthUser, next: Record<string, unknown>, previous: Record<string, unknown>) {
+  try { return protectLessonPlans(next, previous, { userId: user.userId, leader: canManageOperations(user) }) as Record<string, unknown>; }
+  catch (error) { throw new SchoolAiError(error instanceof Error ? error.message : "This lesson plan cannot be changed here.", (error as { status?: number }).status ?? 400); }
 }

@@ -18,6 +18,7 @@ import { decodeFrames } from "@/lib/school-ai/generation-stream";
 import { CoverageGaps, QuestionBank, QuestionBankLabels } from "./question-bank";
 import { CurriculumExecution } from "./curriculum-execution";
 import { LearningPlanEditor, LearningTools } from "./learning-plans";
+import { LessonPlanActions } from "./lesson-plan-actions";
 import { PaperSemanticReview } from "./paper-semantic-review";
 import { ExamReleasePanel } from "./exam-release-panel";
 import { learningCopy } from "./learning-copy";
@@ -224,6 +225,8 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
         </>}
       </fieldset>
       {curriculum && <LearningTools key={`learning:${selected?.id ?? "draft"}:${selected?.version ?? 0}`} record={selected} curriculum={curriculum} locale={locale} disabled={dirty || !canCreate || busy || (curriculum.lessonPlans?.length ?? 0) >= 50} onGenerated={plan => { setSelected(null); idempotencyKey.current = uid(); changeCurriculum({ ...curriculum, lessonPlans: [...(curriculum.lessonPlans ?? []).filter(row => row.id !== plan.id), plan] }); setMessage(learningCopy(locale).newDraft); }} />}
+      {/* SKO-414: groups, assignment drafts, lesson records and copying work on the saved version. */}
+      {curriculum && selected?.kind === "CURRICULUM" && !dirty && <LessonPlanActions curriculumId={selected.id} planIds={(curriculum.lessonPlans ?? []).map(plan => plan.id)} titles={Object.fromEntries((curriculum.lessonPlans ?? []).map(plan => [plan.id, plan.title]))} targets={curricula.map(record => ({ id: record.id, title: record.title, version: record.version }))} />}
       {paper && selected && kind === "PAPER" && !dirty && <ExamReleasePanel key={`release:${selected.id}:${selected.version}`} recordId={selected.id} locale={locale} canApprove={canApprove} disabled={!canCreate || busy} onChanged={async () => {
         // Review decisions write a new server version; reopen it so the editor never saves over them.
         const response = await fetch(`/api/school-ai/workspace/${encodeURIComponent(selected.id)}`, { cache: "no-store" }); const payload = await response.json();

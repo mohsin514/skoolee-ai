@@ -6,8 +6,55 @@ export const lessonPlanSchema = z.object({
  activities: z.array(z.object({ title: z.string().trim().min(1).max(200), instructions: z.string().trim().min(1).max(4000), minutes: z.number().int().min(1).max(240) }).strict()).min(1).max(12),
  checks: z.array(z.object({ question: z.string().trim().min(1).max(2000), expectedEvidence: z.string().trim().min(1).max(2000) }).strict()).min(1).max(10),
  adaptations: z.string().max(4000), sourceRefs: z.array(z.object({ sourceId: id, page: z.string().trim().min(1).max(80), excerpt: z.string().trim().min(1).max(3000) }).strict()).min(1).max(30), confirmed: z.boolean(),
+ // SKO-414: the teacher who owns and signs off the plan, whether it began as an AI draft, and the
+ // class resources it uses. Groups, delivery and published tasks live in LessonPlanState so recording
+ // them never reopens an approved curriculum.
+ ownerId: id.optional(), origin: z.enum(["AI", "TEACHER"]).optional(), resourceIds: z.array(id).max(10).optional(),
 }).strict();
 export type LessonPlan = z.infer<typeof lessonPlanSchema>;
+
+/**
+ * SKO-414: fields the generic curriculum save may not forge. Ownership and AI
+ * origin are kept from the saved version (a new plan is owned by its author);
+ * groups, delivery and published tasks change only through the lesson-plan
+ * service; and only the owner — or a school leader — can confirm a plan.
+ */
+export function protectLessonPlans(next: unknown, previous: unknown, actor: { userId: string; leader: boolean }) {
+ if (!next || typeof next !== "object" || !Array.isArray((next as { lessonPlans?: unknown }).lessonPlans)) return next;
+ const before = new Map(((previous as { lessonPlans?: LessonPlan[] } | undefined)?.lessonPlans ?? []).map(plan => [plan.id, plan]));
+ const plans = ((next as { lessonPlans: Array<Record<string, unknown>> }).lessonPlans).map(raw => {
+  const prior = before.get(String(raw.id));
+  const plan: Record<string, unknown> = { ...raw, ownerId: prior?.ownerId ?? actor.userId, origin: prior ? prior.origin : "TEACHER" };
+  if (plan.origin === undefined) delete plan.origin;
+  if (plan.confirmed === true && !(prior?.confirmed) && plan.ownerId !== actor.userId && !actor.leader) throw Object.assign(new Error("Only the teacher who owns this lesson plan can confirm it."), { status: 403 });
+  return plan;
+ });
+ return { ...(next as object), lessonPlans: plans };
+}
+
+export type PlanGroup = { id: string; label: string; studentIds: string[] };
+
+/** Deterministic pre-publication checks for one plan; each issue says how to repair it. */
+export function lessonPlanIssues(plan: LessonPlan, context: { lessonMinutes: number | null; publishedResourceIds: string[]; rosterIds: string[]; groups: PlanGroup[] }) {
+ const issues: string[] = [];
+ const total = plan.activities.reduce((sum, row) => sum + row.minutes, 0);
+ if (total !== plan.durationMinutes) issues.push(`Activities add up to ${total} of ${plan.durationMinutes} minutes. Adjust activity minutes to match the lesson.`);
+ if (context.lessonMinutes && plan.durationMinutes > context.lessonMinutes) issues.push(`The lesson is ${plan.durationMinutes} minutes but a period is ${context.lessonMinutes}. Shorten the plan or split it across lessons.`);
+ const missing = (plan.resourceIds ?? []).filter(id => !context.publishedResourceIds.includes(id));
+ if (missing.length) issues.push(`${missing.length} resource(s) are not published to this class's learners. Publish them or remove them from the plan.`);
+ for (const group of context.groups) {
+  const gone = group.studentIds.filter(id => !context.rosterIds.includes(id));
+  if (gone.length) issues.push(`${group.label} includes ${gone.length} learner(s) no longer in this class. Update the group.`);
+  if (!group.studentIds.length) issues.push(`${group.label} has no learners. Add learners or remove the group.`);
+ }
+ if (!plan.confirmed) issues.push("The owning teacher has not confirmed this plan yet.");
+ return issues;
+}
+
+/** Copy content to another class: groups, dates, observations and confirmation are never copied. */
+export function copyLessonPlan(plan: LessonPlan, ownerId: string, newId: string): LessonPlan {
+ return { ...plan, id: newId, ownerId, confirmed: false };
+}
 export function validateLessonPlan(plan: LessonPlan, curriculum: CurriculumData) {
  const errors: string[]=[];
  if (new Set(plan.outcomeIds).size!==plan.outcomeIds.length || plan.outcomeIds.some(id=>!curriculum.outcomes.some(row=>row.id===id))) errors.push("A learning plan needs distinct curriculum outcomes.");

@@ -226,11 +226,6 @@ model School {
   attendanceRuleVersions  AttendanceRuleVersion[]
   attendanceExplanations  AttendanceExplanation[]
   timetableVersions       TimetableVersion[]
-  learnerLeaveRequests    LearnerLeaveRequest[]
-  trips                   Trip[]
-  tripVersions            TripVersion[]
-  tripInvitees            TripInvitee[]
-  tripConsents            TripConsent[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3079,121 +3074,6 @@ model TimetableVersion {
   @@map("timetable_versions")
 }
 
-/// SKO-421: a guardian's request for a learner's future leave. A school decision is recorded here; the
-/// register itself is only ever changed by staff marking it.
-model LearnerLeaveRequest {
-  id            String    @id @default(uuid())
-  schoolId      String    @default("") @map("school_id")
-  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  campusId      String    @map("campus_id")
-  studentId     String    @map("student_id")
-  requestedById String    @map("requested_by_id")
-  fromDate      DateTime  @db.Date @map("from_date")
-  toDate        DateTime  @db.Date @map("to_date")
-  reason        String    @db.Text
-  status        String    @default("PENDING") // PENDING | CLARIFICATION | APPROVED | DECLINED | CANCELLED
-  reviewNote    String?   @db.Text @map("review_note")
-  reviewedById  String?   @map("reviewed_by_id")
-  reviewedAt    DateTime? @map("reviewed_at")
-  version       Int       @default(1)
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  @@index([schoolId, studentId, fromDate])
-  @@index([campusId, status])
-  @@map("learner_leave_requests")
-}
-
-/// SKO-421: a school trip. Its terms live in numbered versions; families answer one exact version.
-model Trip {
-  id             String    @id @default(uuid())
-  schoolId       String    @default("") @map("school_id")
-  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  campusId       String    @map("campus_id")
-  status         String    @default("OPEN") // OPEN | CANCELLED
-  currentVersion Int       @default(1) @map("current_version")
-  createdById    String    @map("created_by_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-
-  versions TripVersion[]
-  invitees TripInvitee[]
-  consents TripConsent[]
-
-  @@index([campusId, status])
-  @@index([schoolId])
-  @@map("trips")
-}
-
-/// SKO-421: immutable trip terms. A material change publishes a new version that needs fresh answers.
-model TripVersion {
-  id            String   @id @default(uuid())
-  schoolId      String   @default("") @map("school_id")
-  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  tripId        String   @map("trip_id")
-  trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  version       Int
-  title         String
-  destination   String
-  departAt      DateTime @map("depart_at")
-  returnAt      DateTime @map("return_at")
-  costAmount    Int      @default(0) @map("cost_amount")
-  costCurrency  String   @default("PKR") @map("cost_currency")
-  contact       String
-  instructions  String   @db.Text
-  consentKind   String   @map("consent_kind") // fieldTrips | offsiteTravel
-  signatoryRule String   @map("signatory_rule") // ANY_GUARDIAN | ALL_GUARDIANS
-  respondBy     DateTime @map("respond_by")
-  material      Boolean  @default(true)
-  changeNote    String?  @db.Text @map("change_note")
-  publishedById String   @map("published_by_id")
-  publishedAt   DateTime @default(now()) @map("published_at")
-
-  consents TripConsent[]
-
-  @@unique([tripId, version])
-  @@index([schoolId])
-  @@map("trip_versions")
-}
-
-model TripInvitee {
-  id        String @id @default(uuid())
-  schoolId  String @default("") @map("school_id")
-  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  tripId    String @map("trip_id")
-  trip      Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  studentId String @map("student_id")
-
-  @@unique([tripId, studentId])
-  @@index([schoolId])
-  @@map("trip_invitees")
-}
-
-/// SKO-421: one guardian's answer to one exact trip version, kept forever; a withdrawal is a new row.
-model TripConsent {
-  id             String      @id @default(uuid())
-  schoolId       String      @default("") @map("school_id")
-  school         School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  tripId         String      @map("trip_id")
-  trip           Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  tripVersionId  String      @map("trip_version_id")
-  tripVersion    TripVersion @relation(fields: [tripVersionId], references: [id], onDelete: Cascade)
-  studentId      String      @map("student_id")
-  guardianUserId String      @map("guardian_user_id")
-  relationshipId String      @map("relationship_id")
-  choice         String // GRANTED | DECLINED | WITHDRAWN
-  signatoryRule  String      @map("signatory_rule")
-  idempotencyKey String      @map("idempotency_key")
-  receiptCode    String      @map("receipt_code")
-  createdAt      DateTime    @default(now()) @map("created_at")
-
-  @@unique([tripVersionId, guardianUserId, idempotencyKey])
-  @@unique([schoolId, receiptCode])
-  @@index([tripId, studentId])
-  @@index([schoolId])
-  @@map("trip_consents")
-}
-
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
 model PendingRegistration {
   id               String   @id @default(uuid())
@@ -5600,6 +5480,8 @@ model Assignment {
   rubric          Json      @default("[]")
   objectives      Json?
   resourceIds     String[]  @default([]) @map("resource_ids")
+  // SKO-414: a temporary lesson group; empty means the whole class. Each release freezes its audience.
+  audienceStudentIds String[] @default([]) @map("audience_student_ids")
   externalRef     String?   @map("external_ref")
   ownerId         String    @map("owner_id")
   currentVersion  Int?      @map("current_version")
@@ -6179,4 +6061,42 @@ model TeacherSupportNote {
   @@index([teacherId, academicYear])
   @@index([schoolId])
   @@map("teacher_support_notes")
+}
+
+// ─── SKO-414: lesson-plan working state ─────────────────────
+// Per plan (inside a curriculum record): temporary private groups, what
+// happened when it was taught, and the assignment drafts made from it.
+// Kept apart from the curriculum so recording a lesson never reopens an
+// approved curriculum; every change is versioned in LessonPlanEvent.
+model LessonPlanState {
+  id                  String   @id @default(uuid())
+  schoolId            String   @default("") @map("school_id")
+  campusId            String   @map("campus_id")
+  curriculumId        String   @map("curriculum_id")
+  planId              String   @map("plan_id")
+  groups              Json     @default("[]")
+  delivery            Json?
+  publishedActivities Json     @default("[]") @map("published_activities")
+  version             Int      @default(1)
+  updatedById         String   @map("updated_by_id")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@unique([curriculumId, planId])
+  @@index([schoolId])
+  @@map("lesson_plan_states")
+}
+
+model LessonPlanEvent {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  stateId   String   @map("state_id")
+  version   Int
+  kind      String
+  actorId   String   @map("actor_id")
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([stateId, createdAt])
+  @@index([schoolId])
+  @@map("lesson_plan_events")
 }
