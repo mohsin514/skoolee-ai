@@ -6,7 +6,7 @@ import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import { schoolAiTransaction } from "../../src/lib/school-ai/transaction";
 import { createWorkspaceRecord, updateWorkspaceRecord, getWorkspaceRecord } from "../../src/lib/school-ai/repository";
-import { createPrivateConversation, getPrivateConversation, listPrivateConversations, updatePrivateConversation } from "../../src/lib/school-ai/conversation-service";
+import { createPrivateConversation, deletePrivateConversation, exportPrivateConversation, getPrivateConversation, listPrivateConversations, sweepConversationRetention, updatePrivateConversation } from "../../src/lib/school-ai/conversation-service";
 import { beginSchoolAiRequest, completeSchoolAiRequest, failSchoolAiRequest, type SchoolAiRequestClaim } from "../../src/lib/school-ai/requests";
 import { createSetupTask, getSetupTask, listSetupTasks, setupTaskOptions, updateSetupTask } from "../../src/lib/school-ai/setup-task-service";
 const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
@@ -160,4 +160,37 @@ test("legacy assistant replay retains original workflow domain access after the 
   await raw.rolePermission.create({ data: { schoolId, role: admin.role, module: "fees", canView: false, canAdd: true, canEdit: true } });
   try { await assert.rejects(() => beginSchoolAiRequest(admin, input), { status: 403 }); }
   finally { await raw.rolePermission.deleteMany({ where: { schoolId, role: admin.role, module: "fees" } }); }
+});
+
+test("the owner exports what they can read and deletes the conversation with its messages; nobody else can (SKO-460)", async () => {
+  const created = await conversation();
+  const { claim } = await turn(created.id, created.version, "A private question to export");
+  await complete(claim, "A private answer to export");
+  const current = await getPrivateConversation(admin, created.id);
+  const exported = await exportPrivateConversation(admin, created.id);
+  assert.equal(exported.format, "skoolee-conversation-export/1");
+  assert.deepEqual(exported.exchanges.flatMap(exchange => "turns" in exchange ? (exchange.turns ?? []).map(turn => turn.text) : []), ["A private question to export", "A private answer to export"]);
+  await assert.rejects(() => exportPrivateConversation(otherAdmin, created.id), { status: 404 }, "another manager cannot export it");
+  await assert.rejects(() => deletePrivateConversation(otherAdmin, created.id, { version: current.conversation.version }), { status: 404 }, "nor delete it");
+  await assert.rejects(() => deletePrivateConversation(admin, created.id, { version: current.conversation.version - 1 }), { status: 409 }, "a stale version is refused");
+  await deletePrivateConversation(admin, created.id, { version: current.conversation.version });
+  assert.equal(await raw.schoolAiConversation.count({ where: { id: created.id } }), 0);
+  assert.equal(await raw.schoolAiRequest.count({ where: { conversationId: created.id } }), 0, "every message is gone with it");
+  const audit = await raw.auditLog.findMany({ where: { schoolId, recordId: created.id } });
+  assert.deepEqual(audit.map(row => (row.newValue as { action: string }).action).sort(), ["conversation.deleted", "conversation.exported"]);
+  assert.equal(JSON.stringify(audit).includes("A private question to export"), false, "the audit holds no message text");
+});
+
+test("a conversation with a pending turn is not deleted; retention removes only long-untouched settled conversations (SKO-460)", async () => {
+  const busy = await conversation();
+  await turn(busy.id, busy.version, "Still being answered");
+  const pending = await getPrivateConversation(admin, busy.id);
+  await assert.rejects(() => deletePrivateConversation(admin, busy.id, { version: pending.conversation.version }), { status: 409 });
+  const old = await conversation();
+  await raw.$executeRaw`UPDATE school_ai_conversations SET updated_at = now() - interval '400 days' WHERE id IN (${old.id}, ${busy.id})`;
+  const result = await raw.$transaction(tx => sweepConversationRetention(tx as never, new Date(), 365));
+  assert.ok(result.deleted >= 1);
+  assert.equal(await raw.schoolAiConversation.count({ where: { id: old.id } }), 0, "the untouched settled conversation is deleted");
+  assert.equal(await raw.schoolAiConversation.count({ where: { id: busy.id } }), 1, "one with a pending turn is kept");
+  await assert.rejects(() => raw.$transaction(tx => sweepConversationRetention(tx as never, new Date(), 7)), /at least 30 days/);
 });

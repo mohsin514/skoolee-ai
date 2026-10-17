@@ -128,6 +128,8 @@ const messages = {
   manualSource: ["Add text manually", "إضافة نص يدويًا", "متن دستی طور پر شامل کریں"],
   uploadWorking: ["Reading your document…", "جارٍ قراءة المستند…", "دستاویز پڑھی جا رہی ہے…"],
   uploadSize: ["PDF, JPG, PNG, WebP, text or CSV · up to 10 MB", "PDF وJPG وPNG وWebP ونص وCSV · حتى 10 ميغابايت", "پی ڈی ایف، جے پی جی، پی این جی، ویب پی، متن یا سی ایس وی · ۱۰ ایم بی تک"],
+  uploadType: ["Use a PDF, JPEG, PNG, WebP, text or CSV file.", "استخدم ملف PDF أو JPEG أو PNG أو WebP أو نصًا أو CSV.", "پی ڈی ایف، جے پیگ، پی این جی، ویب پی، متن یا سی ایس وی فائل استعمال کریں۔"],
+  uploadMismatch: ["This file's content does not match its type. Export it again or choose another file.", "محتوى هذا الملف لا يطابق نوعه. صدّره مجددًا أو اختر ملفًا آخر.", "اس فائل کا مواد اس کی قسم سے میل نہیں کھاتا۔ اسے دوبارہ برآمد کریں یا کوئی اور فائل منتخب کریں۔"],
   uploadInvalid: ["Choose a supported document no larger than 10 MB.", "اختر مستندًا مدعومًا لا يتجاوز 10 ميغابايت.", "دستیاب قسم کی، ۱۰ ایم بی سے چھوٹی دستاویز منتخب کریں۔"],
   sourceAdded: ["Source saved. Review its extracted text before approving.", "تم حفظ المصدر. راجع نصه المستخرج قبل اعتماده.", "ماخذ محفوظ ہو گیا۔ منظوری سے پہلے نکالا گیا متن دیکھیں۔"],
   approve: ["Approve reviewed record", "اعتماد السجل بعد المراجعة", "جائزہ لیا گیا ریکارڈ منظور کریں"],

@@ -25,6 +25,7 @@ export interface MultimodalComposerProps {
 }
 
 /** Voice becomes editable text. Uploads are separate reviewable source records, never implicit commands. */
+const SUPPORTED_UPLOAD = /\.(pdf|jpe?g|png|webp|txt|csv)$/i;
 export function MultimodalComposer({ language, value, onChange, onSubmit, onUpload, disabled, busy, voiceAvailable, submitLabel, placeholder, label, onActivityChange }: MultimodalComposerProps) {
   const c = schoolAICopy(language);
   const id = useId();
@@ -88,6 +89,7 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
           const form = new FormData();
           form.append("file", blob, capture.mimeType.includes("mp4") ? "voice.m4a" : "voice.webm");
           form.append("language", language);
+          form.append("idempotencyKey", crypto.randomUUID());
           const response = await fetch("/api/school-ai/transcribe", { method: "POST", body: form, signal: request.current.signal });
           const result = await response.json();
           if (!response.ok || typeof result.text !== "string") throw new Error(response.status === 503 ? "unavailable" : "failed");
@@ -113,7 +115,14 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
     if (!file || !onUpload) return;
     setFeedback(""); setFailed(false);
     if (!file.size || file.size > 10 * 1024 * 1024) { setFailed(true); setFeedback(c.uploadInvalid); return; }
-    void Promise.resolve(onUpload(file, origin)).catch(() => { if (mounted.current) { setFailed(true); setFeedback(c.failed); } });
+    // SKO-460: say why a file was refused, in the reader's language, before and after the server checks it.
+    if (!SUPPORTED_UPLOAD.test(file.name) && !/^(application\/pdf|image\/(jpeg|png|webp)|text\/(plain|csv))$/.test(file.type)) { setFailed(true); setFeedback(c.uploadType); return; }
+    void Promise.resolve(onUpload(file, origin)).catch((error: unknown) => {
+      if (!mounted.current) return;
+      const reason = error instanceof Error ? error.message : "";
+      setFailed(true);
+      setFeedback(/Use a PDF/.test(reason) ? c.uploadType : /between 1 byte and 10 MB/.test(reason) ? c.uploadInvalid : /does not match its format/.test(reason) ? c.uploadMismatch : c.failed);
+    });
   };
   const occupied = Boolean(disabled || busy || starting || transcribing);
   return <div className={styles.composer}>

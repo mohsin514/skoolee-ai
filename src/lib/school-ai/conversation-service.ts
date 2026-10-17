@@ -129,3 +129,61 @@ export async function updatePrivateConversation(user: AuthUser, id: string, inpu
     return publicConversation(await tx.schoolAiConversation.update({ where: { id: row.id }, data: { archivedAt: data.action === "archive" ? new Date() : null, version: { increment: 1 } } }));
   });
 }
+
+/* ------------------------------------------------------------------ delete, export, retention (SKO-460) */
+
+const conversationDeleteSchema = conversationUpdateSchema.pick({ version: true });
+
+/**
+ * The owner deletes a private conversation and every message in it. Records it helped create are
+ * separate, reviewed workspace records and stay; credit receipts stay in the usage log, which never
+ * held message text. A turn still being answered must settle first.
+ */
+export async function deletePrivateConversation(user: AuthUser, id: string, input: unknown) {
+  const data = conversationDeleteSchema.parse(input);
+  return schoolAiTransaction(user, async tx => {
+    await assertConversationActor(user, tx, "add");
+    const row = await loadPrivateConversation(user, id, tx, true);
+    if (row.version !== data.version) throw new SchoolAiError("This conversation changed. Reload before deleting it.", 409);
+    const active = await tx.schoolAiRequest.findFirst({ where: { schoolId: user.schoolId, conversationId: id, status: "PENDING" }, select: { id: true } });
+    if (active) throw new SchoolAiError("Wait for the pending reply before deleting this conversation.", 409);
+    await tx.schoolAiConversation.delete({ where: { id: row.id } });
+    await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "school_ai_conversations", recordId: row.id, newValue: { action: "conversation.deleted", purpose: row.purpose, at: new Date().toISOString() } } });
+    return { deleted: true as const, id: row.id };
+  });
+}
+
+/** The owner's own copy of what they can currently read: exchanges hidden by revoked evidence stay hidden. */
+export async function exportPrivateConversation(user: AuthUser, id: string) {
+  const pages: PrivateConversationPage[] = [];
+  let before: number | undefined;
+  for (let guard = 0; guard < 100; guard++) {
+    const page = await getPrivateConversation(user, id, before);
+    pages.unshift(page);
+    if (!page.nextVersion) break;
+    before = page.nextVersion;
+  }
+  const conversation = pages[0]?.conversation;
+  if (!conversation) throw new SchoolAiError("Conversation unavailable.", 404);
+  await schoolAiTransaction(user, tx => tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "school_ai_conversations", recordId: id, newValue: { action: "conversation.exported", at: new Date().toISOString() } } }));
+  return {
+    format: "skoolee-conversation-export/1", exportedAt: new Date().toISOString(),
+    conversation: { id: conversation.id, title: conversation.title, purpose: conversation.purpose, createdAt: conversation.createdAt },
+    exchanges: pages.flatMap(page => page.exchanges).map(exchange => exchange.hidden ? { hidden: true } : { turns: (exchange.turns ?? []).map(turn => ({ role: turn.role, text: turn.text })) }),
+  };
+}
+
+/**
+ * Retention: private conversations untouched for `days` are deleted with their messages. Runs as a
+ * system sweep (no user), never touches one with a pending turn, and records only counts.
+ */
+export async function sweepConversationRetention(db: TxClient, now: Date, days: number) {
+  if (!Number.isInteger(days) || days < 30) throw new Error("Conversation retention must be at least 30 days.");
+  const cutoff = new Date(now.getTime() - days * 86_400_000);
+  const stale = await db.schoolAiConversation.findMany({ where: { updatedAt: { lt: cutoff }, requests: { none: { status: "PENDING" } } }, select: { id: true, schoolId: true, actorId: true }, take: 500 });
+  if (!stale.length) return { deleted: 0 };
+  await db.schoolAiConversation.deleteMany({ where: { id: { in: stale.map(row => row.id) }, updatedAt: { lt: cutoff } } });
+  // One content-free row per deleted conversation, attributed to its owner.
+  await db.auditLog.createMany({ data: stale.map(row => ({ schoolId: row.schoolId, userId: row.actorId, tableName: "school_ai_conversations", recordId: row.id, newValue: { action: "conversation.retention_deleted", retentionDays: days, at: now.toISOString() } })) });
+  return { deleted: stale.length };
+}
