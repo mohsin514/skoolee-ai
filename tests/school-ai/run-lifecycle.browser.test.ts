@@ -162,3 +162,54 @@ for (const [key, viewport, name] of [["admin-ar", { width: 390, height: 844 }, "
     await ctx.close();
   });
 }
+
+async function blockedRun(key: string, title: string) {
+  const admin = people.get(key)!, first = await step(admin), second = await step(admin);
+  const run = await createSchoolRun(admin, { title, campusId, steps: [first, second], scheduledAt: new Date(Date.now() - 1000).toISOString(), expiresAt: new Date(Date.now() + 3600000).toISOString(), idempotencyKey: randomUUID() });
+  await processSchoolRun(admin, run.id);
+  await updateWorkspaceRecord(admin, second.recordId, { version: second.version, title: `${title} (edited)`, action: "save" });
+  await processSchoolRun(admin, run.id).catch(() => undefined);
+  return run.id;
+}
+
+test("keyboard only: reach re-review and cancel, open the dialog, and Escape returns focus to its trigger", async () => {
+  const runId = await blockedRun("admin", "Synthetic keyboard run");
+  const ctx = await context("admin"), page = await ctx.newPage();
+  await page.goto(`${base}/ai#run-${runId}`);
+  await page.waitForFunction(`document.activeElement?.id === "run-${runId}"`, undefined, { timeout: 30_000 });
+  const tabTo = async (name: string) => {
+    for (let i = 0; i < 20; i++) {
+      await page.keyboard.press("Tab");
+      if ((await page.evaluate("document.activeElement?.textContent?.trim() ?? ''")) === name) return;
+    }
+    throw new Error(`Could not reach ${name} by keyboard`);
+  };
+  await tabTo("Review remaining steps");
+  assert.equal(await page.evaluate("getComputedStyle(document.activeElement).outlineStyle !== 'none' || getComputedStyle(document.activeElement).boxShadow !== 'none'"), true, "focus is visible");
+  await page.keyboard.press("Enter");
+  await page.getByText(/remaining steps are no longer approved/).waitFor();
+  await page.locator(`#run-${runId}`).focus();
+  await tabTo("Cancel remaining steps");
+  await page.keyboard.press("Enter");
+  await page.getByRole("alertdialog").or(page.getByRole("dialog")).last().waitFor();
+  assert.equal(await page.evaluate("Boolean(document.activeElement?.closest('[role=dialog],[role=alertdialog]'))"), true, "focus moves into the dialog");
+  await page.keyboard.press("Escape");
+  await page.waitForFunction("!document.querySelector('[role=alertdialog]')");
+  await page.waitForFunction("document.activeElement?.textContent?.trim() === 'Cancel remaining steps'", undefined, { timeout: 5_000 });
+  assert.equal((await db.schoolAiRun.findUniqueOrThrow({ where: { id: runId } })).status, "BLOCKED", "Escape changed nothing");
+  await ctx.close();
+});
+
+for (const [key, viewport, label] of [["admin", { width: 320, height: 720 }, "en-320"], ["admin-ar", { width: 768, height: 1024 }, "ar-768"], ["admin", { width: 720, height: 500 }, "en-200pct-zoom"]] as const) {
+  test(`the run card fits without horizontal scrolling (${label})`, async () => {
+    const runId = await blockedRun(key, `Synthetic matrix ${label}`);
+    const ctx = await context(key, viewport), page = await ctx.newPage();
+    await page.goto(`${base}/ai#run-${runId}`);
+    await page.locator(`#run-${runId}`).waitFor({ timeout: 30_000 });
+    assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
+    const box = await page.locator(`#run-${runId}`).boundingBox();
+    assert.ok(box && box.width <= viewport.width, "the card stays inside the viewport");
+    if (label === "en-320") await shot(page, "run-blocked-en-320");
+    await ctx.close();
+  });
+}
