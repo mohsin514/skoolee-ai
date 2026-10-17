@@ -6,8 +6,8 @@ import { existsSync } from "node:fs";
 import { assessmentFixture } from "./assessment-fixture";
 
 // SKO-408: the Brief, Review desk and Improve spaces land as registry modules; Improve reads only moderated marks.
-test("the brief, review desk and improve modules exist under the frozen registry names", () => {
-  for (const id of ["brief", "review", "improve"]) {
+test("every one of the seven frozen spaces has landed under its registry name", () => {
+  for (const id of ["brief", "blueprint", "review", "rehearsal", "exam-room", "control-room", "improve"]) {
     const entry = STUDIO_SPACES.find(space => space.id === id)!;
     assert.ok(existsSync(`src/components/school-ai/exam-studio/spaces/${entry.module}.tsx`), `${entry.module} is missing`);
   }

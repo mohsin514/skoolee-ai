@@ -19,7 +19,7 @@ import { sourceStorageAvailable } from "./source-storage";
 import { examIntegrityDisclosure } from "./exam-integrity";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
-const selection = { id: true, title: true, startsAt: true, endsAt: true, paperVersion: true, mode: true, status: true, classId: true, campusId: true } as const;
+const selection = { id: true, title: true, startsAt: true, endsAt: true, paperVersion: true, mode: true, status: true, classId: true, campusId: true, contentHash: true } as const;
 const stableResponses = (value: Record<string, string>) => JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
 
 async function studentFor(user: AuthUser, db: TxClient = prisma) {
