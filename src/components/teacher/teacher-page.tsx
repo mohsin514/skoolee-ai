@@ -22,6 +22,7 @@ import {
   Users,
   Zap,
   type LucideIcon,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
@@ -49,6 +50,7 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   { href: "/teacher", label: "Dashboard", icon: BookOpen, group: "Teach", tone: "brand" },
   { href: "/teacher/classes", label: "My Classes", icon: GraduationCap, group: "Teach", tone: "classes" },
   { href: "/teacher/timetable", label: "Timetable", icon: Calendar, group: "Teach", tone: "timetable" },
+  { href: "/teacher/resources", label: "Resources", icon: FolderOpen, group: "Teach", tone: "classes" },
   { href: "/teacher/students", label: "My Students", icon: Users, group: "Teach", tone: "students" },
   { href: "/teacher/attendance", label: "Attendance", icon: CalendarCheck, group: "Assess", tone: "attendance" },
   { href: "/teacher/marks", label: "Marks", icon: Star, group: "Assess", tone: "exams" },

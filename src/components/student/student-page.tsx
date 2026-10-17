@@ -13,6 +13,7 @@ import {
   Clock,
   CreditCard,
   FileText,
+  FolderOpen,
   LayoutGrid,
   type LucideIcon,
 } from "lucide-react";
@@ -39,6 +40,7 @@ export interface StudentNavItem {
 export const STUDENT_NAV: StudentNavItem[] = [
   { href: "/student", label: "Dashboard", icon: LayoutGrid, tone: "brand" },
   { href: "/student/coursework", label: "Coursework", icon: BookOpen, tone: "classes" },
+  { href: "/student/resources", label: "Resources", icon: FolderOpen, tone: "classes" },
   { href: "/student/attendance", label: "Attendance", icon: CalendarCheck, tone: "attendance" },
   { href: "/student/timetable", label: "Timetable", icon: Clock, tone: "timetable" },
   { href: "/student/reports", label: "Report Cards", icon: FileText, tone: "reports" },

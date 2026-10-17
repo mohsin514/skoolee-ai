@@ -77,6 +77,8 @@ export const TENANT_MODELS = new Set<string>([
   "itemStock",
   "itemStore",
   "itemTransaction",
+  "learningResource",
+  "learningResourceVersion",
   "leaveAllocation",
   "leaveRequest",
   "leaveType",

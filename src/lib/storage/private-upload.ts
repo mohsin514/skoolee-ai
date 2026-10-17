@@ -13,7 +13,7 @@ import { matchesDocumentKey } from "./document-key-scope";
 export const MAX_PRIVATE_UPLOAD_BYTES = 10 * 1024 * 1024;
 const TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain"] as const;
 const intentSchema = z.object({
-  kind: z.enum(["student", "staff", "chat"]), targetId: z.string().min(1).max(128), storageKey: z.string().min(1).max(2048),
+  kind: z.enum(["student", "staff", "chat", "resource"]), targetId: z.string().min(1).max(128), storageKey: z.string().min(1).max(2048),
   contentType: z.enum(TYPES), sizeBytes: z.number().int().positive().max(MAX_PRIVATE_UPLOAD_BYTES),
 });
 export type PrivateUploadIntent = z.infer<typeof intentSchema>;
@@ -48,6 +48,12 @@ export async function authorizePrivateUpload(user: AuthUser, intent: PrivateUplo
     return;
   }
   assertStaffRole(user);
+  if (intent.kind === "resource") {
+    // Learning resources (SKO-400): only the reserved file of a version this author may change.
+    const { assertResourceUploadTarget } = await import("@/lib/resources/service");
+    await assertResourceUploadTarget(db, user, intent.targetId, intent.storageKey);
+    return;
+  }
   if (intent.kind === "student") {
     await assertPermission(user, "students", "edit", db);
     const student = await db.student.findFirst({ where: { id: intent.targetId, ...studentScope(user) }, select: { id: true, campusId: true } });

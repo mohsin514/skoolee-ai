@@ -12,6 +12,7 @@ import {
   FileText,
   LayoutGrid,
   type LucideIcon,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
@@ -35,6 +36,7 @@ export interface ParentNavItem {
 export const PARENT_NAV: ParentNavItem[] = [
   { href: "/parent", label: "Overview", icon: LayoutGrid, tone: "brand" },
   { href: "/parent/results", label: "Results", icon: FileText, tone: "reports" },
+  { href: "/parent/resources", label: "Resources", icon: FolderOpen, tone: "classes" },
   { href: "/parent/attendance", label: "Attendance", icon: CalendarCheck, tone: "attendance" },
   { href: "/parent/timetable", label: "Timetable", icon: Clock, tone: "timetable" },
   { href: "/parent/fees", label: "Fees", icon: CreditCard, tone: "fees" },
@@ -52,6 +54,7 @@ export function ParentSubnav() {
   const allowed = PARENT_NAV.filter((item) => {
     if (item.href === "/parent" || !data) return item.href === "/parent";
     if (item.href === "/parent/results" || item.href === "/parent/timetable") return data.access.learningRecords;
+    if (item.href === "/parent/resources") return data.access.learningRecords && !token;
     if (item.href === "/parent/attendance") return data.access.attendance;
     if (item.href === "/parent/fees") return data.access.finances;
     return false;

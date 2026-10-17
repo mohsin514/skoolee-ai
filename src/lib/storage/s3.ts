@@ -180,7 +180,7 @@ export function campusLogoKey(
   return `logos/campus/${schoolId}/${campusId}/${crypto.randomUUID()}-${safe}`;
 }
 
-const S3_KEY_PREFIXES = ["profile-images/", "logos/", "student-docs/", "staff-docs/", "chat/", "reports/"];
+const S3_KEY_PREFIXES = ["profile-images/", "logos/", "student-docs/", "staff-docs/", "chat/", "reports/", "resources/"];
 
 function isS3Key(value: string): boolean {
   return S3_KEY_PREFIXES.some((prefix) => value.startsWith(prefix));

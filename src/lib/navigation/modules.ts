@@ -9,7 +9,7 @@ export function moduleForHref(href?: string): PermissionModule | null {
   if (segments.length < 2) return null;
   const leaf = segments[1];
   const modules: Record<string, PermissionModule> = {
-    students: 'students', classes: 'timetable', coursework: 'timetable', timetable: 'timetable', calendar: 'timetable',
+    students: 'students', classes: 'timetable', coursework: 'timetable', resources: 'timetable', timetable: 'timetable', calendar: 'timetable',
     attendance: 'attendance', marks: 'exams', tests: 'exams', reports: 'reports', results: 'reports', fees: 'fees',
     leave: 'leave', ai: 'ai', insights: 'ai', 'staff-hierarchy': 'staff', analytics: 'reports', communications: 'reports',
   };
