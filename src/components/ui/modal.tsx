@@ -392,7 +392,10 @@ export function useDialogBehaviour(
   useEffect(() => {
     if (!active || !isTop) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      // One Escape closes one layer. Closing re-renders synchronously during this same event, so
+      // the layer beneath can become top before dispatch ends; the handled mark stops it acting.
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
       e.stopPropagation();
       onClose();
     };
@@ -539,7 +542,9 @@ export function ModalSurface({
   useEffect(() => {
     if (!isTop) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      // See useDialogBehaviour: an Escape another layer already handled is not ours.
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
       e.stopPropagation();
       requestClose();
     };

@@ -243,12 +243,12 @@ test("a teacher change can take effect from an earlier date, and the history say
   await ctx.close();
 });
 
-test("class screens fit 390 and 1440 in EN/AR/UR, including the dashboard and teacher routes", async () => {
+test("class screens fit 320, 390, 768 and 1440 in EN/AR/UR, including the dashboard and teacher routes", async () => {
   const urAdmin = await person("admin-ur", "CAMPUS_ADMIN", campusId, "ur");
   void urAdmin;
   const failures: string[] = [];
   for (const [key, language] of [["admin", "en"], ["admin-ar", "ar"], ["admin-ur", "ur"]] as const) {
-    for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1000 }]) {
+    for (const viewport of [{ width: 320, height: 720 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1440, height: 1000 }]) {
       const ctx = await context(key, viewport), page = await ctx.newPage(), errors: string[] = [];
       page.on("pageerror", error => errors.push(error.message));
       for (const path of ["/admin?view=classes", "/dashboard/classes"]) {
@@ -271,4 +271,35 @@ test("class screens fit 390 and 1440 in EN/AR/UR, including the dashboard and te
   await shot(teacherPage, "teacher-classes-en-390");
   await teacherCtx.close();
   assert.deepEqual(failures, []);
+});
+
+test("the class console works from the keyboard: open a class, its settings, and close back to where focus was", async () => {
+  const ctx = await context("admin"), page = await ctx.newPage();
+  await page.goto(`${base}/admin?view=classes`, { waitUntil: "networkidle" });
+  // Start at the panel's first control ("Add Class") and Tab onward to the class row.
+  await page.getByRole("button", { name: "Add Class" }).first().focus();
+  let reached = "";
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press("Tab");
+    reached = await page.evaluate(() => (document.activeElement?.textContent || "").trim());
+    if (/Grade 7/.test(reached)) break;
+  }
+  assert.match(reached, /Grade 7/, "the class row is reachable by Tab");
+  await page.keyboard.press("Enter");
+  const manage = page.getByRole("button", { name: /Manage/ }).first();
+  await manage.waitFor();
+  await manage.focus();
+  await page.keyboard.press("Enter");
+  const settings = page.locator('button[title="Section settings"]').first();
+  await settings.waitFor();
+  await settings.focus();
+  await page.keyboard.press("Enter");
+  const drawer = page.getByRole("dialog", { name: /settings/i });
+  await drawer.waitFor();
+  await page.waitForFunction(() => !!document.activeElement?.closest('[role="dialog"][aria-label$="settings"]'), undefined, { timeout: 5000 });
+  await page.keyboard.press("Escape");
+  await drawer.waitFor({ state: "detached" });
+  assert.equal(await page.locator('button[title="Section settings"]').count() > 0, true, "one Escape closes only the drawer; the class manager stays open");
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("title")), "Section settings", "focus returns to the control that opened it");
+  await ctx.close();
 });
