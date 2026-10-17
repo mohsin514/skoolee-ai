@@ -164,6 +164,7 @@ model School {
   feeFineRules            FeeFineRule[]
   onlinePaymentOrders     OnlinePaymentOrder[]
   receiptSequences ReceiptSequence[]
+  bankTransactionKeys BankTransactionKey[]
   paymentPlans            PaymentPlan[]
   bankReconciliations     BankReconciliation[]
   aIInsights              AIInsight[]
@@ -522,6 +523,7 @@ model Campus {
   feeFineRules          FeeFineRule[]
   onlinePaymentOrders   OnlinePaymentOrder[]
   receiptSequences ReceiptSequence[]
+  bankTransactionKeys BankTransactionKey[]
   chartOfAccounts       ChartOfAccount[]
   paymentMethodRefs     PaymentMethodRef[]
   bankAccounts          BankAccount[]
@@ -2355,6 +2357,25 @@ model BankReconciliation {
 
   @@index([schoolId])
   @@map("bank_reconciliations")
+}
+
+// SKO-432: one row per bank transaction ever committed for a campus, so the same transaction in a
+// renamed or reformatted statement can never be imported or posted twice.
+model BankTransactionKey {
+  id               String   @id @default(uuid())
+  schoolId         String   @default("") @map("school_id")
+  school           School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId         String   @map("campus_id")
+  campus           Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  rowKey           String   @map("row_key")
+  reconciliationId String   @map("reconciliation_id")
+  rowNumber        Int      @map("row_number")
+  paymentId        String?  @map("payment_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  @@unique([campusId, rowKey])
+  @@index([schoolId])
+  @@index([reconciliationId])
+  @@map("bank_transaction_keys")
 }
 
 // Durable preview, commit receipt, and guarded reversal record for CSV imports.

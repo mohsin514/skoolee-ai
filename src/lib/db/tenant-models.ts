@@ -31,6 +31,7 @@ export const TENANT_MODELS = new Set<string>([
   "auditLog",
   "bankAccount",
   "bankReconciliation",
+  "bankTransactionKey",
   "book",
   "bookCategory",
   "bookIssue",

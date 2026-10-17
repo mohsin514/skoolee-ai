@@ -232,6 +232,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
           reconciledBy: user.userId,
           reconciledAt: new Date(),
         } });
+        // SKO-432: record each committed transaction's identity; a concurrent or repeated commit of the
+        // same transaction fails on the unique key instead of importing it twice.
+        const keyed = selected.filter((row) => typeof row.proposal?.rowKey === "string");
+        if (keyed.length) {
+          try {
+            await tx.bankTransactionKey.createMany({ data: keyed.map((row) => ({ schoolId: user.schoolId, campusId: batch.campusId, rowKey: String(row.proposal!.rowKey), reconciliationId: reconciliation.id, rowNumber: row.rowNumber })) });
+          } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("Some of these transactions were already imported in another statement. Validate the file again to skip them.", 409);
+            throw error;
+          }
+        }
         const receipt = {
           batchId: batch.id,
           kind: batch.kind,

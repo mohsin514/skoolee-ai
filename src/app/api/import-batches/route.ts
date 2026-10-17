@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import { bankRowKeys } from "@/lib/fees/bank-reconciliation";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, assertStaffRole, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
@@ -187,7 +188,17 @@ export async function POST(request: NextRequest) {
       if (dateIndex < 0 || amountIndex < 0 || descIndex < 0) throw new ApiError("CSV needs transaction date, amount and description columns", 400);
       const rawRows = records.slice(1).map((cells, index) => ({ rowNumber: index + 2, source: headers.reduce<Record<string, string>>((result, header, column) => { result[header] = cells[column] || ""; return result; }, {}), cells }));
       const invoices = await prisma.invoice.findMany({ where: { campusId, schoolId: user.schoolId, currency: currency.data, status: { in: ["PENDING", "PARTIAL", "OVERDUE"] }, balanceDue: { gt: 0 }, invoiceNumber: { not: null } }, select: { id: true, invoiceNumber: true, balanceDue: true, student: { select: { fullName: true } } }, take: 1000 });
-      rows = rawRows.map(({ rowNumber, source, cells }) => {
+      // SKO-432: stable identities for each transaction; ones already committed are not offered again.
+      const parsedForKeys = rawRows.map(({ cells }) => {
+        let minor = 0;
+        try { minor = parseMoney((cells[amountIndex] || "").replace(/,/g, "").trim(), currency.data).minor; } catch { minor = 0; }
+        return { date: cells[dateIndex]?.trim() || "", amountMinor: minor, description: cells[descIndex]?.trim() || "" };
+      });
+      const rowKeys = bankRowKeys(details.data.accountName, parsedForKeys);
+      const alreadyImported = new Set((await prisma.bankTransactionKey.findMany({ where: { campusId, schoolId: user.schoolId, rowKey: { in: rowKeys } }, select: { rowKey: true } })).map(key => key.rowKey));
+      rows = rawRows.map(({ rowNumber, source, cells }, index) => {
+        const rowKey = rowKeys[index];
+        if (alreadyImported.has(rowKey)) return { rowNumber, source, proposal: { ...parsedForKeys[index], currency: currency.data, rowKey, matchedInvoiceId: null, candidates: [] }, state: "SKIPPED", selected: false, matchKey: `bank:${rowKey.slice(0, 16)}`, matchLabel: "This transaction was already imported; no duplicate was posted.", errors: [] };
         const errors: string[] = [];
         const date = cells[dateIndex]?.trim() || "";
         if (!isoDate(date)) errors.push("date: Use a real date in YYYY-MM-DD format");
@@ -205,7 +216,7 @@ export async function POST(request: NextRequest) {
         if (exactMatches.length > 1) errors.push("invoice: More than one stable invoice reference appears in the description; choose one before including this row");
         const state = errors.length ? (errors.some((error) => error.startsWith("invoice:")) ? "UNRESOLVED" : "REJECTED") : "ACCEPTED";
         const candidates = invoices.filter((invoice) => amountMinor <= invoice.balanceDue).sort((a, b) => Number(b.balanceDue === amountMinor) - Number(a.balanceDue === amountMinor)).slice(0, 30).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoiceNumber, studentName: invoice.student.fullName, balanceDue: invoice.balanceDue }));
-        return { rowNumber, source, proposal: { date, amountMinor, currency: currency.data, description, matchedInvoiceId: selectedInvoice?.id || null, studentName: selectedInvoice?.student.fullName || null, candidates }, state, selected: state === "ACCEPTED", matchKey: selectedInvoice ? `invoice:${selectedInvoice.invoiceNumber}` : null, matchLabel: selectedInvoice?.student.fullName || "No exact invoice reference", errors };
+        return { rowNumber, source, proposal: { date, amountMinor, currency: currency.data, description, rowKey, matchedInvoiceId: selectedInvoice?.id || null, studentName: selectedInvoice?.student.fullName || null, candidates }, state, selected: state === "ACCEPTED", matchKey: selectedInvoice ? `invoice:${selectedInvoice.invoiceNumber}` : null, matchLabel: selectedInvoice?.student.fullName || "No exact invoice reference", errors };
       });
       targetScope = `account:${details.data.accountName.trim().toLowerCase()}|currency:${currency.data}|from:${from}|to:${to}`;
       metadata = { accountName: details.data.accountName.trim(), statementFrom: from, statementTo: to, currency: currency.data, mappedColumns: headers };
