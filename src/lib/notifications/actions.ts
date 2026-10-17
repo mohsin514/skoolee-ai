@@ -55,6 +55,15 @@ export async function sourceView(user: AuthUser, row: { sourceType: string | nul
     const link = user.role === "PRINCIPAL" ? "/principal?view=certificates" : "/admin?view=certificates";
     return issue.status === "PENDING_APPROVAL" ? { state: "open", link } : { state: "resolved", link, resolution: "COMPLETED" };
   }
+  if (row.sourceType === "application") {
+    // SKO-398: open while the application is active and still owned by this reader.
+    const application = await db.admissionApplication.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, ownerId: true, campusId: true } });
+    if (!application || (user.role !== "SUPER_ADMIN" && application.campusId !== user.campusId) || !FRONT_DESK.includes(user.role)) return { state: "unavailable", link: null };
+    const link = user.role === "RECEPTIONIST" ? "/receptionist?view=admissions" : user.role === "PRINCIPAL" ? "/principal?view=applications" : "/admin?view=applications";
+    if (["ENROLLED", "REJECTED", "DECLINED", "WITHDRAWN"].includes(application.status)) return { state: "resolved", link, resolution: application.status === "ENROLLED" ? "COMPLETED" : "CANCELLED" };
+    if (application.ownerId !== user.userId) return { state: "resolved", link, resolution: "REASSIGNED" };
+    return { state: "open", link };
+  }
   if (row.sourceType === "chat") {
     try { await requireMembership(user, row.sourceId, db); }
     catch { return { state: "unavailable", link: null }; }

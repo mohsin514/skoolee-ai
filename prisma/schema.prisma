@@ -214,6 +214,12 @@ model School {
   certificateTemplates    CertificateTemplate[]
   certificateTemplateVersions CertificateTemplateVersion[]
   certificateIssues       CertificateIssue[]
+  admissionForms          AdmissionForm[]
+  admissionFormVersions   AdmissionFormVersion[]
+  admissionApplications   AdmissionApplication[]
+  admissionSubmissions    AdmissionSubmission[]
+  admissionEvents         AdmissionApplicationEvent[]
+  admissionDocuments      AdmissionDocument[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -687,6 +693,7 @@ model User {
   ownedComplaints Complaint[] @relation("ComplaintOwner")
   ownedCallbacks  PhoneCallback[] @relation("PhoneCallbackOwner")
   ownedPostal     PostalRecord[]  @relation("PostalOwner")
+  ownedApplications AdmissionApplication[] @relation("ApplicationOwner")
 }
 
 // Staff records depth: payroll, bank, documents and timeline for faculty.
@@ -1223,6 +1230,7 @@ model Class {
 model Student {
   corrections Correction[]
   certificateIssues CertificateIssue[]
+  admissionApplications AdmissionApplication[] @relation("ApplicationConversion")
   enrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
   consolidatedIntoId String? @map("consolidated_into_id")
@@ -1468,10 +1476,159 @@ model AdmissionQuery {
   assignedTo       User?                    @relation("QueryAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   convertedStudent Student?                 @relation("QueryConversion", fields: [convertedStudentId], references: [id], onDelete: SetNull)
   followUps        AdmissionQueryFollowUp[]
+  applications     AdmissionApplication[]
 
   @@index([campusId, status])
   @@index([schoolId])
   @@map("admission_queries")
+}
+
+/// SKO-398: a campus admission form. The draft is edited freely; families only ever see a published,
+/// immutable version, and a draft application stays on the version it was started with.
+model AdmissionForm {
+  id             String                 @id @default(uuid())
+  schoolId       String                 @default("") @map("school_id")
+  school         School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String                 @map("campus_id")
+  name           String
+  // { fields: FieldDef[], documents: DocumentDef[], identityKeys: string[] } — validated on save.
+  draft          Json
+  currentVersion Int                    @default(0) @map("current_version")
+  publicToken    String                 @unique @map("public_token")
+  isOpen         Boolean                @default(true) @map("is_open")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  versions       AdmissionFormVersion[]
+
+  @@index([campusId])
+  @@index([schoolId])
+  @@map("admission_forms")
+}
+
+model AdmissionFormVersion {
+  id           String                 @id @default(uuid())
+  schoolId     String                 @default("") @map("school_id")
+  school       School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String                 @map("campus_id")
+  formId       String                 @map("form_id")
+  form         AdmissionForm          @relation(fields: [formId], references: [id], onDelete: Restrict)
+  version      Int
+  definition   Json
+  publishedById String                @map("published_by_id")
+  publishedAt  DateTime               @default(now()) @map("published_at")
+  applications AdmissionApplication[]
+  submissions  AdmissionSubmission[]
+
+  @@unique([formId, version])
+  @@index([schoolId])
+  @@map("admission_form_versions")
+}
+
+/// One child's application from first draft to enrollment. Stage changes, offers, acceptance and the
+/// conversion into a pupil are separate events; the pupil is created at most once.
+model AdmissionApplication {
+  id                 String                      @id @default(uuid())
+  schoolId           String                      @default("") @map("school_id")
+  school             School                      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId           String                      @map("campus_id")
+  formVersionId      String                      @map("form_version_id")
+  formVersion        AdmissionFormVersion        @relation(fields: [formVersionId], references: [id], onDelete: Restrict)
+  reference          String
+  // DRAFT | SUBMITTED | UNDER_REVIEW | INFO_REQUESTED | OFFERED | WAITLISTED | ACCEPTED | DECLINED | REJECTED | WITHDRAWN | ENROLLED
+  status             String                      @default("DRAFT")
+  channel            String                      @default("FAMILY") // FAMILY | STAFF
+  answers            Json
+  childName          String                      @default("") @map("child_name")
+  dateOfBirth        DateTime?                   @map("date_of_birth") @db.Date
+  guardianPhone      String?                     @map("guardian_phone")
+  // Normalised stable identifiers configured on the form, for duplicate review.
+  identityKeys       String[]                    @map("identity_keys")
+  resumeKeyHash      String?                     @map("resume_key_hash")
+  enquiryId          String?                     @map("enquiry_id")
+  enquiry            AdmissionQuery?             @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+  ownerId            String?                     @map("owner_id")
+  owner              User?                       @relation("ApplicationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  nextContactAt      DateTime?                   @map("next_contact_at")
+  intakeClassId      String?                     @map("intake_class_id")
+  submittedAt        DateTime?                   @map("submitted_at")
+  consentAt          DateTime?                   @map("consent_at")
+  consentText        String?                     @map("consent_text") @db.Text
+  convertedStudentId String?                     @unique @map("converted_student_id")
+  convertedStudent   Student?                    @relation("ApplicationConversion", fields: [convertedStudentId], references: [id], onDelete: Restrict)
+  convertedAt        DateTime?                   @map("converted_at")
+  convertedById      String?                     @map("converted_by_id")
+  duplicateDecision  Json?                       @map("duplicate_decision")
+  version            Int                         @default(1)
+  createdAt          DateTime                    @default(now()) @map("created_at")
+  updatedAt          DateTime                    @updatedAt @map("updated_at")
+  submissions        AdmissionSubmission[]
+  events             AdmissionApplicationEvent[]
+  documents          AdmissionDocument[]
+
+  @@unique([schoolId, reference])
+  @@index([campusId, status])
+  @@index([schoolId])
+  @@map("admission_applications")
+}
+
+/// Each submission (first, and after an information request) exactly as sent, with its form version.
+model AdmissionSubmission {
+  id            String               @id @default(uuid())
+  schoolId      String               @default("") @map("school_id")
+  school        School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  applicationId String               @map("application_id")
+  application   AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  formVersionId String               @map("form_version_id")
+  formVersion   AdmissionFormVersion @relation(fields: [formVersionId], references: [id], onDelete: Restrict)
+  answers       Json
+  documentIds   String[]             @map("document_ids")
+  submittedAt   DateTime             @default(now()) @map("submitted_at")
+  submittedBy   String               @map("submitted_by") // FAMILY | staff user id
+
+  @@index([applicationId, submittedAt])
+  @@index([schoolId])
+  @@map("admission_submissions")
+}
+
+model AdmissionApplicationEvent {
+  id            String               @id @default(uuid())
+  schoolId      String               @default("") @map("school_id")
+  school        School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  applicationId String               @map("application_id")
+  application   AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind          String // CREATED | SUBMITTED | ASSIGNED | STAGE | INFO_REQUESTED | NOTE | ACCEPTED | DUPLICATE_DECISION | ENROLLED | WITHDRAWN
+  fromStatus    String?              @map("from_status")
+  toStatus      String?              @map("to_status")
+  // Office notes stay with staff; familyMessage is what the family is shown.
+  officeNote    String?              @map("office_note") @db.Text
+  familyMessage String?              @map("family_message") @db.Text
+  detail        Json?
+  actorId       String               @map("actor_id") // a staff user id, or FAMILY
+  createdAt     DateTime             @default(now()) @map("created_at")
+
+  @@index([applicationId, createdAt])
+  @@index([schoolId])
+  @@map("admission_application_events")
+}
+
+/// A file a family or staff member attached to an application. Small (≤5 MB) and kept with the application.
+model AdmissionDocument {
+  id            String               @id @default(uuid())
+  schoolId      String               @default("") @map("school_id")
+  school        School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  applicationId String               @map("application_id")
+  application   AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  key           String
+  fileName      String               @map("file_name")
+  contentType   String               @map("content_type")
+  sizeBytes     Int                  @map("size_bytes")
+  sha256        String
+  data          Bytes
+  uploadedBy    String               @map("uploaded_by")
+  uploadedAt    DateTime             @default(now()) @map("uploaded_at")
+
+  @@index([applicationId, key])
+  @@index([schoolId])
+  @@map("admission_documents")
 }
 
 model AdmissionQueryFollowUp {

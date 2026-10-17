@@ -1,4 +1,5 @@
 "use client";
+import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -128,6 +129,7 @@ type AdminView =
   | "staff-hierarchy"
   | "students"
   | "admission-queries"
+  | "applications"
   | "student-setup"
   | "promote-archive"
   | "leave"
@@ -167,7 +169,7 @@ const DEFAULT_VIEW: AdminView = "overview";
 
 const ADMIN_VIEWS: readonly AdminView[] = [
   "overview",
-  "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries",
+  "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "applications",
   "student-setup", "promote-archive", "leave", "permissions", "attendance",
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
   "year-cycle", "teacher-performance", "exam-cycles", "grading-rules", "billing", "report-cards",
@@ -921,6 +923,7 @@ export default function CampusAdminDashboard() {
       icon: GraduationCap, label: "Students", children: [
         { icon: GraduationCap, label: "Student List", active: activeView === "students", module: moduleForView("students"), onClick: () => setActiveView("students") },
         { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", module: moduleForView("admission-queries"), onClick: () => setActiveView("admission-queries") },
+        { icon: ClipboardList, label: "Applications", active: activeView === "applications", module: moduleForView("applications"), onClick: () => setActiveView("applications") },
         { icon: Tags, label: "Student Categories", active: activeView === "student-setup", module: moduleForView("student-setup"), onClick: () => setActiveView("student-setup") },
         { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", module: moduleForView("promote-archive"), onClick: () => setActiveView("promote-archive") },
       ],
@@ -1181,6 +1184,7 @@ export default function CampusAdminDashboard() {
             />
           ) : null}
 
+          {activeView === "applications" ? <AdmissionsDesk /> : null}
           {activeView === "admission-queries" ? (
             <AdmissionQueriesPanel
               classes={data.classes}

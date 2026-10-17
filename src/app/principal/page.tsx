@@ -1,6 +1,7 @@
 "use client";
 
 import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
+import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { Button } from "@/components/ui/button";
 import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
 
@@ -165,6 +166,7 @@ type PrincipalView =
   | "staff-hierarchy"
   | "students"
   | "admission-queries"
+  | "applications"
   | "student-setup"
   | "promote-archive"
   | "leave"
@@ -195,7 +197,7 @@ type PrincipalView =
   | "library"
   | "inventory"
 ;
-const WORKSPACE_VIEWS: readonly PrincipalView[] = ["overview", "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "student-setup", "promote-archive", "leave", "permissions", "attendance", "year-cycle", "academic-hub", "year-setup", "academic-model", "exam-cycles", "grading-rules", "fees", "timetable", "class-rooms", "period-setup", "school-calendar", "teacher-performance", "report-cards", "ai", "engagement", "transport", "dormitory", "complaints", "phone-calls", "postal", "certificates", "library", "inventory"];
+const WORKSPACE_VIEWS: readonly PrincipalView[] = ["overview", "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "applications", "student-setup", "promote-archive", "leave", "permissions", "attendance", "year-cycle", "academic-hub", "year-setup", "academic-model", "exam-cycles", "grading-rules", "fees", "timetable", "class-rooms", "period-setup", "school-calendar", "teacher-performance", "report-cards", "ai", "engagement", "transport", "dormitory", "complaints", "phone-calls", "postal", "certificates", "library", "inventory"];
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 
 const principalAIFeatures = [
@@ -516,6 +518,7 @@ export default function PrincipalDashboard() {
       icon: GraduationCap, label: "Students", children: [
         { icon: GraduationCap, label: "Student List", active: activeView === "students", module: moduleForView("students"), onClick: () => setActiveView("students") },
         { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", module: moduleForView("admission-queries"), onClick: () => setActiveView("admission-queries") },
+        { icon: ClipboardList, label: "Applications", active: activeView === "applications", module: moduleForView("applications"), onClick: () => setActiveView("applications") },
         { icon: Tags, label: "Student Categories", active: activeView === "student-setup", module: moduleForView("student-setup"), onClick: () => setActiveView("student-setup") },
         { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", module: moduleForView("promote-archive"), onClick: () => setActiveView("promote-archive") },
       ],
@@ -665,6 +668,7 @@ export default function PrincipalDashboard() {
             onCancel={handleCancelInvite}
           />
         ) : null}
+        {activeView === "applications" ? <AdmissionsDesk /> : null}
         {activeView === "admission-queries" ? (
           <AdmissionQueriesPanel
             classes={data.classes}

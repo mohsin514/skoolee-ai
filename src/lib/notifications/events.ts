@@ -421,6 +421,16 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     source: (c) => (c.issueId ? { type: "certificate", id: s(c.issueId) } : null),
     recipients: (c) => getCampusManagers(c.schoolId, c.campusId),
   },
+  // SKO-398: the admissions owner of an application, until it is enrolled, closed or handed on.
+  ADMISSION_APPLICATION_ASSIGNED: {
+    title: () => "Application assigned to you",
+    message: (c) => `${s(c.actorName)} made you responsible for application ${s(c.reference)}`,
+    icon: "ClipboardList",
+    link: "/admin?view=applications",
+    category: "ACTION",
+    source: (c) => (c.applicationId ? { type: "application", id: s(c.applicationId) } : null),
+    recipients: async (c) => (c.ownerId ? [s(c.ownerId)] : []),
+  },
   // ── Leave Management ───────────────────────────────────
   LEAVE_APPLIED: {
     title: () => "Leave request to review",

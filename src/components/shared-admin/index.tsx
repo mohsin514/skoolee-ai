@@ -6757,6 +6757,20 @@ function QueryDetailModal({
                         Mark Follow-up
                       </BrandButton>
                     ) : null}
+                    {/* SKO-398: an enquiry becomes an application on the published form, which then runs to enrollment. */}
+                    <BrandButton variant="soft" icon={<Send className="w-4 h-4" />} disabled={busy} onClick={async () => {
+                      try {
+                        const forms = await (await fetch("/api/admissions?forms=1", { cache: "no-store" })).json();
+                        const form = (forms.data ?? []).find((item: { currentVersion: number; isOpen: boolean }) => item.currentVersion > 0 && item.isOpen);
+                        if (!form) { toast.error("Publish an application form under Applications first."); return; }
+                        const response = await fetch("/api/admissions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", formId: form.id, enquiryId: query.id }) });
+                        const json = await response.json().catch(() => ({}));
+                        if (!response.ok || !json.success) throw new Error(json.error || "The application could not be started.");
+                        toast.success(`Application ${json.data.reference} started from this enquiry. Continue it under Applications.`);
+                      } catch (error) { toast.error(error instanceof Error ? error.message : "The application could not be started."); }
+                    }}>
+                      Start application
+                    </BrandButton>
                     <BrandButton variant="soft" icon={<UserCheck className="w-4 h-4" />} onClick={onConvert} disabled={busy}>
                       Convert to Student
                     </BrandButton>

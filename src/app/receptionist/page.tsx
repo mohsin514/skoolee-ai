@@ -13,6 +13,7 @@ import {
   MessageCircle,
   MessageSquare,
   Phone,
+  ClipboardList,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -34,9 +35,10 @@ import {
 } from "@/components/operations";
 import { LeaveManagementPanel } from "@/components/shared-admin/index";
 import { FrontDeskOverview } from "@/components/insights";
+import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 
-type ReceptionistView = "dashboard" | "visitors" | "complaints" | "postal" | "phone-calls" | "certificates" | "leave";
-const WORKSPACE_VIEWS: readonly ReceptionistView[] = ["dashboard", "visitors", "complaints", "postal", "phone-calls", "certificates", "leave"];
+type ReceptionistView = "dashboard" | "visitors" | "complaints" | "postal" | "phone-calls" | "admissions" | "certificates" | "leave";
+const WORKSPACE_VIEWS: readonly ReceptionistView[] = ["dashboard", "visitors", "complaints", "postal", "phone-calls", "admissions", "certificates", "leave"];
 
 /** One list drives the section strip, the sidebar and the page header. */
 const NAV: ConsoleNavItem<ReceptionistView>[] = [
@@ -45,6 +47,7 @@ const NAV: ConsoleNavItem<ReceptionistView>[] = [
   { id: "complaints", label: "Complaints", icon: MessageSquare, tone: "exams", group: "Front Desk", eyebrow: "Front Desk", summary: "Record complaints and track them to resolution." },
   { id: "postal", label: "Postal", icon: Mail, tone: "timetable", group: "Front Desk", eyebrow: "Front Desk", summary: "Inbound and outbound post and courier records." },
   { id: "phone-calls", label: "Phone Calls", icon: Phone, tone: "classes", group: "Front Desk", eyebrow: "Front Desk", summary: "Call log with callers, purpose and follow-ups." },
+  { id: "admissions", label: "Admissions", icon: ClipboardList, tone: "students", group: "Records", eyebrow: "Records", summary: "Applications from families, from first contact to enrollment." },
   { id: "certificates", label: "Certificates", icon: FileText, tone: "reports", group: "Records", eyebrow: "Records", summary: "Issue and reprint student certificates." },
   { id: "leave", label: "Leave", icon: CalendarClock, tone: "leave", group: "Records", eyebrow: "Staff", summary: "Apply for leave and track your requests." },
 ];
@@ -144,6 +147,7 @@ export default function ReceptionistPage() {
           {activeView === "complaints" ? <ComplaintsPanel /> : null}
           {activeView === "postal" ? <PostalPanel /> : null}
           {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
+          {activeView === "admissions" ? <AdmissionsDesk /> : null}
           {activeView === "certificates" ? <CertificatesPanel /> : null}
           {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
         </ConsolePage>

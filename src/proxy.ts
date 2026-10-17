@@ -26,6 +26,7 @@ const PUBLIC_PATHS = [
   "/", "/login", "/sign-in", "/register", "/register-split", "/sign-up", "/pricing",
   "/verify-success", // Informational destination of token verification; it creates no session.
   "/accept-invite", "/forgot-password", "/protect-account", "/api/auth/mfa",
+  "/apply", // SKO-398 family admission form; data is reached only by the link token or reference + resume key.
   "/api/invite/status", "/api/invite/reissue", // Scoped by a secret invitation token before sign-in.
   "/parent",
   "/ai-school-management-software", "/ai-report-cards-urdu-english",

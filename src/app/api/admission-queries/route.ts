@@ -5,7 +5,6 @@ import {
   assertModuleRead,
   assertPermission,
   assertStaffRole,
-  canManageOperations,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -136,15 +135,17 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("You don't have permission to manage admission queries", 403);
-        await assertPermission(user, "admissions", "edit");
+    // SKO-398: the permission matrix is the authority, as for POST — a receptionist granted admissions.edit
+    // can record follow-ups, and loses that the moment the grant is revoked.
+    assertStaffRole(user);
+    await assertPermission(user, "admissions", "edit");
 
     const body = await req.json();
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
     const existing = await prisma.admissionQuery.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
+      where: { id, campus: { schoolId: user.schoolId }, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) },
       include: { convertedStudent: { select: { fullName: true } } },
     });
     if (!existing) throw new ApiError("Admission query not found", 404);
@@ -234,8 +235,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("You don't have permission to delete admission queries", 403);
-        await assertPermission(user, "admissions", "delete");
+    assertStaffRole(user);
+    await assertPermission(user, "admissions", "delete");
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id required", 400);
