@@ -193,6 +193,14 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/admin",
     recipients: (c) => getAdminsAndPrincipal(c.schoolId, c.campusId),
   },
+  // SKO-405: one notice to guardians with attendance access when a recorded absence is corrected.
+  ATTENDANCE_CORRECTED: {
+    title: () => "Attendance corrected",
+    message: (c) => `The school corrected ${s(c.studentName)}'s attendance for ${s(c.date)} to ${({ PRESENT: "present", LATE: "late", PARTIAL: "part day", EXCUSED: "excused absence", LEAVE: "leave", ABSENT: "absent" } as Record<string, string>)[String(c.status)] ?? s(c.status)}`,
+    icon: "CalendarCheck",
+    link: "/parent",
+    recipients: async (c) => (Array.isArray(c.guardianIds) ? c.guardianIds.map(String) : []),
+  },
   TEACHER_ATTENDANCE_MARKED: {
     title: (c) => "Teacher attendance marked",
     message: (c) => `Teacher attendance marked for ${s(c.date)}`,

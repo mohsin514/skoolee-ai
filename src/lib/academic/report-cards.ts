@@ -4,6 +4,7 @@ import { retryDatabaseTransaction } from "@/lib/school-ai/transaction";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { getLocalePackage, loadLocaleTimeline } from "@/lib/locale/store";
 import { localePackageSchema } from "@/lib/locale/package";
+import { attendanceRuleFor } from "@/lib/attendance/register";
 import {
   buildSubjectDistribution,
   calculateWeightedGrade,
@@ -164,11 +165,14 @@ async function generateReportCardsInTransaction(examId: string, db: TxClient) {
     marksByStudent.get(mark.studentId)!.set(mark.subjectId, mark);
   }
 
+  // SKO-405: days attended and days counted follow the school's published rule.
+  const rule = await attendanceRuleFor(exam.schoolId, db);
   const attendanceByStudent = new Map<string, { present: number; total: number }>();
   for (const row of attendance) {
+    if (rule.excluded.includes(row.status)) continue;
     const current = attendanceByStudent.get(row.studentId) || { present: 0, total: 0 };
     current.total += row._count._all;
-    if (row.status === "PRESENT") current.present += row._count._all;
+    if (rule.attended.includes(row.status)) current.present += row._count._all;
     attendanceByStudent.set(row.studentId, current);
   }
 

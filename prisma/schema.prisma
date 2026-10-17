@@ -222,6 +222,9 @@ model School {
   admissionSubmissions    AdmissionSubmission[]
   admissionEvents         AdmissionApplicationEvent[]
   admissionDocuments      AdmissionDocument[]
+  attendanceRegisters     AttendanceRegister[]
+  attendanceRuleVersions  AttendanceRuleVersion[]
+  attendanceExplanations  AttendanceExplanation[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -2055,8 +2058,13 @@ model Attendance {
   markedAt  DateTime         @default(now()) @map("marked_at")
   isLocked  Boolean          @default(false) @map("is_locked")
   lockedAt  DateTime?        @map("locked_at")
+  // SKO-405: school-local HH:mm for LATE / PARTIAL, and a version for conflict-safe edits.
+  arrivalTime   String?      @map("arrival_time")
+  departureTime String?      @map("departure_time")
+  version       Int          @default(1)
 
-  editHistory AttendanceEditHistory[]
+  editHistory  AttendanceEditHistory[]
+  explanations AttendanceExplanation[]
 
   @@unique([studentId, date])
   @@index([classId, date])
@@ -2075,10 +2083,78 @@ model AttendanceEditHistory {
   newStatus    String     @map("new_status")
   editedBy     String?    @map("edited_by")
   editedAt     DateTime   @default(now()) @map("edited_at")
+  // SKO-405: why a submitted register changed, and through what (REGISTER | CORRECTION | EXPLANATION).
+  reason       String?    @db.Text
+  source       String     @default("REGISTER")
 
   @@index([attendanceId])
   @@index([schoolId])
   @@map("attendance_edit_history")
+}
+
+/// SKO-405: one class's register for one school day. The roster is the pupils enrolled in the class on that
+/// date (so a pupil who later moved still appears); it can be submitted only when nobody is unmarked.
+model AttendanceRegister {
+  id            String    @id @default(uuid())
+  schoolId      String    @default("") @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String    @map("campus_id")
+  classId       String    @map("class_id")
+  date          DateTime  @db.Date
+  status        String    @default("OPEN") // OPEN | SUBMITTED
+  rosterCount   Int       @default(0) @map("roster_count")
+  submittedById String?   @map("submitted_by_id")
+  submittedAt   DateTime? @map("submitted_at")
+  version       Int       @default(1)
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@unique([classId, date])
+  @@index([campusId, date])
+  @@index([schoolId])
+  @@map("attendance_registers")
+}
+
+/// SKO-405: which statuses count as attended, which as absent and which leave the denominator. Published as
+/// numbered versions; every summary names the version it used.
+model AttendanceRuleVersion {
+  id            String   @id @default(uuid())
+  schoolId      String   @default("") @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  version       Int
+  attended      String[]
+  excluded      String[]
+  note          String?  @db.Text
+  publishedById String   @map("published_by_id")
+  publishedAt   DateTime @default(now()) @map("published_at")
+
+  @@unique([schoolId, version])
+  @@map("attendance_rule_versions")
+}
+
+/// SKO-405: a guardian's explanation of an absence or late arrival. It never changes the register itself;
+/// authorized staff accept it (which records a reasoned correction), reject it or ask for clarification.
+model AttendanceExplanation {
+  id             String     @id @default(uuid())
+  schoolId       String     @default("") @map("school_id")
+  school         School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String     @map("campus_id")
+  attendanceId   String     @map("attendance_id")
+  attendance     Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  studentId      String     @map("student_id")
+  submittedById  String     @map("submitted_by_id")
+  reason         String     @db.Text
+  proposedStatus String     @map("proposed_status") // EXCUSED | LATE
+  arrivalTime    String?    @map("arrival_time")
+  status         String     @default("PENDING") // PENDING | ACCEPTED | REJECTED | CLARIFICATION
+  reviewNote     String?    @map("review_note") @db.Text
+  reviewedById   String?    @map("reviewed_by_id")
+  reviewedAt     DateTime?  @map("reviewed_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  @@index([campusId, status])
+  @@index([attendanceId])
+  @@index([schoolId])
+  @@map("attendance_explanations")
 }
 
 // ─── 11. FEE_STRUCTURES ───────────────────────────────────
@@ -3240,6 +3316,11 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LEAVE
+  // SKO-405: arrived after the start (arrival time recorded), an absence the school accepted as
+  // explained, and part of the day attended (arrival and/or departure time recorded).
+  LATE
+  EXCUSED
+  PARTIAL
 }
 
 enum InvoiceStatus {

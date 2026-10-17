@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
 import { withParentScope } from "@/lib/parent/resolve-child";
+import { attendanceRuleFor } from "@/lib/attendance/register";
 
 export const runtime = "nodejs";
 
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
       student.attendance,
       student.class?.academicYear
     ) : [];
-    const attendanceSummary = summarizeAttendance(currentYearAttendance);
+    const attendanceSummary = summarizeAttendance(currentYearAttendance, await attendanceRuleFor(student.schoolId));
     const totalAttendance = attendanceSummary.total;
     const presentCount = attendanceSummary.present;
     const attendanceRate = attendanceSummary.rate;
@@ -103,11 +104,15 @@ export async function GET(req: NextRequest) {
           // which silently reported approved leave as absence.
           absent: attendanceSummary.absent,
           leave: attendanceSummary.leave,
+          late: attendanceSummary.late,
+          excused: attendanceSummary.excused,
+          counted: attendanceSummary.counted,
+          attended: attendanceSummary.attended,
           recent: currentYearAttendance.slice(0, 30).map((a) => ({
             date: a.date.toISOString().split("T")[0],
             status: a.status,
           })),
-        } : { rate: null, total: 0, present: 0, absent: 0, leave: 0, recent: [] },
+        } : { rate: null, total: 0, present: 0, absent: 0, leave: 0, late: 0, excused: 0, counted: 0, attended: 0, recent: [] },
         fees: permissions.finances ? student.invoices.map((inv) => ({
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,

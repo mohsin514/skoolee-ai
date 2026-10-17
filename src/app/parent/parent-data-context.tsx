@@ -40,6 +40,11 @@ interface AttendanceData {
   present: number;
   absent: number;
   leave: number;
+  late: number;
+  excused: number;
+  /** Days attended under the school's published rule. */
+  counted: number;
+  attended: number;
   recent: { date: string; status: string }[];
 }
 

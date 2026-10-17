@@ -1,11 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ruleRate } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/register";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canMarkAttendance(user)) throw new ApiError("Insufficient permissions", 403);
+    // SKO-405: every percentage uses the school's published counting rule.
+    const rule = await attendanceRuleFor(user.schoolId);
 
     const { searchParams } = new URL(req.url);
     const classId = searchParams.get("classId");
@@ -50,7 +54,7 @@ export async function GET(req: NextRequest) {
       const absent = records.filter(r => r.status === "ABSENT").length;
       const leave = records.filter(r => r.status === "LEAVE").length;
       const total = records.length;
-      const percentage = total > 0 ? Math.round(((present + leave) / total) * 100 * 10) / 10 : 0;
+      const percentage = ruleRate(records, rule);
 
       return Response.json({
         type: "student",
@@ -107,7 +111,7 @@ export async function GET(req: NextRequest) {
         const absent = studentRecords.filter(r => r.status === "ABSENT").length;
         const leave = studentRecords.filter(r => r.status === "LEAVE").length;
         const total = studentRecords.length;
-        const percentage = total > 0 ? Math.round(((present + leave) / total) * 100 * 10) / 10 : 0;
+        const percentage = ruleRate(studentRecords, rule);
 
         // Calculate consecutive absences
         const sortedRecords = studentRecords.sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -168,7 +172,7 @@ export async function GET(req: NextRequest) {
       const absent = classRecords.filter(r => r.status === "ABSENT").length;
       const leave = classRecords.filter(r => r.status === "LEAVE").length;
       const total = classRecords.length;
-      const percentage = total > 0 ? Math.round(((present + leave) / total) * 100 * 10) / 10 : 0;
+      const percentage = ruleRate(classRecords, rule);
 
       return {
         classId: cls.id,
@@ -181,16 +185,15 @@ export async function GET(req: NextRequest) {
     const totalPresent = allRecords.filter(r => r.status === "PRESENT").length;
     const totalAbsent = allRecords.filter(r => r.status === "ABSENT").length;
     const totalLeave = allRecords.filter(r => r.status === "LEAVE").length;
-    const overallPercentage = allRecords.length > 0
-      ? Math.round(((totalPresent + totalLeave) / allRecords.length) * 100 * 10) / 10
-      : 0;
+    const overallPercentage = ruleRate(allRecords, rule);
 
     // Count at-risk students campus-wide
     const studentAttendance = new Map<string, { present: number; total: number }>();
     for (const r of allRecords) {
       const entry = studentAttendance.get(r.studentId) || { present: 0, total: 0 };
+      if (rule.excluded.includes(r.status)) continue;
       entry.total++;
-      if (r.status === "PRESENT" || r.status === "LEAVE") entry.present++;
+      if (rule.attended.includes(r.status)) entry.present++;
       studentAttendance.set(r.studentId, entry);
     }
     const atRiskCount = Array.from(studentAttendance.values()).filter(s => s.total > 0 && (s.present / s.total) * 100 < 75).length;

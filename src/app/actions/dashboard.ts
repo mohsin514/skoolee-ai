@@ -11,6 +11,7 @@ import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/register";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 
@@ -1392,7 +1393,8 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     student?.attendance || [],
     student?.class?.academicYear
   );
-  const attendanceSummary = summarizeAttendance(currentYearAttendance);
+  const attendanceRule = await attendanceRuleFor(session.schoolId);
+  const attendanceSummary = summarizeAttendance(currentYearAttendance, attendanceRule);
   const attendanceRate = attendanceSummary.rate;
   // Read the ledger column rather than re-summing payments, so the dashboard,
   // the student fees page, and the parent portal all quote the same number.
@@ -1434,6 +1436,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       reportCards: released.map(report => ({ ...report, pdfUrl: `/api/reports/download?reportCardId=${report.id}&versionId=${report.versionId}&redirect=1` })),
       invoices: student?.invoices || [],
       attendanceRate,
+      attendanceRule,
       balanceDue,
       balanceCurrency,
       aiInsights,

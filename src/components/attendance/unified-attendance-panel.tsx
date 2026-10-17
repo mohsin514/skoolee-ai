@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AttendanceOverview } from "./attendance-overview";
+import { AttendanceExceptions, AttendanceRulePanel } from "./class-register";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -129,7 +130,10 @@ export function UnifiedAttendancePanel() {
         </div>
       </div>
 
-      {activeTab === "students" ? <AttendanceOverview /> : null}
+      {activeTab === "students" ? <>
+        <AttendanceOverview />
+        <div className="grid gap-6 lg:grid-cols-2"><AttendanceExceptions /><AttendanceRulePanel /></div>
+      </> : null}
 
       {activeTab === "teachers" ? (
         <div className="space-y-6">

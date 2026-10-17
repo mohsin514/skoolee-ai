@@ -103,12 +103,15 @@ export async function previewAttendance(user: AuthUser, record: Pick<RecordWithC
   if (cycle && (!['ACTIVE', 'DRAFT'].includes(cycle.status) || cycle.startDate && instant < cycle.startDate || cycle.endDate && instant > cycle.endDate)) fail("This register is outside the editable academic year.", "SCHOOL_OPERATIONS_YEAR");
   const ids = proposal.entries.map(row => row.studentId);
   const [students, enrollments, previous] = await Promise.all([
-    tx.student.findMany({ where: { ...scope, id: { in: ids }, classId: cls.id, status: "active", archivedAt: null }, select: { id: true, fullName: true, rollNo: true }, orderBy: { id: "asc" } }),
+    tx.student.findMany({ where: { ...scope, id: { in: ids }, status: "active", archivedAt: null }, select: { id: true, fullName: true, rollNo: true }, orderBy: { id: "asc" } }),
     tx.studentEnrollment.findMany({ where: { ...scope, studentId: { in: ids }, classId: cls.id, origin: { not: { startsWith: "LEGACY" } }, startDate: { lte: instant }, OR: [{ endDate: null }, { endDate: { gt: instant } }] }, orderBy: { id: "asc" } }),
     tx.attendance.findMany({ where: { schoolId: user.schoolId, studentId: { in: ids }, date: instant }, orderBy: { studentId: "asc" } }),
   ]);
   if (students.length !== ids.length || ids.some(id => enrollments.filter(enrollment => enrollment.studentId === id).length !== 1)) fail("The selected pupils need verified enrollment in this class on the register date.", "SCHOOL_OPERATIONS_ENROLLMENT");
   if (previous.some(row => row.isLocked || row.campusId !== record.campusId || row.classId !== cls.id || row.enrollmentId !== enrollments.find(item => item.studentId === row.studentId)?.id)) fail("An existing register is locked or belongs to another enrollment.", "SCHOOL_OPERATIONS_REGISTER_LOCKED");
+  // SKO-405: a submitted register changes only through a reasoned correction on the register itself.
+  const changed = proposal.entries.some(row => previous.find(item => item.studentId === row.studentId)?.status !== row.status);
+  if (changed && previous.length && await tx.attendanceRegister.findFirst({ where: { schoolId: user.schoolId, classId: cls.id, date: instant, status: "SUBMITTED" }, select: { id: true } })) fail("This register was submitted. Correct it from the register with a reason.", "SCHOOL_OPERATIONS_REGISTER_LOCKED");
   if (previous.length) await assertWorkspacePermission(user, "attendance", "edit", await loadWorkspacePermissionSnapshot(user, tx));
   const entries = proposal.entries.map(row => { const student = students.find(item => item.id === row.studentId)!, old = previous.find(item => item.studentId === row.studentId); return { ...row, name: student.fullName, rollNo: student.rollNo, enrollmentId: enrollments.find(item => item.studentId === row.studentId)!.id, previousStatus: old?.status ?? null, attendanceId: old?.id ?? null }; });
   const preview = { operation: proposal.operation, recordId: record.id, version: record.version, campusId: record.campusId, classId: cls.id, className: [cls.name, cls.section].filter(Boolean).join(" · "), date: proposal.date, entries };

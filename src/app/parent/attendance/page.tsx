@@ -8,13 +8,14 @@ import { CalendarCheck, CheckCircle2, Clock, X } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
+import { GuardianAttendanceExplanations } from "@/components/attendance/class-register";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentAttendancePage() {
   const tr = useUiText();
   const locale = useLocale();
-  const { data, loading, error, refetch } = useParentData();
+  const { data, loading, error, refetch, selectedStudentId } = useParentData();
 
   // Without this an expired session leaves the page on a skeleton
   // forever, because `data` never arrives and `loading` is already false.
@@ -26,6 +27,8 @@ export default function ParentAttendancePage() {
     PRESENT: "bg-emerald-500",
     ABSENT: "bg-rose-500",
     LATE: "bg-amber-500",
+    PARTIAL: "bg-sky-500",
+    EXCUSED: "bg-violet-500",
     LEAVE: "bg-blue-500",
   };
 
@@ -52,7 +55,7 @@ export default function ParentAttendancePage() {
             <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
               <ParentStat icon={Clock} label={tr("Attendance Rate")} value={attendance.rate !== null ? `${attendance.rate}%` : "N/A"} sub={attendance.rate !== null && attendance.rate >= 75 ? tr("Good standing") : tr("Below 75%")} />
               <ParentStat icon={CheckCircle2} label={tr("Present")} value={attendance.present} sub={`${attendance.total ? Math.round((attendance.present / attendance.total) * 100) : 0}% ${tr("of total")}`} tone="green" />
-              <ParentStat icon={X} label={tr("Absent / Leave")} value={attendance.total - attendance.present} sub={tr("Days missed")} tone="rose" />
+              <ParentStat icon={X} label={tr("Absent / Leave")} value={(attendance.counted ?? attendance.total) - (attendance.attended ?? attendance.present)} sub={tr("Days missed")} tone="rose" />
               <ParentStat icon={CalendarCheck} label={tr("Total Days")} value={attendance.total} sub={tr("School days recorded")} tone="violet" />
             </div>
 
@@ -101,6 +104,7 @@ export default function ParentAttendancePage() {
             </div>
           </>
         )}
+        {selectedStudentId ? <GuardianAttendanceExplanations studentId={selectedStudentId} /> : null}
       </div>
     </ParentPage>
   );

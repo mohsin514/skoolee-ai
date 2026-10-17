@@ -27,7 +27,7 @@ export default function StudentAttendancePage() {
   // Shared helper so this page, the dashboard, the parent portal, and the
   // office's monthly report all quote the same percentage.
   const stats = useMemo(
-    () => summarizeAttendance(data?.user?.attendance || []),
+    () => summarizeAttendance(data?.user?.attendance || [], data?.user?.attendanceRule),
     [data],
   );
 
@@ -40,7 +40,7 @@ export default function StudentAttendancePage() {
     }).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [data, selectedMonth]);
 
-  const monthStats = useMemo(() => summarizeAttendance(monthRecords), [monthRecords]);
+  const monthStats = useMemo(() => summarizeAttendance(monthRecords, data?.user?.attendanceRule), [monthRecords, data]);
 
   const calendarDays = useMemo(() => {
     const [y, m] = selectedMonth.split("-").map(Number);

@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ruleRate } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/register";
 
 export async function GET(req: NextRequest) {
   try {
@@ -67,9 +69,8 @@ export async function GET(req: NextRequest) {
 
     // Unique dates with attendance
     const uniqueDates = new Set(records.map(r => r.date.toISOString().slice(0, 10)));
-    const attendanceRate = records.length > 0
-      ? Math.round(((present + leave) / records.length) * 100 * 10) / 10
-      : 0;
+    // SKO-405: the school's published counting rule.
+    const attendanceRate = ruleRate(records, await attendanceRuleFor(user.schoolId));
 
     return Response.json({
       period,
