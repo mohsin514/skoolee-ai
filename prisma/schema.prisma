@@ -222,6 +222,13 @@ model School {
   learningResources       LearningResource[]
   learningResourceVersions LearningResourceVersion[]
   curriculumObjectiveMappings CurriculumObjectiveMapping[]
+  assignments             Assignment[]
+  assignmentRubricVersions AssignmentRubricVersion[]
+  assignmentVersions      AssignmentVersion[]
+  assignmentExtensions    AssignmentExtension[]
+  assignmentSubmissions   AssignmentSubmission[]
+  assignmentSubmissionVersions AssignmentSubmissionVersion[]
+  assignmentFeedback      AssignmentFeedback[]
 
   @@map("schools")
 }
@@ -4655,4 +4662,193 @@ model CurriculumObjectiveMapping {
   @@index([schoolId, fromRecordId, fromVersion])
   @@index([schoolId, toRecordId, toVersion])
   @@map("curriculum_objective_mappings")
+}
+
+/// SKO-409: a teacher's assignment. The row holds the editable draft; every release freezes
+/// instructions, rubric, audience and deadline into an immutable AssignmentVersion.
+model Assignment {
+  id              String    @id @default(uuid())
+  schoolId        String    @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  classId         String    @map("class_id")
+  subjectId       String?   @map("subject_id")
+  title           String
+  instructions    String    @default("")
+  status          String    @default("DRAFT") // DRAFT | RELEASED | CLOSED
+  submissionMode  String    @default("ONLINE") @map("submission_mode") // ONLINE | PAPER | BOTH
+  allowedTypes    String[]  @default([]) @map("allowed_types")
+  opensLocal      String?   @map("opens_local")
+  dueLocal        String?   @map("due_local")
+  latePolicy      String    @default("ACCEPT_FLAGGED") @map("late_policy") // ACCEPT_FLAGGED | REFUSE
+  resubmission    String    @default("AFTER_RETURN") // NEVER | AFTER_RETURN
+  rubric          Json      @default("[]")
+  objectives      Json?
+  resourceIds     String[]  @default([]) @map("resource_ids")
+  externalRef     String?   @map("external_ref")
+  ownerId         String    @map("owner_id")
+  currentVersion  Int?      @map("current_version")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  rubricVersions  AssignmentRubricVersion[]
+  versions        AssignmentVersion[]
+  extensions      AssignmentExtension[]
+  submissions     AssignmentSubmission[]
+
+  @@unique([schoolId, externalRef])
+  @@index([schoolId, classId, status])
+  @@map("assignments")
+}
+
+/// Immutable rubric snapshot; feedback always scores against the version a submission was made under.
+model AssignmentRubricVersion {
+  id           String     @id @default(uuid())
+  schoolId     String     @map("school_id")
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignmentId String     @map("assignment_id")
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_rubric_versions_assignment_fkey")
+  version      Int
+  criteria     Json
+  totalPoints  Int        @map("total_points")
+  createdById  String     @map("created_by_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@unique([assignmentId, version])
+  @@map("assignment_rubric_versions")
+}
+
+/// Immutable release: what learners were given, who they were and when it was due.
+model AssignmentVersion {
+  id               String     @id @default(uuid())
+  schoolId         String     @map("school_id")
+  school           School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignmentId     String     @map("assignment_id")
+  assignment       Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_versions_assignment_fkey")
+  version          Int
+  title            String
+  instructions     String
+  rubricVersion    Int        @map("rubric_version")
+  audience         String[]
+  submissionMode   String     @map("submission_mode")
+  allowedTypes     String[]   @map("allowed_types")
+  timezone         String
+  opensAt          DateTime   @map("opens_at")
+  dueAt            DateTime   @map("due_at")
+  dueLocal         String     @map("due_local")
+  latePolicy       String     @map("late_policy")
+  resubmission     String
+  objectives       Json?
+  resourceIds      String[]   @map("resource_ids")
+  releasedById     String     @map("released_by_id")
+  releasedAt       DateTime   @default(now()) @map("released_at")
+
+  @@unique([assignmentId, version])
+  @@map("assignment_versions")
+}
+
+/// An approved individual extension. Append-only: the latest row for a learner is in force.
+model AssignmentExtension {
+  id           String     @id @default(uuid())
+  schoolId     String     @map("school_id")
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignmentId String     @map("assignment_id")
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_extensions_assignment_fkey")
+  studentId    String     @map("student_id")
+  dueAt        DateTime   @map("due_at")
+  dueLocal     String     @map("due_local")
+  timezone     String
+  reason       String
+  grantedById  String     @map("granted_by_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([schoolId, assignmentId, studentId])
+  @@map("assignment_extensions")
+}
+
+/// One learner's work on one assignment: the resumable draft plus its workflow status.
+model AssignmentSubmission {
+  id                 String     @id @default(uuid())
+  schoolId           String     @map("school_id")
+  school             School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assignmentId       String     @map("assignment_id")
+  assignment         Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_submissions_assignment_fkey")
+  studentId          String     @map("student_id")
+  status             String     @default("DRAFT") // DRAFT | SUBMITTED | RETURNED | REOPENED
+  draftText          String     @default("") @map("draft_text")
+  draftStorageKey    String?    @map("draft_storage_key")
+  draftFileName      String?    @map("draft_file_name")
+  draftContentType   String?    @map("draft_content_type")
+  draftSizeBytes     Int?       @map("draft_size_bytes")
+  draftSha256        String?    @map("draft_sha256")
+  draftUploadedAt    DateTime?  @map("draft_uploaded_at")
+  draftSavedAt       DateTime?  @map("draft_saved_at")
+  latestVersion      Int        @default(0) @map("latest_version")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  versions           AssignmentSubmissionVersion[]
+
+  @@unique([assignmentId, studentId])
+  @@index([schoolId, studentId])
+  @@map("assignment_submissions")
+}
+
+/// The server receipt for one submitted version. Immutable; earlier versions are always kept.
+model AssignmentSubmissionVersion {
+  id                String               @id @default(uuid())
+  schoolId          String               @map("school_id")
+  school            School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  submissionId      String               @map("submission_id")
+  submission        AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_submission_versions_submission_fkey")
+  assignmentId      String               @map("assignment_id")
+  studentId         String               @map("student_id")
+  version           Int
+  assignmentVersion Int                  @map("assignment_version")
+  rubricVersion     Int                  @map("rubric_version")
+  mode              String               // ONLINE | PAPER
+  idempotencyKey    String               @map("idempotency_key")
+  receiptCode       String               @map("receipt_code")
+  text              String               @default("")
+  storageKey        String?              @map("storage_key")
+  fileName          String?              @map("file_name")
+  contentType       String?              @map("content_type")
+  sizeBytes         Int?                 @map("size_bytes")
+  fileSha256        String?              @map("file_sha256")
+  artifactSha256    String               @map("artifact_sha256")
+  submittedAt       DateTime             @default(now()) @map("submitted_at")
+  receivedAt        DateTime             @map("received_at")
+  effectiveDueAt    DateTime             @map("effective_due_at")
+  late              Boolean
+  draftSavedAt      DateTime?            @map("draft_saved_at")
+  recordedById      String               @map("recorded_by_id")
+
+  feedback          AssignmentFeedback?
+
+  @@unique([submissionId, version])
+  @@unique([submissionId, idempotencyKey])
+  @@unique([schoolId, receiptCode])
+  @@map("assignment_submission_versions")
+}
+
+/// Formative, criterion-level feedback on one submitted version. Hidden from learners and
+/// families until RETURNED; then immutable. A gradebook transfer is only ever a request here.
+model AssignmentFeedback {
+  id                  String                      @id @default(uuid())
+  schoolId            String                      @map("school_id")
+  school              School                      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  submissionVersionId String                      @unique @map("submission_version_id")
+  submissionVersion   AssignmentSubmissionVersion @relation(fields: [submissionVersionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_feedback_submission_version_fkey")
+  rubricVersion       Int                         @map("rubric_version")
+  criteria            Json
+  comment             String                      @default("")
+  totalPoints         Int?                        @map("total_points")
+  status              String                      @default("DRAFT") // DRAFT | RETURNED
+  gradebookTransfer   String                      @default("NOT_REQUESTED") @map("gradebook_transfer") // NOT_REQUESTED | REQUESTED (never applied here)
+  markerId            String                      @map("marker_id")
+  returnedAt          DateTime?                   @map("returned_at")
+  createdAt           DateTime                    @default(now()) @map("created_at")
+  updatedAt           DateTime                    @updatedAt @map("updated_at")
+
+  @@map("assignment_feedback")
 }

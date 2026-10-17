@@ -13,7 +13,7 @@ import { matchesDocumentKey } from "./document-key-scope";
 export const MAX_PRIVATE_UPLOAD_BYTES = 10 * 1024 * 1024;
 const TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain"] as const;
 const intentSchema = z.object({
-  kind: z.enum(["student", "staff", "chat", "resource"]), targetId: z.string().min(1).max(128), storageKey: z.string().min(1).max(2048),
+  kind: z.enum(["student", "staff", "chat", "resource", "submission"]), targetId: z.string().min(1).max(128), storageKey: z.string().min(1).max(2048),
   contentType: z.enum(TYPES), sizeBytes: z.number().int().positive().max(MAX_PRIVATE_UPLOAD_BYTES),
 });
 export type PrivateUploadIntent = z.infer<typeof intentSchema>;
@@ -45,6 +45,12 @@ export async function authorizePrivateUpload(user: AuthUser, intent: PrivateUplo
     await requireMembership(user, intent.targetId, db);
     const prefix = `chat/${user.schoolId}/${intent.targetId}/`, leaf = intent.storageKey.slice(prefix.length);
     if (!intent.storageKey.startsWith(prefix) || !leaf || /[/\\\x00-\x1f]/.test(leaf) || [".", ".."].includes(leaf)) throw new ApiError("This upload is unavailable.", 403);
+    return;
+  }
+  if (intent.kind === "submission") {
+    // Assignment submissions (SKO-409): only the learner's own reserved draft file.
+    const { assertSubmissionUploadTarget } = await import("@/lib/assignments/service");
+    await assertSubmissionUploadTarget(db, user, intent.targetId, intent.storageKey);
     return;
   }
   assertStaffRole(user);

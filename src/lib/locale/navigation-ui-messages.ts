@@ -1,6 +1,7 @@
 /** Shared navigation copy. Names and authored record content never enter this catalog. */
 export const navigationUiEntries: readonly (readonly [string, string, string])[] = [
   ["Select", "تحديد", "منتخب کریں"],
+  ["Assignments", "الواجبات", "اسائنمنٹس"],
   ["Viewing", "المعروض", "دیکھ رہے ہیں"],
   ["Change child", "تغيير الطالب", "بچہ تبدیل کریں"],
   ["Choose child", "اختر الطالب", "بچہ منتخب کریں"],
