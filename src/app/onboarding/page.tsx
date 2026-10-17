@@ -321,7 +321,8 @@ export default function OnboardingWizard() {
       const res = await finishOnboarding(version);
       if (res.success) {
         setSuccess({ activated: res.activated, drafts: res.drafts });
-        const target = mode === "EXAM_STUDIO" ? "/ai?setup=1" : dashboardPathForRole(res.role);
+        // Setup leads continue on the readiness home (SKO-397), which links on to guided AI setup.
+        const target = "/setup/readiness";
         setTimeout(() => { window.location.href = target; }, 1200);
         return;
       }

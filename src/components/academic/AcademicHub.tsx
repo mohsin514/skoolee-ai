@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -261,6 +262,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
           </div>
 
           <div className="flex items-center gap-3">
+            <Link href="/setup/readiness" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">School readiness</Link>
             {stats && stats.availableYears.length > 1 ? (
               <SystemSelect
                 value={stats.academicYear}

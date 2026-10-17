@@ -217,6 +217,8 @@ model School {
   dataRetentionSchedules  DataRetentionSchedule[]
   dataLegalHolds          DataLegalHold[]
   dataLifecycleRequests   DataLifecycleRequest[]
+  schoolReadiness         SchoolReadiness?
+  readinessTasks          ReadinessTask[]
 
   @@map("schools")
 }
@@ -4538,4 +4540,41 @@ model DataServiceVerification {
 
   @@index([service, region, expiresAt])
   @@map("data_service_verifications")
+}
+
+// ─── School readiness (SKO-397) ───────────────────────────────────
+// One per school: the go-live decision, its evidence and the practice rehearsal.
+model SchoolReadiness {
+  id           String    @id @default(uuid())
+  schoolId     String    @unique @map("school_id")
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status       String    @default("SETUP")
+  version      Int       @default(0)
+  rehearsal    Json      @default("{}")
+  approvedById String?   @map("approved_by_id")
+  approvedAt   DateTime? @map("approved_at")
+  evidence     Json?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("school_readiness")
+}
+
+// Optional setup work that stays visible after go-live, each with an accountable owner.
+model ReadinessTask {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  key           String
+  title         String
+  ownerId       String?   @map("owner_id")
+  status        String    @default("OPEN")
+  createdById   String    @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  completedById String?   @map("completed_by_id")
+  completedAt   DateTime? @map("completed_at")
+
+  @@unique([schoolId, key])
+  @@index([schoolId, ownerId, status])
+  @@map("readiness_tasks")
 }
