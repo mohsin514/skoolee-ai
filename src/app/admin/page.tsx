@@ -88,6 +88,7 @@ import {
   ComplaintsPanel,
   PhoneCallsPanel,
   PostalPanel,
+  CertificatesPanel,
   InventoryPanel,
   LibraryPanel,
 } from "@/components/operations";
@@ -149,6 +150,7 @@ type AdminView =
   | "complaints"
   | "phone-calls"
   | "postal"
+  | "certificates"
   | "inventory"
   | "library"
   | "academic-hub"
@@ -169,7 +171,7 @@ const ADMIN_VIEWS: readonly AdminView[] = [
   "student-setup", "promote-archive", "leave", "permissions", "attendance",
   "ai", "fees", "timetable", "class-rooms", "period-setup", "school-calendar",
   "year-cycle", "teacher-performance", "exam-cycles", "grading-rules", "billing", "report-cards",
-  "transport", "dormitory", "complaints", "phone-calls", "postal", "inventory", "library", "academic-hub", "year-setup", "academic-model",
+  "transport", "dormitory", "complaints", "phone-calls", "postal", "certificates", "inventory", "library", "academic-hub", "year-setup", "academic-model",
   "institution",
 ];
 
@@ -957,6 +959,7 @@ export default function CampusAdminDashboard() {
         { icon: MessageCircle, label: "Complaints", active: activeView === "complaints", module: moduleForView("complaints"), onClick: () => setActiveView("complaints") },
         { icon: PhoneCall, label: "Phone Calls", active: activeView === "phone-calls", module: moduleForView("phone-calls"), onClick: () => setActiveView("phone-calls") },
         { icon: Mail, label: "Postal", active: activeView === "postal", module: moduleForView("postal"), onClick: () => setActiveView("postal") },
+        { icon: FileText, label: "Certificates", active: activeView === "certificates", module: moduleForView("certificates"), onClick: () => setActiveView("certificates") },
         { icon: Package, label: "Inventory", active: activeView === "inventory", module: moduleForView("inventory"), onClick: () => setActiveView("inventory") },
         { icon: BookOpen, label: "Library", active: activeView === "library", module: moduleForView("library"), onClick: () => setActiveView("library") },
       ],
@@ -1297,6 +1300,7 @@ export default function CampusAdminDashboard() {
           {activeView === "complaints" ? <ComplaintsPanel /> : null}
           {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
           {activeView === "postal" ? <PostalPanel /> : null}
+          {activeView === "certificates" ? <CertificatesPanel /> : null}
           {activeView === "inventory" ? <InventoryPanel /> : null}
           {activeView === "library" ? <LibraryPanel /> : null}
           {/* Plan buying is only in the sidebar for standalone top admins, but

@@ -411,6 +411,16 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     source: (c) => (c.postalId ? { type: "postal", id: s(c.postalId) } : null),
     recipients: async (c) => (c.ownerId ? [s(c.ownerId)] : []),
   },
+  // SKO-469: a document requested by reception waits for a campus leader's approval.
+  CERTIFICATE_APPROVAL_NEEDED: {
+    title: () => "Document waiting for approval",
+    message: (c) => `${s(c.actorName)} requested ${s(c.title)} (${s(c.serial)})`,
+    icon: "FileText",
+    link: "/principal?view=certificates",
+    category: "ACTION",
+    source: (c) => (c.issueId ? { type: "certificate", id: s(c.issueId) } : null),
+    recipients: (c) => getCampusManagers(c.schoolId, c.campusId),
+  },
   // ── Leave Management ───────────────────────────────────
   LEAVE_APPLIED: {
     title: () => "Leave request to review",

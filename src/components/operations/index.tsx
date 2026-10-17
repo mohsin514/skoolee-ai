@@ -27,6 +27,7 @@ import { VisitorRegister } from "./visitor-register";
 import { ComplaintsDesk } from "./complaints-desk";
 import { PhoneCallLog } from "./phone-call-log";
 import { PostalRegister } from "./postal-register";
+import { CertificatesDesk } from "./certificates-desk";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
 import { formatPKR } from "@/components/fees/fee-utils";
@@ -1235,82 +1236,6 @@ export function PhoneCallsPanel() {
 }
 
 export function CertificatesPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/certificates"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // CertificateTemplate is (kind, name, backgroundKey, layoutJson, pageSize),
-  // and the route requires kind, name and layoutJson. The old form sent name,
-  // a `description` with no column, and a `bodyTemplate` the route never read
-  // — so saving a template always failed on the missing `kind`.
-  //
-  // The body the user writes is the layout, so it is stored as the layoutJson
-  // document rather than being thrown away.
-  const form = useValidatedForm({
-    schema: certificateTemplateFormSchema,
-    initialValues: { kind: "STUDENT_CERTIFICATE", name: "", bodyTemplate: "", pageSize: "A4" },
-    onSubmit: async ({ bodyTemplate, ...values }) => {
-      const payload = { ...values, layoutJson: { version: 1, body: bodyTemplate } };
-      if (!(await submitTo("/api/front-desk/certificates", payload, form))) return;
-      toast.success("Template added");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/front-desk/certificates?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={FileText} title="Certificate Templates" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Template</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={`${addBoxCls} flex-col`}>
-          <div className="flex flex-wrap gap-3">
-            <OpField label="Name" error={form.errors.name}>
-              <SystemInput className={`${inputCls} w-48`} {...form.field("name")} placeholder="Transfer Certificate" />
-            </OpField>
-            <OpField label="Type" error={form.errors.kind}>
-              <SystemSelect className={`${inputCls} w-48`} {...form.field("kind")}>
-                <option value="STUDENT_CERTIFICATE">Student Certificate</option>
-                <option value="ID_CARD">ID Card</option>
-              </SystemSelect>
-            </OpField>
-            <OpField label="Page Size" error={form.errors.pageSize}>
-              <SystemSelect className={`${inputCls} w-32`} {...form.field("pageSize")}>
-                {PAGE_SIZES.map((size) => <option key={size} value={size}>{size.replace("_", " ")}</option>)}
-              </SystemSelect>
-            </OpField>
-            </div>
-          <OpField label="Body Template" error={form.errors.bodyTemplate} width="w-full">
-            <SystemTextarea className={`${inputCls} w-full min-h-[80px] resize-y py-2`} {...form.field("bodyTemplate")} placeholder="Use {{studentName}}, {{className}}, etc." />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Type", "Page Size", "Created", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No templates" /> : rows.map((t: any) => (
-              <tr key={t.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{t.name}</td>
-                <td className={tdCls}>{t.kind === "ID_CARD" ? "ID Card" : "Certificate"}</td>
-                <td className={tdCls}>{t.pageSize || "—"}</td>
-                <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(t.id)} loading={deleting === t.id} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-469: approved template versions, issuing with preview, approval, reissue and revocation live in CertificatesDesk.
+  return <CertificatesDesk />;
 }

@@ -212,6 +212,8 @@ model School {
   postalRecords           PostalRecord[]
   phoneCallLogs           PhoneCallLog[]
   certificateTemplates    CertificateTemplate[]
+  certificateTemplateVersions CertificateTemplateVersion[]
+  certificateIssues       CertificateIssue[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -1220,6 +1222,7 @@ model Class {
 // ─── 5. STUDENTS ──────────────────────────────────────────
 model Student {
   corrections Correction[]
+  certificateIssues CertificateIssue[]
   enrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
   consolidatedIntoId String? @map("consolidated_into_id")
@@ -3750,12 +3753,96 @@ model CertificateTemplate {
   kind          String // STUDENT_CERTIFICATE | ID_CARD
   name          String
   backgroundKey String?  @map("background_key")
+  // The working draft: { version: 1, title, body } — body uses {{variables}}. Issuing never reads it.
   layoutJson    Json     @map("layout_json")
   pageSize      String   @default("A4") @map("page_size")
   createdAt     DateTime @default(now()) @map("created_at")
+  // SKO-469: the language the document is written in, whether issuing needs a leader's approval, and the
+  // latest approved version (0 = never approved, cannot issue).
+  language         String                       @default("en")
+  requiresApproval Boolean                      @default(true) @map("requires_approval")
+  currentVersion   Int                          @default(0) @map("current_version")
+  draftVersion     Int                          @default(1) @map("draft_version")
+  versions         CertificateTemplateVersion[]
+  issues           CertificateIssue[]
 
   @@index([schoolId])
   @@map("certificate_templates")
+}
+
+/// An approved, immutable snapshot of a template. Issued documents point at exactly one.
+model CertificateTemplateVersion {
+  id           String              @id @default(uuid())
+  schoolId     String              @default("") @map("school_id")
+  school       School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String              @map("campus_id")
+  templateId   String              @map("template_id")
+  template     CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  version      Int
+  kind         String
+  title        String
+  body         String              @db.Text
+  language     String
+  pageSize     String              @map("page_size")
+  approvedById String              @map("approved_by_id")
+  approvedAt   DateTime            @default(now()) @map("approved_at")
+  issues       CertificateIssue[]
+
+  @@unique([templateId, version])
+  @@index([schoolId])
+  @@map("certificate_template_versions")
+}
+
+/// SKO-469: one issued (or requested) document. Its content is frozen at issue: re-downloading renders the
+/// stored text, never the pupil's current record. A reissue is a new row pointing at the one it replaces.
+model CertificateIssue {
+  id                String                     @id @default(uuid())
+  schoolId          String                     @default("") @map("school_id")
+  school            School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId          String                     @map("campus_id")
+  studentId         String                     @map("student_id")
+  student           Student                    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  templateId        String                     @map("template_id")
+  template          CertificateTemplate        @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateVersionId String                     @map("template_version_id")
+  templateVersion   CertificateTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  serial            String
+  status            String                     @default("PENDING_APPROVAL") // PENDING_APPROVAL | ISSUED | REJECTED | REVOKED | SUPERSEDED
+  // Only the fields the template uses, as they were when requested.
+  snapshot          Json
+  title             String
+  renderedBody      String                     @map("rendered_body") @db.Text
+  language          String
+  pageSize          String                     @map("page_size")
+  photoUrl          String?                    @map("photo_url") @db.Text
+  artifactHash      String                     @map("artifact_hash")
+  // The PDF exactly as first delivered; every later download returns these bytes (written once).
+  pdf               Bytes?
+  pdfSha256         String?                    @map("pdf_sha256")
+  verifyToken       String                     @map("verify_token")
+  requestedById     String                     @map("requested_by_id")
+  approvedById      String?                    @map("approved_by_id")
+  approvedAt        DateTime?                  @map("approved_at")
+  issuedAt          DateTime?                  @map("issued_at")
+  decisionNote      String?                    @map("decision_note") @db.Text
+  revokedAt         DateTime?                  @map("revoked_at")
+  revokedById       String?                    @map("revoked_by_id")
+  previousId        String?                    @map("previous_id")
+  previous          CertificateIssue?          @relation("CertificateReissue", fields: [previousId], references: [id], onDelete: Restrict)
+  successors        CertificateIssue[]         @relation("CertificateReissue")
+  reissueReason     String?                    @map("reissue_reason") @db.Text
+  version           Int                        @default(1)
+  idempotencyKey    String?                    @map("idempotency_key")
+  requestHash       String?                    @map("request_hash")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+
+  @@unique([schoolId, serial])
+  @@unique([verifyToken])
+  @@unique([campusId, idempotencyKey])
+  @@index([campusId, status])
+  @@index([studentId])
+  @@index([schoolId])
+  @@map("certificate_issues")
 }
 
 /// A room hosting one paper of one exam (§58).

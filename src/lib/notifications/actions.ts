@@ -48,6 +48,13 @@ export async function sourceView(user: AuthUser, row: { sourceType: string | nul
     if (item.ownerId !== user.userId) return { state: "resolved", link, resolution: "REASSIGNED" };
     return { state: "open", link };
   }
+  if (row.sourceType === "certificate") {
+    // SKO-469: an approval request is open until a leader approves or rejects it.
+    const issue = await db.certificateIssue.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, campusId: true } });
+    if (!issue || (user.role !== "SUPER_ADMIN" && issue.campusId !== user.campusId) || ![...LEADERS, "ADMIN"].includes(user.role)) return { state: "unavailable", link: null };
+    const link = user.role === "PRINCIPAL" ? "/principal?view=certificates" : "/admin?view=certificates";
+    return issue.status === "PENDING_APPROVAL" ? { state: "open", link } : { state: "resolved", link, resolution: "COMPLETED" };
+  }
   if (row.sourceType === "chat") {
     try { await requireMembership(user, row.sourceId, db); }
     catch { return { state: "unavailable", link: null }; }
