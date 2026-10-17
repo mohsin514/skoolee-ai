@@ -36,9 +36,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EXAM_BOARDS } from "@/config/boards";
 import {
+  getInstitutionHistory,
   getInstitutionSettings,
   updateCampusDetails,
   updateSchoolDetails,
+  type InstitutionHistoryEntry,
   type InstitutionSettings,
 } from "@/app/actions/settings";
 import { resolveMediaUrl } from "@/lib/storage/s3";
@@ -59,6 +61,39 @@ const TIMEZONES = [
 
 type SchoolForm = InstitutionSettings["school"];
 type CampusForm = InstitutionSettings["campuses"][number];
+type Tr = ReturnType<typeof useUiText>;
+
+// SKO-402: a save sends only the fields that changed (the server keeps every omitted field) and is reviewed
+// first as a before/after list; the record's history shows who changed what.
+const FIELD_LABEL = (tr: Tr, key: string) => ({ name: tr("Name"), tagline: tr("Tagline / Motto"), city: tr("City"), address: tr("Address"), phone: tr("Phone"), website: tr("Website"), email: tr("Campus Email"), principalName: tr("Head of Campus"), board: tr("Examination Board"), logoUrl: tr("Logo"), establishedYear: tr("Established"), timezone: tr("Time Zone") } as Record<string, string>)[key] ?? key;
+const clean = (value: unknown) => (typeof value === "string" ? value.trim() : value ?? "");
+function changedFields<T extends Record<string, unknown>>(baseline: T, form: T, keys: (keyof T)[]) {
+  return keys.filter(key => String(clean(form[key])) !== String(clean(baseline[key])));
+}
+function ChangeSummary({ keys, baseline, form }: { keys: string[]; baseline: Record<string, unknown>; form: Record<string, unknown> }) {
+  const tr = useUiText();
+  const show = (key: string, value: unknown) => key === "logoUrl" ? (value ? tr("New logo") : tr("No logo")) : String(clean(value)) || tr("(empty)");
+  return <section aria-label={tr("Review changes")} className="space-y-2 rounded-2xl border border-[#cfc2d6]/40 bg-white p-4" data-change-summary>
+    <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{tr("Review changes")}</p>
+    {keys.length ? <ul className="space-y-1.5 text-sm">{keys.map(key => <li key={key} data-changed-field={key}><span className="font-bold">{FIELD_LABEL(tr, key)}</span>: <s className="text-ink-muted"><bdi>{key === "logoUrl" ? show(key, baseline[key]) : show(key, baseline[key])}</bdi></s> → <bdi className="font-semibold">{show(key, form[key])}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{tr("Nothing has changed yet.")}</p>}
+    <p className="text-[11px] text-ink-muted">{tr("Only these fields are saved. Documents already issued keep the details they were issued with.")}</p>
+  </section>;
+}
+
+function HistoryDialog({ level, campusId, title, onClose }: { level: "school" | "campus"; campusId?: string; title: string; onClose: () => void }) {
+  const tr = useUiText();
+  const [rows, setRows] = useState<InstitutionHistoryEntry[] | null>(null), [error, setError] = useState("");
+  useEffect(() => { let cancelled = false; getInstitutionHistory({ level, campusId }).then(data => { if (!cancelled) setRows(data); }).catch(failure => { if (!cancelled) setError(tr(failure instanceof Error ? failure.message : "History could not be loaded.")); }); return () => { cancelled = true; }; }, [level, campusId, tr]);
+  const kind = (entry: InstitutionHistoryEntry) => entry.kind === "ARCHIVED" ? tr("Archived") : entry.kind === "RESTORED" ? tr("Restored") : tr("Details changed");
+  return <Modal title={tr("Change history")} eyebrow={title} icon={Clock} size="lg" onClose={onClose}>
+    {error ? <p role="alert" className="text-sm font-bold text-rose-700">{error}</p> : !rows ? <p role="status" className="text-sm">{tr("Loading history…")}</p> : !rows.length ? <p className="text-sm text-ink-muted">{tr("No changes have been recorded yet.")}</p>
+      : <ol className="space-y-2" data-institution-history>{rows.map(entry => <li key={entry.id} className="rounded-xl bg-[#fbf0fe]/60 px-3 py-2 text-sm" data-history-kind={entry.kind}>
+        <p className="font-bold">{kind(entry)} · <bdi>{new Date(entry.at).toLocaleString()}</bdi>{entry.actor ? <> · <bdi>{entry.actor}</bdi></> : null}</p>
+        {Object.entries(entry.fields).map(([key, change]) => <p key={key} className="text-xs">{FIELD_LABEL(tr, key)}: <s className="text-ink-muted"><bdi>{String(change.from ?? "") || tr("(empty)")}</bdi></s> → <bdi>{String(change.to ?? "") || tr("(empty)")}</bdi></p>)}
+        {entry.reason ? <p className="text-xs">{tr("Reason")}: <bdi>{entry.reason}</bdi></p> : null}
+      </li>)}</ol>}
+  </Modal>;
+}
 
 export function InstitutionSettingsPanel({
   /** "editable" hides campuses this user cannot touch — used on the campus console. */
@@ -73,6 +108,7 @@ export function InstitutionSettingsPanel({
   const [loading, setLoading] = useState(true);
   const [editingSchool, setEditingSchool] = useState(false);
   const [editingCampus, setEditingCampus] = useState<CampusForm | null>(null);
+  const [history, setHistory] = useState<{ level: "school" | "campus"; campusId?: string; title: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -131,6 +167,8 @@ export function InstitutionSettingsPanel({
               ) : null}
             </div>
           </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button variant="ghost" type="button" onClick={() => setHistory({ level: "school", title: data.school.name })} data-history-school><Clock className="h-3.5 w-3.5" /><UiText>{"Change history"}</UiText></Button>
           {data.canEditSchool ? (
             <Button variant="default"
               type="button"
@@ -139,10 +177,11 @@ export function InstitutionSettingsPanel({
             >
               <Pencil className="h-3.5 w-3.5" /><UiText>{"Edit"}</UiText></Button>
           ) : null}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ReadRow icon={Hash} label={tr("School ID")} value={data.school.regId} locked />
+          <ReadRow icon={Hash} label={tr("School ID")} value={data.school.regId} locked reason={tr("Identifiers are used in links and records; changing one is a reviewed migration, not an edit.")} />
           <ReadRow icon={Mail} label={tr("Contact Email")} value={data.school.contactEmail} locked />
           <ReadRow icon={MapPin} label={tr("City")} value={data.school.city} />
           <ReadRow icon={Phone} label={tr("Phone")} value={data.school.phone} />
@@ -196,6 +235,7 @@ export function InstitutionSettingsPanel({
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {editable || data.canArchiveCampuses ? <Button variant="ghost" type="button" onClick={() => setHistory({ level: "campus", campusId: campus.id, title: campus.name })} aria-label={tr("Change history for {0}", [campus.name])}><Clock className="h-3 w-3" /></Button> : null}
                   {data.canArchiveCampuses ? <CampusArchiveButton campus={campus} onDone={afterSave} /> : null}
                   {editable ? (
                     <Button variant="default"
@@ -226,6 +266,7 @@ export function InstitutionSettingsPanel({
       {editingCampus ? (
         <CampusDialog campus={editingCampus} onClose={() => setEditingCampus(null)} onSaved={afterSave} />
       ) : null}
+      {history ? <HistoryDialog {...history} onClose={() => setHistory(null)} /> : null}
     </div>
   );
 }
@@ -266,22 +307,15 @@ function SchoolDialog({
     : !form.city.trim() ? "Enter the city."
     : null;
 
+  const [reviewing, setReviewing] = useState(false);
+  const changes = changedFields(school as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>, ["name", "tagline", "city", "address", "phone", "website", "logoUrl", "establishedYear"]);
   const save = async () => {
+    if (!changes.length) { toast.info(tr("Nothing changed.")); onClose(); return; }
     setSaving(true);
     try {
-      await updateSchoolDetails({
-        expectedRevision: form.revision,
-        name: form.name,
-        tagline: form.tagline,
-        city: form.city,
-        address: form.address,
-        phone: form.phone,
-        website: form.website,
-        logoUrl: form.logoUrl,
-        establishedYear: form.establishedYear,
-        timezone: form.timezone,
-      });
-      toast.success(tr("School details updated."));
+      const payload = Object.fromEntries(changes.map(key => [key, (form as unknown as Record<string, unknown>)[key] ?? ""]));
+      await updateSchoolDetails({ expectedRevision: form.revision, ...payload });
+      toast.success(tr("School details updated. Current screens now use the new information."));
       draft.markSaved();
       await onSaved();
       onClose();
@@ -297,7 +331,7 @@ function SchoolDialog({
     <Modal
       title={tr("Edit school details")}
       eyebrow={tr("Institution")}
-      subtitle={tr("Name, branding and contact details for the whole institution.")}
+      subtitle={tr("You are editing the whole school group: {0}.", [school.name])}
       icon={Building}
       size="lg"
       dirty={dirty}
@@ -305,22 +339,24 @@ function SchoolDialog({
       footer={
         <ModalActions
           busy={saving}
-          busyLabel="Saving"
-          actionLabel="Save changes"
+          busyLabel={tr("Saving")}
+          actionLabel={reviewing ? tr("Save changes") : tr("Review changes")}
           onCancel={onClose}
-          onAction={save}
-          blockedReason={blockedReason}
+          onAction={reviewing ? save : () => setReviewing(true)}
+          blockedReason={blockedReason ? tr(blockedReason) : null}
+          secondary={reviewing ? <Button variant="ghost" type="button" onClick={() => setReviewing(false)}>{tr("Back to editing")}</Button> : undefined}
         />
       }
     >
-      <DraftRecovery recordLabel={form.name} draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
+      <DraftRecovery recordLabel={form.name} draft={draft} saving={saving} excluded={tr("Logo files are not stored in device drafts.")} />
+      {reviewing ? <ChangeSummary keys={changes as string[]} baseline={school as unknown as Record<string, unknown>} form={form as unknown as Record<string, unknown>} /> : null}
       {blockedReason && <FormErrorSummary errors={{ settings: blockedReason }} onFocusField={() => document.querySelector<HTMLInputElement>("[role=dialog] input:not([type=file])")?.focus()} />}
       <div className="space-y-5">
         <LogoPicker
           value={form.logoUrl}
           inputRef={fileRef}
           onChange={(v) => set("logoUrl", v)}
-          hint="Shown on report cards, emails and receipts."
+          hint={tr("Shown on report cards, emails and receipts.")}
           kind="school-logo"
         />
 
@@ -399,23 +435,15 @@ function CampusDialog({
     : form.phone && form.phone.trim() && form.phone.replace(/\D/g, '').length > 15 ? "Phone number is too long to be valid."
     : null;
 
+  const [reviewing, setReviewing] = useState(false);
+  const changes = changedFields(campus as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>, ["name", "city", "address", "phone", "email", "website", "principalName", "board", "logoUrl"]);
   const save = async () => {
+    if (!changes.length) { toast.info(tr("Nothing changed.")); onClose(); return; }
     setSaving(true);
     try {
-      await updateCampusDetails({
-        expectedRevision: form.revision,
-        campusId: campus.id,
-        name: form.name,
-        city: form.city,
-        address: form.address,
-        phone: form.phone,
-        email: form.email,
-        website: form.website,
-        principalName: form.principalName,
-        board: form.board,
-        logoUrl: form.logoUrl,
-      });
-      toast.success(tr("{0} updated.", [form.name.trim()]));
+      const payload = Object.fromEntries(changes.map(key => [key, (form as unknown as Record<string, unknown>)[key] ?? ""]));
+      await updateCampusDetails({ expectedRevision: form.revision, campusId: campus.id, ...payload });
+      toast.success(tr("{0} updated. Current screens now use the new information.", [form.name.trim()]));
       draft.markSaved();
       await onSaved();
       onClose();
@@ -431,7 +459,7 @@ function CampusDialog({
     <Modal
       title={tr("Edit campus")}
       eyebrow={tr("Campus")}
-      subtitle={tr("Details for {0}.", [campus.name])}
+      subtitle={tr("You are editing {0}, not the whole school group.", [campus.name])}
       icon={Building2}
       size="lg"
       dirty={dirty}
@@ -439,22 +467,24 @@ function CampusDialog({
       footer={
         <ModalActions
           busy={saving}
-          busyLabel="Saving"
-          actionLabel="Save changes"
+          busyLabel={tr("Saving")}
+          actionLabel={reviewing ? tr("Save changes") : tr("Review changes")}
           onCancel={onClose}
-          onAction={save}
-          blockedReason={blockedReason}
+          onAction={reviewing ? save : () => setReviewing(true)}
+          blockedReason={blockedReason ? tr(blockedReason) : null}
+          secondary={reviewing ? <Button variant="ghost" type="button" onClick={() => setReviewing(false)}>{tr("Back to editing")}</Button> : undefined}
         />
       }
     >
-      <DraftRecovery recordLabel={form.name} draft={draft} saving={saving} excluded="Logo files are not stored in device drafts." />
+      <DraftRecovery recordLabel={form.name} draft={draft} saving={saving} excluded={tr("Logo files are not stored in device drafts.")} />
+      {reviewing ? <ChangeSummary keys={changes as string[]} baseline={campus as unknown as Record<string, unknown>} form={form as unknown as Record<string, unknown>} /> : null}
       {blockedReason && <FormErrorSummary errors={{ settings: blockedReason }} onFocusField={() => document.querySelector<HTMLInputElement>("[role=dialog] input:not([type=file])")?.focus()} />}
       <div className="space-y-5">
         <LogoPicker
           value={form.logoUrl}
           inputRef={fileRef}
           onChange={(v) => set("logoUrl", v)}
-          hint="Used on this campus's report cards in place of the school logo."
+          hint={tr("Used on this campus's report cards in place of the school logo.")}
           kind="campus-logo"
           campusId={form.id}
         />
@@ -619,12 +649,14 @@ function Field({
 }
 
 function ReadRow({
-  icon: Icon, label, value, locked,
+  icon: Icon, label, value, locked, reason,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   locked?: boolean;
+  /** Why the value cannot be edited here; shown and announced with the field. */
+  reason?: string;
 }) {
   return (
     <div className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3">
@@ -633,7 +665,8 @@ function ReadRow({
         {label}
         {locked ? <Lock className="h-2.5 w-2.5 text-ink-subtle" /> : null}
       </div>
-      <p className="mt-1 truncate text-[13px] font-bold text-[#1f1a23]">{value || "—"}</p>
+      <p className="mt-1 truncate text-[13px] font-bold text-[#1f1a23]"><bdi dir={locked ? "ltr" : undefined}>{value || "—"}</bdi></p>
+      {reason ? <p className="mt-1 text-[10px] font-semibold text-ink-muted">{reason}</p> : null}
     </div>
   );
 }

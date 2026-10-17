@@ -40,6 +40,12 @@ export function assertPhone(value: string | null, field: string) {
   return value;
 }
 
+/** A web address with a real host, e.g. "school.example" or "https://school.example/admissions". */
+export function assertWebsite(value: string | null, field: string) {
+  if (value && !/^(https?:\/\/)?([\p{L}\p{N}-]+\.)+[\p{L}]{2,}(:\d{2,5})?(\/\S*)?$/u.test(value)) throw new Error(`Enter a valid ${field}, for example school.example.`);
+  return value;
+}
+
 /**
  * A real IANA zone, or null when the value is unusable.
  *

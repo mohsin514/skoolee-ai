@@ -3,6 +3,7 @@ import { localeTag } from "@/lib/locale/package";
 import { translateUi } from "@/lib/locale/ui-messages";
 import { renderLocaleInvoice, renderLocaleReceipt } from "@/lib/locale/invoice-pdf";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
 
@@ -270,6 +271,15 @@ export async function generateInvoicePdf(invoiceId: string) {
     invoice.student.rollNo = invoice.enrollment.rollNo;
     invoice.student.class = { name: invoice.enrollment.className, section: null };
     invoice.campus.name = invoice.enrollment.campusName;
+  }
+  // SKO-402: the institution identity printed the first time this invoice was produced is kept, so a later
+  // rename, new logo or new contact details never change an invoice a family already has.
+  if (invoice.issuerSnapshot) {
+    invoice.campus = invoice.issuerSnapshot as unknown as typeof invoice.campus;
+  } else {
+    await prisma.invoice.updateMany({ where: { id: invoice.id, issuerSnapshot: { equals: Prisma.DbNull } }, data: { issuerSnapshot: invoice.campus as unknown as Prisma.InputJsonValue } });
+    const stored = await prisma.invoice.findUnique({ where: { id: invoice.id }, select: { issuerSnapshot: true } });
+    if (stored?.issuerSnapshot) invoice.campus = stored.issuerSnapshot as unknown as typeof invoice.campus;
   }
   return renderLocaleInvoice(invoice);
 }

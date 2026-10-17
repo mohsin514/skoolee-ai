@@ -16,6 +16,7 @@ const BLOCKER_TEXT: Record<CampusArchivePreview["blockers"][number], string> = {
   ACTIVE_STUDENTS: "Move or archive its {0} active pupil(s) first.",
   ACTIVE_CLASSES: "Archive or move its {1} active class(es) first.",
   PENDING_ONLINE_PAYMENTS: "Wait for {2} online payment(s) to be confirmed first.",
+  OPEN_INVOICES: "Collect, adjust or cancel its {3} unpaid invoice(s) first; invoices are never deleted.",
   LAST_ACTIVE_CAMPUS: "A school needs at least one active campus.",
 };
 
@@ -46,7 +47,7 @@ export function CampusArchiveButton({ campus, onDone }: { campus: { id: string; 
       confirmLabel={blocked ? ui("Close") : ui("Archive campus")} tone={blocked ? "primary" : "warning"} busy={busy}
       detail={counts && <div className="space-y-3 text-sm" data-campus-archive-preview>
         <p className="text-ink-muted">{ui("{0} active pupil(s) · {1} active class(es) · {2} staff · {3} unpaid invoice(s) · {4} payment(s) awaiting confirmation · {5} queued AI run(s)", [counts.activeStudents, counts.activeClasses, counts.staff, counts.openInvoices, counts.pendingOnlinePayments, counts.queuedRuns])}</p>
-        {blocked ? <ul className="list-disc space-y-1 ps-5 font-medium text-destructive" data-campus-archive-blockers>{preview!.blockers.map(blocker => <li key={blocker}>{ui(BLOCKER_TEXT[blocker], [counts.activeStudents, counts.activeClasses, counts.pendingOnlinePayments])}</li>)}</ul>
+        {blocked ? <ul className="list-disc space-y-1 ps-5 font-medium text-destructive" data-campus-archive-blockers>{preview!.blockers.map(blocker => <li key={blocker}>{ui(BLOCKER_TEXT[blocker], [counts.activeStudents, counts.activeClasses, counts.pendingOnlinePayments, counts.openInvoices])}</li>)}</ul>
           : <FormField name="campus-archive-reason" label={ui("Reason")}><Input value={reason} maxLength={300} onChange={event => setReason(event.target.value)} /></FormField>}
         {error && <p role="alert" className="font-medium text-destructive">{error}</p>}
       </div>}

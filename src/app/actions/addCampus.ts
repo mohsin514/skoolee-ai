@@ -9,6 +9,7 @@ import { inviteStaff } from "./invite";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
 import { DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { assertEmail, assertPhone, assertWebsite, optionalText, requiredText } from "@/lib/school/details";
 
 
 export interface AddCampusInput {
@@ -26,13 +27,8 @@ export interface AddCampusInput {
   adminEmail?: string;
 }
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /** Trimmed, or null when the field was left blank. */
-function optional(value?: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
+const optional = (value?: string) => optionalText(value);
 
 export async function addCampus(input: AddCampusInput) {
   const cookieStore = await cookies();
@@ -43,23 +39,13 @@ export async function addCampus(input: AddCampusInput) {
   if (!payload) throw new Error("Unauthorized");
   if (payload.role !== "SUPER_ADMIN" && payload.role !== "ADMIN") throw new Error("Permission Denied");
 
-  const name = input.name?.trim();
-  const city = input.city?.trim();
-  if (!name) throw new Error("Campus name is required.");
-  if (!city) throw new Error("City is required.");
-
-  const email = optional(input.email);
-  if (email && !EMAIL_PATTERN.test(email)) throw new Error("Enter a valid campus email address.");
-  
-  const phone = optional(input.phone);
-  if (phone) {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length < 7) throw new Error("Phone number is too short to be valid.");
-    if (digits.length > 15) throw new Error("Phone number is too long to be valid.");
-  }
-  
-  const adminEmail = optional(input.adminEmail);
-  if (adminEmail && !EMAIL_PATTERN.test(adminEmail)) throw new Error("Enter a valid campus admin email address.");
+  // SKO-402: the same validators as editing a campus, so a campus can always be saved as it was created.
+  const name = requiredText(input.name, "Campus name");
+  const city = requiredText(input.city, "City");
+  const email = assertEmail(optional(input.email), "campus email address");
+  const phone = assertPhone(optional(input.phone), "Phone number");
+  const website = assertWebsite(optional(input.website), "website");
+  const adminEmail = assertEmail(optional(input.adminEmail), "campus admin email address");
 
   const schoolId = String(payload.schoolId);
   // Bind current membership before touching tenant records.
@@ -71,6 +57,8 @@ export async function addCampus(input: AddCampusInput) {
   // regId is unique platform-wide, so a clash is a user-facing problem, not a
   // 500. Check first for the common case; the create is still wrapped below
   // because two admins can race between this read and the write.
+  const sameName = await prisma.campus.findFirst({ where: { schoolId, archivedAt: null, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+  if (sameName) throw new Error("Another active campus already uses this name.");
   const clash = await prisma.campus.findUnique({ where: { regId: finalRegId }, select: { id: true } });
   if (clash) throw new Error(`Campus ID ${finalRegId} is already in use. Choose another.`);
 
@@ -85,9 +73,9 @@ export async function addCampus(input: AddCampusInput) {
         // Previously city was written into address as well, so every campus
         // reported its address as just the city name on letters and receipts.
         address: optional(input.address),
-        phone: optional(input.phone),
+        phone,
         email,
-        website: optional(input.website),
+        website,
         principalName: optional(input.principalName),
         board: optional(input.board) || DEFAULT_EXAM_BOARD,
       }

@@ -2248,6 +2248,8 @@ model Invoice {
   enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
   currency String @default("PKR")
   localeSnapshot Json? @map("locale_snapshot")
+  /// SKO-402: the school and campus identity as first printed on this invoice; later rebranding never changes it.
+  issuerSnapshot Json? @map("issuer_snapshot")
   id              String        @id @default(uuid())
   schoolId        String        @default("") @map("school_id")
   school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)

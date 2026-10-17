@@ -14,6 +14,7 @@ import { DEFAULT_EXAM_BOARD } from "@/config/boards";
 import {
   assertEmail,
   assertPhone,
+  assertWebsite,
   optionalText,
   parseEstablishedYear,
   parseLogo,
@@ -233,9 +234,9 @@ function patchText(value: string | null | undefined) {
 
 export interface SchoolDetailsInput {
   expectedRevision?: string;
-  name: string;
+  name?: string;
   tagline?: string;
-  city: string;
+  city?: string;
   address?: string;
   phone?: string;
   website?: string;
@@ -244,14 +245,27 @@ export interface SchoolDetailsInput {
   timezone?: string;
 }
 
+// SKO-402: updates are partial. A field that is omitted (undefined) keeps its stored value; an empty string
+// clears it only where clearing is allowed (name and city never clear). Create and edit share one set of
+// validators. Each save writes one audit entry holding only the fields that changed, before and after.
+type Diff = Record<string, { from: unknown; to: unknown }>;
+function diffOf(before: Record<string, unknown>, data: Record<string, unknown>): Diff {
+  const out: Diff = {};
+  for (const [key, value] of Object.entries(data)) if (value !== undefined && JSON.stringify(before[key] ?? null) !== JSON.stringify(value ?? null)) out[key] = { from: before[key] ?? null, to: value ?? null };
+  return out;
+}
+const AUDIT_FIELDS = (diff: Diff, side: "from" | "to") => Object.fromEntries(Object.entries(diff).map(([key, change]) => [key, key === "logoUrl" ? (change[side] ? "(logo)" : null) : change[side]]));
+
 export async function updateSchoolDetails(input: SchoolDetailsInput) {
   const session = await requireSession();
   await assertCanEditSchool(session);
 
-  const name = requiredText(input.name, "School name");
-  const city = requiredText(input.city, "City");
-  // An unrecognised zone keeps whatever is stored rather than failing the save
-  // or silently resetting the tenant to the schema default.
+  const name = input.name === undefined ? undefined : requiredText(input.name, "School name");
+  const city = input.city === undefined ? undefined : requiredText(input.city, "City");
+  const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
+  const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
+  // A timezone change moves every scheduled time, so it is previewed and applied in Language and regional
+  // settings; here it may only be repeated unchanged.
   const timezone = safeTimezone(input.timezone);
   if (input.timezone !== undefined) {
     const current = await prisma.school.findUniqueOrThrow({ where: { id: session.schoolId }, select: { timezone: true } });
@@ -259,35 +273,31 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
   }
 
   const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
-  const school = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const current = await tx.school.findUnique({ where: { id: session.schoolId } });
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
-    return tx.school.update({
-    where: { id: session.schoolId },
-    data: {
-      name,
-      city,
+    const data = {
+      name, city, phone, website,
       tagline: patchText(input.tagline),
       address: patchText(input.address),
-      phone: patchText(input.phone),
-      website: patchText(input.website),
       logoUrl: newLogoUrl,
-      establishedYear:
-        input.establishedYear === undefined ? undefined : parseEstablishedYear(input.establishedYear),
-      ...(timezone ? { timezone } : {}),
-    },
-  });
-
+      establishedYear: input.establishedYear === undefined ? undefined : parseEstablishedYear(input.establishedYear),
+    };
+    const diff = diffOf(current as unknown as Record<string, unknown>, data);
+    if (!Object.keys(diff).length) return { school: current, changed: [] as string[] };
+    const school = await tx.school.update({ where: { id: session.schoolId }, data });
+    await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "school", recordId: session.schoolId, userId: session.userId, oldValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "from") } as Prisma.InputJsonValue, newValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "to") } as Prisma.InputJsonValue } });
+    return { school, changed: Object.keys(diff) };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-  return { success: true, school: { id: school.id, name: school.name, timezone: school.timezone } };
+  return { success: true, changed: result.changed, school: { id: result.school.id, name: result.school.name, timezone: result.school.timezone } };
 }
 
 export interface CampusDetailsInput {
   expectedRevision?: string;
   campusId: string;
-  name: string;
-  city: string;
+  name?: string;
+  city?: string;
   address?: string;
   phone?: string;
   email?: string;
@@ -302,39 +312,60 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
   const campusId = requiredText(input.campusId, "Campus");
   await assertCanEditCampus(session, campusId);
 
-  const name = requiredText(input.name, "Campus name");
-  const city = requiredText(input.city, "City");
-  const email = input.email === undefined
-    ? undefined
-    : assertEmail(optionalText(input.email), "campus email address");
-  const phone = input.phone === undefined
-    ? undefined
-    : assertPhone(optionalText(input.phone), "Phone number");
+  const name = input.name === undefined ? undefined : requiredText(input.name, "Campus name");
+  const city = input.city === undefined ? undefined : requiredText(input.city, "City");
+  const email = input.email === undefined ? undefined : assertEmail(optionalText(input.email), "campus email address");
+  const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
+  const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
 
   const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
-  const campus = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const current = await tx.campus.findUnique({ where: { id: campusId } });
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
-    return tx.campus.update({
-    where: { id: campusId },
-    data: {
-      name,
-      city,
+    if (name && name.toLocaleLowerCase() !== current.name.toLocaleLowerCase()) {
+      const clash = await tx.campus.findFirst({ where: { schoolId: session.schoolId, archivedAt: null, id: { not: campusId }, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+      if (clash) throw new Error("Another active campus already uses this name.");
+    }
+    const data = {
+      name, city, phone, email, website,
       address: patchText(input.address),
-      phone,
-      email,
-      website: patchText(input.website),
       principalName: patchText(input.principalName),
       // A board is never left blank: clearing it falls back to the default
       // rather than leaving report cards with no affiliation printed.
       board: input.board === undefined ? undefined : optionalText(input.board) || DEFAULT_EXAM_BOARD,
       logoUrl: newLogoUrl,
-    },
-  });
-
+    };
+    const diff = diffOf(current as unknown as Record<string, unknown>, data);
+    if (!Object.keys(diff).length) return { campus: current, changed: [] as string[] };
+    const campus = await tx.campus.update({ where: { id: campusId }, data });
+    await tx.auditLog.create({ data: { schoolId: session.schoolId, campusId, tableName: "campus", recordId: campusId, userId: session.userId, oldValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "from") } as Prisma.InputJsonValue, newValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "to") } as Prisma.InputJsonValue } });
+    return { campus, changed: Object.keys(diff) };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-  return { success: true, campus: { id: campus.id, name: campus.name } };
+  return { success: true, changed: result.changed, campus: { id: result.campus.id, name: result.campus.name } };
+}
+
+export interface InstitutionHistoryEntry { id: string; at: string; actor: string | null; kind: "DETAILS" | "ARCHIVED" | "RESTORED"; fields: Record<string, { from: unknown; to: unknown }>; reason: string | null }
+
+/** Who changed what, and when, for the school or one campus (newest first). */
+export async function getInstitutionHistory(input: { level: "school" | "campus"; campusId?: string }): Promise<InstitutionHistoryEntry[]> {
+  const session = await requireSession();
+  assertStaffViewer(session);
+  let recordId = session.schoolId;
+  if (input.level === "campus") {
+    recordId = requiredText(input.campusId, "Campus");
+    const campus = await prisma.campus.findFirst({ where: { id: recordId, schoolId: session.schoolId }, select: { id: true } });
+    if (!campus) throw new Error("Campus not found.");
+    if (session.role !== "SUPER_ADMIN" && session.campusId !== recordId) throw new Error("You can only view the history of your own campus.");
+  }
+  const rows = await prisma.auditLog.findMany({ where: { schoolId: session.schoolId, tableName: input.level, recordId }, orderBy: { createdAt: "desc" }, take: 100 });
+  const people = new Map((await prisma.user.findMany({ where: { schoolId: session.schoolId, id: { in: [...new Set(rows.map(row => row.userId))] } }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
+  return rows.map(row => {
+    const before = (row.oldValue ?? {}) as Record<string, unknown>, after = (row.newValue ?? {}) as Record<string, unknown>;
+    const kind = after.kind === "DETAILS" ? "DETAILS" : after.archived === true ? "ARCHIVED" : "RESTORED";
+    const fromFields = (before.fields ?? {}) as Record<string, unknown>, toFields = (after.fields ?? {}) as Record<string, unknown>;
+    return { id: row.id, at: row.createdAt.toISOString(), actor: people.get(row.userId) ?? null, kind, fields: Object.fromEntries(Object.keys(toFields).map(key => [key, { from: fromFields[key] ?? null, to: toFields[key] ?? null }])), reason: typeof after.reason === "string" ? after.reason : null };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -350,7 +381,7 @@ export interface CampusArchivePreview {
   campusId: string;
   name: string;
   counts: { activeStudents: number; activeClasses: number; staff: number; openInvoices: number; pendingOnlinePayments: number; queuedRuns: number };
-  blockers: ("ACTIVE_STUDENTS" | "ACTIVE_CLASSES" | "PENDING_ONLINE_PAYMENTS" | "LAST_ACTIVE_CAMPUS")[];
+  blockers: ("ACTIVE_STUDENTS" | "ACTIVE_CLASSES" | "PENDING_ONLINE_PAYMENTS" | "OPEN_INVOICES" | "LAST_ACTIVE_CAMPUS")[];
 }
 
 async function campusArchiveImpact(db: TxClient, schoolId: string, campusId: string): Promise<CampusArchivePreview> {
@@ -369,6 +400,8 @@ async function campusArchiveImpact(db: TxClient, schoolId: string, campusId: str
   if (activeStudents) blockers.push("ACTIVE_STUDENTS");
   if (activeClasses) blockers.push("ACTIVE_CLASSES");
   if (pendingOnlinePayments) blockers.push("PENDING_ONLINE_PAYMENTS");
+  // SKO-402: money still owed to the campus is an obligation someone must own before it closes.
+  if (openInvoices) blockers.push("OPEN_INVOICES");
   if (!campus.archivedAt && otherActive === 0) blockers.push("LAST_ACTIVE_CAMPUS");
   return { campusId, name: campus.name, counts: { activeStudents, activeClasses, staff, openInvoices, pendingOnlinePayments, queuedRuns }, blockers };
 }
