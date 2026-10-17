@@ -96,6 +96,9 @@ export async function DELETE(req: NextRequest) {
     if (!existing) throw new ApiError("Fee group not found", 404);
 
     await prisma.$transaction(async (tx) => {
+      // SKO-389: a group still assigned to classes or holding master lines is not deleted with them.
+      const [lines, assignments] = await Promise.all([tx.feesMasterLine.count({ where: { feeGroupId: id } }), tx.feeGroupAssignment.count({ where: { feeGroupId: id } })]);
+      if (lines || assignments) throw new ApiError(`This fee group has ${lines} master line(s) and ${assignments} class assignment(s). Remove those first; invoices already issued are not affected.`, 409);
       await tx.feeGroup.delete({ where: { id } });
       await writeAuditEvent(tx, user, { table: "fee_groups", recordId: id, action: "DELETE", campusId: existing.campusId, before: { currency: existing.currency } });
     });

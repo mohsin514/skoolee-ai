@@ -1,5 +1,6 @@
 "use client";
 
+import { ArchivedCampusList, CampusArchiveButton } from "./campus-lifecycle";
 import { Button } from "@/components/ui/button";
 import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
@@ -94,7 +95,7 @@ export function InstitutionSettingsPanel({
     if (!data) return [];
     return scope === "editable"
       ? data.campuses.filter((c) => data.editableCampusIds.includes(c.id))
-      : data.campuses;
+      : data.campuses.filter((c) => !c.archivedAt);
   }, [data, scope]);
 
   if (loading) {
@@ -194,6 +195,8 @@ export function InstitutionSettingsPanel({
                       ) : null}
                     </div>
                   </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {data.canArchiveCampuses ? <CampusArchiveButton campus={campus} onDone={afterSave} /> : null}
                   {editable ? (
                     <Button variant="default"
                       type="button"
@@ -205,6 +208,7 @@ export function InstitutionSettingsPanel({
                     <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
                       <Lock className="h-3 w-3" /><UiText>{"View only"}</UiText></span>
                   )}
+                  </div>
                 </div>
               </div>
             );
@@ -213,6 +217,7 @@ export function InstitutionSettingsPanel({
             <p className="py-8 text-center text-[12px] font-bold text-ink-subtle"><UiText>{"No campuses to show."}</UiText></p>
           ) : null}
         </div>
+        {scope === "all" && data.canArchiveCampuses ? <ArchivedCampusList campuses={data.campuses.filter((c) => c.archivedAt)} onDone={afterSave} /> : null}
       </section>
 
       {editingSchool ? (

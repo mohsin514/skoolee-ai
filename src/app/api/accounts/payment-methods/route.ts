@@ -120,6 +120,9 @@ export async function DELETE(req: NextRequest) {
     if (!method) throw new ApiError("Payment method not found", 404);
 
     await prisma.$transaction(async (tx) => {
+      // SKO-389: payroll history keeps the method it was paid by.
+      const used = await tx.payrollLine.count({ where: { paymentMethodId: method.id } });
+      if (used) throw new ApiError(`This payment method is recorded on ${used} payroll line(s), so it cannot be deleted. Rename it or stop using it instead.`, 409);
       await tx.paymentMethodRef.delete({ where: { id: method.id } });
       await writeAuditEvent(tx, user, {
         table: "payment_method_refs", recordId: method.id, action: "DELETE", campusId: method.campusId,

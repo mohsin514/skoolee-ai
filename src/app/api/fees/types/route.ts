@@ -104,6 +104,9 @@ export async function DELETE(req: NextRequest) {
     if (!existing) throw new ApiError("Fee type not found", 404);
 
     await prisma.$transaction(async (tx) => {
+      // SKO-389: a fee type still priced in master lines is not deleted out from under them.
+      const lines = await tx.feesMasterLine.count({ where: { feeTypeId: id } });
+      if (lines) throw new ApiError(`This fee type is used by ${lines} master line(s). Remove it from those lines first; invoices already issued are not affected.`, 409);
       await tx.feeType.delete({ where: { id } });
       await writeAuditEvent(tx, user, { table: "fee_types", recordId: id, action: "DELETE", campusId: existing.campusId });
     });

@@ -83,7 +83,8 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
   ] = await Promise.all([
     prisma.school.findUnique({ where: { id: session.schoolId } }),
     prisma.campus.findMany({
-      where: { schoolId: session.schoolId },
+      // SKO-389: archived campuses leave the operating console; their history stays in reports.
+      where: { schoolId: session.schoolId, archivedAt: null },
       include: {
         users: {
           where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, isActive: true },

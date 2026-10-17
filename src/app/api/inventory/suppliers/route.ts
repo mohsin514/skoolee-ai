@@ -97,6 +97,9 @@ export async function DELETE(req: NextRequest) {
     const supplier = await prisma.supplier.findFirst({ where: { id, campusId } });
     if (!supplier) throw new ApiError("Supplier not found", 404);
 
+    // SKO-389: stock history keeps the supplier it came from.
+    const transactions = await prisma.itemTransaction.count({ where: { supplierId: id } });
+    if (transactions) throw new ApiError(`This supplier appears on ${transactions} stock transaction(s), so it cannot be deleted. Its history stays linked.`, 409);
     await prisma.supplier.delete({ where: { id } });
 
     return Response.json({ success: true, data: { id } });

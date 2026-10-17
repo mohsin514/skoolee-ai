@@ -4,7 +4,7 @@ import { getAuthUser } from "@/lib/auth";
 
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
@@ -117,6 +117,8 @@ function recordRevision(record: unknown) { return createHash("sha256").update(JS
 
 export interface InstitutionSettings {
   canEditSchool: boolean;
+  /** SKO-389: only the institution owner archives or restores a campus. */
+  canArchiveCampuses: boolean;
   editableCampusIds: string[];
   school: {
     revision: string;
@@ -146,6 +148,8 @@ export interface InstitutionSettings {
     principalName: string;
     board: string;
     logoUrl: string;
+    archivedAt: string | null;
+    archiveReason: string;
   }[];
 }
 
@@ -169,13 +173,14 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
 
   const editableCampusIds =
     session.role === "SUPER_ADMIN"
-      ? campuses.map((c) => c.id)
+      ? campuses.filter((c) => !c.archivedAt).map((c) => c.id)
       : (session.role === "CAMPUS_ADMIN" || session.role === "ADMIN") && session.campusId
         ? campuses.filter((c) => c.id === session.campusId).map((c) => c.id)
         : [];
 
   return {
     canEditSchool,
+    canArchiveCampuses: session.role === "SUPER_ADMIN",
     editableCampusIds,
     school: {
       revision: recordRevision(school),
@@ -205,6 +210,8 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
       principalName: c.principalName || "",
       board: c.board || DEFAULT_EXAM_BOARD,
       logoUrl: c.logoUrl || "",
+      archivedAt: c.archivedAt?.toISOString() ?? null,
+      archiveReason: c.archiveReason || "",
     })),
   };
 }
@@ -328,4 +335,85 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   return { success: true, campus: { id: campus.id, name: campus.name } };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SKO-389: campus archive and restore
+//
+// Archiving a campus is the institution owner's decision and never deletes anything: classes, pupils,
+// invoices and reports stay with it. It is refused while the campus still runs active pupils, classes
+// or unsettled online payments, or when it is the school's last active campus. The blockers are
+// counted again inside a serializable transaction holding the campus row, so a pupil enrolled while
+// the dialog was open stops the archive.
+
+export interface CampusArchivePreview {
+  campusId: string;
+  name: string;
+  counts: { activeStudents: number; activeClasses: number; staff: number; openInvoices: number; pendingOnlinePayments: number; queuedRuns: number };
+  blockers: ("ACTIVE_STUDENTS" | "ACTIVE_CLASSES" | "PENDING_ONLINE_PAYMENTS" | "LAST_ACTIVE_CAMPUS")[];
+}
+
+async function campusArchiveImpact(db: TxClient, schoolId: string, campusId: string): Promise<CampusArchivePreview> {
+  const campus = await db.campus.findFirst({ where: { id: campusId, schoolId }, select: { id: true, name: true, archivedAt: true } });
+  if (!campus) throw new Error("Campus not found.");
+  const [activeStudents, activeClasses, staff, openInvoices, pendingOnlinePayments, queuedRuns, otherActive] = await Promise.all([
+    db.student.count({ where: { campusId, archivedAt: null } }),
+    db.class.count({ where: { campusId, archivedAt: null } }),
+    db.user.count({ where: { campusId, isActive: true } }),
+    db.invoice.count({ where: { campusId, balanceDue: { gt: 0 }, status: { notIn: ["PAID", "CANCELLED"] } } }),
+    db.onlinePaymentOrder.count({ where: { campusId, status: "PENDING" } }),
+    db.schoolAiRun.count({ where: { campusId, status: { in: ["QUEUED", "PAUSED"] } } }),
+    db.campus.count({ where: { schoolId, archivedAt: null, id: { not: campusId } } }),
+  ]);
+  const blockers: CampusArchivePreview["blockers"] = [];
+  if (activeStudents) blockers.push("ACTIVE_STUDENTS");
+  if (activeClasses) blockers.push("ACTIVE_CLASSES");
+  if (pendingOnlinePayments) blockers.push("PENDING_ONLINE_PAYMENTS");
+  if (!campus.archivedAt && otherActive === 0) blockers.push("LAST_ACTIVE_CAMPUS");
+  return { campusId, name: campus.name, counts: { activeStudents, activeClasses, staff, openInvoices, pendingOnlinePayments, queuedRuns }, blockers };
+}
+
+function assertInstitutionOwner(session: Session) {
+  if (session.role !== "SUPER_ADMIN") throw new Error("Only the institution owner can archive or restore a campus.");
+}
+
+export async function previewCampusArchive(campusId: string): Promise<CampusArchivePreview> {
+  const session = await requireSession();
+  assertInstitutionOwner(session);
+  const id = requiredText(campusId, "Campus");
+  return prisma.$transaction((tx) => campusArchiveImpact(tx, session.schoolId, id));
+}
+
+export async function archiveCampus(input: { campusId: string; reason: string }) {
+  const session = await requireSession();
+  assertInstitutionOwner(session);
+  const campusId = requiredText(input.campusId, "Campus"), reason = requiredText(input.reason, "Reason").slice(0, 300);
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${session.schoolId} FOR UPDATE`;
+    const current = await tx.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { archivedAt: true } });
+    if (!current) throw new Error("Campus not found.");
+    if (current.archivedAt) return { success: true, alreadyArchived: true };
+    const impact = await campusArchiveImpact(tx, session.schoolId, campusId);
+    if (impact.blockers.length) return { success: false, blockers: impact.blockers, counts: impact.counts };
+    await tx.campus.update({ where: { id: campusId }, data: { archivedAt: new Date(), archiveReason: reason } });
+    await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "campus", recordId: campusId, userId: session.userId, oldValue: { archived: false }, newValue: { archived: true, reason, counts: impact.counts } } });
+    return { success: true, alreadyArchived: false };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function restoreCampus(campusId: string) {
+  const session = await requireSession();
+  assertInstitutionOwner(session);
+  const id = requiredText(campusId, "Campus");
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM campuses WHERE id = ${id} AND school_id = ${session.schoolId} FOR UPDATE`;
+    const campus = await tx.campus.findFirst({ where: { id, schoolId: session.schoolId }, select: { name: true, archivedAt: true } });
+    if (!campus) throw new Error("Campus not found.");
+    if (!campus.archivedAt) return { success: true, alreadyActive: true };
+    const clash = await tx.campus.findFirst({ where: { schoolId: session.schoolId, archivedAt: null, id: { not: id }, name: { equals: campus.name, mode: "insensitive" } }, select: { id: true } });
+    if (clash) throw new Error("An active campus already uses this name. Rename one of them before restoring.");
+    await tx.campus.update({ where: { id }, data: { archivedAt: null, archiveReason: null } });
+    await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "campus", recordId: id, userId: session.userId, oldValue: { archived: true }, newValue: { archived: false } } });
+    return { success: true, alreadyActive: false };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

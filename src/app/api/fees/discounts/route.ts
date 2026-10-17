@@ -125,6 +125,9 @@ export async function DELETE(req: NextRequest) {
     if (!existing) throw new ApiError("Discount not found", 404);
 
     await prisma.$transaction(async (tx) => {
+      // SKO-389: a discount still assigned to pupils is not removed from them silently.
+      const assigned = await tx.feeDiscountAssignment.count({ where: { discountId: id } });
+      if (assigned) throw new ApiError(`This discount is assigned to ${assigned} pupil(s). Remove those assignments first; invoices already issued keep their discount.`, 409);
       await tx.feeDiscount.delete({ where: { id } });
       await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: id, action: "DELETE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, currency: existing.currency, categoryId: existing.categoryId } });
     });

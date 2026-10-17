@@ -214,7 +214,7 @@ async function buildContext({
   if (data.feature === "campus_comparison" || data.feature === "weak_campuses") {
     const [campuses, reportStats, invoiceStats] = await Promise.all([
       prisma.campus.findMany({
-        where: { schoolId: user.schoolId },
+        where: { schoolId: user.schoolId, archivedAt: null },
         include: { _count: { select: { students: true, classes: true, users: true } } },
         orderBy: { name: "asc" },
       }),
