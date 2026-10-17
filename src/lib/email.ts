@@ -4,7 +4,7 @@ import { InviteEmail } from "./email/templates/InviteEmail";
 import { MessageEmail } from "./email/templates/MessageEmail";
 import { PasswordResetEmail } from "./email/templates/PasswordResetEmail";
 import { VerifyEmail } from "./email/templates/VerifyEmail";
-import { sendSmtpMail, type SmtpConfig } from "./email/smtp";
+import { sendSmtpMail, verifySmtpConnection, type SmtpConfig } from "./email/smtp";
 import { roleLabel } from "@/lib/roles";
 import { emailProviderReadiness } from "./email/readiness";
 export { emailProviderReadiness } from "./email/readiness";
@@ -53,6 +53,11 @@ function getSmtpConfig(): SmtpConfig {
     pass: process.env.SMTP_PASS || process.env.EMAIL_SERVER_PASSWORD,
     rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== "false",
   };
+}
+
+/** SKO-457: handshake-only provider check; sends nothing. */
+export async function checkEmailProviderConnection() {
+  return verifySmtpConnection(getSmtpConfig());
 }
 
 export function hasEmailProviderConfig() {

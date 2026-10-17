@@ -21,6 +21,7 @@ const TIMING_HASH = "$2a$12$utCRA1dXQTT8A9JBh4zQcO9TcVl2Hmaznnf01qUhQ5.w6D/T6LQ6
 import {
   SESSION_DAYS,
 } from "@/lib/auth/session-cookie";
+import { clientIp } from "@/lib/http/client-ip";
 
 export async function POST(req: NextRequest) {
   // Login is inherently cross-tenant: the school is unknown until the
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
 
 async function handleLogin(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = clientIp(req.headers);
     const body = await req.json();
     const rateKeyEmail = typeof body?.email === "string" ? body.email.toLowerCase().trim() : "";
     const { ok, remaining } = await authRateLimit(`login:${ip}:${rateKeyEmail}`, { limit: 10, windowMs: 60_000 });

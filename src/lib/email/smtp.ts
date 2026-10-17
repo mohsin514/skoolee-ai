@@ -307,3 +307,19 @@ export async function sendSmtpMail(config: SmtpConfig, input: SmtpMailInput) {
     socket.end();
   }
 }
+
+/**
+ * SKO-457: proves the provider accepts our connection, TLS and credentials without sending a
+ * message (connect, EHLO, STARTTLS when configured, AUTH, QUIT). Used for delivery readiness
+ * evidence; actual inbox delivery still needs a mailbox someone checks.
+ */
+export async function verifySmtpConnection(config: SmtpConfig) {
+  const started = Date.now();
+  const socket = await connect(config);
+  try {
+    await command(socket, "QUIT", [221]);
+    return { ok: true as const, host: config.host, port: config.port, secure: config.secure, authenticated: Boolean(config.user && config.pass), elapsedMs: Date.now() - started };
+  } finally {
+    socket.end();
+  }
+}

@@ -3,10 +3,11 @@ import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { sendInviteEmail } from "@/lib/email";
+import { clientIp } from "@/lib/http/client-ip";
 export async function POST(req: Request) {
   const result = { success: true, message: "If the invitation is available, a new link will be sent. Check your inbox or contact your school administrator." };
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const ip = clientIp(req.headers);
     if (!(await authRateLimit(`invite-reissue:${ip}`, { limit: 3, windowMs: 300_000 })).ok) return Response.json(result);
     const { token } = await req.json();
     if (typeof token !== "string" || token.length > 128) return Response.json(result);

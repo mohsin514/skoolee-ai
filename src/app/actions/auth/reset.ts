@@ -7,9 +7,10 @@ import bcrypt from "bcryptjs";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { headers } from "next/headers";
 import { runUnscoped } from "@/lib/db/tenant-context";
+import { clientIp } from "@/lib/http/client-ip";
 
 async function limit(kind: string, key = "") {
-  const h = await headers(); const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(await headers());
   return (await authRateLimit(`${kind}:${ip}`, { limit: 5, windowMs: 300_000 })).ok && (await authRateLimit(`${kind}:target:${key}`, { limit: 5, windowMs: 300_000 })).ok;
 }
 /** SKO-457: only a SHA-256 digest of a reset token is stored; the link carries the token itself. */

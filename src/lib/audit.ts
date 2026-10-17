@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { headers } from "next/headers";
 import { createHash } from "crypto";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
+import { clientIp } from "@/lib/http/client-ip";
 
 export async function logSuperAdminAction(params: {
   userId: string;
@@ -22,7 +23,7 @@ export async function logSuperAdminAction(params: {
   if (!ip || !ua) {
     try {
       const h = await headers();
-      ip = ip || h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
+      ip = ip || clientIp(h);
       ua = ua || h.get("user-agent") || undefined;
     } catch {
       // headers() may throw outside request context
@@ -69,7 +70,7 @@ export async function recordLoginSession(params: {
   if (!ip || !ua) {
     try {
       const h = await headers();
-      ip = ip || h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
+      ip = ip || clientIp(h);
       ua = ua || h.get("user-agent") || undefined;
     } catch {}
   }

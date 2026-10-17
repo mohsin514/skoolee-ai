@@ -8,6 +8,7 @@ import { isCampusAdminRole } from "@/lib/roles";
 import { bulkMarksSchema } from "@/lib/validators/schemas";
 import { gradeForMark, isLockedStatus, thresholdsForClass } from "@/lib/academic/report-cards";
 import { notify } from "@/lib/notifications/in-app";
+import { clientIp } from "@/lib/http/client-ip";
 
 function canEnterMarks(role: string) {
   return role === "TEACHER" || role === "PRINCIPAL" || role === "SUPER_ADMIN" || isCampusAdminRole(role);
@@ -199,7 +200,7 @@ export async function POST(req: NextRequest) {
             oldValue: oldMark ? markSnapshot(oldMark) : Prisma.JsonNull,
             newValue: markSnapshot(mark),
             userId: user.userId,
-            ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
+            ipAddress: clientIp(req.headers),
           },
         });
       }
