@@ -43,6 +43,13 @@ export interface TimetableConflict {
   teacherName?: string;
   roomNumber?: string;
   otherClass?: string;
+  /** SKO-403: the colliding booking, so the conflict links to every affected slot. */
+  otherSlotId?: string;
+  otherTimetableId?: string;
+  otherTime?: string;
+  otherCampus?: string;
+  /** This slot's clock times, for a localized description. */
+  time?: string;
 }
 
 export interface TimetableValidation {
@@ -91,10 +98,12 @@ export interface ValidatableSlot {
   endTime?: string;
 }
 
+// SKO-403: lessons collide when their clock times overlap. Period numbers are labels: the same number at two
+// campuses (or two bell schedules) can be different times, and different numbers can overlap. A number is
+// used only when a slot has no times recorded.
 function overlaps(first: ValidatableSlot, second: ValidatableSlot) {
   if (first.dayOfWeek !== second.dayOfWeek) return false;
-  if (first.periodNumber === second.periodNumber) return true;
-  if (!first.startTime || !first.endTime || !second.startTime || !second.endTime) return false;
+  if (!first.startTime || !first.endTime || !second.startTime || !second.endTime) return first.periodNumber === second.periodNumber;
   const valid = (slot: ValidatableSlot) => /^([01]\d|2[0-3]):[0-5]\d$/.test(slot.startTime!) && /^([01]\d|2[0-3]):[0-5]\d$/.test(slot.endTime!) && slot.startTime! < slot.endTime!;
   // Bad persisted times cannot prove that a teacher or room is free.
   if (!valid(first) || !valid(second)) return true;
@@ -138,7 +147,8 @@ export async function validateTimetableSlots(opts: {
       ? db.timetableSlot.findMany({
           where: {
             timetable: {
-              campusId,
+              // A teacher can work at several campuses of the school; a room belongs to one campus.
+              schoolId: cls.schoolId,
               id: { not: timetableId },
               ...(opts.academicYear ? { academicYear: opts.academicYear } : {}),
               // Only known, disjoint terms can narrow the search. Legacy labels
@@ -153,7 +163,7 @@ export async function validateTimetableSlots(opts: {
             slotType: "CLASS",
             OR: [
               ...(teacherIds.length ? [{ teacherId: { in: teacherIds } }] : []),
-              ...(roomIds.length ? [{ roomId: { in: roomIds } }] : []),
+              ...(roomIds.length ? [{ roomId: { in: roomIds }, timetable: { campusId } }] : []),
             ],
           },
           select: {
@@ -166,7 +176,7 @@ export async function validateTimetableSlots(opts: {
             roomId: true,
             teacher: { select: { fullName: true } },
             room: { select: { roomNumber: true } },
-            timetable: { select: { id: true, class: { select: { name: true, section: true } } } },
+            timetable: { select: { id: true, campusId: true, campus: { select: { name: true } }, class: { select: { name: true, section: true } } } },
           },
         })
       : Promise.resolve([]),
@@ -233,12 +243,17 @@ export async function validateTimetableSlots(opts: {
           identity: JSON.stringify(["TEACHER_DOUBLE_BOOKED", slot.teacherId, timetableId, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, clash.timetable.id, clash.id]),
           type: "TEACHER_DOUBLE_BOOKED",
           severity: "CRITICAL",
-          message: `${clash.teacher?.fullName ?? "This teacher"} is already teaching ${classLabel(clash.timetable.class)} on ${when}.`,
+          message: `${clash.teacher?.fullName ?? "This teacher"} is already teaching ${classLabel(clash.timetable.class)}${clash.timetable.campusId && clash.timetable.campusId !== campusId ? ` at ${clash.timetable.campus?.name ?? "another campus"}` : ""} at ${clash.startTime}–${clash.endTime}, overlapping ${slot.startTime ?? ""}–${slot.endTime ?? ""} on ${when}.`,
           dayOfWeek: slot.dayOfWeek,
           periodNumber: slot.periodNumber,
           slotId: slot.id,
           teacherName: clash.teacher?.fullName ?? undefined,
           otherClass: classLabel(clash.timetable.class),
+          otherSlotId: clash.id,
+          otherTimetableId: clash.timetable.id,
+          otherTime: `${clash.startTime}–${clash.endTime}`,
+          otherCampus: clash.timetable.campusId && clash.timetable.campusId !== campusId ? clash.timetable.campus?.name ?? undefined : undefined,
+          time: slot.startTime && slot.endTime ? `${slot.startTime}–${slot.endTime}` : undefined,
         });
       }
     } else if (requireComplete) {
@@ -263,12 +278,16 @@ export async function validateTimetableSlots(opts: {
           identity: JSON.stringify(["ROOM_DOUBLE_BOOKED", slot.roomId, timetableId, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, clash.timetable.id, clash.id]),
           type: "ROOM_DOUBLE_BOOKED",
           severity: "CRITICAL",
-          message: `Room ${clash.room?.roomNumber ?? ""} is already booked for ${classLabel(clash.timetable.class)} on ${when}.`,
+          message: `Room ${clash.room?.roomNumber ?? ""} is already booked for ${classLabel(clash.timetable.class)} at ${clash.startTime}–${clash.endTime}, overlapping ${slot.startTime ?? ""}–${slot.endTime ?? ""} on ${when}.`,
           dayOfWeek: slot.dayOfWeek,
           periodNumber: slot.periodNumber,
           slotId: slot.id,
           roomNumber: clash.room?.roomNumber ?? undefined,
           otherClass: classLabel(clash.timetable.class),
+          otherSlotId: clash.id,
+          otherTimetableId: clash.timetable.id,
+          otherTime: `${clash.startTime}–${clash.endTime}`,
+          time: slot.startTime && slot.endTime ? `${slot.startTime}–${slot.endTime}` : undefined,
         });
       }
 

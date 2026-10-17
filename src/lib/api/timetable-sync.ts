@@ -50,5 +50,6 @@ export async function syncTimetableSlotsForSubjects(
     const conflicts = validation.conflicts.filter(conflict => conflict.severity === "CRITICAL");
     if (conflicts.length) throw new ApiError(`Teacher assignment was not saved. ${conflicts.map(conflict => conflict.message).join(" ")}`, 409);
   }
-  await tx.timetable.updateMany({ where: { id: { in: timetableIds }, ...scope }, data: { updatedAt: new Date() } });
+  // SKO-403: the change is a draft revision; families keep the published version until it is republished.
+  await tx.timetable.updateMany({ where: { id: { in: timetableIds }, ...scope }, data: { updatedAt: new Date(), draftRevision: { increment: 1 } } });
 }

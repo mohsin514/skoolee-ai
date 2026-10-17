@@ -337,6 +337,13 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/admin",
     recipients: (c) => getAdminsAndPrincipal(c.schoolId, c.campusId),
   },
+  // SKO-403: sent once per published version, only to affected teachers and the class's families.
+  TIMETABLE_CHANGED: {
+    title: () => "Timetable updated",
+    message: (c) => `The timetable for ${s(c.className)} changes from ${s(c.effectiveFrom)} (version ${s(c.version)}, ${s(c.changeCount)} lesson changes)`,
+    icon: "LayoutGrid",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   TIMETABLE_PUBLISHED: {
     title: (c) => "Timetable published",
     message: (c) => `Timetable published for ${s(c.className)}`,

@@ -11,6 +11,10 @@ import { lockTimetableCampus } from "./locking";
 import { validateTimetableSlots, type TimetableValidation } from "./validate";
 import type { SuggestionAction } from "./suggest";
 import { assertSubstituteLessonsUnchanged } from "@/lib/school-ai/school-operations-bookings";
+import { schoolToday } from "@/lib/datetime";
+import { deliverNotification } from "@/lib/notifications/in-app";
+import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
+import { affectedTeacherIds, diffSnapshots, recordTimetableVersion, slotsOf, snapshotSlots, versionsFor, versionSummary } from "./versions";
 
 export const timetableInclude = {
   class: { select: { id: true, name: true, section: true } },
@@ -118,12 +122,61 @@ async function saveInTransaction(user: AuthUser, board: Board, input: unknown, t
     const slot = merged.find(item => item.id === patch.id)!;
     await tx.timetableSlot.update({ where: { id: slot.id }, data: { subjectId: slot.subjectId, teacherId: slot.teacherId, roomId: slot.roomId, roomNumber: roomRows.find(room => room.id === slot.roomId)?.roomNumber ?? null, slotType: slot.slotType, startTime: slot.startTime, endTime: slot.endTime } });
   }
-  await tx.timetable.update({ where: { id: board.id }, data: { updatedAt: new Date() } });
+  await tx.timetable.update({ where: { id: board.id }, data: { updatedAt: new Date(), draftRevision: { increment: 1 } } });
   return { data: await load(user, board.campusId, board.id, tx), validation };
 }
-export async function saveManualTimetable(user: AuthUser, campusId: string, timetableId: string, slots: unknown) {
-  return write(user, campusId, "edit", async tx => saveInTransaction(user, await load(user, campusId, timetableId, tx), slots, tx));
+export async function saveManualTimetable(user: AuthUser, campusId: string, timetableId: string, slots: unknown, knownRevision?: number) {
+  return write(user, campusId, "edit", async tx => {
+    const board = await load(user, campusId, timetableId, tx);
+    // SKO-403: a save made from an older copy of the draft is refused rather than merged silently.
+    if (knownRevision !== undefined && knownRevision !== board.draftRevision) throw new ApiError("This draft changed in another session. Review the new version before saving.", 409);
+    return saveInTransaction(user, board, slots, tx);
+  });
 }
+/**
+ * SKO-403: what publishing the current draft would do — hard conflicts (block), soft warnings, the lessons that
+ * change against the latest published version, and who would be told. Nothing is written.
+ */
+export async function previewTimetablePublish(user: AuthUser, campusId: string, timetableId: string) {
+  return write(user, campusId, "view", async tx => {
+    const board = await load(user, campusId, timetableId, tx);
+    const { validation } = await validateResult(user, board, board.slots, tx, true, true);
+    const today = await schoolToday(user.schoolId, campusId);
+    const { inForce, upcoming, latest } = await versionsFor(board.id, today, tx);
+    const changes = diffSnapshots(latest ? slotsOf(latest) : null, snapshotSlots(board.slots));
+    const teacherIds = affectedTeacherIds(changes);
+    const [teachers, students] = await Promise.all([
+      tx.user.findMany({ where: { schoolId: user.schoolId, id: { in: teacherIds } }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }),
+      changes.length ? tx.student.count({ where: { schoolId: user.schoolId, classId: board.classId, archivedAt: null } }) : 0,
+    ]);
+    return { timetableId: board.id, draftRevision: board.draftRevision, status: board.status, today, inForce: versionSummary(inForce), upcoming: versionSummary(upcoming), latest: versionSummary(latest), unpublishedChanges: latest ? latest.draftRevision !== board.draftRevision && changes.length > 0 : true, validation, changes, affected: { teachers, students } };
+  });
+}
+
+/**
+ * SKO-403: publish the draft as a new version. Bound to the draft revision the publisher reviewed (a newer
+ * edit makes the request stale), revalidated inside the same locked transaction, refused while any hard
+ * conflict remains, and effective from a school-local date that is not in the past.
+ */
+export async function publishTimetableVersion(user: AuthUser, campusId: string, timetableId: string, input: { draftRevision?: unknown; effectiveFrom?: unknown; note?: unknown }) {
+  const effectiveFrom = String(input.effectiveFrom ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) || Number.isNaN(new Date(`${effectiveFrom}T00:00:00Z`).getTime())) throw new ApiError("Choose the date the timetable takes effect.", 400);
+  const today = await schoolToday(user.schoolId, campusId);
+  if (effectiveFrom < today) throw new ApiError("A timetable cannot take effect in the past.", 400);
+  return write(user, campusId, "edit", async tx => {
+    const board = await load(user, campusId, timetableId, tx);
+    if (Number(input.draftRevision) !== board.draftRevision) throw new ApiError("This draft changed in another session. Review the new version before publishing.", 409);
+    await validateResult(user, board, board.slots, tx, true);
+    const latest = await tx.timetableVersion.findFirst({ where: { timetableId: board.id }, orderBy: { version: "desc" } });
+    if (latest && board.status === "PUBLISHED" && !diffSnapshots(slotsOf(latest), snapshotSlots(board.slots)).length && latest.effectiveFrom.toISOString().slice(0, 10) === effectiveFrom) throw new ApiError("This draft is already published with that date.", 409);
+    const note = typeof input.note === "string" && input.note.trim() ? input.note.trim().slice(0, 500) : null;
+    const recorded = await recordTimetableVersion(tx, { schoolId: user.schoolId, campusId, timetableId: board.id, effectiveFrom, publishedById: user.userId, note });
+    await tx.timetable.update({ where: { id: board.id }, data: { status: "PUBLISHED", publishedAt: new Date() } });
+    await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId, tableName: "timetable_versions", recordId: recorded.version.id, userId: user.userId, newValue: { timetableId: board.id, version: recorded.version.version, draftRevision: board.draftRevision, effectiveFrom, changes: recorded.changes.length } as Prisma.InputJsonValue } });
+    return { data: await load(user, campusId, timetableId, tx), version: recorded.version, changes: recorded.changes, firstVersion: !recorded.previous };
+  });
+}
+
 export async function changeManualTimetableStatus(user: AuthUser, campusId: string, timetableId: string, action: "publish" | "unpublish") {
   return write(user, campusId, "edit", async tx => {
     const board = await load(user, campusId, timetableId, tx);
@@ -132,6 +185,8 @@ export async function changeManualTimetableStatus(user: AuthUser, campusId: stri
     const changed = board.status !== status;
     if (changed && action === "unpublish") await assertSubstituteLessonsUnchanged(tx, user.schoolId, campusId, board.slots, []);
     if (changed) await tx.timetable.update({ where: { id: board.id }, data: { status, publishedAt: action === "publish" ? new Date() : null } });
+    // Older callers publish "now": record that as a version effective today so every view can read it.
+    if (changed && action === "publish") await recordTimetableVersion(tx, { schoolId: user.schoolId, campusId, timetableId: board.id, effectiveFrom: await schoolToday(user.schoolId, campusId), publishedById: user.userId });
     return { data: await load(user, campusId, timetableId, tx), validation, changed };
   }, action === "unpublish");
 }
@@ -180,4 +235,28 @@ export async function reviewTimetablePublication(user: AuthUser, campusId: strin
   const lessons = board.slots.filter(slot => slot.slotType === "CLASS");
   if (!lessons.length || lessons.some(slot => !slot.subjectId || !slot.teacherId || !slot.roomId || !slot.room || slot.room.capacity <= 0) || validation.conflicts.length) throw new ApiError("Complete every teaching lesson and resolve capacity or resource warnings before reviewed publication.", 409);
   return board;
+}
+
+/**
+ * SKO-403: tell only the people a publication affects — teachers whose lessons changed and the class's
+ * students and guardians — once per version. The version is claimed before sending, so a retried request
+ * or a second worker never sends it twice.
+ */
+export async function notifyTimetableVersion(user: AuthUser, timetableId: string, versionId: string) {
+  const claimed = await prisma.timetableVersion.updateMany({ where: { id: versionId, timetableId, schoolId: user.schoolId, notifiedAt: null }, data: { notifiedAt: new Date() } });
+  if (!claimed.count) return { sent: false };
+  const version = await prisma.timetableVersion.findUniqueOrThrow({ where: { id: versionId }, include: { timetable: { select: { classId: true, class: { select: { name: true, section: true } } } } } });
+  const changes = (version.changes ?? []) as unknown as Parameters<typeof affectedTeacherIds>[0];
+  if (!changes.length) return { sent: false };
+  const students = await prisma.student.findMany({ where: { schoolId: user.schoolId, classId: version.timetable.classId, archivedAt: null }, select: { id: true, studentUserId: true } });
+  const guardians = students.length ? await prisma.guardianRelationship.findMany({ where: { studentId: { in: students.map(s => s.id) }, ...liveGuardianRelationshipWhere(null, "learningRecords", new Date(), user.schoolId) }, select: { guardianUserId: true } }) : [];
+  const recipients = [...new Set([...affectedTeacherIds(changes), ...students.map(s => s.studentUserId), ...guardians.map(g => g.guardianUserId)].filter((id): id is string => Boolean(id)))];
+  try {
+    await deliverNotification("TIMETABLE_CHANGED", { schoolId: user.schoolId, campusId: version.campusId, actorId: user.userId, actorName: user.fullName ?? null, recipientIds: recipients, className: [version.timetable.class.name, version.timetable.class.section].filter(Boolean).join(" "), version: version.version, effectiveFrom: version.effectiveFrom.toISOString().slice(0, 10), versionId: version.id, changeCount: changes.length });
+  } catch (error) {
+    // Release the claim so a retry can send it; nothing was recorded as delivered.
+    await prisma.timetableVersion.updateMany({ where: { id: versionId, timetableId }, data: { notifiedAt: null } });
+    throw error;
+  }
+  return { sent: true, recipients: recipients.length };
 }

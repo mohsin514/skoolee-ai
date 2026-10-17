@@ -40,6 +40,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { PublicationReview, PublicationStatus } from "./PublicationReview";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
 import { timetablePeriods } from "@/lib/timetable/view-scope";
@@ -120,6 +121,8 @@ export interface TimetableData {
   term: string;
   status: string;
   publishedAt: string | null;
+  /** SKO-403: bumps on every draft edit; a publication names the revision it reviewed. */
+  draftRevision?: number;
   class: { id: string; name: string; section: string | null };
   slots: StudioSlot[];
 }
@@ -599,6 +602,8 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // SKO-403: publishing goes through a review of conflicts, changes and recipients.
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [editingSlot, setEditingSlot] = useState<StudioSlot | null>(null);
   const [pendingChanges, setPendingChanges] = useState<Map<string, SlotChange>>(new Map());
   const [viewMode, setViewMode] = useState<"class" | "teacher" | "room">("class");
@@ -841,7 +846,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slots: slotsToUpdate }),
+        body: JSON.stringify({ slots: slotsToUpdate, draftRevision: activeTimetable.draftRevision }),
       });
       const json = await res.json();
       if (json.success) {
@@ -860,19 +865,18 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
     }
   };
 
-  const handlePublish = async () => {
+  const handleUnpublish = async () => {
     if (!activeTimetable) return;
     setPublishing(true);
     try {
-      const action = activeTimetable.status === "PUBLISHED" ? "unpublish" : "publish";
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: "unpublish" }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(action === "publish" ? "Timetable published! Teachers and students can now see it." : "Timetable unpublished");
+        toast.success(ui("Timetable unpublished"));
         await loadData();
       } else {
         toast.error(json.error || "Failed");
@@ -892,7 +896,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slots: updates }),
+        body: JSON.stringify({ slots: updates, draftRevision: activeTimetable.draftRevision }),
       });
       const json = await res.json();
       if (json.success) {
@@ -967,6 +971,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
 
   return (
     <div className="min-w-0 space-y-6">
+      {reviewOpen && activeTimetable ? <PublicationReview timetableId={activeTimetable.id} className={[activeTimetable.class.name, activeTimetable.class.section].filter(Boolean).join(" ")} onClose={() => setReviewOpen(false)} onPublished={() => { setReviewOpen(false); void loadData(); }} /> : null}
       <TimetableScopeControls year={scope.year} term={scope.term} years={scope.years} terms={scope.terms} disabled={changing} onYear={year => changeSelection(() => { scope.setYear(year); setSelectedClassId(null); })} onTerm={term => changeSelection(() => scope.setTerm(term))} />
       <ConfirmAction open={pendingSelection !== null} title={scopeCopy.changeTitle} description={scopeCopy.changeHint} confirmLabel={scopeCopy.discard} cancelLabel={scopeCopy.keep} onCancel={() => setPendingSelection(null)} onConfirm={finishSelection} />
       <ConfirmAction open={confirmDeleteTimetable} title={ui("Delete this timetable?")} description={ui("Its lessons are removed from this class's weekly schedule. Attendance and marks already recorded are not affected. A timetable with substitute history cannot be deleted.")} confirmLabel={ui("Delete timetable")} tone="danger" busy={deletingTimetable} onCancel={() => setConfirmDeleteTimetable(false)} onConfirm={() => void deleteTimetable()} />
@@ -974,7 +979,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       {/* Toolbar: class picker, view tabs, publish */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] p-2 shadow-sm border border-[#cfc2d6]/10">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <InputGroup surfaceClassName="bg-white" className="min-w-0">
+          <InputGroup surfaceClassName="bg-white" className="min-w-[240px] flex-1 sm:max-w-sm">
             <SystemSelect
               value={selectedClassId || ""}
               onChange={(e) => { const id = e.target.value || null; changeSelection(() => setSelectedClassId(id)); }}
@@ -1027,14 +1032,18 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
             </Button>
           </div>
 
-          <Button variant={activeTimetable?.status === "PUBLISHED" ? "secondary" : "default"} size="sm"
+          {activeTimetable?.status === "PUBLISHED" ? <Button variant="secondary" size="sm" type="button" onClick={handleUnpublish} disabled={changing || publishing || viewMode !== "class"} data-unpublish>
+            {ui("Unpublish")}
+          </Button> : null}
+          <Button size="sm"
             type="button"
-            onClick={handlePublish}
+            onClick={() => setReviewOpen(true)}
             disabled={!activeTimetable || changing || pendingChanges.size > 0 || viewMode !== "class"}
             className="flex justify-start items-center gap-1.5"
+            data-review-publish
           >
             {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {activeTimetable?.status === "PUBLISHED" ? "Unpublish" : "Publish"}
+            {ui("Review and publish")}
           </Button>
         </div>
       </div>
@@ -1119,6 +1128,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     <span className={`h-1.5 w-1.5 rounded-full ${activeTimetable.status === "PUBLISHED" ? "bg-emerald-500" : "bg-amber-400"}`} />
                     {activeTimetable.status}
                   </div>
+                  <PublicationStatus timetableId={activeTimetable.id} refreshKey={`${activeTimetable.draftRevision}:${activeTimetable.status}:${activeTimetable.publishedAt ?? ""}`} />
                   {pendingChanges.size > 0 && (
                     <span className="text-[10px] font-bold text-amber-600 bg-amber-50 rounded-lg px-2 py-1">
                       {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? "s" : ""}

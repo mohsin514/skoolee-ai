@@ -30,7 +30,7 @@ test("one period number has one clock window across the weekly grid", () => {
 });
 
 type TermFilter = { in?: string[]; notIn?: string[] };
-type TimetableFilter = { campusId: string; id: { not: string }; academicYear?: number; OR?: Array<{ term: TermFilter }> };
+type TimetableFilter = { schoolId: string; id: { not: string }; academicYear?: number; OR?: Array<{ term: TermFilter }> };
 async function validateAgainstKnownTerm(term: string | undefined, existingTerm: string) {
   let captured: TimetableFilter | undefined;
   const client = {
@@ -48,7 +48,8 @@ async function validateAgainstKnownTerm(term: string | undefined, existingTerm: 
   const result = await validateTimetableSlots({ campusId: "campus", timetableId: "current", classId: "class", slots: [slot], academicYear: 2026, term }, client);
   assert(captured);
   assert.equal(captured.academicYear, 2026);
-  assert.equal(captured.campusId, "campus");
+  // SKO-403: a teacher can work at several campuses, so the clash search covers the whole school.
+  assert.equal(captured.schoolId, "school");
   assert.deepEqual(captured.id, { not: "current" });
   return { result, filter: captured };
 }

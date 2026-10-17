@@ -225,6 +225,7 @@ model School {
   attendanceRegisters     AttendanceRegister[]
   attendanceRuleVersions  AttendanceRuleVersion[]
   attendanceExplanations  AttendanceExplanation[]
+  timetableVersions       TimetableVersion[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3001,8 +3002,12 @@ model Timetable {
   publishedAt  DateTime? @map("published_at")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
+  // SKO-403: the slot rows are the working draft; every edit bumps the revision. Families, students and
+  // teachers read the published version in force, so editing never changes their view until publication.
+  draftRevision Int      @default(1) @map("draft_revision")
 
-  slots TimetableSlot[]
+  slots    TimetableSlot[]
+  versions TimetableVersion[]
 
   @@unique([classId, academicYear, term])
   @@index([campusId])
@@ -3034,6 +3039,31 @@ model TimetableSlot {
   @@index([teacherId, dayOfWeek, periodNumber])
   @@index([schoolId])
   @@map("timetable_slots")
+}
+
+/// SKO-403: an immutable published timetable. Bound to the exact draft revision that was validated; the
+/// previous version stays in force until this one's effective date.
+model TimetableVersion {
+  id            String    @id @default(uuid())
+  schoolId      String    @default("") @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String    @map("campus_id")
+  timetableId   String    @map("timetable_id")
+  timetable     Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  version       Int
+  draftRevision Int       @map("draft_revision")
+  effectiveFrom DateTime  @db.Date @map("effective_from")
+  slots         Json
+  changes       Json      @default("[]")
+  note          String?   @db.Text
+  publishedById String?   @map("published_by_id")
+  publishedAt   DateTime  @default(now()) @map("published_at")
+  notifiedAt    DateTime? @map("notified_at")
+
+  @@unique([timetableId, version])
+  @@index([timetableId, effectiveFrom])
+  @@index([schoolId])
+  @@map("timetable_versions")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

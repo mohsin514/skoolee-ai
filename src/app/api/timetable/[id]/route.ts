@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, canManageOperations } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus } from "@/lib/timetable/manual";
+import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus, previewTimetablePublish, publishTimetableVersion, notifyTimetableVersion } from "@/lib/timetable/manual";
 
 export const runtime = "nodejs";
 
@@ -11,6 +11,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const user = await requireAuthUser();
     const { id } = await params;
     const campusId = await resolveTimetableCampus(user, id);
+    // SKO-403: what publishing this draft would do (conflicts, changed lessons, who is told).
+    if (_req.nextUrl.searchParams.get("publication")) return Response.json({ success: true, data: await previewTimetablePublish(user, campusId, id) });
 
     const timetable = await prisma.timetable.findFirst({
       where: { id, campusId: campusId || undefined },
@@ -42,14 +44,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const campusId = await resolveTimetableCampus(user, id);
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
     const body = await req.json();
-    if (body.action === "publish" || body.action === "unpublish") {
+    if (body.action === "publish") {
+      // SKO-403: a reviewed publication of an exact draft revision, effective from a chosen date.
+      const result = await publishTimetableVersion(user, campusId, id, body);
+      notify("TIMETABLE_PUBLISHED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, className: result.data.class.name, classId: result.data.class.id });
+      const delivery = await notifyTimetableVersion(user, id, result.version.id).catch(error => { console.error("[timetable] change notice failed", error); return { sent: false }; });
+      return Response.json({ success: true, data: result.data, version: { id: result.version.id, version: result.version.version, effectiveFrom: result.version.effectiveFrom.toISOString().slice(0, 10) }, changes: result.changes.length, delivery });
+    }
+    if (body.action === "notify" && typeof body.versionId === "string") return Response.json({ success: true, delivery: await notifyTimetableVersion(user, id, body.versionId) });
+    if (body.action === "unpublish") {
       const result = await changeManualTimetableStatus(user, campusId, id, body.action);
       // Notifications are outside the retry boundary and only follow an actual
       // committed status transition; repeated publish requests do not resend.
       if (body.action === "publish" && result.changed) notify("TIMETABLE_PUBLISHED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, className: result.data.class.name });
       return Response.json({ success: true, data: result.data, ...(result.validation ? { validation: result.validation } : {}) });
     }
-    if (Array.isArray(body.slots)) return Response.json({ success: true, ...await saveManualTimetable(user, campusId, id, body.slots) });
+    if (Array.isArray(body.slots)) return Response.json({ success: true, ...await saveManualTimetable(user, campusId, id, body.slots, typeof body.draftRevision === "number" ? body.draftRevision : undefined) });
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   } catch (error) {
     if (error instanceof TimetableValidationError) return Response.json({ error: error.message, validation: error.validation, conflicts: error.validation.conflicts.filter(item => item.severity === "CRITICAL").map(item => item.message) }, { status: 409 });
