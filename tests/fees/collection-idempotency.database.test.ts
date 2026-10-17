@@ -55,6 +55,7 @@ test("a retried collection replays its original receipt; a changed request under
   assert.equal(await db.paymentAllocation.count({ where: { paymentId: payments[0].id } }), 1);
   assert.equal(await db.ledgerEntry.count({ where: { paymentId: payments[0].id } }), 1);
   assert.equal((await db.invoice.findUniqueOrThrow({ where: { id: inv.id } })).balanceDue, 60000);
+  assert.equal(await db.auditLog.count({ where: { tableName: "payment", recordId: payments[0].id } }), 1, "one audit entry, committed with the payment");
 });
 
 test("five concurrent retries with the same key post one payment and all answer with its receipt", async () => {

@@ -83,8 +83,9 @@ export async function POST(req: NextRequest) {
 
     let result;
     try {
-      result = await prisma.$transaction((tx) =>
-        recordPayment(tx, {
+      // The payment, allocation, ledger entry and audit record commit together or not at all.
+      result = await prisma.$transaction(async (tx) => {
+        const recorded = await recordPayment(tx, {
           campusId,
           invoiceId: invoice.id,
           studentId: invoice.studentId,
@@ -98,9 +99,10 @@ export async function POST(req: NextRequest) {
           recordedBy: user.userId,
           idempotencyKey,
           requestHash,
-        }),
-        { timeout: 20000 }
-      );
+        });
+        await tx.auditLog.create({ data: { tableName: "payment", recordId: recorded.payment.id, newValue: { invoiceId: invoice.id, amount, fineAmount: recorded.payment.fineAmount, discountAmount: recorded.payment.discountAmount, receiptNo: recorded.receiptNo, credit: recorded.credit }, userId: user.userId } });
+        return recorded;
+      }, { timeout: 20000 });
     } catch (error) {
       // A concurrent retry with the same key committed first: answer with its receipt.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && JSON.stringify(error.meta ?? {}).includes("idempotency")) {
@@ -110,21 +112,6 @@ export async function POST(req: NextRequest) {
       throw error;
     }
 
-    await prisma.auditLog.create({
-      data: {
-        tableName: "payment",
-        recordId: result.payment.id,
-        newValue: {
-          invoiceId: invoice.id,
-          amount,
-          fineAmount: result.payment.fineAmount,
-          discountAmount: result.payment.discountAmount,
-          receiptNo: result.receiptNo,
-          credit: result.credit,
-        },
-        userId: user.userId,
-      },
-    });
 
     notify("PAYMENT_RECORDED", {
       schoolId: user.schoolId,
