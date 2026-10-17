@@ -118,7 +118,7 @@ test("the bursar sees the adjustment history and effect wording in the invoice d
   await page.getByRole("button", { name: "Invoices", exact: true }).first().click({ timeout: 30_000 });
   await page.getByRole("button", { name: "View Details" }).first().click({ timeout: 30_000 });
   const panel = page.locator("[data-adjustments-panel]");
-  await panel.waitFor({ timeout: 15_000 });
+  await panel.locator('[data-adjustment-status="DISBURSED"]').waitFor({ timeout: 15_000 });
   assert.equal(await panel.locator('[data-adjustment-status="DISBURSED"]').count(), 1);
   assert.equal(await panel.locator('[data-adjustment-status="DECLINED"]').count(), 1);
   await panel.scrollIntoViewIfNeeded();
