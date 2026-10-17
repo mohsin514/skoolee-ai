@@ -58,10 +58,11 @@ test("a collection whose response is lost replays the same receipt on retry and 
   await page.getByRole("button", { name: /Synthetic Zara Tamarind/ }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: "Continue to Payment" }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: "Save & Generate Receipt" }).click();
-  await page.waitForFunction(`${JSON.stringify(keys)}.length >= 0`);
-  await page.waitForTimeout(1500);
+  // The response was lost: the dialog says the outcome is unknown and offers to check, not to pay again.
+  await page.locator('[data-collect-outcome="unknown"]').waitFor({ timeout: 15_000 });
   assert.equal(await db.payment.count({ where: { invoiceId } }), 1, "the first attempt committed on the server");
-  await page.getByRole("button", { name: "Save & Generate Receipt" }).click();
+  await shot(page, "collect-outcome-unknown-en-1440");
+  await page.getByRole("button", { name: "Check payment result" }).click();
   await page.getByText("This payment was already recorded; no duplicate was posted.").waitFor({ timeout: 15_000 });
   await shot(page, "collect-replayed-receipt-en-1440");
   assert.equal(keys.length, 2); assert.equal(keys[0], keys[1], "the retry reused the operation key");

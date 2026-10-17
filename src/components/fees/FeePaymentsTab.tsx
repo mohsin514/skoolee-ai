@@ -371,6 +371,7 @@ function PaymentModal({
 
   const currency = invoices.find((invoice) => invoice.id === selectedInvoiceId)?.currency || "PKR";
   const collectKey = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   const handleRecordPayment = async () => {
     if (!selectedInvoiceId || !amount) { toast.error(tr("Invoice and amount required")); return; }
     setSaving(true);
@@ -413,12 +414,18 @@ function PaymentModal({
         });
         if (json.data?.replayed) toast.info(tr("This payment was already recorded; no duplicate was posted."));
         collectKey.current = null;
+        setOutcomeUnknown(false);
         setStep("receipt");
+      } else if (res.status >= 500) {
+        setOutcomeUnknown(true);
       } else {
+        // The server answered and nothing was recorded: the entered values stay for correction.
+        setOutcomeUnknown(false);
         toast.error(tr(json.error || "Payment failed"));
       }
     } catch {
-      toast.error(tr("Failed to record payment"));
+      // No answer: the payment may or may not have been saved. Retrying with the same key is safe.
+      setOutcomeUnknown(true);
     } finally {
       setSaving(false);
     }
@@ -627,11 +634,12 @@ function PaymentModal({
               <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Note (optional)"}</UiText></span>
               <SystemInput type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("e.g. late fee waived")} className={inputClass} />
             </label>
+            {outcomeUnknown && <p role="status" data-collect-outcome="unknown" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">{tr("We could not confirm whether this payment was saved. Check the result before doing anything else; it will not be recorded twice.")}</p>}
             <div className="flex gap-3">
               <BrandButton variant="soft" className="flex-1 h-12" onClick={() => { setStep("search"); setStudentsList([]); setInvoices([]); }}><UiText>{"Back"}</UiText></BrandButton>
               <BrandButton className="flex-[2] h-12" onClick={handleRecordPayment} disabled={saving}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
-                {saving ? tr("Recording...") : tr("Save & Generate Receipt")}
+                {saving ? tr("Recording...") : outcomeUnknown ? tr("Check payment result") : tr("Save & Generate Receipt")}
               </BrandButton>
             </div>
           </div>
