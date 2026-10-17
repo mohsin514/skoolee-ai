@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PanelTitle } from "@/components/shared-admin";
+import { DormitoryAllocations } from "./dormitory-allocations";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
 import { formatPKR } from "@/components/fees/fee-utils";
 import { useValidatedForm } from "@/lib/hooks/use-validated-form";
@@ -353,22 +355,23 @@ function VehiclesTab() {
    ════════════════════════════════════════════════════════════════ */
 
 export function DormitoryPanel() {
-  const [tab, setTab] = useState<"types" | "rooms">("types");
+  const ui = useUiText();
+  const [tab, setTab] = useState<"allocations" | "types" | "rooms">("allocations");
   return (
     <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         {/* "Hostel" in the sidebar; the page said "Dormitory". Same thing, two
             names, on the same screen. */}
-        <PanelTitle icon={Building2} title="Hostel Management" />
-        <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
-          {(["types", "rooms"] as const).map((t) => (
+        <PanelTitle icon={Building2} title={ui("Hostel Management")} />
+        <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-[#f6f2fa] p-1">
+          {(["allocations", "types", "rooms"] as const).map((t) => (
             <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
-              {t === "types" ? "Room Types" : "Rooms"}
+              {ui(t === "allocations" ? "Allocations" : t === "types" ? "Room Types" : "Rooms")}
             </Button>
           ))}
         </div>
       </div>
-      {tab === "types" ? <DormRoomTypesTab /> : <DormRoomsTab />}
+      {tab === "allocations" ? <DormitoryAllocations /> : tab === "types" ? <DormRoomTypesTab /> : <DormRoomsTab />}
     </div>
   );
 }
@@ -502,14 +505,15 @@ function DormRoomsTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Room #", "Type", "Capacity", "Occupied", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-[#cfc2d6]/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No dorm rooms yet" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
                 <td className={tdCls}>{r.number}</td>
                 <td className={tdCls}>{r.roomType?.name || "—"}</td>
                 <td className={tdCls}>{r.capacity}</td>
-                <td className={tdCls}>{r._count?.students ?? 0} / {r.capacity}</td>
+                <td className={tdCls}>{r.occupied ?? 0} / {r.capacity}{r.upcoming ? ` (+${r.upcoming})` : ""}</td>
+                <td className={tdCls}>{r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available"}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
             ))}

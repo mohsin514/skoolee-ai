@@ -192,6 +192,7 @@ model School {
   routeVehicles           RouteVehicle[]
   dormRoomTypes           DormRoomType[]
   dormRooms               DormRoom[]
+  dormAllocations         DormAllocation[]
   bookCategories          BookCategory[]
   books                   Book[]
   libraryMembers          LibraryMember[]
@@ -540,6 +541,7 @@ model Campus {
   vehicles              Vehicle[]
   dormRoomTypes         DormRoomType[]
   dormRooms             DormRoom[]
+  dormAllocations       DormAllocation[]
   bookCategories        BookCategory[]
   books                 Book[]
   libraryMembers        LibraryMember[]
@@ -1286,6 +1288,7 @@ model Student {
   transportRoute         TransportRoute?         @relation("StudentTransportRoute", fields: [transportRouteId], references: [id], onDelete: SetNull)
   dormRoomId             String?                 @map("dorm_room_id")
   dormRoom               DormRoom?               @relation("StudentDormRoom", fields: [dormRoomId], references: [id], onDelete: SetNull)
+  dormAllocations        DormAllocation[]
 
   @@index([schoolId, admissionNo])
   @@index([campusId, rollNo])
@@ -3248,13 +3251,53 @@ model DormRoom {
   roomType   DormRoomType @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
   number     String
   capacity   Int
+  // SKO-463: an out-of-service room takes no new allocations; the reason and who changed it are kept.
+  status       String       @default("AVAILABLE") // AVAILABLE | OUT_OF_SERVICE
+  statusReason String?      @map("status_reason")
   createdAt  DateTime     @default(now()) @map("created_at")
 
-  students Student[] @relation("StudentDormRoom")
+  students    Student[]        @relation("StudentDormRoom")
+  allocations DormAllocation[]
 
   @@unique([campusId, number])
   @@index([schoolId])
   @@map("dorm_rooms")
+}
+
+// SKO-463: dated room allocations. A stay is [startDate, endDate) — endDate is the first night the
+// pupil is no longer in the room (null = open-ended). Moves end one stay and start the next on the same
+// date, linked by previousId, so history is continuous. Rows are never deleted; a mistaken future
+// reservation is CANCELLED with a reason.
+model DormAllocation {
+  id             String    @id @default(uuid())
+  schoolId       String    @default("") @map("school_id")
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String    @map("campus_id")
+  campus         Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  roomId         String    @map("room_id")
+  room           DormRoom  @relation(fields: [roomId], references: [id], onDelete: NoAction)
+  studentId      String    @map("student_id")
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: NoAction)
+  startDate      DateTime  @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  status         String    @default("ACTIVE") // ACTIVE | CANCELLED
+  reason         String
+  endReason      String?   @map("end_reason")
+  previousId     String?   @unique @map("previous_id")
+  previous       DormAllocation?  @relation("DormMove", fields: [previousId], references: [id], onDelete: NoAction)
+  next           DormAllocation?  @relation("DormMove")
+  idempotencyKey String?   @map("idempotency_key")
+  requestHash    String?   @map("request_hash")
+  createdById    String    @map("created_by_id")
+  endedById      String?   @map("ended_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, idempotencyKey])
+  @@index([roomId, startDate])
+  @@index([studentId, startDate])
+  @@index([schoolId])
+  @@map("dorm_allocations")
 }
 
 // Library

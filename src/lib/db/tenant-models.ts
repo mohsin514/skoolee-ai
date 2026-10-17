@@ -56,6 +56,7 @@ export const TENANT_MODELS = new Set<string>([
   "deliveryReceipt",
   "department",
   "departmentMember",
+  "dormAllocation",
   "dormRoom",
   "dormRoomType",
   "enrollmentProposal",
