@@ -6040,3 +6040,23 @@ model ExamDatesheetVersion {
   @@index([schoolId])
   @@map("exam_datesheet_versions")
 }
+
+// ─── SKO-461: teaching evidence follow-up ───────────────────
+// Append-only notes beside the evidence view: a leader's reviewed support
+// action or the teacher's own response. Never an employment decision, which
+// is recorded outside analytics by an authorized person.
+model TeacherSupportNote {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  campusId     String   @map("campus_id")
+  teacherId    String   @map("teacher_id")
+  authorId     String   @map("author_id")
+  academicYear Int      @map("academic_year")
+  kind         String   // SUPPORT_ACTION, TEACHER_RESPONSE
+  body         String   @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([teacherId, academicYear])
+  @@index([schoolId])
+  @@map("teacher_support_notes")
+}

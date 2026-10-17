@@ -352,46 +352,64 @@
     "file": "src/components/academic-year/TeacherPerformancePanel.tsx",
     "controls": [
       {
-        "kind": "select",
+        "kind": "button",
         "attrs": {
-          "value": "{year}",
-          "onChange": "{(e) => setYear(Number(e.target.value))}",
-          "aria-label": "\"Academic year\""
+          "onClick": "{() => void load()}"
         }
       },
       {
         "kind": "select",
         "attrs": {
-          "value": "{sortBy}",
-          "onChange": "{(e) => setSortBy(e.target.value as typeof sortBy)}",
-          "aria-label": "\"Sort teachers\""
+          "value": "{String(year)}",
+          "onChange": "{event => setYear(Number(event.target.value))}"
         }
       },
       {
         "kind": "input",
         "attrs": {
-          "value": "{search}",
-          "onChange": "{(e) => setSearch(e.target.value)}",
-          "aria-label": "\"Search teachers\""
+          "value": "{query}",
+          "onChange": "{event => setQuery(event.target.value)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setLens(\"all\")}"
+          "disabled": "{!data || !visible.length}",
+          "onClick": "{exportCsv}"
         }
       },
       {
         "kind": "button",
         "attrs": {
-          "type": "\"button\"",
-          "onClick": "{load}"
+          "onClick": "{() => setQuery(\"\")}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "onClick": "{() => void openNotes(row.teacherId)}"
+        }
+      },
+      {
+        "kind": "textarea",
+        "attrs": {
+          "maxLength": "{2000}",
+          "value": "{draft}",
+          "onChange": "{event => setDraft(event.target.value)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "disabled": "{saving || draft.trim().length < 10}",
+          "onClick": "{() => void saveNote(row.teacherId)}"
         }
       }
     ],
     "requests": [
-      "fetch(`/api/teachers/performance?academicYear=${year}${qs}`)"
+      "fetch(`/api/teachers/performance?academicYear=${year}`, { cache: \"no-store\" })",
+      "fetch(`/api/teachers/performance/notes?teacherId=${encodeURIComponent(teacherId)}&academicYear=${year}`, { cache: \"no-store\" })",
+      "fetch(\"/api/teachers/performance/notes\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ teacherId, academicYear: year, body: draft }) })"
     ]
   },
   {
