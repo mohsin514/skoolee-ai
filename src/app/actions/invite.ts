@@ -266,6 +266,21 @@ export async function acceptInvite(token: string, password: string, fullName?: s
   return runUnscoped("accept exact secret invitation before account exists", () => acceptInvitation(token, password, fullName, expectedContext));
 }
 
+/**
+ * SKO-457: the page-facing form of acceptInvite. Production builds hide the message of an error
+ * thrown from a server action, so the expected refusals come back as data the page can translate.
+ */
+export async function acceptInviteResult(token: string, password: string, fullName?: string, expectedContext?: string): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    await acceptInvite(token, password, fullName, expectedContext);
+    return { success: true };
+  } catch (error) {
+    if (error instanceof ApiError) return { success: false, error: error.message };
+    console.error("[accept-invite]", error);
+    return { success: false, error: "" };
+  }
+}
+
 async function acceptInvitation(token: string, password: string, fullName?: string, expectedContext?: string) {
   if (typeof token !== "string" || token.length > 128 || !(await authRateLimit(`invite-accept:${token}`, { limit: 5, windowMs: 300_000 })).ok) throw new ApiError("Unable to accept. Wait five minutes and try again.", 429);
   if (typeof password !== "string" || password.length > 72) throw new ApiError("Password must be between 8 and 72 characters", 400);

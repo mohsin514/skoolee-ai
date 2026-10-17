@@ -7,6 +7,7 @@ import {
   Loader2, LockKeyhole, RotateCcw, ShieldCheck, Smartphone, Timer,
 } from "lucide-react";
 import { dashboardPathForRole } from "@/lib/roles";
+import { safeReturnPath } from "@/lib/auth/return-path";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -210,7 +211,9 @@ export default function ProtectAccount() {
       if (data.recoveryCodes) { setCodes(data.recoveryCodes); setSecret(""); setUri(""); setCode(""); }
       if (data.user) {
         setDone(action === "acknowledge" ? "enrolled" : "verified");
-        router.replace(data.user.mustChangePassword ? "/first-login" : dashboardPathForRole(data.user.role));
+        // The deep link carried over from sign-in is honoured only inside the role's own area (SKO-457).
+        const requested = new URLSearchParams(window.location.search).get("redirect");
+        router.replace(data.user.mustChangePassword ? "/first-login" : safeReturnPath(requested, data.user.role) ?? dashboardPathForRole(data.user.role));
       }
     } catch (failure) {
       const known = toMfaRequestError(failure);

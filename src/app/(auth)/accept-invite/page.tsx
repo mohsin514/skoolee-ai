@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { membershipPreview } from "@/lib/membership-access";
-import { acceptInvite } from "@/app/actions/invite";
+import { acceptInviteResult } from "@/app/actions/invite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SkooleeLogo from "@/components/SkooleeLogo";
@@ -27,6 +27,20 @@ import { Label } from "@/components/ui/label";
 import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
 import { LanguageSelect } from "@/components/locale/LanguageSelect";
 import { directionFor } from "@/lib/locale/language-cookie";
+
+// SKO-457: the server's expected refusals, translated; unknown text falls back to the generic failure.
+const INVITE_ERRORS: Record<string, { en: string; ar: string; ur: string }> = {
+  "Invite expired": { en: "This invitation has expired. Ask the school to send a new one.", ar: "انتهت صلاحية هذه الدعوة. اطلب من المدرسة إرسال دعوة جديدة.", ur: "اس دعوت کی مدت ختم ہو گئی ہے۔ اسکول سے نئی دعوت بھیجنے کو کہیں۔" },
+  "Invite already used": { en: "This invitation has already been used. Sign in instead.", ar: "تم استخدام هذه الدعوة من قبل. سجّل الدخول بدلاً من ذلك.", ur: "یہ دعوت پہلے ہی استعمال ہو چکی ہے۔ اس کے بجائے سائن اِن کریں۔" },
+  "Invite cancelled": { en: "This invitation was cancelled by the school.", ar: "ألغت المدرسة هذه الدعوة.", ur: "اسکول نے یہ دعوت منسوخ کر دی ہے۔" },
+  "Invalid invite token": { en: "This invitation link is not valid.", ar: "رابط الدعوة هذا غير صالح.", ur: "دعوت کا یہ لنک درست نہیں۔" },
+  "Invitation details changed. Reload and review the school, campus and role before accepting.": { en: "Invitation details changed. Reload and review the school, campus and role before accepting.", ar: "تغيّرت تفاصيل الدعوة. أعد التحميل وراجع المدرسة والفرع والدور قبل القبول.", ur: "دعوت کی تفصیلات بدل گئی ہیں۔ قبول کرنے سے پہلے صفحہ دوبارہ لوڈ کر کے اسکول، کیمپس اور کردار دیکھیں۔" },
+  "Unable to accept. Wait five minutes and try again.": { en: "Unable to accept. Wait five minutes and try again.", ar: "تعذر القبول. انتظر خمس دقائق ثم حاول مجدداً.", ur: "قبول نہیں ہو سکا۔ پانچ منٹ انتظار کر کے دوبارہ کوشش کریں۔" },
+  "An account already exists for this email": { en: "An account already exists for this email. Sign in instead.", ar: "يوجد حساب بهذا البريد الإلكتروني. سجّل الدخول بدلاً من ذلك.", ur: "اس ای میل کا اکاؤنٹ پہلے سے موجود ہے۔ اس کے بجائے سائن اِن کریں۔" },
+  "Password must be at least 8 characters": { en: "Password must be at least 8 characters.", ar: "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.", ur: "پاس ورڈ کم از کم 8 حروف کا ہونا چاہیے۔" },
+  "Password must be between 8 and 72 characters": { en: "Password must be between 8 and 72 characters.", ar: "يجب أن تكون كلمة المرور بين 8 و72 حرفاً.", ur: "پاس ورڈ 8 سے 72 حروف کے درمیان ہونا چاہیے۔" },
+};
+const inviteErrorText = (message: string, language: "en" | "ar" | "ur") => INVITE_ERRORS[message]?.[language] ?? "";
 
 const copy = {
   en: {
@@ -172,7 +186,13 @@ export default function AcceptInvitePage() {
 
     setLoading(true);
     try {
-      await acceptInvite(token, password, fullName, details?.contextKey);
+      const result = await acceptInviteResult(token, password, fullName, details?.contextKey);
+      if (!result.success) {
+        const errorMsg = inviteErrorText(result.error, language) || t.acceptFailed;
+        setValidationError(errorMsg);
+        toast.error(errorMsg);
+        return;
+      }
       toast.success(t.accepted
         .replace("{role}", details ? roleLabel(details.role, language) : language === "ar" ? "المعيّنة" : language === "ur" ? "مقررہ" : "assigned")
         .replace("{institution}", details?.institutionName || "")

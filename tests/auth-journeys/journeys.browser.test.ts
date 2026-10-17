@@ -147,3 +147,39 @@ test("a reset link works once, its stored form is a digest, and a reused link is
   await shot(page, "reset-reused-link-en-1440");
   await ctx.close();
 });
+
+test("sign-in returns to the requested page in the user's own area and ignores an outside redirect", async () => {
+  const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: "Synthetic returning teacher", role: "TEACHER", schoolId, isActive: true, emailVerifiedAt: new Date(), onboardingComplete: true, preferredLanguage: "en" } });
+  for (const [redirect, expected] of [["/teacher/classes", "/teacher/classes"], ["//evil.example/teacher", "/teacher"], ["/admin", "/teacher"]] as const) {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } }), page = await ctx.newPage();
+    await page.goto(`${base}/login?redirect=${encodeURIComponent(redirect)}`);
+    await page.locator('input[type="email"]').fill(email);
+    await page.locator('input[type="password"]').fill(password);
+    await page.locator('form button[type="submit"]').click();
+    await page.waitForURL(target => target.pathname !== "/login", { timeout: 20_000 });
+    assert.equal(new URL(page.url()).origin, new URL(base).origin);
+    assert.equal(new URL(page.url()).pathname, expected, `redirect ${redirect}`);
+    await ctx.close();
+  }
+});
+
+test("an invitation cancelled while the page is open is refused with translated guidance (UR 390)", async () => {
+  const campusId = randomUUID(), token = randomUUID();
+  await db.campus.create({ data: { id: campusId, schoolId, name: "Cedar North", regId: campusId, city: "Lahore" } });
+  await db.staffInvitation.create({ data: { schoolId, email: `${randomUUID()}@example.invalid`, role: "TEACHER", campusId, token, expiresAt: new Date(Date.now() + 86_400_000), status: "pending" } });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }), page = await ctx.newPage(), errors: string[] = [];
+  await ctx.addCookies([{ name: "skoolee-lang", value: "ur", url: base }]);
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto(`${base}/accept-invite?token=${token}`);
+  await page.locator("#fullName").fill("Synthetic Invitee");
+  await page.locator("#password").fill(password);
+  await page.locator("#confirmPassword").fill(password);
+  await db.staffInvitation.update({ where: { token }, data: { status: "cancelled" } });
+  await page.locator('button[type="submit"]').click();
+  await page.getByText("اسکول نے یہ دعوت منسوخ کر دی ہے۔").first().waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  await shot(page, "invite-cancelled-while-open-ur-390");
+  assert.equal(await db.user.count({ where: { schoolId, role: "TEACHER", fullName: "Synthetic Invitee" } }), 0);
+  assert.deepEqual(errors, []); await ctx.close();
+});

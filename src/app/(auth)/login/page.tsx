@@ -5,6 +5,7 @@ import { FieldAction, InputGroup } from "@/components/ui/input-group";
 import { useState, useEffect, useEffectEvent, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { safeReturnPath } from "@/lib/auth/return-path";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
@@ -384,7 +385,12 @@ export default function LoginPage() {
   // Where a signed-in user actually belongs. Shared by the plain sign-in and
   // by the school picker so the two can never drift apart.
   const landAfterLogin = useCallback(async (user: LoginUser) => {
-    if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) { router.push("/protect-account"); return; }
+    if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) {
+      // Carry the requested page through the second factor; it is validated again on landing.
+      const requested = searchParams.get("redirect");
+      router.push(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
+      return;
+    }
     toast.success(fill(t.welcomeToast, user.fullName));
     setSuccess(true);
 
@@ -397,9 +403,10 @@ export default function LoginPage() {
     } else if (user.role === "TEACHER" && !user.onboardingComplete) {
       router.push("/teacher-onboarding");
     } else {
-      router.push(dashboardPathForRole(user.role));
+      // A deep link that sent the user here is honoured only inside their own role's area.
+      router.push(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
     }
-  }, [router, t]);
+  }, [router, t, searchParams]);
 
   /**
    * One request shape for both passes. The second pass adds `schoolId`, which
