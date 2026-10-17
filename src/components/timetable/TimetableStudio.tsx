@@ -39,6 +39,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
 import { timetablePeriods } from "@/lib/timetable/view-scope";
@@ -908,15 +909,19 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       setSaving(false);
     }
   };
+  const [confirmDeleteTimetable, setConfirmDeleteTimetable] = useState(false), [deletingTimetable, setDeletingTimetable] = useState(false);
+  const ui = useUiText();
   const handleSavePeriodConfig = (configuration: PeriodConfiguration[]) => {
     if (!activeTimetable || pendingChanges.size > 0 || changing) return;
     if (planPeriodChanges(activeTimetable.slots, configuration).clearing.length) setPeriodReview(configuration);
     else void savePeriodConfig(configuration);
   };
 
-  const handleDeleteTimetable = async () => {
+  // SKO-389: deletion is confirmed in a labelled dialog; the server refuses it once substitute history exists.
+  const handleDeleteTimetable = () => { if (activeTimetable) setConfirmDeleteTimetable(true); };
+  const deleteTimetable = async () => {
     if (!activeTimetable) return;
-    if (!confirm("Delete this timetable? This cannot be undone.")) return;
+    setDeletingTimetable(true);
     try {
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, { method: "DELETE" });
       const json = await res.json();
@@ -928,6 +933,8 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       }
     } catch {
       toast.error("Failed to delete");
+    } finally {
+      setDeletingTimetable(false); setConfirmDeleteTimetable(false);
     }
   };
 
@@ -962,6 +969,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
     <div className="min-w-0 space-y-6">
       <TimetableScopeControls year={scope.year} term={scope.term} years={scope.years} terms={scope.terms} disabled={changing} onYear={year => changeSelection(() => { scope.setYear(year); setSelectedClassId(null); })} onTerm={term => changeSelection(() => scope.setTerm(term))} />
       <ConfirmAction open={pendingSelection !== null} title={scopeCopy.changeTitle} description={scopeCopy.changeHint} confirmLabel={scopeCopy.discard} cancelLabel={scopeCopy.keep} onCancel={() => setPendingSelection(null)} onConfirm={finishSelection} />
+      <ConfirmAction open={confirmDeleteTimetable} title={ui("Delete this timetable?")} description={ui("Its lessons are removed from this class's weekly schedule. Attendance and marks already recorded are not affected. A timetable with substitute history cannot be deleted.")} confirmLabel={ui("Delete timetable")} tone="danger" busy={deletingTimetable} onCancel={() => setConfirmDeleteTimetable(false)} onConfirm={() => void deleteTimetable()} />
       {addingPeriod && activeTimetable && <AddPeriodDialog key={activeTimetable.id} timetableId={activeTimetable.id} slots={activeTimetable.slots} definitions={periodDefs} weekendDays={weekendDays} onClose={() => setAddingPeriod(false)} onAdded={slot => { setTimetables(previous => previous.map(timetable => timetable.id === activeTimetable.id ? { ...timetable, slots: [...timetable.slots.filter(existing => existing.id !== slot.id), slot] } : timetable)); toast.success(addCopy.saved); }} />}
       {/* Toolbar: class picker, view tabs, publish */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] p-2 shadow-sm border border-[#cfc2d6]/10">

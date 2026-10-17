@@ -122,3 +122,45 @@ test("the Arabic archive dialog reads right-to-left at phone width with translat
   await shot(page, "student-archive-ar-390");
   await ctx.close();
 });
+
+test("archived classes are listed with their year and restore through a dialog; a duplicate active class blocks restore", async () => {
+  const free = randomUUID(), blocked = randomUUID();
+  await db.class.create({ data: { id: free, schoolId, campusId, name: "Nine", section: "A", academicYear: 2026, status: "COMPLETED", archivedAt: new Date("2026-07-01Z"), archiveReason: "Academic year completed", archivePreviousStatus: "ACTIVE" } });
+  await db.class.create({ data: { id: blocked, schoolId, campusId, name: "Ten", section: "A", academicYear: 2026, status: "COMPLETED", archivedAt: new Date("2026-07-01Z"), archiveReason: "Merged", archivePreviousStatus: "ACTIVE" } });
+  await db.class.create({ data: { schoolId, campusId, name: "Ten", section: "A", academicYear: 2026 } });
+  const ctx = await context("admin"), page = await ctx.newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto(`${base}/admin?view=promote-archive`);
+  await page.locator(`[data-archived-class="${blocked}"]`).getByRole("button", { name: "Restore" }).click({ timeout: 30_000 });
+  const confirm = dialog(page);
+  await confirm.getByRole("button", { name: "Restore class" }).click();
+  await confirm.getByText("A class with this name, section and academic year already exists in this campus").waitFor();
+  assert.ok((await db.class.findUniqueOrThrow({ where: { id: blocked } })).archivedAt, "nothing changed on conflict");
+  await shot(page, "class-restore-conflict-en-1440");
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await page.locator(`[data-archived-class="${free}"]`).getByRole("button", { name: "Restore" }).click();
+  await dialog(page).getByRole("button", { name: "Restore class" }).click();
+  await page.getByText("Nine · A · 2026 restored. Its history was never removed.").waitFor();
+  const restored = await db.class.findUniqueOrThrow({ where: { id: free } });
+  assert.deepEqual([restored.archivedAt, restored.status], [null, "ACTIVE"]);
+  await page.locator(`[data-archived-class="${free}"]`).waitFor({ state: "detached" });
+  assert.deepEqual(errors, []); await ctx.close();
+});
+
+test("bulk archive on the student directory shows a labelled dialog with the summed history before archiving", async () => {
+  const ctx = await context("admin"), page = await ctx.newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  let dialogs = 0; page.on("dialog", d => { dialogs++; void d.dismiss(); });
+  await page.goto(`${base}/dashboard/students`);
+  await page.getByRole("checkbox", { name: "Select Synthetic Noor Pupil" }).check({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  const confirm = dialog(page);
+  await confirm.getByText("Archive 1 student(s)?").waitFor();
+  assert.match(await confirm.innerText(), /no linked records/);
+  await shot(page, "bulk-archive-en-1440");
+  await confirm.getByRole("button", { name: "Archive Student" }).click();
+  await page.waitForFunction(`!document.querySelector('[role="alertdialog"]')`, undefined, { timeout: 15_000 }).catch(() => undefined);
+  assert.ok((await db.student.findUniqueOrThrow({ where: { id: pupilAr } })).archivedAt);
+  assert.equal(dialogs, 0, "no native browser confirm was used");
+  assert.deepEqual(errors, []); await ctx.close();
+});

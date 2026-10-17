@@ -40,6 +40,9 @@ import { BulkImportDialog } from "./bulk-import-dialog";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { localToday } from "@/lib/date-only";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { describeCounts } from "@/components/shared-admin/academic-impact";
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LEAVE";
 
@@ -148,6 +151,7 @@ function SortHeader({
 }
 
 export default function StudentsPage() {
+  const ui = useUiText();
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
@@ -229,24 +233,33 @@ export default function StudentsPage() {
 
   const allOnPageSelected = students.length > 0 && students.every((s) => selected.has(s.id));
 
+  // SKO-389: a bulk archive shows the summed history counts in a labelled dialog before anything changes.
+  const [archiveReview, setArchiveReview] = useState<{ count: number; summary: string } | null>(null);
   const bulkSetStatus = async (status: string) => {
     if (selected.size === 0) return;
+    if (status !== "archived") { await applyBulkStatus(status); return; }
     setBulkBusy(true);
     try {
-      if (status === "archived") {
-        const previews = await Promise.all([...selected].map(async (id) => {
-          const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`, { method: "DELETE" });
-          const preview = await response.json();
-          if (!response.ok) throw new Error(preview.error || "Could not calculate archive impact");
-          return preview.dependencies as Record<string, number>;
-        }));
-        const totals = previews.reduce<Record<string, number>>((all, item) => {
-          for (const [key, count] of Object.entries(item)) all[key] = (all[key] || 0) + Number(count || 0);
-          return all;
-        }, {});
-        const summary = Object.entries(totals).filter(([, count]) => count > 0).map(([key, count]) => `${count} ${key}`).join(", ") || "no linked records";
-        if (!window.confirm(`Archive ${selected.size} student${selected.size === 1 ? "" : "s"}? The selected records have ${summary}. Academic, financial and document history will remain preserved.`)) return;
-      }
+      const previews = await Promise.all([...selected].map(async (id) => {
+        const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`, { method: "DELETE" });
+        const preview = await response.json();
+        if (!response.ok) throw new Error(preview.error || ui("Could not calculate student impact"));
+        return preview.dependencies as Record<string, number>;
+      }));
+      const totals = previews.reduce<Record<string, number>>((all, item) => {
+        for (const [key, count] of Object.entries(item)) all[key] = (all[key] || 0) + Number(count || 0);
+        return all;
+      }, {});
+      setArchiveReview({ count: selected.size, summary: describeCounts(totals, ui) });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : ui("Could not calculate student impact"));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+  const applyBulkStatus = async (status: string) => {
+    setBulkBusy(true);
+    try {
       const res = await fetch("/api/students", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -255,6 +268,7 @@ export default function StudentsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Bulk update failed");
       toast.success(`${data.updated} student${data.updated === 1 ? "" : "s"} set to ${status}`);
+      setArchiveReview(null);
       await loadStudents();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Bulk update failed");
@@ -357,6 +371,7 @@ export default function StudentsPage() {
 
   return (
     <>
+      <ConfirmAction open={Boolean(archiveReview)} title={ui("Archive {0} student(s)?", [archiveReview?.count ?? 0])} description={ui("The selected students have {0}. Archive removes them from active lists; academic, financial and document history stays preserved and each can be restored later.", [archiveReview?.summary ?? ""])} confirmLabel={ui("Archive Student")} tone="warning" busy={bulkBusy} onCancel={() => setArchiveReview(null)} onConfirm={() => void applyBulkStatus("archived")} />
       <Header
         title="Students"
         description="Manage student records, guardians, classes, and daily attendance"

@@ -57,6 +57,7 @@ import { PlansPanel } from "@/components/billing/PlansPanel";
 import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
+import { ArchivedClassesPanel } from "@/components/shared-admin/archived-classes-panel";
 import { classArchiveText, studentArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
@@ -1197,6 +1198,7 @@ export default function CampusAdminDashboard() {
             <div className="space-y-6">
               <YearEndPanel campusId={data.campusId} />
               <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
+              <ArchivedClassesPanel version={studentsVersion} onRestored={() => setStudentsVersion((v) => v + 1)} />
             </div>
           ) : null}
 

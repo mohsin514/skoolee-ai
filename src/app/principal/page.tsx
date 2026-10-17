@@ -147,6 +147,7 @@ import {
   StatusPill,
 } from "@/components/shared-admin";
 import { Input as SystemInput } from "@/components/ui/input";
+import { ArchivedClassesPanel } from "@/components/shared-admin/archived-classes-panel";
 import { classArchiveText, studentArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
@@ -707,6 +708,7 @@ export default function PrincipalDashboard() {
               </div>
             </div>
             <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
+              <ArchivedClassesPanel version={studentsVersion} onRestored={() => setStudentsVersion((v) => v + 1)} />
           </div>
         ) : null}
         {activeView === "attendance" ? <UnifiedAttendancePanel /> : null}

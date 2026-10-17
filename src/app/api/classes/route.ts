@@ -164,17 +164,20 @@ export async function PATCH(req: NextRequest) {
 
     if (body.action === "restore") {
       const archived = await prisma.class.findFirst({
-        where: { id, archivedAt: { not: null }, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
-        select: { id: true, campusId: true, name: true, section: true, academicYear: true, archivePreviousStatus: true },
+        where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? body.campusId : user.campusId) },
+        select: { id: true, campusId: true, name: true, section: true, academicYear: true, archivePreviousStatus: true, archivedAt: true },
       });
       if (!archived) throw new ApiError("Archived class not found", 404);
+      // SKO-389: a repeated restore is a no-op rather than an error.
+      if (!archived.archivedAt) return Response.json({ success: true, restored: false, alreadyActive: true });
       const [campus, conflict] = await Promise.all([
         prisma.campus.findFirst({ where: { id: archived.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
         prisma.class.findFirst({ where: { id: { not: id }, campusId: archived.campusId, name: archived.name, section: archived.section, academicYear: archived.academicYear, archivedAt: null }, select: { id: true } }),
       ]);
       if (!campus) throw new ApiError("Restore requires an active campus", 409);
       if (conflict) throw new ApiError("A class with this name, section and academic year already exists in this campus", 409);
-      await prisma.class.update({ where: { id }, data: { archivedAt: null, archiveReason: null, status: archived.archivePreviousStatus || "ACTIVE", archivePreviousStatus: null } });
+      const reopened = await prisma.class.updateMany({ where: { id, archivedAt: { not: null } }, data: { archivedAt: null, archiveReason: null, status: archived.archivePreviousStatus || "ACTIVE", archivePreviousStatus: null } });
+      if (reopened.count !== 1) return Response.json({ success: true, restored: false, alreadyActive: true });
       await prisma.auditLog.create({ data: { tableName: "class", recordId: id, oldValue: { archived: true }, newValue: { archived: false }, userId: user.userId } });
       return Response.json({ success: true, restored: true });
     }
