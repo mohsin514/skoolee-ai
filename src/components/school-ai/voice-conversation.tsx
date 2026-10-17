@@ -1,9 +1,10 @@
 "use client";
+import { schoolAICopy } from "@/lib/school-ai/copy";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, Mic, Pause, Play, Square, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Language } from "@/lib/locale/package";
-import { advanceVoiceActivity, voiceLanguage } from "@/lib/school-ai/voice";
+import { advanceVoiceActivity, voiceFailureFor, voiceLanguage } from "@/lib/school-ai/voice";
 import { useWorkspaceDraft } from "./draft-safety";
 const strings = {
  start:["Start voice conversation","بدء محادثة صوتية","صوتی گفتگو شروع کریں"], end:["End voice conversation","إنهاء المحادثة الصوتية","صوتی گفتگو ختم کریں"], pause:["Pause microphone","إيقاف الميكروفون مؤقتًا","مائیکروفون روکیں"], resume:["Resume listening","استئناف الاستماع","دوبارہ سنیں"], interrupt:["Interrupt and speak","مقاطعة والتحدث","روک کر بولیں"], ready:["Speak naturally. After a short pause you check the transcript and send it yourself. Review every proposed school change before applying it.","تحدث بشكل طبيعي. بعد توقف قصير تراجع النص المفرّغ وترسله بنفسك. راجع كل تغيير مقترح قبل تطبيقه.","آسانی سے بات کریں۔ مختصر وقفے کے بعد آپ تحریر دیکھ کر خود بھیجتے ہیں۔ اسکول کی ہر مجوزہ تبدیلی کو لاگو کرنے سے پہلے دیکھیں۔"], listening:["Listening…","جارٍ الاستماع…","سن رہا ہے…"], transcribing:["Understanding your words…","جارٍ فهم كلامك…","آپ کی بات سمجھی جا رہی ہے…"], thinking:["Preparing your answer…","جارٍ إعداد الإجابة…","آپ کا جواب تیار ہو رہا ہے…"], speaking:["Speaking — you can interrupt","جارٍ التحدث — يمكنك المقاطعة","جواب سنایا جا رہا ہے — آپ روک سکتے ہیں"], paused:["Microphone paused","الميكروفون متوقف مؤقتًا","مائیکروفون رکا ہوا ہے"], failed:["Voice stopped. Your chat remains saved. Check microphone access or continue typing.","توقف الصوت. تبقى محادثتك محفوظة. تحقق من الميكروفون أو تابع بالكتابة.","آواز رک گئی۔ آپ کی گفتگو محفوظ ہے۔ مائیکروفون کی اجازت چیک کریں یا لکھ کر جاری رکھیں۔"], noVoice:["A spoken voice for this language is unavailable on this device. Read the answer in your conversation.","لا يتوفر صوت لهذه اللغة على هذا الجهاز. اقرأ الإجابة في المحادثة.","اس آلے پر اس زبان کی آواز دستیاب نہیں۔ جواب گفتگو میں پڑھیں۔"], limit:["Voice session finished. Start again to continue.","انتهت الجلسة الصوتية. ابدأ مجددًا للمتابعة.","صوتی نشست مکمل ہوئی۔ جاری رکھنے کے لیے دوبارہ شروع کریں۔"],
@@ -43,10 +44,10 @@ export function VoiceConversation({language,disabled,onTurn,onActivityChange}:{l
    try {
     transition("transcribing");const blob=new Blob(chunks,{type:capture.mimeType||"audio/webm"});if(!blob.size)throw new Error("empty");
     const form=new FormData();form.append("file",blob,capture.mimeType.includes("mp4")?"voice.m4a":"voice.webm");form.append("language",language);form.append("idempotencyKey",crypto.randomUUID());request.current=new AbortController();
-    const response=await fetch("/api/school-ai/transcribe",{method:"POST",body:form,signal:request.current.signal}),data=await response.json();if(!response.ok||typeof data.text!=="string"||!data.text.trim())throw new Error("transcribe");if(token!==lifecycle.current)return;
+    const response=await fetch("/api/school-ai/transcribe",{method:"POST",body:form,signal:request.current.signal}),data=await response.json().catch(()=>({}));if(!response.ok||typeof data.text!=="string"||!data.text.trim())throw new Error(voiceFailureFor(response.ok?422:response.status));if(token!==lifecycle.current)return;
     // SKO-460: the transcript is reviewed and editable; nothing reaches the assistant until the user sends it.
     setTranscript(data.text.slice(0,4000));setUncertain(Array.isArray(data.uncertain)?data.uncertain.filter((word:unknown):word is string=>typeof word==="string").slice(0,8):[]);transition("review");
-   }catch{if(token===lifecycle.current){stop();setNotice(c.failed);}}
+   }catch(failure){if(token===lifecycle.current){stop();const reason=failure instanceof Error?failure.message:"";const general=schoolAICopy(language);setNotice(reason in general&&reason!=="failed"?general[reason as keyof typeof general]:c.failed);}}
   };
   transition("listening");capture.start(500);const values=new Float32Array(analyser.fftSize);
   interval.current=setInterval(()=>{if(token!==lifecycle.current)return;analyser.getFloatTimeDomainData(values);const rms=Math.sqrt(values.reduce((sum,v)=>sum+v*v,0)/values.length),result=advanceVoiceActivity(activity,rms,Date.now());activity=result.next;empty=result.empty;if(result.finish&&capture.state!=="inactive")capture.stop();},100);

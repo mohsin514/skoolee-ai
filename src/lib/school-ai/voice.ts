@@ -26,3 +26,9 @@ export function transcriptConfidence(input: { segments?: Segment[] | null; logpr
   } else return { confidence: "unknown", uncertain: [] };
   return { confidence: found.length ? "low" : "ok", uncertain: found.slice(0, 8) };
 }
+
+/** SKO-460: which localized explanation a failed transcription gets, from its HTTP status alone. */
+export type VoiceFailure = "voiceRateLimited" | "voiceUnsupported" | "voiceTooLarge" | "voiceNotUnderstood" | "voiceNoCredits" | "serviceUnavailable" | "failed";
+export function voiceFailureFor(status: number): VoiceFailure {
+  return status === 429 ? "voiceRateLimited" : status === 400 ? "voiceUnsupported" : status === 413 ? "voiceTooLarge" : status === 422 ? "voiceNotUnderstood" : status === 402 ? "voiceNoCredits" : status === 503 ? "serviceUnavailable" : "failed";
+}

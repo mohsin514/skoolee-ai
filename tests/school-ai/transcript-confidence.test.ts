@@ -20,3 +20,7 @@ test("Urdu and Arabic words are kept, punctuation-only tokens are ignored, and t
 test("no confidence data is reported as unknown rather than confident", () => {
   assert.deepEqual(transcriptConfidence({}), { confidence: "unknown", uncertain: [] });
 });
+test("each transcription failure status has its own explanation", async () => {
+  const { voiceFailureFor } = await import("../../src/lib/school-ai/voice");
+  assert.deepEqual([429, 400, 413, 422, 402, 503, 500].map(voiceFailureFor), ["voiceRateLimited", "voiceUnsupported", "voiceTooLarge", "voiceNotUnderstood", "voiceNoCredits", "serviceUnavailable", "failed"]);
+});

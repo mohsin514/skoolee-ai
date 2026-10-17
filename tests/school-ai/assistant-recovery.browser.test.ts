@@ -152,3 +152,54 @@ test("the owner exports and deletes a conversation from the assistant (EN), and 
   await shot(urPage, "assistant-ur-390");
   await ur.close();
 });
+
+test("a rate-limited recording explains itself in the reader's language and keeps typed text (UR)", async () => {
+  const ctx = await context("admin-ur", { width: 390, height: 844 }), page = await ctx.newPage();
+  await stubAi(page);
+  await page.unroute("**/api/school-ai/transcribe");
+  await page.route("**/api/school-ai/transcribe", route => route.fulfill({ status: 429, json: { error: "Please wait before sending another recording." } }));
+  await fakeMicrophone(page);
+  await page.goto(`${base}/ai`);
+  await page.getByRole("button").filter({ hasText: /صوتی گفتگو شروع کریں/ }).click({ timeout: 30_000 });
+  await page.locator("[data-voice-consent] button").first().click({ timeout: 15_000 });
+  await page.getByText("کم وقت میں بہت زیادہ ریکارڈنگز").waitFor({ timeout: 15_000 });
+  assert.equal(await page.getByText("Please wait before sending another recording.").count(), 0, "the English server message is not shown");
+  await shot(page, "voice-rate-limited-ur-390");
+  await ctx.close();
+});
+
+for (const [key, viewport, label] of [["admin", { width: 320, height: 720 }, "en-320"], ["admin-ur", { width: 768, height: 1024 }, "ur-768"], ["admin", { width: 720, height: 500 }, "en-200pct-zoom"]] as const) {
+  test(`the assistant fits without horizontal scrolling (${label})`, async () => {
+    const ctx = await context(key, viewport), page = await ctx.newPage();
+    await stubAi(page);
+    await page.goto(`${base}/ai`);
+    await page.getByRole("textbox").first().waitFor({ timeout: 30_000 });
+    assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
+    if (label === "en-320") await shot(page, "assistant-en-320");
+    await ctx.close();
+  });
+}
+
+test("keyboard only: start voice, accept consent and reach the editable transcript", async () => {
+  const ctx = await context("admin"), page = await ctx.newPage();
+  await stubAi(page);
+  await fakeMicrophone(page);
+  await page.goto(`${base}/ai`);
+  const start = page.getByRole("button", { name: "Start voice conversation", exact: true });
+  await start.waitFor({ timeout: 30_000 });
+  for (let i = 0; i < 50 && !(await start.isEnabled()); i++) await page.waitForTimeout(200);
+  await start.focus();
+  await page.keyboard.press("Enter");
+  const allow = page.getByRole("button", { name: "Allow and start", exact: true });
+  await allow.waitFor();
+  await allow.focus();
+  assert.equal(await page.evaluate("document.activeElement?.textContent?.trim()"), "Allow and start");
+  await page.keyboard.press("Enter");
+  const review = page.getByRole("textbox", { name: "Check what was heard", exact: true });
+  await review.waitFor();
+  await review.focus();
+  await page.evaluate(`(() => { const el = document.activeElement; el.setSelectionRange(el.value.length, el.value.length); })()`);
+  await page.keyboard.type(" for Grade 8");
+  assert.match(await review.inputValue(), /for Grade 8$/);
+  await ctx.close();
+});

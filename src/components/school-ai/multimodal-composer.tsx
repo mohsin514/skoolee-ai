@@ -1,5 +1,6 @@
 "use client";
 
+import { voiceFailureFor } from "@/lib/school-ai/voice";
 import { useEffect, useId, useRef, useState } from "react";
 import { Camera, Loader2, Mic, Paperclip, Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -92,7 +93,7 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
           form.append("idempotencyKey", crypto.randomUUID());
           const response = await fetch("/api/school-ai/transcribe", { method: "POST", body: form, signal: request.current.signal });
           const result = await response.json();
-          if (!response.ok || typeof result.text !== "string") throw new Error(response.status === 503 ? "unavailable" : "failed");
+          if (!response.ok || typeof result.text !== "string") throw new Error(voiceFailureFor(response.ok ? 0 : response.status));
           if (!mounted.current) return;
           const combined = `${latest.current.value}${latest.current.value.trim() ? "\n" : ""}${result.text}`;
           latest.current.onChange(combined.slice(0, 4000));
@@ -100,7 +101,8 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
           setFeedback(combined.length > 4000 ? c.transcriptTruncated : uncertain.length ? c.transcriptUncertain.replace("{0}", uncertain.join(language === "en" ? ", " : "، ")) : c.transcriptReady);
         } catch (error) {
           if (!mounted.current) return;
-          setFailed(true); setFeedback(error instanceof Error && error.message === "unavailable" ? c.serviceUnavailable : c.failed);
+          // SKO-460: the reason in the reader's language (rate limit, format, length, silence, credits).
+          setFailed(true); setFeedback(error instanceof Error && error.message in c ? c[error.message as keyof typeof c] : c.failed);
         } finally { if (mounted.current) setTranscribing(false); }
       };
       capture.start(1000);
