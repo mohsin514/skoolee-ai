@@ -101,9 +101,15 @@ export async function acknowledgeClarification(user: AuthUser, assignmentId: str
 
 // ─── Remedies (R17.7-R17.12) ────────────────────────────────────────
 export const proposeRemedySchema = z.strictObject({
-  type: z.enum(["KEY_CORRECTION", "ITEM_NEUTRALIZATION"]), questionId: id, reason: z.string().trim().min(5).max(2000), notify: z.boolean().default(true),
+  type: z.enum(["KEY_CORRECTION", "ITEM_NEUTRALIZATION", "RUBRIC_CORRECTION", "REGRADE"]), questionId: id, reason: z.string().trim().min(5).max(2000), notify: z.boolean().default(true),
   correction: examKeyCorrectionSchema.optional(),
+  /** RUBRIC_CORRECTION and REGRADE: the moderator's new mark per script for this question; scripts not named keep their mark. */
+  marks: z.record(id, z.number().min(0).max(100)).optional(),
+  /** RUBRIC_CORRECTION: what changed in the rubric, kept with the remedy as evidence. */
+  rubricChange: z.string().trim().min(5).max(2000).optional(),
 });
+const REMEDY_WORDS = { KEY_CORRECTION: "Key correction", ITEM_NEUTRALIZATION: "Item neutralization", RUBRIC_CORRECTION: "Rubric correction", REGRADE: "Re-marking" } as const;
+const REMEDY_FEEDBACK = { KEY_CORRECTION: "Re-marked after the answer key was corrected.", ITEM_NEUTRALIZATION: "Credited in full after the item was neutralized.", RUBRIC_CORRECTION: "Re-marked after the rubric was corrected.", REGRADE: "Re-marked by moderation." } as const;
 type PreviewRow = { attemptId: string; name: string | null; resultVersion: number; previous: number; proposed: number; previousTotal: number; proposedTotal: number };
 
 export async function proposeRemedy(user: AuthUser, assignmentId: string, raw: unknown) {
@@ -115,6 +121,10 @@ export async function proposeRemedy(user: AuthUser, assignmentId: string, raw: u
     const question = paper.questions.find(entry => entry.id === input.questionId);
     if (!question) throw new ApiError("That question is not in this exam.", 422);
     if (input.type === "KEY_CORRECTION" && (!input.correction || input.correction.questionId !== input.questionId)) throw new ApiError("Give the corrected key for this question.", 422);
+    const manual = input.type === "RUBRIC_CORRECTION" || input.type === "REGRADE";
+    if (manual && !input.marks) throw new ApiError("Enter the new mark for each script you re-marked.", 422);
+    if (input.type === "RUBRIC_CORRECTION" && !input.rubricChange) throw new ApiError("Describe what changed in the rubric.", 422);
+    if (manual && Object.values(input.marks!).some(value => value > question.marks)) throw new ApiError(`A mark cannot exceed the question's ${question.marks} marks.`, 422);
     let corrected = paper;
     if (input.type === "KEY_CORRECTION") { try { corrected = correctedExamPaper(paper, [input.correction!]); } catch (error) { throw new ApiError(error instanceof Error ? error.message : "Invalid corrected key.", 422); } }
     const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { id: true, studentId: true, status: true, responses: true, review: true, reviewVersion: true }, orderBy: { startedAt: "asc" } });
@@ -125,23 +135,35 @@ export async function proposeRemedy(user: AuthUser, assignmentId: string, raw: u
       const review = examReviewSchema.parse({ marks: stored.marks, note: stored.note });
       const previous = review.marks.find(mark => mark.questionId === question.id)?.marks ?? 0;
       // Neutralization credits every candidate with the item's full marks, so nobody is disadvantaged by a faulty item.
-      const proposed = input.type === "ITEM_NEUTRALIZATION" ? question.marks : scoreObjectiveResponses(corrected, responsesSchema.parse(attempt.responses)).questions.find(row => row.questionId === question.id)?.marks ?? 0;
+      const proposed = input.type === "ITEM_NEUTRALIZATION" ? question.marks : manual ? input.marks![attempt.id] ?? previous : scoreObjectiveResponses(corrected, responsesSchema.parse(attempt.responses)).questions.find(row => row.questionId === question.id)?.marks ?? 0;
       const previousTotal = review.marks.reduce((sum, mark) => sum + mark.marks, 0);
       rows.push({ attemptId: attempt.id, name: names.get(attempt.studentId) ?? null, resultVersion: attempt.reviewVersion, previous, proposed, previousTotal, proposedTotal: previousTotal - previous + proposed });
     }
     const pending = attempts.filter(row => row.status !== "REVIEWED").length;
-    const remedy = await tx.schoolAiExamRemedy.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, type: input.type, questionId: question.id, reason: input.reason, notify: input.notify, correction: input.correction ? json(input.correction) : Prisma.JsonNull, preview: json({ rows, pending }), proposedById: user.userId } });
+    if (manual && Object.keys(input.marks!).some(attemptId => !rows.some(row => row.attemptId === attemptId))) throw new ApiError("Re-mark only moderated scripts of this exam.", 422);
+    const remedy = await tx.schoolAiExamRemedy.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, type: input.type, questionId: question.id, reason: input.reason, notify: input.notify, correction: input.type === "KEY_CORRECTION" && input.correction ? json(input.correction) : input.type === "RUBRIC_CORRECTION" ? json({ rubricChange: input.rubricChange }) : Prisma.JsonNull, preview: json({ rows, pending }), proposedById: user.userId } });
     return { id: remedy.id, type: remedy.type, questionId: question.id, rows, pending, changed: rows.filter(row => row.proposed !== row.previous).length };
   });
 }
 
-export async function listRemedies(user: AuthUser, assignmentId: string) {
+export async function listRemedies(user: AuthUser, assignmentId: string, questionId?: string | null) {
   return schoolAiTransaction(user, async tx => {
     const { assignment, paper, student } = await scopedAssignment(user, assignmentId, tx);
     if (student) throw new ApiError("Exam unavailable.", 404);
     await staffExamAccess(user, assignment, "view", tx);
     const rows = await tx.schoolAiExamRemedy.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { createdAt: "desc" }, take: 50 });
-    return { questions: paper.questions.map((question, index) => ({ id: question.id, number: index + 1, type: question.type, marks: question.marks, options: question.options })), remedies: rows.map(row => ({ id: row.id, type: row.type, question: paper.questions.findIndex(question => question.id === row.questionId) + 1, reason: row.reason, notify: row.notify, status: row.status, preview: row.preview as { rows: PreviewRow[]; pending: number }, outcomes: row.outcomes, createdAt: row.createdAt, appliedAt: row.appliedAt })) };
+    // For re-marking: each moderated script's answer to the chosen question and its current mark.
+    const target = questionId ? paper.questions.find(question => question.id === questionId) : null;
+    const scripts = target ? await (async () => {
+      const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, status: "REVIEWED" }, select: { id: true, studentId: true, responses: true, review: true }, orderBy: { startedAt: "asc" } });
+      const names = new Map((await tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: attempts.map(row => row.studentId) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+      return attempts.map(attempt => {
+        const answer = responsesSchema.parse(attempt.responses)[target.id] ?? "";
+        const text = target.options.length ? target.options.filter(option => answer === option.id || answer.includes(`"${option.id}"`)).map(option => option.text).join(" · ") : answer;
+        return { attemptId: attempt.id, name: names.get(attempt.studentId) ?? null, answer: text, marks: ((attempt.review as { marks?: Array<{ questionId: string; marks: number }> } | null)?.marks ?? []).find(mark => mark.questionId === target.id)?.marks ?? 0, maximum: target.marks };
+      });
+    })() : [];
+    return { scripts, questions: paper.questions.map((question, index) => ({ id: question.id, number: index + 1, type: question.type, marks: question.marks, options: question.options })), remedies: rows.map(row => ({ id: row.id, type: row.type, question: paper.questions.findIndex(question => question.id === row.questionId) + 1, reason: row.reason, notify: row.notify, status: row.status, preview: row.preview as { rows: PreviewRow[]; pending: number }, outcomes: row.outcomes, createdAt: row.createdAt, appliedAt: row.appliedAt })) };
   });
 }
 
@@ -163,7 +185,8 @@ export async function applyRemedy(user: AuthUser, assignmentId: string, remedyId
     return remedy;
   });
   const preview = claim.preview as { rows: PreviewRow[] };
-  const correction = claim.correction ? examKeyCorrectionSchema.parse(claim.correction) : null;
+  const correction = claim.type === "KEY_CORRECTION" && claim.correction ? examKeyCorrectionSchema.parse(claim.correction) : null;
+  const type = claim.type as keyof typeof REMEDY_WORDS;
   const outcomes: Array<{ attemptId: string; outcome: "APPLIED" | "UNCHANGED" | "SKIPPED_CHANGED" | "FAILED"; version?: number; detail?: string }> = [];
   for (const row of preview.rows) {
     if (row.proposed === row.previous) { outcomes.push({ attemptId: row.attemptId, outcome: "UNCHANGED" }); continue; }
@@ -174,9 +197,9 @@ export async function applyRemedy(user: AuthUser, assignmentId: string, remedyId
       const review = examReviewSchema.parse({ marks: stored.marks, note: stored.note, keyCorrections: stored.keyCorrections });
       const marks = review.marks.some(mark => mark.questionId === claim.questionId)
         ? review.marks.map(mark => mark.questionId === claim.questionId ? { ...mark, marks: row.proposed } : mark)
-        : [...review.marks, { questionId: claim.questionId, marks: row.proposed, feedback: claim.type === "ITEM_NEUTRALIZATION" ? "Credited in full after the item was neutralized." : "Re-marked after the answer key was corrected." }];
+        : [...review.marks, { questionId: claim.questionId, marks: row.proposed, feedback: REMEDY_FEEDBACK[type] }];
       const keyCorrections = correction ? [...(review.keyCorrections ?? []).filter(entry => entry.questionId !== correction.questionId), correction] : review.keyCorrections;
-      const result = await regradeExamAttempt(user, assignmentId, { attemptId: row.attemptId, version: row.resultVersion, reason: `${claim.type === "KEY_CORRECTION" ? "Key correction" : "Item neutralization"} (remedy ${claim.id}): ${claim.reason}`, review: { ...review, marks, ...(keyCorrections?.length ? { keyCorrections } : {}) } });
+      const result = await regradeExamAttempt(user, assignmentId, { attemptId: row.attemptId, version: row.resultVersion, reason: `${REMEDY_WORDS[type]} (remedy ${claim.id}): ${claim.reason}`, review: { ...review, marks, ...(keyCorrections?.length ? { keyCorrections } : {}) } });
       outcomes.push({ attemptId: row.attemptId, outcome: "APPLIED", version: result.version });
     } catch (error) {
       outcomes.push({ attemptId: row.attemptId, outcome: "FAILED", detail: error instanceof Error ? error.message.slice(0, 300) : "Failed" });

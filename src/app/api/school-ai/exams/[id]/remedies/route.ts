@@ -6,8 +6,8 @@ import { listRemedies, proposeRemedy } from "@/lib/school-ai/exam-incident-servi
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
 // SKO-408 R17.7-R17.8: a remedy is first a per-candidate preview; nothing changes until it is authorized.
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  try { return Response.json(await listRemedies(await requireAuthUser(), (await context.params).id), { headers: noStore }); }
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  try { return Response.json(await listRemedies(await requireAuthUser(), (await context.params).id, new URL(request.url).searchParams.get("questionId")), { headers: noStore }); }
   catch (error) { return schoolAiError(error); }
 }
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
