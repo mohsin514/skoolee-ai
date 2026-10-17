@@ -1,5 +1,6 @@
 "use client";
 
+import { ReconciliationsPanel } from "./reconciliations-panel";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,6 +54,7 @@ const METHODS = [
 ];
 
 export function FeePaymentsTab({ campusId }: { campusId?: string }) {
+  const [reconciliationVersion, setReconciliationVersion] = useState(0);
  const { date: formatDate, money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -268,11 +270,13 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         />
       )}
 
+      <div className="mt-6"><ReconciliationsPanel campusId={campusId} version={reconciliationVersion} onPosted={() => void loadPayments()} /></div>
+
       {showBankImport && (
         <BankImportModal
           campusId={campusId}
-          onClose={() => setShowBankImport(false)}
-          onImported={() => { loadPayments(); }}
+          onClose={() => { setShowBankImport(false); setReconciliationVersion((v) => v + 1); }}
+          onImported={() => { loadPayments(); setReconciliationVersion((v) => v + 1); }}
         />
       )}
     </div>
@@ -688,6 +692,8 @@ function BankImportModal({
     finally { setBusy(false); }
   };
 
+  // SKO-432: a hand-chosen invoice must carry the reviewer's reason.
+  const [matchReason, setMatchReason] = useState("");
   const updateRow = async (row: any, change: Record<string, unknown>) => {
     if (!batch) return;
     setBusy(true);
@@ -773,8 +779,9 @@ function BankImportModal({
           {batch?.state === "STAGED" && <>
             <div className="flex flex-wrap gap-2 text-xs font-bold"><span>{tr("{0} selected", [batch.summary.accepted])}</span><span>{tr("{0} rejected", [batch.summary.rejected])}</span><span>{tr("{0} skipped", [batch.summary.skipped])}</span><span>{tr("{0} unresolved", [batch.summary.unresolved])}</span><span>{tr("{0} total rows", [batch.summary.total])}</span></div>
             <p className="text-xs text-ink-subtle">{tr("Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.")}</p>
+            <label className="block text-xs font-bold">{tr("Reason for matching by hand")}<SystemInput type="text" value={matchReason} maxLength={300} placeholder={tr("e.g. payer's note names the pupil; confirmed by phone")} onChange={(event) => setMatchReason(event.target.value)} className="mt-1 w-full" /></label>
             <Table className="w-full text-xs"><TableHeader><TableRow><TableHead>{tr("Include")}</TableHead><TableHead dir="ltr">{tr("Row")}</TableHead><TableHead>{tr("Date")}</TableHead><TableHead>{tr("Amount")}</TableHead><TableHead>{tr("Description")}</TableHead><TableHead>{tr("Invoice match")}</TableHead><TableHead>{tr("Status")}</TableHead></TableRow></TableHeader><TableBody>
-              {batch.rows?.map((row: any) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox  aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell dir="ltr">{String(row.proposal?.date || "")}</TableCell><TableCell dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</TableCell><TableCell>{String(row.proposal?.description || "")}</TableCell><TableCell><SystemSelect aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, { matchedInvoiceId: event.target.value || null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</SystemSelect>{row.state === "UNRESOLVED" && <Button variant="link" type="button" className="mt-1 px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</Button>}</TableCell><TableCell>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-rose-700">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
+              {batch.rows?.map((row: any) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox  aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell dir="ltr">{String(row.proposal?.date || "")}</TableCell><TableCell dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</TableCell><TableCell>{String(row.proposal?.description || "")}</TableCell><TableCell><SystemSelect aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, event.target.value ? { matchedInvoiceId: event.target.value, reason: matchReason } : { matchedInvoiceId: null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</SystemSelect>{row.state === "UNRESOLVED" && <Button variant="link" type="button" className="mt-1 px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</Button>}</TableCell><TableCell>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-rose-700">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
             </TableBody></Table>
           </>}
         </>}

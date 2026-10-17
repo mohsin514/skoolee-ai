@@ -91,7 +91,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { batchId } = await context.params;
     const { batch } = await authorizedBatch(batchId, request, "add");
     if (batch.state !== "STAGED" || batch.expiresAt <= new Date()) throw new ApiError("This staging batch is no longer available", 409);
-    const body = await request.json() as { reviewToken?: string; rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean }> };
+    const body = await request.json() as { reviewToken?: string; rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean; reason?: string }> };
     if ((batch.kind === "STUDENT_ROSTER" || body.reviewToken !== undefined) && body.reviewToken !== importReviewToken(batch)) throw new ApiError("This import changed. Review its current rows before saving.", 409);
     if (!Array.isArray(body.rows) || body.rows.length < 1 || body.rows.length > 1000) throw new ApiError("Choose at least one row to update", 400);
     const { user } = await authorizedBatch(batchId, request, "add");
@@ -169,7 +169,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           const invoice = await prisma.invoice.findFirst({ where: { id: change.matchedInvoiceId, schoolId: user.schoolId, campusId: batch.campusId, currency: String(metadata.currency), status: { in: ["PENDING", "PARTIAL", "OVERDUE"] }, balanceDue: { gt: 0 } }, select: { id: true, invoiceNumber: true, balanceDue: true, student: { select: { fullName: true } } } });
           const amount = Number(row.proposal?.amountMinor);
           if (!invoice || amount > invoice.balanceDue) throw new ApiError("That invoice is no longer eligible for this transaction", 409);
-          row.proposal = { ...row.proposal, matchedInvoiceId: invoice.id, studentName: invoice.student.fullName };
+          // SKO-432: a human match that differs from the exact-reference suggestion records who and why.
+          const manual = change.matchedInvoiceId !== (row.proposal?.autoMatchedInvoiceId ?? null);
+          const reason = typeof change.reason === "string" ? change.reason.trim().slice(0, 300) : "";
+          if (manual && reason.length < 3) throw new ApiError("Give a reason for matching this transaction by hand (for example, the payer's note or a phone confirmation).", 422);
+          row.proposal = { ...row.proposal, matchedInvoiceId: invoice.id, studentName: invoice.student.fullName, ...(manual ? { manualMatch: { by: user.userId, reason, at: new Date().toISOString() } } : { manualMatch: null }) };
           row.matchKey = invoice.invoiceNumber ? `invoice:${invoice.invoiceNumber}` : null;
           row.matchLabel = invoice.student.fullName;
           row.state = "ACCEPTED";
