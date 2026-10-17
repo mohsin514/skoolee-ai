@@ -99,6 +99,7 @@ const messages = {
   stopRecording: ["Stop recording", "إيقاف التسجيل", "ریکارڈنگ روکیں"],
   recording: ["Recording. Stop when you finish; recording stops after 2 minutes.", "جارٍ التسجيل. أوقفه عند الانتهاء؛ سيتوقف تلقائيًا بعد دقيقتين.", "ریکارڈ ہو رہا ہے۔ مکمل ہونے پر روکیں؛ دو منٹ بعد خود بند ہو جائے گا۔"],
   transcribing: ["Turning audio into an editable draft…", "تحويل الصوت إلى مسودة قابلة للتعديل…", "آواز کو قابلِ ترمیم مسودے میں بدلا جا رہا ہے…"],
+  transcriptUncertain: ["Transcript added. The transcriber was unsure of: {0}. Check these before sending.", "أُضيف النص. لم تكن أداة النسخ متأكدة من: {0}. تحقق منها قبل الإرسال.", "تحریر شامل ہو گئی۔ ٹرانسکرائبر کو ان پر یقین نہیں تھا: {0}۔ بھیجنے سے پہلے انہیں جانچیں۔"],
   transcriptReady: ["Transcript added. Check names, dates and amounts before sending.", "أُضيف النص. راجع الأسماء والتواريخ والمبالغ قبل الإرسال.", "تحریر شامل ہو گئی۔ بھیجنے سے پہلے نام، تاریخیں اور رقم دیکھ لیں۔"],
   microphoneError: ["The microphone is unavailable or permission was declined. You can keep typing.", "الميكروفون غير متاح أو رُفض الإذن. يمكنك متابعة الكتابة.", "مائیکروفون دستیاب نہیں یا اجازت نہیں ملی۔ آپ لکھنا جاری رکھ سکتے ہیں۔"],
   serviceUnavailable: ["This AI capability is not configured yet. Manual editing and saved drafts are available.", "لم تُضبط هذه الإمكانية بعد. يمكنك التعديل يدويًا وحفظ المسودات.", "اے آئی کی یہ سہولت ابھی ترتیب نہیں دی گئی۔ دستی ترمیم اور مسودہ محفوظ کرنا دستیاب ہیں۔"],

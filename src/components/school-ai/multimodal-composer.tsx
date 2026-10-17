@@ -96,7 +96,8 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
           if (!mounted.current) return;
           const combined = `${latest.current.value}${latest.current.value.trim() ? "\n" : ""}${result.text}`;
           latest.current.onChange(combined.slice(0, 4000));
-          setFeedback(combined.length > 4000 ? c.transcriptTruncated : c.transcriptReady);
+          const uncertain = Array.isArray(result.uncertain) ? result.uncertain.filter((word: unknown): word is string => typeof word === "string").slice(0, 8) : [];
+          setFeedback(combined.length > 4000 ? c.transcriptTruncated : uncertain.length ? c.transcriptUncertain.replace("{0}", uncertain.join(language === "en" ? ", " : "، ")) : c.transcriptReady);
         } catch (error) {
           if (!mounted.current) return;
           setFailed(true); setFeedback(error instanceof Error && error.message === "unavailable" ? c.serviceUnavailable : c.failed);

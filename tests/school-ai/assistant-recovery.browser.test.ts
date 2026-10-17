@@ -44,7 +44,7 @@ const shot = async (page: Page, name: string) => { await settled(page); await pa
 /** No provider runs in this environment: capabilities, transcription and the reply are synthetic. */
 async function stubAi(page: Page, onAsk?: (body: Record<string, unknown>) => void) {
   await page.route("**/api/school-ai/capabilities", route => route.fulfill({ json: { documentUpload: true, documentExtraction: false, voiceTranscription: true, assistant: true, paperGeneration: false, liveVoice: true, secureBrowser: false, proctoring: false } }));
-  await page.route("**/api/school-ai/transcribe", route => route.fulfill({ json: { text: "Help plan a school day." } }));
+  await page.route("**/api/school-ai/transcribe", route => route.fulfill({ json: { text: "Help plan a school day.", confidence: "low", uncertain: ["school day"] } }));
   await page.route("**/api/school-ai/assistant", route => { onAsk?.(route.request().postDataJSON()); return route.fulfill({ json: { reply: "Let us review your school day together." } }); });
 }
 async function fakeMicrophone(page: Page) {
@@ -93,6 +93,7 @@ test("live voice asks consent, shows an editable unverified transcript, and send
   await review.waitFor();
   assert.equal(await review.inputValue(), "Help plan a school day.");
   assert.deepEqual(sent, [], "nothing is sent before the user checks it");
+  assert.match(await page.locator("[data-voice-uncertain]").innerText(), /unsure of: school day/, "the reviewer is pointed at the uncertain words");
   await review.fill("Help plan a school day for Grade 7.");
   await shot(page, "voice-review-en-1440");
   await page.getByRole("button", { name: "Send to assistant", exact: true }).click();

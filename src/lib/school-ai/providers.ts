@@ -2,6 +2,7 @@ import OpenAI, { toFile } from "openai";
 import { ApiError } from "@/lib/api/scope";
 import { extractionSchema, unreviewedExtraction, parseModelJson } from "./intake";
 import { sourceStorageAvailable } from "./source-storage";
+import { transcriptConfidence } from "./voice";
 
 type MediaTask = "documents" | "voice";
 type Language = "en" | "ar" | "ur";
@@ -77,10 +78,12 @@ export async function transcribeRecording(bytes: Buffer, mimeType: string, langu
   const client = mediaClient("voice");
   const model = mediaModel("voice")!;
   const extension = mimeType.includes("webm") ? "webm" : mimeType.includes("wav") ? "wav" : mimeType.includes("mpeg") ? "mp3" : "mp4";
-  const result = await client.audio.transcriptions.create({
-    file: await toFile(bytes, `recording.${extension}`, { type: mimeType }), model, language,
-    response_format: "json",
-  });
+  const file = await toFile(bytes, `recording.${extension}`, { type: mimeType });
+  // SKO-460: ask for the model's own confidence (segments for whisper, token logprobs otherwise) so
+  // the reviewer is pointed at the words most likely to be wrong. Audio and text are not retained.
+  const result: { text: string; segments?: Array<{ text: string; avg_logprob?: number; no_speech_prob?: number }>; logprobs?: Array<{ token?: string; logprob?: number }> } = model.startsWith("whisper")
+    ? await client.audio.transcriptions.create({ file, model, language, response_format: "verbose_json" })
+    : await client.audio.transcriptions.create({ file, model, language, response_format: "json", include: ["logprobs"] });
   if (!result.text.trim() || result.text.length > 20000) throw new ApiError("The recording could not be transcribed. Try a shorter recording or type your message.", 422);
-  return { text: result.text, model };
+  return { text: result.text, model, check: transcriptConfidence(result) };
 }

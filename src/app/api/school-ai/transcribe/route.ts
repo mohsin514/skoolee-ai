@@ -33,6 +33,6 @@ export async function POST(request: Request) {
     const result = await transcribeRecording(bytes, mime, language);
     if (!charged) await consumeAICreditAndLog({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, feature: "SCHOOL_AI_VOICE", action: "TRANSCRIBE", model: result.model, tokensUsed: 0, metadata: { bytes: bytes.length, language, ...(idempotencyKey ? { idempotencyKey } : {}) } });
     // Audio and transcript are deliberately not retained in usage logs. The user reviews text before saving it.
-    return Response.json({ text: result.text }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ text: result.text, confidence: result.check.confidence, uncertain: result.check.uncertain }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return schoolAiError(error); }
 }
