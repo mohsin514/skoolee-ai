@@ -1,7 +1,7 @@
 "use client";
 
 import { Button as SystemButton } from "@/components/ui/button";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowRight,
@@ -151,13 +151,20 @@ export function StudentsPanel({
     perPage: 12,
   });
 
-  const [classFilter, setClassFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [groupFilter, setGroupFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [onlyMissingGuardian, setOnlyMissingGuardian] = useState(false);
-  const [onlyNoLogin, setOnlyNoLogin] = useState(false);
+  // SKO-401: the directory's filters, search and page live in the URL, so Back, refresh and a link from
+  // record search land on the same view. Read once on mount; written back on every change.
+  const initial = useMemo(() => {
+    const params = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+    return { q: params.get("sq") ?? "", cls: params.get("sclass") ?? "all", section: params.get("class") ?? params.get("ssection") ?? "all", category: params.get("scat") ?? "all", group: params.get("sgroup") ?? "all", missing: params.get("smissing") === "1", nologin: params.get("snologin") === "1", page: Number(params.get("spage") ?? "1") || 1 };
+  }, []);
+  const [classFilter, setClassFilter] = useState(initial.cls);
+  const [sectionFilter, setSectionFilter] = useState(initial.section);
+  const [categoryFilter, setCategoryFilter] = useState(initial.category);
+  const [groupFilter, setGroupFilter] = useState(initial.group);
+  const [searchQuery, setSearchQuery] = useState(initial.q);
+  const [onlyMissingGuardian, setOnlyMissingGuardian] = useState(initial.missing);
+  const [onlyNoLogin, setOnlyNoLogin] = useState(initial.nologin);
+  const pendingPage = useRef(initial.page > 1 ? initial.page : 0);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -261,6 +268,21 @@ export function StudentsPanel({
   ]);
 
   const paged = usePaged(filtered, prefs.perPage);
+  // The page from the URL is applied once the roster has loaded (paging resets when the row count changes).
+  useEffect(() => {
+    if (pendingPage.current && students.length && paged.totalPages >= pendingPage.current) { paged.setPage(pendingPage.current); pendingPage.current = 0; }
+  }, [students.length, paged]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const set = (key: string, value: string | null) => { if (value) params.set(key, value); else params.delete(key); };
+    set("sq", searchQuery.trim() || null); set("sclass", classFilter !== "all" ? classFilter : null); set("ssection", sectionFilter !== "all" ? sectionFilter : null);
+    set("scat", categoryFilter !== "all" ? categoryFilter : null); set("sgroup", groupFilter !== "all" ? groupFilter : null);
+    set("smissing", onlyMissingGuardian ? "1" : null); set("snologin", onlyNoLogin ? "1" : null); set("spage", paged.page > 1 && !pendingPage.current ? String(paged.page) : pendingPage.current ? String(pendingPage.current) : null);
+    params.delete("class");
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
+  }, [searchQuery, classFilter, sectionFilter, categoryFilter, groupFilter, onlyMissingGuardian, onlyNoLogin, paged.page]);
 
   // Arriving from "show me the 12 students on Scholarship" should land on those
   // twelve, with the rest of the filters cleared so the count adds up.
@@ -440,14 +462,18 @@ export function StudentsPanel({
   /* ── Tiles ───────────────────────────────────────────────────── */
 
   const tiles: StatTileSpec[] = [
-    { key: "roll", icon: Users, label: "Students on roll", value: students.length, tone: "violet" },
+    // SKO-401: both tiles act on the list. "On roll" shows everyone on roll (clearing every filter);
+    // "Classes with students" orders the list class by class.
+    { key: "roll", icon: Users, label: "Students on roll", value: students.length, tone: "violet", hint: filtersActive ? "Tap to show all" : "Showing all", active: !filtersActive, onClick: filtersActive ? () => resetFilters() : undefined },
     {
       key: "classes",
       icon: School,
       label: "Classes with students",
       value: classesCovered,
-      hint: `of ${classes.length} class${classes.length === 1 ? "" : "es"}`,
+      hint: prefs.sortKey === "classOrder" ? "Sorted by class" : `of ${classes.length} class${classes.length === 1 ? "" : "es"} · tap to sort by class`,
       tone: "teal",
+      active: prefs.sortKey === "classOrder",
+      onClick: () => patchPrefs({ sortKey: prefs.sortKey === "classOrder" ? "name" : "classOrder" }),
     },
     {
       key: "contact",

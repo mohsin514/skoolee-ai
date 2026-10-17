@@ -7,14 +7,14 @@ import { useUiText, useLocale } from "@/components/locale/LocaleProvider";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { History, Sparkles, BookOpen, ChevronDown, ChevronLeft, Menu, Search, X, type LucideIcon } from "lucide-react";
+import { History, Sparkles, BookOpen, ChevronDown, ChevronLeft, FileSearch, Menu, Search, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { availableNavigation, isNavigationActive, searchNavigation } from "@/lib/navigation/items";
 import { ModalSurface } from "@/components/ui/modal";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { resolveMediaUrl } from "@/lib/storage/s3";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 
@@ -49,6 +49,8 @@ interface RoleSidebarProps {
   logoUrl?: string | null;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** SKO-401: staff get a link to record search; families never do. */
+  recordSearch?: boolean;
 }
 
 function InstitutionBadge({ logoUrl, name }: { logoUrl?: string | null; name: string }) {
@@ -63,7 +65,7 @@ function InstitutionBadge({ logoUrl, name }: { logoUrl?: string | null; name: st
   );
 }
 
-export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], logoUrl, collapsed = false, onToggleCollapse }: RoleSidebarProps) {
+export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], logoUrl, collapsed = false, onToggleCollapse, recordSearch = false }: RoleSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -135,6 +137,9 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
         <Button variant="outline" type="button" aria-label={t("Find a workspace")} aria-keyshortcuts="Alt+Shift+K" aria-haspopup="dialog" aria-expanded={mobileOpen} title={collapsed ? t("Find a workspace") : undefined} onClick={() => setMobileOpen(true)} className={cn("mb-3 min-h-11 gap-2", collapsed ? "px-0" : "justify-start px-3")}>
           <Search aria-hidden="true" className="h-4 w-4 shrink-0" />{!collapsed && <span className="min-w-0 text-start">{t("Find a workspace")}</span>}
         </Button>
+        {recordSearch && <Link href="/search" aria-label={t("Search records")} title={collapsed ? t("Search records") : undefined} data-record-search-link className={cn(buttonVariants({ variant: "ghost" }), "mb-3 min-h-11 gap-2", collapsed ? "px-0" : "justify-start px-3")}>
+          <FileSearch aria-hidden="true" className="h-4 w-4 shrink-0" />{!collapsed && <span className="min-w-0 text-start">{t("Search records")}</span>}
+        </Link>}
         <nav aria-label={t("Primary navigation")} className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(collapsed)}</nav>
         {onToggleCollapse && <Button variant="outline" type="button" onClick={onToggleCollapse} aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!collapsed} className="mt-3 flex min-h-11 items-center justify-center gap-2">
           <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />

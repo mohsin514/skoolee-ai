@@ -1,6 +1,6 @@
+import type React from "react";
 import path from "node:path";
 import { Document, Font, Image, Page, Text, View, renderToBuffer, StyleSheet } from "@react-pdf/renderer";
-import type { Style } from "@react-pdf/types";
 import type { CertificateIssue } from "@prisma/client";
 import { translateUi } from "@/lib/locale/ui-messages";
 import type { Language } from "@/lib/locale/package";
@@ -17,6 +17,10 @@ Font.register({ family: "Certificate", fonts: [
 // react-pdf mangles mixed-script text under `direction: "rtl"`. Right-to-left lines are instead split into
 // script runs laid out right to left; fontkit shapes each Arabic run itself, and Latin runs (names, roll
 // numbers) keep their own order.
+// The renderer's Style type lives in a package pnpm does not hoist; take it from View's own props (Text's are a union with SVG text).
+type TextStyle = NonNullable<React.ComponentProps<typeof View>["style"]>;
+type Unarray<T> = T extends readonly (infer Item)[] ? Item : T;
+type Style = Unarray<TextStyle>;
 const ARABIC = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const LATIN = /[A-Za-z0-9\u00C0-\u024F]/;
 const MIRROR: Record<string, string> = { "(": ")", ")": "(", "[": "]", "]": "[", "{": "}", "}": "{", "<": ">", ">": "<", "«": "»", "»": "«" };

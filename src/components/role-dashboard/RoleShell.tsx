@@ -127,6 +127,7 @@ function RoleShellContent({
           logoUrl={logoUrl}
           collapsed={collapsed}
           onToggleCollapse={toggleCollapsed}
+          recordSearch={Boolean(dashboardHref) && !["/parent", "/student"].some(prefix => dashboardHref!.startsWith(prefix))}
         /></div>
         <main
           id="workspace-content"
