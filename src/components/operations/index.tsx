@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { PanelTitle } from "@/components/shared-admin";
 import { DormitoryAllocations } from "./dormitory-allocations";
+import { VisitorRegister } from "./visitor-register";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
 import { formatPKR } from "@/components/fees/fee-utils";
@@ -1213,79 +1214,8 @@ function TransactionsTab() {
    ════════════════════════════════════════════════════════════════ */
 
 export function VisitorsPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/visitors"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // VisitorLog is (name, phone, purpose, toMeet, inTime, outTime). This panel
-  // was written against a different vocabulary entirely — `visitorName`,
-  // `personToMeet`, `checkIn`, `checkOut` — so the route rejected every save
-  // with "name and inTime are required", and the table below rendered an
-  // em-dash in every column because none of those fields are ever returned.
-  const form = useValidatedForm({
-    schema: visitorFormSchema,
-    initialValues: { name: "", phone: "", purpose: "", toMeet: "", note: "" },
-    onSubmit: async (values) => {
-      const payload = { ...values, inTime: new Date().toISOString() };
-      if (!(await submitTo("/api/front-desk/visitors", payload, form))) return;
-      toast.success("Visitor logged");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  const checkout = async (id: string) => {
-    try { const r = await fetch("/api/front-desk/visitors", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, outTime: new Date().toISOString() }) }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Checked out"); load(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Eye} title="Visitor Log" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Log Visitor</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Name" error={form.errors.name}>
-            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} />
-          </OpField>
-          <OpField label="Phone" error={form.errors.phone}>
-            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
-          </OpField>
-          <OpField label="Purpose" error={form.errors.purpose}>
-            <SystemInput className={`${inputCls} w-36`} {...form.field("purpose")} />
-          </OpField>
-          <OpField label="Person to Meet" error={form.errors.toMeet}>
-            <SystemInput className={`${inputCls} w-36`} {...form.field("toMeet")} />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Phone", "Purpose", "Meet", "Check-in", "Check-out", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={7} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={7} text="No visitor logs" /> : rows.map((v: any) => (
-              <tr key={v.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{v.name}</td>
-                <td className={tdCls}>{v.phone || "—"}</td>
-                <td className={tdCls}>{v.purpose || "—"}</td>
-                <td className={tdCls}>{v.toMeet || "—"}</td>
-                <td className={tdCls}>{v.inTime ? new Date(v.inTime).toLocaleString() : "—"}</td>
-                <td className={tdCls}>{v.outTime ? new Date(v.outTime).toLocaleString() : "—"}</td>
-                <td className={tdCls}>{!v.outTime && <Button variant="secondary" size="sm" onClick={() => checkout(v.id)} >Check Out</Button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-466: the register (on site first, refusals, corrections, retention) lives in its own component.
+  return <VisitorRegister />;
 }
 
 export function ComplaintsPanel() {

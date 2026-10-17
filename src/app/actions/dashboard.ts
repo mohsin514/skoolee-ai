@@ -1684,8 +1684,9 @@ async function receptionistSummary(schoolId: string, campusId: string) {
   const fortnight = daysAgo(13);
 
   const [visitorsToday, openVisits, visitors, complaintGroups, calls, postal, certificates] = await Promise.all([
-    prisma.visitorLog.count({ where: { campusId, schoolId, inTime: { gte: today } } }),
-    prisma.visitorLog.count({ where: { campusId, schoolId, outTime: null, inTime: { gte: today } } }),
+    prisma.visitorLog.count({ where: { campusId, schoolId, inTime: { gte: today }, status: { not: "REFUSED" } } }),
+    // On site means not yet checked out, whatever the arrival day; refused visitors were never admitted (SKO-466).
+    prisma.visitorLog.count({ where: { campusId, schoolId, status: "ON_SITE" } }),
     prisma.visitorLog.findMany({
       where: { campusId, schoolId, inTime: { gte: fortnight } },
       select: { inTime: true, outTime: true },

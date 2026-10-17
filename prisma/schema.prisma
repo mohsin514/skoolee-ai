@@ -3502,7 +3502,20 @@ model VisitorLog {
   outTime   DateTime? @map("out_time")
   note      String?
   createdAt DateTime  @default(now()) @map("created_at")
+  // SKO-466: ON_SITE until checked out (LEFT); REFUSED visitors are recorded but never admitted.
+  // `reference` separates namesakes (organisation or the last digits of an ID), never a full ID number.
+  status         String    @default("ON_SITE") @map("status")
+  reference      String?
+  refusedReason  String?   @map("refused_reason")
+  checkedInById  String?   @map("checked_in_by_id")
+  checkedOutById String?   @map("checked_out_by_id")
+  version        Int       @default(1)
+  idempotencyKey String?   @map("idempotency_key")
+  requestHash    String?   @map("request_hash")
+  contactRedactedAt DateTime? @map("contact_redacted_at")
 
+  @@unique([campusId, idempotencyKey])
+  @@index([campusId, status])
   @@index([schoolId])
   @@map("visitor_logs")
 }

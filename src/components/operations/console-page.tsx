@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
 import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 
 /**
@@ -94,6 +95,9 @@ export function ConsolePage<T extends string>({
   tone?: ModuleTone;
 }) {
   const t = toneOf(tone);
+  // Section names and summaries are catalog copy; names and other runtime text pass through unchanged.
+  const ui = useUiText();
+  const copy = (value: ReactNode) => (typeof value === "string" ? ui(value) : value);
   return (
     <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")} >
       <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
@@ -114,7 +118,7 @@ export function ConsolePage<T extends string>({
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
                 <h1 className="break-words text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
-                  {title}
+                  {copy(title)}
                 </h1>
                 <span
                   className={cn(
@@ -122,11 +126,11 @@ export function ConsolePage<T extends string>({
                     t.text,
                   )}
                 >
-                  {eyebrow}
+                  {copy(eyebrow)}
                 </span>
               </div>
               {summary ? (
-                <p className="break-words text-sm font-semibold leading-tight text-ink-muted">{summary}</p>
+                <p className="break-words text-sm font-semibold leading-tight text-ink-muted">{copy(summary)}</p>
               ) : null}
             </div>
           </div>

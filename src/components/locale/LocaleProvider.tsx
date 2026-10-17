@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { getEffectiveDisplayLocale } from "@/app/actions/locale";
-import { defaultLocale, formatMoney, formatDateOnly, type LocalePackage } from "@/lib/locale/package";
+import { defaultLocale, formatMoney, formatDateOnly, formatInstant, type LocalePackage } from "@/lib/locale/package";
 import { translateUi } from "@/lib/locale/ui-messages";
 const LocaleContext = createContext<LocalePackage | null>(null);
 /** `initialLocale` is server-resolved by the shell layout so first paint is already in the right language/direction. */
@@ -32,5 +32,7 @@ export function useLocaleFormat() {
  return {
   money: (minor: number, currency = "PKR") => formatMoney({ minor, currency }, locale),
   date: (value: string | Date | null | undefined) => value ? formatDateOnly((value instanceof Date ? value.toISOString() : value).slice(0, 10), locale) : "—",
+  // Date and time in the school's timezone and language (SKO-466 visitor arrivals and departures).
+  dateTime: (value: string | Date | null | undefined) => value ? formatInstant(value, locale) : "—",
  };
 }
