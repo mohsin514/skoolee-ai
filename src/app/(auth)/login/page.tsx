@@ -87,6 +87,10 @@ const en = {
   tooMany: "Too many attempts. Please wait a moment.",
   loginFailed: "Login failed",
   schoolFailed: "Could not sign in to that school.",
+  resendLink: "Send a new verification link",
+  resending: "Sending…",
+  resendSent: "If an account at this address is waiting for verification, a new link is on its way.",
+  resendNeedEmail: "Enter your email above, then send a new link.",
   /** Known English messages (zod, verification redirect, /api/auth/login) → localized text. Unknown text passes through. */
   messages: {} as Record<string, string>,
 };
@@ -138,6 +142,10 @@ const copy: Record<Language, LoginCopy> = {
     tooMany: "محاولات كثيرة جداً. انتظر قليلاً.",
     loginFailed: "تعذر تسجيل الدخول",
     schoolFailed: "تعذر تسجيل الدخول إلى تلك المدرسة.",
+    resendLink: "أرسل رابط تحقق جديداً",
+    resending: "جارٍ الإرسال…",
+    resendSent: "إذا كان هناك حساب بهذا العنوان بانتظار التحقق، فرابط جديد في طريقه إليك.",
+    resendNeedEmail: "أدخل بريدك الإلكتروني أعلاه، ثم أرسل رابطاً جديداً.",
     messages: {
       "Valid email required": "أدخل بريداً إلكترونياً صالحاً",
       "Password required": "كلمة المرور مطلوبة",
@@ -195,6 +203,10 @@ const copy: Record<Language, LoginCopy> = {
     tooMany: "بہت زیادہ کوششیں۔ تھوڑی دیر انتظار کریں۔",
     loginFailed: "سائن اِن نہیں ہو سکا",
     schoolFailed: "اس اسکول میں سائن اِن نہیں ہو سکا۔",
+    resendLink: "نیا تصدیقی لنک بھیجیں",
+    resending: "بھیجا جا رہا ہے…",
+    resendSent: "اگر اس پتے پر کوئی اکاؤنٹ تصدیق کا منتظر ہے تو نیا لنک بھیج دیا گیا ہے۔",
+    resendNeedEmail: "اوپر اپنا ای میل درج کریں، پھر نیا لنک بھیجیں۔",
     messages: {
       "Valid email required": "درست ای میل درج کریں",
       "Password required": "پاس ورڈ درکار ہے",
@@ -244,6 +256,14 @@ const verificationErrors = new Set([
   "Verification failed",
 ]);
 
+// SKO-457: these errors mean the account may still be waiting for verification, so the
+// sign-in card offers a new link instead of leaving the owner at a dead end.
+const resendableErrors = new Set([
+  "Account not verified. Please check your email inbox to activate it.",
+  "This verification link is invalid or has expired",
+  "Invalid verification link",
+]);
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -255,7 +275,7 @@ export default function LoginPage() {
     else if (notice === "invited") toast.success(t.invited, { duration: 8000 });
     else toast.info(t.sessionEnded, { duration: 8000 });
   });
-  const localize = (message: string) => t.messages[message] ?? message;
+  const localize = (message: string) => message === en.resendNeedEmail ? t.resendNeedEmail : t.messages[message] ?? message;
   const [showPass, setShowPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -336,6 +356,21 @@ export default function LoginPage() {
   const {
     register, handleSubmit, getValues, formState: { errors },
   } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) });
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
+  const resendVerification = async () => {
+    const email = String(getValues("email") ?? "").trim();
+    if (!email) { setFormError(en.resendNeedEmail); return; }
+    setResendState("sending");
+    try {
+      const res = await fetch("/api/auth/verify/resend", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      if (!res.ok) { const json = await res.json().catch(() => ({})); setFormError(json.error || en.unableToVerify); setResendState("idle"); return; }
+      setResendState("sent");
+      setFormError(null);
+    } catch {
+      setFormError(en.unableToVerify);
+      setResendState("idle");
+    }
+  };
 
   const trackCaps = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     setCapsOn(e.getModifierState?.("CapsLock") ?? false);
@@ -591,7 +626,19 @@ export default function LoginPage() {
                 className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3"
               >
                 <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-status-error-text" />
-                <p className="text-[13px] font-bold leading-snug text-status-error-text">{localize(formError)}</p>
+                <div className="min-w-0 space-y-2">
+                  <p className="text-[13px] font-bold leading-snug text-status-error-text">{localize(formError)}</p>
+                  {(resendableErrors.has(formError) || formError === en.resendNeedEmail) && (
+                    <button type="button" onClick={resendVerification} disabled={resendState === "sending"} className="text-[12px] font-black text-[#8127cf] underline underline-offset-2 disabled:opacity-60">{resendState === "sending" ? t.resending : t.resendLink}</button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {resendState === "sent" && !formError && (
+              <div id="login-resend-status" role="status" className="mb-5 flex items-start gap-2.5 rounded-2xl border border-status-success-border bg-status-success-surface px-4 py-3">
+                <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-status-success-text" />
+                <p className="text-[13px] font-bold leading-snug text-status-success-text">{t.resendSent}</p>
               </div>
             )}
 

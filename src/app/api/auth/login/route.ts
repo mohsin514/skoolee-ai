@@ -13,6 +13,10 @@ import bcrypt from "bcryptjs";
 import { logSuperAdminAction } from "@/lib/audit";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { runUnscoped } from "@/lib/db/tenant-context";
+import { isPendingVerification } from "@/lib/auth/verification";
+
+// A valid bcrypt digest of a random value, compared against when no candidate exists.
+const TIMING_HASH = "$2a$12$utCRA1dXQTT8A9JBh4zQcO9TcVl2Hmaznnf01qUhQ5.w6D/T6LQ6e";
 
 import {
   SESSION_DAYS,
@@ -83,6 +87,9 @@ async function handleLogin(req: NextRequest) {
       if (!candidate.password) continue;
       if (await bcrypt.compare(password, candidate.password)) matched.push(candidate);
     }
+    // SKO-457: an unknown address costs the same bcrypt work as a wrong password,
+    // so response time does not reveal whether the address has an account.
+    if (!candidates.some((c) => c.password)) await bcrypt.compare(password, TIMING_HASH);
 
     if (matched.length === 0) {
       const known = candidates.find((c) => c.role === "SUPER_ADMIN");
@@ -104,6 +111,11 @@ async function handleLogin(req: NextRequest) {
     // A soft-deleted tenant is not a place anyone can sign in to.
     const usable = matched.filter((c) => c.isActive && String(c.school?.status || "").toUpperCase() !== "DELETED");
     if (usable.length === 0) {
+      // The password is proven, so saying "verify first" tells the holder nothing new,
+      // and the sign-in screen can offer a fresh link. Deactivated accounts stay generic.
+      if (matched.some((c) => isPendingVerification(c) && String(c.school?.status || "").toUpperCase() !== "DELETED")) {
+        return Response.json({ error: "Account not verified. Please check your email inbox to activate it.", code: "EMAIL_NOT_VERIFIED" }, { status: 403 });
+      }
       return Response.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
@@ -124,10 +136,6 @@ async function handleLogin(req: NextRequest) {
     }
 
     const user = usable[0];
-
-    if (!user.isActive) {
-      return Response.json({ error: "Account not verified. Please check your email inbox to activate it." }, { status: 403 });
-    }
 
     // MFA users get their language applied only after the second factor (AC7).
     if (needsMfaChallenge(user)) return startMfa(user, sessionDays);

@@ -344,6 +344,8 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
             accessVersion: existingUser ? existingUser.accessVersion + 1 : 0,
             onboardingComplete: true,
             isActive: true,
+            // Opening the invitation link proves the address (SKO-457).
+            emailVerifiedAt: new Date(),
           },
         })
       : await tx.user.create({
@@ -376,6 +378,7 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
             accessVersion: 0,
             onboardingComplete: true,
             isActive: true,
+            emailVerifiedAt: new Date(),
           }
         });
 

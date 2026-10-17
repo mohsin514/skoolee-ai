@@ -181,7 +181,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
     console.error("[signup-email]", error);
     return {
       success: true,
-      warning: "Account created, but the verification email could not be sent. Please contact support or try password reset from the login page.",
+      warning: "Account created, but the verification email could not be sent. Request a new verification link from the sign-in page.",
       user: { id: user.id, email: user.email },
     };
   }

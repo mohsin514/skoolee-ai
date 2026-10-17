@@ -136,6 +136,9 @@ const copy: Record<Language, RecoveryCopy> = {
       "Password must be at least 8 characters": "يجب أن تتكون كلمة المرور من ٨ أحرف على الأقل",
       "Passwords don't match": "كلمتا المرور غير متطابقتين",
       [UNMET]: "استوفِ جميع متطلبات الأمان.",
+      "Invalid or expired link. Request a new link.": "الرابط غير صالح أو منتهي الصلاحية. اطلب رابطاً جديداً.",
+      "Use a password between 8 and 72 characters": "استخدم كلمة مرور بين 8 و72 حرفاً",
+      "Wait five minutes before trying again": "انتظر خمس دقائق قبل المحاولة مجدداً",
     },
   },
   ur: {
@@ -187,6 +190,9 @@ const copy: Record<Language, RecoveryCopy> = {
       "Password must be at least 8 characters": "پاس ورڈ کم از کم ۸ حروف کا ہونا چاہیے",
       "Passwords don't match": "پاس ورڈ ایک جیسے نہیں",
       [UNMET]: "تمام سیکیورٹی شرائط پوری کریں۔",
+      "Invalid or expired link. Request a new link.": "لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے۔ نیا لنک منگوائیں۔",
+      "Use a password between 8 and 72 characters": "8 سے 72 حروف کے درمیان پاس ورڈ رکھیں",
+      "Wait five minutes before trying again": "دوبارہ کوشش سے پہلے پانچ منٹ انتظار کریں",
     },
   },
 };
@@ -291,13 +297,18 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
-      await resetPassword(token, data.password);
+      const result = await resetPassword(token, data.password);
+      if (!result.success) {
+        // Stored as the English source; rendered through `localize`.
+        setResetError(result.error);
+        toast.error(localize(result.error));
+        return;
+      }
       toast.success(t.updated);
       router.push("/login");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t.saveFailed;
-      setResetError(message);
-      toast.error(message);
+    } catch {
+      setResetError(t.saveFailed);
+      toast.error(t.saveFailed);
     } finally {
       setIsLoading(false);
     }
@@ -465,7 +476,7 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-4" aria-busy={isLoading} noValidate>
-                  {resetError && <div ref={resetErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-reset-error"><FieldError id="recover-reset-error">{resetError}</FieldError></div>}
+                  {resetError && <div ref={resetErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-reset-error"><FieldError id="recover-reset-error">{localize(resetError)}</FieldError></div>}
                   <FormField name="password" id="new-password" label={t.newPassword} error={localize(resetForm.formState.errors.password?.message)} required>
                     <InputGroup>
                       <Lock data-field-affix="start" aria-hidden="true" className="h-4 w-4 text-ink-subtle" />

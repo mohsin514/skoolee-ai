@@ -34,7 +34,7 @@ const PUBLIC_PATHS = [
   "/privacy", "/ai-governance", "/security", "/human-review-policy",
   "/api/auth/login",
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
-  "/api/auth/register", "/api/auth/signup-step1", "/api/auth/signup-step2",
+  "/api/auth/signup-step1", "/api/auth/signup-step2",
   "/api/reports/download", // Route authenticates session or a single-child capability.
   "/api/parent/data",
   "/api/parent/timetable",
