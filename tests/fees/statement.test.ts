@@ -33,3 +33,11 @@ test("a ledger that does not add up is reported, not hidden", () => {
   const result = reconcileStatement([{ id: "x", status: "PARTIAL", totalAmount: 10000, totalAmountPaid: 4000, balanceDue: 5000, dueDate: "2026-10-01" }], "2026-11-01");
   assert.equal(result.reconciles, false);
 });
+test("with an approved plan only past-due instalments count as overdue", () => {
+  const result = reconcileStatement([{ id: "p", status: "PARTIAL", totalAmount: 1000, totalAmountPaid: 450, balanceDue: 550, dueDate: "2026-10-01",
+    installments: [{ state: "PAID", remaining: 0 }, { state: "OVERDUE", remaining: 150 }, { state: "NOT_YET_DUE", remaining: 400 }] }], "2026-11-10");
+  assert.deepEqual([result.overdue, result.notYetDue, result.states.p, result.reconciles], [150, 400, "OVERDUE", true]);
+  const ahead = reconcileStatement([{ id: "q", status: "PARTIAL", totalAmount: 600, totalAmountPaid: 400, balanceDue: 200, dueDate: "2026-09-01",
+    installments: [{ state: "PAID", remaining: 0 }, { state: "PART_PAID", remaining: 200 }] }], "2026-10-17");
+  assert.deepEqual([ahead.overdue, ahead.notYetDue, ahead.states.q], [0, 200, "NOT_YET_DUE"], "the invoice's original due date no longer applies");
+});

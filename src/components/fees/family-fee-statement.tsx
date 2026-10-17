@@ -5,6 +5,7 @@ import { Banknote, CalendarClock, CheckCircle2, Receipt } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { OnlinePayAction, PaymentReturnStatus } from "./online-payment";
+import { InstallmentSchedule } from "./installment-plan-panel";
 
 // SKO-431: the family fee statement for one authorized child. Every figure comes from the server in one
 // currency; due states use the school's calendar; the reconciliation line shows the arithmetic.
@@ -13,7 +14,8 @@ type DueState = "PAID" | "CANCELLED" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE";
 type Statement = {
   student: { id: string; fullName: string }; currency: string | null; currencies: string[]; today: string;
   summary: { charges: number; payments: number; closing: number; outstanding: number; overdue: number; dueToday: number; notYetDue: number; reconciles: boolean };
-  invoices: { id: string; invoiceNumber: string | null; currency: string; status: string; dueState: DueState; dueDate: string; totalAmount: number; paid: number; balance: number; receipts: { id: string; amount: number; receiptNo: string | null; paymentDate: string; method: string }[] }[];
+  invoices: { id: string; invoiceNumber: string | null; currency: string; status: string; dueState: DueState; dueDate: string; totalAmount: number; paid: number; balance: number; receipts: { id: string; amount: number; receiptNo: string | null; paymentDate: string; method: string }[];
+    installments: { dueDate: string; amount: number; paid: number; remaining: number; state: "PAID" | "PART_PAID" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE" }[] | null }[];
 };
 const STATE_STYLE: Record<DueState, string> = { PAID: "bg-emerald-50 text-emerald-700", CANCELLED: "bg-gray-100 text-gray-500", OVERDUE: "bg-rose-50 text-rose-700", DUE_TODAY: "bg-amber-50 text-amber-700", NOT_YET_DUE: "bg-sky-50 text-sky-700" };
 const STATE_LABEL: Record<DueState, string> = { PAID: "Paid", CANCELLED: "Cancelled", OVERDUE: "Overdue", DUE_TODAY: "Due today", NOT_YET_DUE: "Not yet due" };
@@ -76,7 +78,7 @@ function InvoiceCard({ invoice, focused, fmt, onPending }: { invoice: Statement[
   useEffect(() => { if (focused) card.current?.scrollIntoView({ block: "center" }); }, [focused]);
   return <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} data-due-state={invoice.dueState} className={`sk-panel p-4 ${focused ? "ring-2 ring-[#8127cf]" : ""}`}>
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <div><p className="text-sm font-black"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
+      <div><p className="text-sm font-black"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.installments ? ui("Paid in instalments") : invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
       <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${STATE_STYLE[invoice.dueState]}`}>{ui(STATE_LABEL[invoice.dueState])}</span>
     </div>
     <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
@@ -84,7 +86,8 @@ function InvoiceCard({ invoice, focused, fmt, onPending }: { invoice: Statement[
       <div><dt className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Paid")}</dt><dd className="font-black tabular-nums text-emerald-600"><bdi>{fmt(invoice.paid)}</bdi></dd></div>
       <div><dt className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Balance")}</dt><dd className={`font-black tabular-nums ${invoice.balance > 0 && invoice.dueState !== "CANCELLED" ? "text-rose-600" : "text-ink-muted"}`}><bdi>{fmt(invoice.balance)}</bdi></dd></div>
     </dl>
-    {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id}>{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)}</li>)}</ul>}
+    {invoice.installments && <div className="mt-3 space-y-1"><p className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Instalment plan")}</p><InstallmentSchedule installments={invoice.installments} currency={invoice.currency} /></div>}
+    {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <a className="font-bold text-primary underline-offset-2 hover:underline" href={`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`} data-receipt-download>{ui("Download receipt")}</a></li>)}</ul>}
     {invoice.balance > 0 && !["CANCELLED", "PAID"].includes(invoice.dueState) && <OnlinePayAction invoiceId={invoice.id} onPending={onPending} />}
   </div>;
 }

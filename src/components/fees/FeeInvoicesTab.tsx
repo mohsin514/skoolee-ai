@@ -1,5 +1,6 @@
 "use client";
 
+import { InstallmentPlanPanel } from "./installment-plan-panel";
 import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 
@@ -516,6 +517,7 @@ function InvoiceDetailModal({
               </div>
             )}
 
+            {inv.status !== "CANCELLED" && inv.status !== "PAID" && <InstallmentPlanPanel invoiceId={inv.id} currency={inv.currency} />}
             {inv.status !== "PAID" && inv.status !== "CANCELLED" && (
               <div className="flex gap-2 pt-2">
                 <BrandButton variant="soft" className="flex-1" onClick={() => setConfirmOverdue(true)}>

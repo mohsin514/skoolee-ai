@@ -2066,6 +2066,7 @@ model FeeCarryForward {
 // ─── 12. INVOICES ─────────────────────────────────────────
 model Invoice {
   carryForwardAmount Int @default(0) @map("carry_forward_amount")
+  paymentPlans       PaymentPlan[]
   paymentAllocations PaymentAllocation[]
   enrollmentId String? @map("enrollment_id")
   enrollment StudentEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
@@ -2312,8 +2313,20 @@ model PaymentPlan {
   status            String    @default("active")
   completedAt       DateTime? @map("completed_at")
   createdAt         DateTime  @default(now()) @map("created_at")
+  // SKO-431: an instalment agreement for one invoice, proposed by one staff member and approved by
+  // another. Payments after the plan starts are allocated to its instalments in date order.
+  invoiceId         String?   @map("invoice_id")
+  invoice           Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  currency          String?
+  paidAtCreation    Int       @default(0) @map("paid_at_creation")
+  createdById       String?   @map("created_by_id")
+  approvedById      String?   @map("approved_by_id")
+  approvedAt        DateTime? @map("approved_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+  version           Int       @default(1)
 
   @@index([schoolId])
+  @@index([invoiceId])
   @@map("payment_plans")
 }
 

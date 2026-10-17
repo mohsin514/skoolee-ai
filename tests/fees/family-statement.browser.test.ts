@@ -109,3 +109,15 @@ test("the pupil sees the same figures in Urdu at phone width", async () => {
   await shot(page, "family-statement-ur-390");
   await ctx.close();
 });
+
+test("the guardian downloads their child's receipt; a sibling's receipt without finance access is refused", async () => {
+  const ctx = await context("parent");
+  const payment = await db.payment.findFirstOrThrow({ where: { studentId: childId, receiptNo: "RCP-SYN-STM-05" } });
+  const response = await ctx.request.get(`${base}/api/fees/payment-pdf?id=${payment.id}`);
+  assert.equal(response.status(), 200);
+  assert.match(response.headers()["content-type"] ?? "", /application\/pdf/);
+  const siblingInvoice = await db.invoice.findFirstOrThrow({ where: { studentId: siblingId } });
+  const siblingPayment = await db.payment.create({ data: { schoolId, campusId, studentId: siblingId, invoiceId: siblingInvoice.id, currency: "PKR", amount: 1000, paymentDate: day(-1), paymentMethod: "CASH", receiptNo: "RCP-SYN-SIB" } });
+  assert.equal((await ctx.request.get(`${base}/api/fees/payment-pdf?id=${siblingPayment.id}`)).status(), 404);
+  await ctx.close();
+});

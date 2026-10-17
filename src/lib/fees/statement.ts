@@ -21,7 +21,16 @@ export function dueState(invoice: { status: string; balanceDue: number; dueDate:
   return "NOT_YET_DUE";
 }
 
-export interface StatementInvoice { id: string; status: string; totalAmount: number; totalAmountPaid: number; balanceDue: number; dueDate: string }
+export interface StatementInvoice { id: string; status: string; totalAmount: number; totalAmountPaid: number; balanceDue: number; dueDate: string;
+  /** An approved instalment plan replaces the single due date with its instalments' states. */
+  installments?: { state: "PAID" | "PART_PAID" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE"; remaining: number }[] }
+
+function planDueState(invoice: StatementInvoice): DueState | null {
+  if (!invoice.installments || invoice.status === "CANCELLED" || invoice.balanceDue <= 0) return null;
+  if (invoice.installments.some(item => item.state === "OVERDUE")) return "OVERDUE";
+  if (invoice.installments.some(item => item.state === "DUE_TODAY")) return "DUE_TODAY";
+  return "NOT_YET_DUE";
+}
 
 export function reconcileStatement(invoices: StatementInvoice[], today: string, openingBalance = 0) {
   const live = invoices.filter(invoice => invoice.status !== "CANCELLED");
@@ -30,8 +39,12 @@ export function reconcileStatement(invoices: StatementInvoice[], today: string, 
   const payments = live.reduce((sum, invoice) => sum + Math.min(invoice.totalAmountPaid, invoice.totalAmount), 0);
   const closing = openingBalance + charges - payments;
   const outstanding = openingBalance + live.reduce((sum, invoice) => sum + Math.max(invoice.balanceDue, 0), 0);
-  const states = Object.fromEntries(invoices.map(invoice => [invoice.id, dueState(invoice, today)])) as Record<string, DueState>;
-  const amountWhere = (state: DueState) => live.filter(invoice => states[invoice.id] === state).reduce((sum, invoice) => sum + Math.max(invoice.balanceDue, 0), 0);
+  const states = Object.fromEntries(invoices.map(invoice => [invoice.id, planDueState(invoice) ?? dueState(invoice, today)])) as Record<string, DueState>;
+  // With a plan, each instalment's remaining amount counts under its own state.
+  const amountWhere = (state: DueState) => live.reduce((sum, invoice) => {
+    if (invoice.installments && invoice.balanceDue > 0) return sum + invoice.installments.filter(item => (item.state === "PART_PAID" ? "NOT_YET_DUE" : item.state) === state).reduce((total, item) => total + item.remaining, 0);
+    return states[invoice.id] === state ? sum + Math.max(invoice.balanceDue, 0) : sum;
+  }, 0);
   return {
     today, openingBalance, charges, payments, closing, outstanding,
     overdue: amountWhere("OVERDUE"), dueToday: amountWhere("DUE_TODAY"), notYetDue: amountWhere("NOT_YET_DUE"),
