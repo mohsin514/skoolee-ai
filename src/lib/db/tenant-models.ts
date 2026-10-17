@@ -124,6 +124,7 @@ export const TENANT_MODELS = new Set<string>([
   "routeVehicle",
   "schoolAiConversation",
   "schoolAiDocumentJob",
+  "schoolAiEvidencePack",
   "schoolAiExamAppeal",
   "schoolAiExamAssignment",
   "schoolAiExamAttempt",

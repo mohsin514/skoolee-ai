@@ -466,7 +466,12 @@ export const CLAIM_EVIDENCE = [
     id: "EVIDENCE_PACK_MANIFEST",
     claim: "An evidence pack export carries a machine-verifiable manifest of file digests and record versions that an independent verifier can re-digest.",
     requirements: ["19.2", "19.3", "19.4"],
-    remaining: "The manifest shape, the digest list and gap entries are not written yet.",
+    citations: [
+      { path: "src/lib/school-ai/evidence-pack.ts", test: "tests/school-ai/exam-studio-evidence-pack.test.ts", case: "an independent verifier (unzip + shasum) reproduces every digest in the manifest" },
+      { path: "src/lib/school-ai/evidence-pack-service.ts", test: "tests/school-ai/exam-studio-evidence.database.test.ts", case: "a produced pack is frozen, and its download verifies with unzip and shasum alone" },
+      { path: "src/lib/school-ai/evidence-pack-service.ts", test: "tests/school-ai/exam-studio-evidence.database.test.ts", case: "a pack holds the chain, names the missing source version, and leaves keys out by default" },
+      { path: "src/lib/school-ai/evidence-pack-service.ts", migration: "prisma/migrations/20261019100000_exam_evidence_packs/migration.sql" },
+    ],
   },
   {
     id: "SUSTAINED_DELIVERY_LOAD",

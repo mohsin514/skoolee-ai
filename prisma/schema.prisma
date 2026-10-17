@@ -232,6 +232,7 @@ model School {
   schoolAiExamClarifications SchoolAiExamClarification[]
   schoolAiExamClarificationAcks SchoolAiExamClarificationAck[]
   schoolAiExamRemedies SchoolAiExamRemedy[]
+  schoolAiEvidencePacks SchoolAiEvidencePack[]
   schoolAiExamFormAllocations SchoolAiExamFormAllocation[]
   schoolAiExamPauses SchoolAiExamPause[]
   teachingAssignments TeachingAssignment[]
@@ -5151,4 +5152,28 @@ model SchoolAiExamRemedy {
 
   @@index([schoolId, campusId, assignmentId])
   @@map("school_ai_exam_remedies")
+}
+
+/// SKO-408 R19: a frozen evidence pack — the files and Integrity_Manifest exactly as produced, so
+/// every later download serves the same bytes the manifest digests. Append-only apart from
+/// `downloadedAt`; production and each download are also written to the audit log.
+model SchoolAiEvidencePack {
+  id              String    @id @default(uuid())
+  schoolId        String    @default("") @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  assignmentId    String    @map("assignment_id")
+  scopeKind       String    @map("scope_kind")
+  scopeId         String    @map("scope_id")
+  manifest        Json
+  files           Json
+  includedKeys    Boolean   @default(false) @map("included_keys")
+  includedCapture Boolean   @default(false) @map("included_capture")
+  captureReason   String?   @map("capture_reason")
+  requestedById   String    @map("requested_by_id")
+  requestedAt     DateTime  @default(now()) @map("requested_at")
+  downloadedAt    DateTime? @map("downloaded_at")
+
+  @@index([schoolId, campusId, assignmentId, requestedAt])
+  @@map("school_ai_evidence_packs")
 }
