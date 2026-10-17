@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
 import { withParentScope } from "@/lib/parent/resolve-child";
-import { attendanceRuleFor } from "@/lib/attendance/register";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 
 export const runtime = "nodejs";
 

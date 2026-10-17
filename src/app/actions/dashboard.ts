@@ -11,7 +11,7 @@ import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel } from "@/lib/roles";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
-import { attendanceRuleFor } from "@/lib/attendance/register";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 

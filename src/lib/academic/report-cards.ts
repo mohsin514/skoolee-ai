@@ -4,7 +4,7 @@ import { retryDatabaseTransaction } from "@/lib/school-ai/transaction";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { getLocalePackage, loadLocaleTimeline } from "@/lib/locale/store";
 import { localePackageSchema } from "@/lib/locale/package";
-import { attendanceRuleFor } from "@/lib/attendance/register";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 import {
   buildSubjectDistribution,
   calculateWeightedGrade,

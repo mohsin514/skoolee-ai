@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, canManageOperations } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus, previewTimetablePublish, publishTimetableVersion, notifyTimetableVersion } from "@/lib/timetable/manual";
+import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus, previewTimetablePublish, publishTimetableVersion } from "@/lib/timetable/manual";
+import { notifyTimetableVersion } from "@/lib/timetable/notify";
 
 export const runtime = "nodejs";
 

@@ -8,7 +8,9 @@ import { guardianHasAccess } from "@/lib/parent/guardian-access";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import { deliverNotification } from "@/lib/notifications/in-app";
 import { triggerRepeatedAbsenceAlert } from "@/lib/notifications/automation";
-import { ATTENDANCE_STATUSES, DEFAULT_ATTENDANCE_RULE, type AttendanceRule } from "@/lib/attendance";
+import { ATTENDANCE_STATUSES, DEFAULT_ATTENDANCE_RULE } from "@/lib/attendance";
+import { attendanceRuleFor, explainClosed } from "./rule";
+export { attendanceRuleFor, EXPLAIN_WINDOW_DAYS } from "./rule";
 
 // SKO-405: the class register. A register is one class on one school day; its roster is the pupils
 // enrolled in that class on that date (dated enrollment), so a pupil who later moved still appears on the
@@ -33,12 +35,6 @@ const text = (value: unknown, label: string, min: number, max: number) => {
   if (out.length > max) throw new ApiError(`${label} is too long (max ${max}).`, 400);
   return out;
 };
-
-/** The published rule in force for a school (version 0 until one is published). */
-export async function attendanceRuleFor(schoolId: string, db: Pick<TxClient, "attendanceRuleVersion"> = prisma): Promise<AttendanceRule> {
-  const latest = await db.attendanceRuleVersion.findFirst({ where: { schoolId }, orderBy: { version: "desc" } });
-  return latest ? { version: latest.version, attended: latest.attended, excluded: latest.excluded } : DEFAULT_ATTENDANCE_RULE;
-}
 
 export async function publishRule(user: AuthUser, body: Record<string, unknown>) {
   if (!canManageOperations(user)) throw new ApiError("Only school leaders can change how attendance is counted.", 403);
@@ -177,10 +173,6 @@ async function notifyCorrection(user: AuthUser, campusId: string, studentId: str
   await deliverNotification("ATTENDANCE_CORRECTED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName ?? null, guardianIds: ids, attendanceId: row.id, studentName: row.student.fullName, date: date.toISOString().slice(0, 10), status: row.status })
     .catch(error => console.error("[attendance] correction notice failed", error));
 }
-
-/** SKO-419: how long after the day a family may explain it; the family inbox uses the same window. */
-export const EXPLAIN_WINDOW_DAYS = 14;
-const explainClosed = (date: Date, now = new Date()) => now.getTime() > date.getTime() + (EXPLAIN_WINDOW_DAYS + 1) * 86_400_000;
 
 /** A guardian explains an absence or a late arrival. It waits for staff; the register is unchanged. */
 export async function submitExplanation(user: AuthUser, body: Record<string, unknown>) {

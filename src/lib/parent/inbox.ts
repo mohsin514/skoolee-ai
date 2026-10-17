@@ -3,7 +3,7 @@ import { calendarDateIn } from "@/lib/datetime";
 import { getLocalePackage } from "@/lib/locale/store";
 import { publishedReportsWhere } from "@/lib/auth/policy";
 import { currentGuardianRelationship, type GuardianPermissions } from "@/lib/parent/guardian-access";
-import { EXPLAIN_WINDOW_DAYS } from "@/lib/attendance/register";
+import { EXPLAIN_WINDOW_DAYS } from "@/lib/attendance/rule";
 
 // SKO-419: the family action inbox. One list across every child the guardian is verified for, each item
 // read from its own source under that child's current permissions (they can differ per sibling). Every

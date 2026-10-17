@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { ruleRate } from "@/lib/attendance";
-import { attendanceRuleFor } from "@/lib/attendance/register";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 
 export async function GET(req: NextRequest) {
   try {
