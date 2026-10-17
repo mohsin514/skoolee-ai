@@ -57,8 +57,11 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   }
   const receiptNo = `RCP-${year}-${shortId}-${String(seq).padStart(5, "0")}`;
 
+  // SKO-431: ownership comes from the locked invoice, not the request context, because verified
+  // provider callbacks run without a signed-in school.
   const payment = await tx.payment.create({
     data: {
+      schoolId: invoice.schoolId,
       campusId: input.campusId,
       invoiceId: input.invoiceId,
       studentId: input.studentId,
@@ -121,6 +124,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
     } else {
       await tx.feeCarryForward.create({
         data: {
+          schoolId: invoice.schoolId,
           campusId: input.campusId,
           studentId: input.studentId,
           fromAcademicYear: year,
@@ -136,16 +140,17 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   // Ledger: auto-post INCOME (idempotent — paymentId is unique on the entry).
   // The income account is lazily created per campus on first use.
   let incomeAccount = await tx.chartOfAccount.findFirst({
-    where: { campusId: input.campusId, name: "Fee Income" },
+    where: { schoolId: invoice.schoolId, campusId: input.campusId, name: "Fee Income" },
   });
   if (!incomeAccount) {
     incomeAccount = await tx.chartOfAccount.create({
-      data: { campusId: input.campusId, name: "Fee Income", type: "INCOME", isSystem: true },
+      data: { schoolId: invoice.schoolId, campusId: input.campusId, name: "Fee Income", type: "INCOME", isSystem: true },
     });
   }
 
   await tx.ledgerEntry.create({
     data: {
+      schoolId: invoice.schoolId,
       campusId: input.campusId,
       kind: "INCOME",
       currency: invoice.currency,
@@ -162,6 +167,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
 
   await tx.studentTimelineEvent.create({
     data: {
+      schoolId: invoice.schoolId,
       studentId: input.studentId,
       kind: "FEE_PAID",
       title: `Fee payment recorded (${receiptNo})`,

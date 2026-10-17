@@ -122,7 +122,8 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
   const token = searchParams.get("token");
   // A guardian with siblings switches between them, and each child's payload
   // has to cache separately or the switch would serve the previous child.
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  // A payment return (?student=) reopens the same child; the server still authorizes the choice.
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(() => searchParams.get("student"));
   const [data, setData] = useState<ParentData | null>(null);
   const [loading, setLoading] = useState(data === null);
   const [error, setError] = useState<string | null>(null);

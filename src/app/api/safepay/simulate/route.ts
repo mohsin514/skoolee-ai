@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { runUnscoped } from "@/lib/db/tenant-context";
+import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 import { recordPayment } from "@/lib/fees/payment";
 
 export const runtime = "nodejs";
@@ -39,8 +39,10 @@ async function handleWebhook(req: NextRequest) {
         return Response.json({ success: true, message: "Already settled" });
       }
 
-      const settled = await prisma.$transaction(
+      const settled = await runWithTenantContext({ schoolId: order.schoolId }, () => prisma.$transaction(
         async (tx) => {
+        // SKO-431: concurrent or replayed confirmations wait here and then see COMPLETED.
+        await tx.$queryRaw`SELECT id FROM online_payment_orders WHERE id=${order.id} FOR UPDATE`;
         const current = await tx.onlinePaymentOrder.findUnique({ where: { id: order.id } });
         if (current?.status === "COMPLETED") return null;
 
@@ -64,7 +66,7 @@ async function handleWebhook(req: NextRequest) {
         return result;
       },
         { timeout: 20000 }
-      );
+      ));
 
       return Response.json({ success: true, data: settled });
     }

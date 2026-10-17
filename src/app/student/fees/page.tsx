@@ -4,7 +4,9 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { UiText } from "@/components/locale/LocaleProvider";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { OnlinePayAction, PaymentReturnStatus } from "@/components/fees/online-payment";
 import { Banknote, Calendar, CheckCircle2, CreditCard, Loader2, Receipt, Wallet } from "lucide-react";
 import { StatCard, StudentEmptyState } from "@/components/student/student-ui";
 import { StudentPage } from "@/components/student/student-page";
@@ -20,32 +22,17 @@ export default function FeesPage() {
   const { money } = useLocaleFormat();
   const [selectedCurrency, setSelectedCurrency] = useState("");
   const { data, loading, error, refetch } = useStudentData();
-  const [payingId, setPayingId] = useState<string | null>(null);
-
-  const handlePayNow = async (invoiceId: string) => {
-    setPayingId(invoiceId);
-    try {
-      const res = await fetch("/api/fees/pay-online", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoiceId }),
-      });
-      const json = await res.json();
-      if (json.success && json.url) {
-        window.location.href = json.url;
-      } else {
-        toast.error(json.error || tr("Payment not available"));
-      }
-    } catch {
-      toast.error(tr("Could not start online payment"));
-    } finally {
-      setPayingId(null);
-    }
-  };
+  // SKO-431/474: a return from checkout (or a pending payment) shows the server's status for that order.
+  const searchParams = useSearchParams();
+  const [paymentRef, setPaymentRef] = useState<string | null>(() => searchParams.get("payment"));
+  const focusInvoice = searchParams.get("invoice");
+  // The ledger is re-read once per settled order; the banner remounts while the page reloads.
+  const refreshedFor = useRef<string | null>(null);
+  const refreshOnce = () => { if (paymentRef && refreshedFor.current !== paymentRef) { refreshedFor.current = paymentRef; void refetch(); } };
 
   const allInvoices = data?.user?.invoices ?? [];
   const currencies: string[] = [...new Set<string>(allInvoices.map((invoice: any) => invoice.currency))];
-  const currency = currencies.includes(selectedCurrency) ? selectedCurrency : currencies[0] ?? "PKR";
+  const currency = currencies.includes(selectedCurrency) ? selectedCurrency : allInvoices.find((invoice: any) => invoice.id === focusInvoice)?.currency ?? currencies[0] ?? "PKR";
   const invoices = allInvoices.filter((invoice: any) => invoice.currency === currency);
   const formatPKR = (amount: number) => money(amount, currency);
 
@@ -76,7 +63,7 @@ export default function FeesPage() {
       title={tr("Fees")}
       summary={tr("Invoices, payment progress, and outstanding balances.")}
     >
-      <div className="space-y-3"><label className="block max-w-xs text-sm">{tr("Currency")}<Select aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</Select></label>
+      <div className="space-y-3">{paymentRef && <PaymentReturnStatus key={paymentRef} orderRef={paymentRef} onSettled={refreshOnce} />}<label className="block max-w-xs text-sm">{tr("Currency")}<Select aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setSelectedCurrency(event.target.value)}>{currencies.map((code) => <option key={code} value={code}>{code}</option>)}</Select></label>
         <div className="sk-rise grid grid-cols-2 md:grid-cols-4 gap-4" style={{ animationDelay: "40ms" }}>
           <StatCard icon={Receipt} label={tr("Total invoiced")} value={formatPKR(summary.total)} sub={`${tr("Invoices")}: ${invoices.length}`} />
           <StatCard
@@ -125,7 +112,7 @@ export default function FeesPage() {
             </div>
             <div className="sk-rise grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" style={{ animationDelay: "160ms" }}>
               {invoices.map((invoice: any) => (
-                <InvoiceCard key={invoice.id} invoice={invoice} paying={payingId === invoice.id} onPay={() => handlePayNow(invoice.id)} />
+                <InvoiceCard key={invoice.id} invoice={invoice} focused={focusInvoice === invoice.id} onPending={setPaymentRef} />
               ))}
             </div>
           </div>
@@ -142,8 +129,10 @@ export default function FeesPage() {
 }
 
 
-function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean; onPay: () => void }) {
+function InvoiceCard({ invoice, focused, onPending }: { invoice: any; focused: boolean; onPending: (orderRef: string) => void }) {
   const tr = useUiText();
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (focused) card.current?.scrollIntoView({ block: "center" }); }, [focused]);
   const { money, date: formatDate } = useLocaleFormat();
   const formatPKR = (amount: number) => money(amount, invoice.currency);
   const paid = invoice.totalAmountPaid || 0;
@@ -156,8 +145,9 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
     "border-[#cfc2d6]/12 hover:border-[#8127cf]/20";
 
   return (
-    <div className={cn(
+    <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} className={cn(
       "sk-panel group relative transition-all duration-300 hover:-translate-y-1 overflow-hidden",
+      focused && "ring-2 ring-[#8127cf]",
       statusStyle
     )}>
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
@@ -216,22 +206,12 @@ function InvoiceCard({ invoice, paying, onPay }: { invoice: any; paying: boolean
               {invoice.status === "PAID" ? tr("Paid") : isOverdue ? tr("Overdue") : balance > 0 ? tr("Pending") : invoice.status || "Pending"}
             </span>
           </div>
-          {balance > 0 && invoice.currency === "PKR" && (
-            <Button variant="default"
-              type="button"
-              onClick={onPay}
-              disabled={paying}
-              className="justify-start inline-flex items-center gap-1.5 px-3 py-1.5"
-            >
-              {paying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wallet className="w-3 h-3" />}
-              {paying ? tr("Starting...") : tr("Pay Now")}
-            </Button>
-          )}
           {paid > 0 && balance <= 0 && (
             <span className="text-[9px] font-semibold text-emerald-600">{formatPKR(paid)}<UiText>{"paid"}</UiText></span>
           )}
         </div>
       </div>
+      {balance > 0 && invoice.status !== "CANCELLED" && <div className="px-4 pb-4"><OnlinePayAction invoiceId={invoice.id} onPending={onPending} /></div>}
     </div>
   );
 }

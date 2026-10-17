@@ -6,6 +6,7 @@ import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 import { Loader2, Shield, Lock, CreditCard, CheckCircle2 } from "lucide-react";
 import { Input as SystemInput } from "@/components/ui/input";
+import { safeReturnPath } from "@/lib/auth/return-path";
 
 function SafePayForm() {
   const router = useRouter();
@@ -26,6 +27,9 @@ function SafePayForm() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [landingPath, setLandingPath] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  // SKO-474: the fee return target is built by the server; it is still checked against this role.
+  const returnTo = params.get("returnTo");
 
   // Plan buyers live on different dashboards depending on their role; land
   // them back where they started — the campus Plans & Billing view for
@@ -36,6 +40,7 @@ function SafePayForm() {
       .then((r) => r.json())
       .then((json) => {
         const path = json?.user?.dashboardPath;
+        setRole(json?.user?.role ?? null);
         setLandingPath(
           path === "/super" ? "/super?view=billing" : path === "/admin" ? "/admin?view=billing" : "/dashboard/billing"
         );
@@ -73,7 +78,7 @@ function SafePayForm() {
         () =>
           router.push(
             kind === "FEE"
-              ? "/dashboard/fees?safepay_status=completed"
+              ? safeReturnPath(returnTo, role) ?? "/dashboard/fees"
               : `${landingPath || "/dashboard/billing"}?safepay_status=completed`
           ),
         1500

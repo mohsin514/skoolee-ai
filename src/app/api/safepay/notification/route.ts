@@ -118,6 +118,8 @@ async function handleNotification(req: NextRequest) {
           // the guard constrains every write below.
           await runWithTenantContext({ schoolId: order.schoolId }, () =>
             prisma.$transaction(async (tx) => {
+              // SKO-431: concurrent or replayed confirmations wait here and then see COMPLETED.
+              await tx.$queryRaw`SELECT id FROM online_payment_orders WHERE id=${order.id} FOR UPDATE`;
               const current = await tx.onlinePaymentOrder.findUnique({ where: { id: order.id } });
               if (current?.status === "COMPLETED") return;
 
