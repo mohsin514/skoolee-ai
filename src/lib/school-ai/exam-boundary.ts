@@ -31,6 +31,8 @@ export function allowedDuringCandidateExam(pathname: string, method: string, ass
   if (path === `${base}/attempt`) return read || method === "POST" || method === "PATCH";
   if (path === `${base}/proctor`) return read || method === "POST" || method === "PATCH";
   if (path === `${base}/integrity`) return method === "POST";
+  // SKO-408 R17.2: the candidate reads and acknowledges notices addressed to their attempt.
+  if (path === `${base}/clarifications`) return read || method === "POST";
   if (read && path.startsWith(`${base}/proctor/clips/`)) return /^[^/]+$/u.test(path.slice(`${base}/proctor/clips/`.length));
   if (method === "POST" && path.startsWith(`${base}/proctor/sessions/`)) return /^[^/]+\/clips$/u.test(path.slice(`${base}/proctor/sessions/`.length));
   return false;

@@ -12,6 +12,7 @@ import { MINIMUM_ITEM_RESPONSES } from "@/lib/school-ai/recovery";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { Isolated, SpaceStateRegion, type SpaceState } from "../space-state";
 import { OutcomeFeedbackList } from "../../outcome-feedback";
+import { ExamRemedyPanel } from "../../exam-remedy-panel";
 
 /**
  * SKO-408 Results and improvement (R18). The evidence base is stated before any reading of it, an
@@ -26,7 +27,7 @@ type Staff = {
 };
 const READING: Record<ItemAnalysis["reading"], keyof StudioSpacesCopy> = { LEARNING_EVIDENCE: "readingLearning", CHECK_ITEM: "readingCheck", INSUFFICIENT_EVIDENCE: "readingThin" };
 
-export default function ImproveSpace({ language, scope }: StudioSpaceProps) {
+export default function ImproveSpace({ language, scope, capabilities }: StudioSpaceProps) {
   const t = studioSpacesCopy(language);
   const [exams, setExams] = useState<Exam[] | null>(null);
   const [selected, setSelected] = useState("");
@@ -74,6 +75,7 @@ export default function ImproveSpace({ language, scope }: StudioSpaceProps) {
           </tr>)}</tbody>
         </table></div>
       </section>
+      <ExamRemedyPanel examId={data.exam.id} locale={language} canAuthorize={capabilities.canApprove} onApplied={() => void load()} />
       <section aria-labelledby="improve-learners" className="sk-panel space-y-2 p-4"><h3 id="improve-learners" className="font-semibold">{t.learners}</h3>
         {data.learners.length === 0 ? <p className="text-sm text-ink-subtle">{t.noLearners}</p> : <ul className="grid gap-2">{data.learners.map(learner => <li key={learner.attemptId}>
           <details className="rounded-xl border p-3"><summary className="cursor-pointer font-semibold"><Isolated>{learner.name ?? "—"}</Isolated> <span className="text-xs font-normal text-ink-subtle">· {fillStudioCopy(t.resultVersion, [number(learner.resultVersion)])}</span></summary>

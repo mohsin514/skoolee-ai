@@ -15,6 +15,7 @@ import { examCopy } from "./exam-copy";
 import { examRoomCopy } from "./exam-room-copy";
 import { ExamResults } from "./exam-results";
 import { LearnerFeedback } from "./outcome-feedback";
+import { ExamNotices } from "./exam-notices";
 import { AdvancedAnswer } from "./assessment-extensions";
 import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { ExamPreflight, type ExamInfo, type CameraStartEvidence } from "./exam-preflight";
@@ -203,6 +204,7 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     {finished && <ExamResults id={id} locale={locale} student />}
     {finished && <LearnerFeedback id={id} language={locale} />}
     {finished && (exam?.secureBrowser?.required && exam.secureBrowser.via === "SEB" ? <a href={`/ai/exams/${encodeURIComponent(id)}?seb=quit`} className={buttonVariants({ variant: "outline" })}>{examReleaseCopy(locale).exitSeb}</a> : <Link href="/student" className={buttonVariants({ variant: "outline" })}>{t.studentHome}</Link>)}
+    {attempt && <ExamNotices id={id} locale={locale} active={!finished} />}
     {attempt && <ExamIntegrityNotice policy={exam?.integrityPolicy} locale={locale} />}
     {attempt && <ExamProctorCapture id={id} attemptId={attempt.id} active={!finished && remaining > 0} deadlineAt={new Date(new Date(attempt.deadlineAt).getTime() - offset.current).toISOString()} locale={locale} clockNow={clockNow} initialCameraStream={cameraStream} cameraRequired={exam?.cameraRequired} onIntegrityEvent={report} />}
     {attempt && !finished && !monitoringAvailable && <p role="status" className="sk-panel p-4 text-sm text-ink-subtle">{cameraCopy.monitoringUnavailable}</p>}

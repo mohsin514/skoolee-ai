@@ -229,6 +229,9 @@ model School {
   secureBrowserProfiles SecureBrowserProfile[]
   secureBrowserExceptions SecureBrowserException[]
   schoolAiRehearsals SchoolAiRehearsal[]
+  schoolAiExamClarifications SchoolAiExamClarification[]
+  schoolAiExamClarificationAcks SchoolAiExamClarificationAck[]
+  schoolAiExamRemedies SchoolAiExamRemedy[]
   assignments             Assignment[]
   assignmentRubricVersions AssignmentRubricVersion[]
   assignmentVersions      AssignmentVersion[]
@@ -5013,4 +5016,68 @@ model SchoolAiRehearsal {
 
   @@index([schoolId, recordId, paperVersion])
   @@map("school_ai_rehearsals")
+}
+
+/// SKO-408 R17: an authorized, versioned notice to the candidates sitting an exam. The paper itself never changes.
+model SchoolAiExamClarification {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  assignmentId String   @map("assignment_id")
+  /// Per-exam sequence; a revision is a new row that names the notice it revises.
+  version      Int
+  revisesId    String?  @map("revises_id")
+  questionId   String?  @map("question_id")
+  text         String   @db.Text
+  /// { kind: "SITTING" } or { kind: "ATTEMPTS", attemptIds: string[] }
+  audience     Json
+  issuedById   String   @map("issued_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([assignmentId, version])
+  @@index([schoolId, campusId, assignmentId])
+  @@map("school_ai_exam_clarifications")
+}
+
+/// SKO-408 R17.2: one display acknowledgement per notice per attempt.
+model SchoolAiExamClarificationAck {
+  id              String   @id @default(uuid())
+  schoolId        String   @default("") @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String   @map("campus_id")
+  clarificationId String   @map("clarification_id")
+  attemptId       String   @map("attempt_id")
+  acknowledgedAt  DateTime @default(now()) @map("acknowledged_at")
+
+  @@unique([clarificationId, attemptId])
+  @@index([schoolId, campusId, attemptId])
+  @@map("school_ai_exam_clarification_acks")
+}
+
+/// SKO-408 R17.7-R17.12: a previewed, human-authorized result remedy for one item of a delivered exam.
+model SchoolAiExamRemedy {
+  id             String    @id @default(uuid())
+  schoolId       String    @default("") @map("school_id")
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String    @map("campus_id")
+  assignmentId   String    @map("assignment_id")
+  type           String
+  questionId     String    @map("question_id")
+  reason         String    @db.Text
+  /// The correction the remedy applies (a corrected key), when the type needs one.
+  correction     Json?
+  /// Per attempt: result version, previous, proposed and delta, computed at preview.
+  preview        Json
+  notify         Boolean   @default(true)
+  status         String    @default("PROPOSED")
+  proposedById   String    @map("proposed_by_id")
+  authorizedById String?   @map("authorized_by_id")
+  appliedAt      DateTime? @map("applied_at")
+  /// Per attempt: APPLIED (with the new result version), SKIPPED_CHANGED or FAILED.
+  outcomes       Json?
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, assignmentId])
+  @@map("school_ai_exam_remedies")
 }
