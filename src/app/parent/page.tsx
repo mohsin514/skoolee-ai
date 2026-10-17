@@ -19,6 +19,7 @@ import { useParentData } from "./parent-data-context";
 import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { LearnerInsights, learnerSeriesFromParent } from "@/components/insights";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
+import { FamilyInbox } from "@/components/parent/family-inbox";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,8 @@ export default function ParentOverviewPage() {
       }
     >
       <div className="space-y-3">
+        {/* SKO-419: requests across every child come first; the panels below are the selected child's. */}
+        <FamilyInbox />
         <div className="sk-rise grid grid-cols-1 gap-3 md:grid-cols-3" style={{ animationDelay: "40ms" }}>
           {stats.map((s) => (
             <ParentStat key={s.label} icon={s.icon} label={s.label} value={s.value} sub={s.sub} tone={s.tone} />

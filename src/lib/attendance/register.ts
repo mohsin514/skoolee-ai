@@ -178,12 +178,17 @@ async function notifyCorrection(user: AuthUser, campusId: string, studentId: str
     .catch(error => console.error("[attendance] correction notice failed", error));
 }
 
+/** SKO-419: how long after the day a family may explain it; the family inbox uses the same window. */
+export const EXPLAIN_WINDOW_DAYS = 14;
+const explainClosed = (date: Date, now = new Date()) => now.getTime() > date.getTime() + (EXPLAIN_WINDOW_DAYS + 1) * 86_400_000;
+
 /** A guardian explains an absence or a late arrival. It waits for staff; the register is unchanged. */
 export async function submitExplanation(user: AuthUser, body: Record<string, unknown>) {
   if (user.role !== "PARENT") throw new ApiError("Only a guardian can explain a child's absence here.", 403);
   const attendance = await prisma.attendance.findFirst({ where: { id: String(body.attendanceId ?? ""), schoolId: user.schoolId } });
   if (!attendance || !(await guardianHasAccess({ schoolId: user.schoolId, studentId: attendance.studentId, guardianUserId: user.userId, permission: "attendance" }))) throw new ApiError("Attendance record not found", 404);
   if (!["ABSENT", "LATE"].includes(attendance.status)) throw new ApiError("Only an absence or a late arrival can be explained.", 409);
+  if (explainClosed(attendance.date)) throw new ApiError("The time to explain this day has passed. Contact the school.", 409);
   const proposedStatus = String(body.proposedStatus ?? "EXCUSED");
   if (!["EXCUSED", "LATE"].includes(proposedStatus)) throw new ApiError("Choose whether the child was absent for a reason or arrived late.", 400);
   const arrivalTime = proposedStatus === "LATE" ? String(body.arrivalTime ?? "") : null;
@@ -259,5 +264,5 @@ export async function entryHistory(user: AuthUser, attendanceId: string) {
 export async function guardianAbsences(user: AuthUser, studentId: string) {
   if (user.role !== "PARENT" || !(await guardianHasAccess({ schoolId: user.schoolId, studentId, guardianUserId: user.userId, permission: "attendance" }))) throw new ApiError("Not found", 404);
   const rows = await prisma.attendance.findMany({ where: { schoolId: user.schoolId, studentId, status: { in: ["ABSENT", "LATE"] }, date: { gte: new Date(Date.now() - 60 * 86_400_000) } }, select: { id: true, date: true, status: true, arrivalTime: true, explanations: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true, reviewNote: true, proposedStatus: true } } }, orderBy: { date: "desc" } });
-  return rows.map(row => ({ attendanceId: row.id, date: row.date.toISOString().slice(0, 10), status: row.status, arrivalTime: row.arrivalTime, explanation: row.explanations[0] ?? null }));
+  return rows.map(row => ({ attendanceId: row.id, date: row.date.toISOString().slice(0, 10), status: row.status, arrivalTime: row.arrivalTime, explanation: row.explanations[0] ?? null, closed: explainClosed(row.date) }));
 }

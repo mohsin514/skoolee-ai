@@ -40,6 +40,7 @@ const PUBLIC_PATHS = [
   "/api/parent/data",
   "/api/parent/timetable",
   "/api/parent/exam-datesheet",
+  "/api/parent/inbox", // SKO-419: route authenticates the session or a single-child capability.
 
   // Gateway webhooks — no session cookie by design; each route authenticates
   // itself via the provider's signature/secret before mutating anything.

@@ -195,7 +195,7 @@ export function AttendanceExceptions() {
   </div>;
 }
 
-type GuardianRow = { attendanceId: string; date: string; status: string; arrivalTime: string | null; explanation: { status: string; reviewNote: string | null; proposedStatus: string } | null };
+type GuardianRow = { attendanceId: string; date: string; status: string; arrivalTime: string | null; explanation: { status: string; reviewNote: string | null; proposedStatus: string } | null; closed?: boolean };
 
 /** A guardian explains a child's absence or late arrival; the school decides. */
 export function GuardianAttendanceExplanations({ studentId }: { studentId: string }) {
@@ -223,7 +223,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
   if (!rows || !rows.length) return null;
   return <div className="sk-panel space-y-3 p-5" data-guardian-absences>
     <h3 className="text-base font-black">{ui("Absences and late arrivals")}</h3>
-    <ul className="divide-y divide-[#cfc2d6]/20">{rows.map(row => { const canExplain = !row.explanation || row.explanation.status === "CLARIFICATION" || row.explanation.status === "REJECTED"; return <li key={row.attendanceId} className="flex flex-wrap items-center gap-2 py-2" data-guardian-absence={row.attendanceId}>
+    <ul className="divide-y divide-[#cfc2d6]/20">{rows.map(row => { const canExplain = !row.closed && (!row.explanation || row.explanation.status === "CLARIFICATION" || row.explanation.status === "REJECTED"); return <li key={row.attendanceId} className="flex flex-wrap items-center gap-2 py-2" data-guardian-absence={row.attendanceId}>
       <span className="flex-1 text-sm"><bdi>{formatDate(row.date)}</bdi> · {statusLabel(ui, row.status)}{row.arrivalTime ? <> · <bdi>{row.arrivalTime}</bdi></> : null}</span>
       {row.explanation ? <span className="text-xs font-bold" data-explanation-state={row.explanation.status}>{explanationLabel(row.explanation.status)}{row.explanation.reviewNote ? <>: {row.explanation.reviewNote}</> : null}</span> : null}
       {canExplain ? <Button size="sm" variant="outline" onClick={() => setOpen(row)} data-explain>{ui("Explain")}</Button> : null}
