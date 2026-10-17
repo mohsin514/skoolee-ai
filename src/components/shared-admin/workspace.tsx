@@ -257,11 +257,11 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
               <span className="block text-xl font-black leading-none tracking-tight tabular-nums text-[#1f1a23] sm:text-[22px]">
                 {t.value}
               </span>
-              <span className="mt-1 block truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+              <span className="mt-1 line-clamp-2 break-words text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
                 {t.label}
               </span>
               {t.hint ? (
-                <span className="mt-0.5 block truncate text-[10px] font-semibold leading-tight text-ink-subtle">
+                <span className="mt-0.5 line-clamp-2 break-words text-[10px] font-semibold leading-tight text-ink-subtle">
                   {t.hint}
                 </span>
               ) : null}

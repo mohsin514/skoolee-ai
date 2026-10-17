@@ -1,7 +1,7 @@
 "use client";
 import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
 import { Button as SystemButton } from "@/components/ui/button";
-import { useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
@@ -637,6 +637,7 @@ export function AcademicPanel({
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
 }) {
+  const ui = useUiText();
   const classGroups = groupClasses(classes);
   const [classSearch, setClassSearch] = useState("");
   const [onlyGaps, setOnlyGaps] = useState(false);
@@ -685,19 +686,19 @@ export function AcademicPanel({
     <div className="space-y-6">
       <WorkspaceHeader
         icon={School}
-        eyebrow="Academics"
-        title="Classes & Subjects"
+        eyebrow={ui("Academics")}
+        title={ui("Classes & Subjects")}
         tone="classes"
         summary={
           <>
-            {classGroups.length} class{classGroups.length === 1 ? "" : "es"} ·{" "}
-            {allSections.length} section{allSections.length === 1 ? "" : "s"}
+            {ui(classGroups.length === 1 ? "{0} class" : "{0} classes", [classGroups.length])}{" · "}
+            {ui(allSections.length === 1 ? "{0} section" : "{0} sections", [allSections.length])}
             {campusName ? ` · ${campusName}` : ""}
           </>
         }
         actions={
           <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={onAddClass}>
-            Add Class
+            {ui("Add Class")}
           </BrandButton>
         }
       />
@@ -706,22 +707,22 @@ export function AcademicPanel({
         <>
           <StatTiles
             tiles={[
-              { key: "classes", icon: School, label: "Classes", value: classGroups.length, hint: `${allSections.length} sections`, tone: "violet" },
-              { key: "students", icon: GraduationCap, label: "Students enrolled", value: studentTotal, tone: "teal" },
+              { key: "classes", icon: School, label: ui("Classes"), value: classGroups.length, hint: ui(allSections.length === 1 ? "{0} section" : "{0} sections", [allSections.length]), tone: "violet" },
+              { key: "students", icon: GraduationCap, label: ui("Students enrolled"), value: studentTotal, tone: "teal" },
               {
                 key: "subjects",
                 icon: BookOpen,
-                label: "Subjects",
+                label: ui("Subjects"),
                 value: subjectsTotal,
-                hint: subjectsWithoutTeacher ? `${subjectsWithoutTeacher} with no teacher` : "All assigned",
+                hint: subjectsWithoutTeacher ? ui("{0} with no teacher", [subjectsWithoutTeacher]) : ui("All assigned"),
                 tone: subjectsWithoutTeacher ? "amber" : "emerald",
               },
               {
                 key: "leads",
                 icon: UserCheck,
-                label: "Sections with no class teacher",
+                label: ui("Sections with no class teacher"),
                 value: sectionsWithoutTeacher,
-                hint: sectionsWithoutTeacher ? "Blocks the timetable" : "Every section is led",
+                hint: sectionsWithoutTeacher ? ui("Blocks the timetable") : ui("Every section is led"),
                 tone: sectionsWithoutTeacher ? "amber" : "emerald",
               },
             ]}
@@ -732,14 +733,14 @@ export function AcademicPanel({
               <SearchField
                 value={classSearch}
                 onChange={setClassSearch}
-                placeholder="Find a class, section or subject…"
+                placeholder={ui("Find a class, section or subject…")}
                 autoFocusKey={null}
                 className="max-w-xs"
               />
               <ToolbarToggle
                 active={onlyGaps}
                 icon={AlertTriangle}
-                label="Needs attention"
+                label={ui("Needs attention")}
                 count={classGroups.filter(groupHasGap).length}
                 onClick={() => setOnlyGaps((v) => !v)}
               />
@@ -752,7 +753,7 @@ export function AcademicPanel({
                   }}
                   className="flex items-center gap-1.5 px-3 justify-start"
                 >
-                  <X className="h-3 w-3" /> Clear
+                  <X className="h-3 w-3" /> {ui("Clear")}
                 </SystemButton>
               ) : null}
             </div>
@@ -781,13 +782,13 @@ export function AcademicPanel({
           ))}
         </div>
       ) : classGroups.length > 0 ? (
-        <EmptyInline text="No class matches that search. Try clearing it." />
+        <EmptyInline text={ui("No class matches that search. Try clearing it.")} />
       ) : (
         <EmptyState
           icon={BookOpen}
-          title="No classes defined"
-          description="Create classes during onboarding or from the class management flow."
-          action={<BrandButton onClick={onAddClass}>Add Class</BrandButton>}
+          title={ui("No classes defined")}
+          description={ui("Create classes during onboarding or from the class management flow.")}
+          action={<BrandButton onClick={onAddClass}>{ui("Add Class")}</BrandButton>}
         />
       )}
     </div>
@@ -4655,6 +4656,7 @@ export function ClassGroupCard({
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
 }) {
+  const ui = useUiText();
   const [open, setOpen] = useState(false);
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
@@ -4730,8 +4732,8 @@ export function ClassGroupCard({
             {open ? (
               <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                 {group.academicYear} - {sectionless
-                  ? "No sections"
-                  : `${group.sections.length} section${group.sections.length === 1 ? "" : "s"}`} · {studentCount} student{studentCount === 1 ? "" : "s"} · {subjectCount} subject{subjectCount === 1 ? "" : "s"}
+                  ? ui("No sections")
+                  : ui(group.sections.length === 1 ? "{0} section" : "{0} sections", [group.sections.length])} · {ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])} · {ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}
               </p>
             ) : null}
           </div>
@@ -4747,15 +4749,15 @@ export function ClassGroupCard({
             <SystemButton variant="ghost"
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(group.sections[0]); }}
-              aria-label={`Delete ${group.name}`}
+              aria-label={ui("Delete {0}", [group.name])}
               className="flex items-center gap-1 px-2 justify-start"
             >
               <Trash2 className="h-3 w-3" />
-              Delete
+              {ui("Delete")}
             </SystemButton>
           ) : null}
           <span className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">
-            {group.sections.length} section{group.sections.length === 1 ? "" : "s"}
+            {ui(group.sections.length === 1 ? "{0} section" : "{0} sections", [group.sections.length])}
           </span>
           <ChevronDown
             className={cn(
@@ -4769,8 +4771,8 @@ export function ClassGroupCard({
       {open ? (
         <div className="border-t border-[#cfc2d6]/10 p-5 space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <MiniMetric label="Students" value={studentCount} active />
-            <MiniMetric label="Subjects" value={subjectCount} />
+            <MiniMetric label={ui("Students")} value={studentCount} active />
+            <MiniMetric label={ui("Subjects")} value={subjectCount} />
           </div>
           {group.sections.map((cls) => (
             <SectionCard
@@ -4796,7 +4798,7 @@ export function ClassGroupCard({
                   type="text"
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
-                  placeholder={sectionless ? "First section name (e.g. A)" : "Section name (e.g. C)"}
+                  placeholder={sectionless ? ui("First section name (e.g. A)") : ui("Section name (e.g. C)")}
                   className="h-10 flex-1 px-3"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); if (e.key === "Escape") { setAddingSection(false); setNewSectionName(""); } }}
@@ -4807,14 +4809,14 @@ export function ClassGroupCard({
                   disabled={addingSectionBusy || !newSectionName.trim()}
                   className="flex items-center gap-1 px-4 justify-start"
                 >
-                  {addingSectionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
+                  {addingSectionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : ui("Add")}
                 </SystemButton>
                 <SystemButton variant="ghost"
                   type="button"
                   onClick={() => { setAddingSection(false); setNewSectionName(""); }}
                   className="flex items-center gap-1 px-4 justify-start"
                 >
-                  Cancel
+                  {ui("Cancel")}
                 </SystemButton>
               </div>
             ) : (
@@ -4824,13 +4826,12 @@ export function ClassGroupCard({
                 className="flex w-full items-center justify-center gap-2 py-3"
               >
                 <Plus className="w-4 h-4" />
-                {sectionless ? "Split into sections" : "Add Section"}
+                {sectionless ? ui("Split into sections") : ui("Add Section")}
               </SystemButton>
             )}
             {sectionless && addingSection ? (
               <p className="mt-2 px-1 text-[9px] font-bold leading-relaxed text-ink-muted">
-                This class currently has no sections. Naming one moves the existing
-                students and subjects into it — nothing is lost.
+                {ui("This class currently has no sections. Naming one moves the existing students and subjects into it — nothing is lost.")}
               </p>
             ) : null}
           </div>
@@ -4867,6 +4868,7 @@ export function SectionCard({
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
+  const ui = useUiText();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [showAllStudents, setShowAllStudents] = useState(false);
   const subjectCount = cls.subjects?.length || cls._count?.subjects || 0;
@@ -4879,28 +4881,28 @@ export function SectionCard({
     <div className="rounded-2xl bg-[#fbf0fe]/55 overflow-hidden">
       <div className="flex items-center justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-black text-[#1f1a23]">{cls.section ? `Section ${cls.section}` : "Whole class"}</p>
+          <p className="text-sm font-black text-[#1f1a23]">{cls.section ? ui("Section {0}", [cls.section]) : ui("Whole class")}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             {isSubjectMode ? (
               <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
-                {subjectCount ? `${assignedSubjectTeachers}/${subjectCount} teachers` : "No subjects yet"}
+                {subjectCount ? ui("{0}/{1} teachers", [assignedSubjectTeachers, subjectCount]) : ui("No subjects yet")}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
-                {cls.classTeacher?.fullName || "No class teacher"}
+                {cls.classTeacher?.fullName || ui("No class teacher")}
               </span>
             )}
             <span className="text-ink-subtle">|</span>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{studentCount} student{studentCount !== 1 ? "s" : ""}</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])}</span>
             <span className="text-ink-subtle">|</span>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{subjectCount} subject{subjectCount !== 1 ? "s" : ""}</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}</span>
             <span
               className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf]"
-              title={cls.teachingMode === "SUBJECT" ? "Each subject has its own teacher" : "The class teacher takes every subject"}
+              title={cls.teachingMode === "SUBJECT" ? ui("Each subject has its own teacher") : ui("The class teacher takes every subject")}
             >
-              {cls.teachingMode === "SUBJECT" ? "Per subject" : "One teacher"}
+              {cls.teachingMode === "SUBJECT" ? ui("Per subject") : ui("One teacher")}
             </span>
           </div>
         </div>
@@ -4909,17 +4911,17 @@ export function SectionCard({
             type="button"
             onClick={(e) => { e.stopPropagation(); onViewClass(cls); }}
             className="flex items-center gap-1 px-2.5 justify-start"
-            title="Manage section: teachers, subjects, syllabus"
+            title={ui("Manage section: teachers, subjects, syllabus")}
           >
             <Settings className="h-3 w-3" />
-            Manage
+            {ui("Manage")}
           </SystemButton>
           {onDeleteClass ? (
             <SystemButton variant="ghost"
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteClass(cls); }}
               className="flex items-center justify-center"
-              title="Delete section"
+              title={ui("Delete section")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </SystemButton>
@@ -4929,9 +4931,9 @@ export function SectionCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); onAddStudent(cls.id); }}
               className="px-2"
-              title="Add a single student"
+              title={ui("Add a single student")}
             >
-              + Student
+              {ui("+ Student")}
             </SystemButton>
           ) : null}
 
@@ -4951,7 +4953,7 @@ export function SectionCard({
             <div className="flex items-center justify-between mb-2">
               <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1">
                 <BookOpen className="h-3 w-3" />
-                Subjects ({subjectCount})
+                {ui("Subjects ({0})", [subjectCount])}
               </p>
             </div>
             {cls.subjects?.length ? (
@@ -4961,7 +4963,7 @@ export function SectionCard({
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-black text-[#1f1a23] truncate">{subject.name}</p>
                       <p className="text-[8px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5">
-                        {subject.teacher?.fullName || "No teacher"} · {subject.totalMarks || 100} marks
+                        {subject.teacher?.fullName || ui("No teacher")} · {ui("{0} marks", [subject.totalMarks || 100])}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -4970,7 +4972,7 @@ export function SectionCard({
                         subject.teacher?.id ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                       )}>
                         <span className={cn("h-1.5 w-1.5 rounded-full", subject.teacher?.id ? "bg-emerald-500" : "bg-amber-500")} />
-                        {subject.teacher?.id ? "Assigned" : "Unassigned"}
+                        {subject.teacher?.id ? ui("Assigned") : ui("Unassigned")}
                       </span>
                     </div>
                   </div>
@@ -4978,7 +4980,7 @@ export function SectionCard({
               </div>
             ) : (
               <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-ink-subtle">
-                No subjects yet. Click Manage to add subjects, assign teachers, and build the syllabus.
+                {ui("No subjects yet. Click Manage to add subjects, assign teachers, and build the syllabus.")}
               </p>
             )}
           </div>
@@ -4987,7 +4989,7 @@ export function SectionCard({
             <div className="flex items-center justify-between mb-2">
               <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1">
                 <GraduationCap className="h-3 w-3" />
-                Students ({studentCount})
+                {ui("Students ({0})", [studentCount])}
               </p>
               {students.length > 6 ? (
                 <SystemButton variant="ghost"
@@ -4995,7 +4997,7 @@ export function SectionCard({
                   onClick={() => setShowAllStudents(!showAllStudents)}
                   className="hover:underline"
                 >
-                  {showAllStudents ? "Show Less" : `View All ${students.length}`}
+                  {showAllStudents ? ui("Show Less") : ui("View All {0}", [students.length])}
                 </SystemButton>
               ) : null}
             </div>
@@ -5012,14 +5014,14 @@ export function SectionCard({
                     </div>
                     <div className="min-w-0">
                       <p className="text-[10px] font-black text-[#1f1a23] truncate">{student.fullName}</p>
-                      <p className="text-[7px] font-bold uppercase tracking-wider text-ink-subtle">Roll {student.rollNo || "—"}</p>
+                      <p className="text-[7px] font-bold uppercase tracking-wider text-ink-subtle">{ui("Roll {0}", [student.rollNo || "—"])}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-ink-subtle">
-                No students enrolled yet. Click + Student to add.
+                {ui("No students enrolled yet. Click + Student to add.")}
               </p>
             )}
           </div>

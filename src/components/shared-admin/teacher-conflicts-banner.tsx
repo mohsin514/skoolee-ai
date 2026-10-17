@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * Campus-wide roll-up of teacher scheduling problems.
@@ -18,6 +19,7 @@ import { useTeacherAvailability } from "@/components/shared-admin/teacher-picker
 export function TeacherConflictsBanner() {
   const { availability, loading } = useTeacherAvailability();
   const [open, setOpen] = useState(false);
+  const ui = useUiText();
 
   const { doubleBooked, overCommitted, totalClashes } = useMemo(() => {
     const doubleBooked = availability.filter((t) => t.conflicts.length > 0);
@@ -40,14 +42,14 @@ export function TeacherConflictsBanner() {
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-black text-[#1f1a23]">Teacher scheduling conflicts</p>
+            <p className="text-sm font-black text-[#1f1a23]">{ui("Teacher scheduling conflicts")}</p>
             <p className="mt-0.5 text-[10px] font-bold text-ink-muted">
               {doubleBooked.length > 0
-                ? `${doubleBooked.length} teacher${doubleBooked.length !== 1 ? "s" : ""} double-booked across ${totalClashes} period${totalClashes !== 1 ? "s" : ""}`
+                ? ui("{0} teacher(s) double-booked across {1} period(s)", [doubleBooked.length, totalClashes])
                 : null}
               {doubleBooked.length > 0 && overCommitted.length > 0 ? " · " : null}
               {overCommitted.length > 0
-                ? `${overCommitted.length} taking every period of more than one section`
+                ? ui("{0} taking every period of more than one section", [overCommitted.length])
                 : null}
             </p>
           </div>
@@ -63,11 +65,11 @@ export function TeacherConflictsBanner() {
                 <Users className="h-3.5 w-3.5 shrink-0 text-amber-600" />
                 <p className="text-xs font-black text-[#1f1a23]">{t.fullName}</p>
                 <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-600">
-                  Over-committed
+                  {ui("Over-committed")}
                 </span>
               </div>
               <p className="mt-1 pl-5 text-[10px] font-bold leading-relaxed text-ink-muted">
-                Takes every period of {t.wholeSectionClasses.map((c) => c.label).join(", ")} — only one is possible.
+                {ui("Takes every period of {0} — only one is possible.", [t.wholeSectionClasses.map((c) => c.label).join(", ")])}
               </p>
             </div>
           ))}
@@ -78,7 +80,7 @@ export function TeacherConflictsBanner() {
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
                 <p className="text-xs font-black text-[#1f1a23]">{t.fullName}</p>
                 <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-rose-600">
-                  {t.conflicts.length} clash{t.conflicts.length !== 1 ? "es" : ""}
+                  {ui("{0} clash(es)", [t.conflicts.length])}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5 pl-5">
@@ -93,12 +95,12 @@ export function TeacherConflictsBanner() {
                 ))}
                 {t.conflicts.length > 8 ? (
                   <span className="rounded-lg bg-[#f3f4f9] px-2 py-1 text-[9px] font-black text-ink-muted">
-                    +{t.conflicts.length - 8} more
+                    {ui("+{0} more", [t.conflicts.length - 8])}
                   </span>
                 ) : null}
               </div>
               <p className="mt-2 pl-5 text-[9px] font-bold text-ink-muted">
-                Fix in Timetable — move one of the clashing periods to a free slot or a different teacher.
+                {ui("Fix in Timetable — move one of the clashing periods to a free slot or a different teacher.")}
               </p>
             </div>
           ))}

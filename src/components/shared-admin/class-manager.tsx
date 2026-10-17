@@ -320,7 +320,7 @@ function SettingsDrawer({
       section: editSection,
       academicYear: Number(editYear) || new Date().getFullYear(),
     });
-    toast.success("Class details updated");
+    toast.success(ui("Class details updated"));
     onClose();
   };
 
@@ -341,7 +341,7 @@ function SettingsDrawer({
         ref={drawerRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${classLabel(section)} settings`}
+        aria-label={ui("{0} settings", [classLabel(section)])}
         tabIndex={-1}
         className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-modal-enter"
       >
@@ -349,7 +349,7 @@ function SettingsDrawer({
         <div className="flex items-center justify-between border-b border-[#cfc2d6]/15 px-6 py-5">
           <div>
             <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-              Settings
+              {ui("Settings")}
             </p>
             <h3 className="mt-1 text-lg font-black text-[#1f1a23]">
               {classLabel(section)}
@@ -359,7 +359,7 @@ function SettingsDrawer({
             type="button"
             onClick={requestClose}
             disabled={classUpdateBusy}
-            aria-label="Close class settings"
+            aria-label={ui("Close class settings")}
             className="flex items-center justify-center"
           >
             <X className="h-5 w-5" />
@@ -370,22 +370,22 @@ function SettingsDrawer({
         <div className="flex-1 space-y-5 overflow-y-auto p-6 custom-scrollbar">
           <div className="space-y-4">
             <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Edit Class Details
+              {ui("Edit Class Details")}
             </p>
             <FormInput
-              label="Class Name"
+              label={ui("Class Name")}
               value={editName}
-              placeholder="e.g. Class 10"
+              placeholder={ui("e.g. Class 10")}
               onChange={setEditName}
             />
             <FormInput
-              label="Section"
+              label={ui("Section")}
               value={editSection}
-              placeholder="e.g. A"
+              placeholder={ui("e.g. A")}
               onChange={setEditSection}
             />
             <FormInput
-              label="Academic Year"
+              label={ui("Academic Year")}
               type="number"
               value={editYear}
               placeholder="2026"
@@ -400,7 +400,7 @@ function SettingsDrawer({
               {classUpdateBusy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                "Save Changes"
+                ui("Save Changes")
               )}
             </SystemButton>
           </div>
@@ -411,11 +411,10 @@ function SettingsDrawer({
 
           <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5">
             <p className="text-[9px] font-black uppercase tracking-wider text-amber-800">
-              Class archive
+              {ui("Class archive")}
             </p>
             <p className="mt-2 text-[11px] font-bold leading-relaxed text-ink-muted">
-              Archive this class to remove it from current class lists. Its
-              students, academic records, fees, and history are preserved.
+              {ui("Archive this class to remove it from current class lists. Its students, academic records, fees, and history are preserved.")}
             </p>
             <SystemButton variant="secondary"
               type="button"
@@ -423,7 +422,7 @@ function SettingsDrawer({
               className="mt-4 flex h-11 w-full items-center justify-center gap-2"
             >
               <Archive className="h-4 w-4" />
-              Archive Class
+              {ui("Archive Class")}
             </SystemButton>
           </div>
         </div>
@@ -470,6 +469,7 @@ function AddSectionPanel({
     return (richest?.subjects?.length || 0) > 0 ? richest.id : "";
   });
   const [teacherId, setTeacherId] = useState("");
+  const ui = useUiText();
 
   /**
    * The panel opens at the foot of the section list, which on a rail with a
@@ -507,9 +507,9 @@ function AddSectionPanel({
   const cloneCount = cloneSource?.subjects?.length || 0;
 
   const blocked = names.length === 0
-    ? "Type a section name, or a run like A-D."
+    ? ui("Type a section name, or a run like A-D.")
     : clashing.length > 0
-      ? `Section ${clashing.join(", ")} already exists.`
+      ? ui("Section {0} already exists.", [clashing.join(", ")])
       : null;
 
   const submit = async () => {
@@ -532,13 +532,13 @@ function AddSectionPanel({
     >
       <div className="flex items-center justify-between">
         <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-          New section
+          {ui("New section")}
         </span>
         <SystemButton variant="ghost"
           type="button"
           onClick={onDone}
           disabled={busy}
-          aria-label="Cancel"
+          aria-label={ui("Cancel")}
           className="flex items-center justify-center"
         >
           <X className="h-3 w-3" />
@@ -551,7 +551,7 @@ function AddSectionPanel({
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
         autoFocus
         disabled={busy}
-        placeholder="B  ·  or  B-D"
+        placeholder={ui("B  ·  or  B-D")}
         className="mt-2 h-10 w-full px-3 transition-all"
       />
 
@@ -580,7 +580,7 @@ function AddSectionPanel({
       {sections.some((sec) => (sec.subjects?.length || 0) > 0) ? (
         <label className="mt-3 block">
           <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
-            Copy subjects from
+            {ui("Copy subjects from")}
           </span>
           <SystemSelect
             value={cloneFromId}
@@ -588,12 +588,12 @@ function AddSectionPanel({
             disabled={busy}
             className="h-9 w-full cursor-pointer px-2.5"
           >
-            <option value="">Start empty</option>
+            <option value="">{ui("Start empty")}</option>
             {sections
               .filter((sec) => (sec.subjects?.length || 0) > 0)
               .map((sec) => (
                 <option key={sec.id} value={sec.id}>
-                  {sec.section ? `Section ${sec.section}` : "Main"} ({sec.subjects.length})
+                  {sec.section ? ui("Section {0}", [sec.section]) : ui("Main")} ({sec.subjects.length})
                 </option>
               ))}
           </SystemSelect>
@@ -602,7 +602,7 @@ function AddSectionPanel({
 
       <label className="mt-2 block">
         <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
-          Class teacher
+          {ui("Class teacher")}
         </span>
         <SystemSelect
           value={teacherId}
@@ -610,7 +610,7 @@ function AddSectionPanel({
           disabled={busy}
           className="h-9 w-full cursor-pointer px-2.5"
         >
-          <option value="">Assign later</option>
+          <option value="">{ui("Assign later")}</option>
           {teachers.map((t: any) => (
             <option key={t.id} value={t.id}>{t.fullName}</option>
           ))}
@@ -621,8 +621,9 @@ function AddSectionPanel({
         <p className="mt-2 text-[9px] font-bold leading-relaxed text-rose-600">{blocked}</p>
       ) : names.length > 0 ? (
         <p className="mt-2 text-[9px] font-bold leading-relaxed text-ink-muted">
-          Creates {names.length} section{names.length === 1 ? "" : "s"}
-          {cloneCount > 0 ? ` with ${cloneCount} subject${cloneCount === 1 ? "" : "s"} each` : ""}.
+          {cloneCount > 0
+            ? ui(names.length === 1 ? (cloneCount === 1 ? "Creates {0} section with {1} subject each." : "Creates {0} section with {1} subjects each.") : (cloneCount === 1 ? "Creates {0} sections with {1} subject each." : "Creates {0} sections with {1} subjects each."), [names.length, cloneCount])
+            : ui(names.length === 1 ? "Creates {0} section." : "Creates {0} sections.", [names.length])}
         </p>
       ) : null}
 
@@ -633,7 +634,7 @@ function AddSectionPanel({
         className="mt-2.5 flex w-full items-center justify-center gap-1.5"
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-        {busy ? "Creating\u2026" : "Add section"}
+        {busy ? ui("Creating\u2026") : ui("Add section")}
       </SystemButton>
     </div>
   );
@@ -660,15 +661,16 @@ function MatrixView({
   flashKey: string | null;
   flash: (key: string) => void;
 }) {
+  const ui = useUiText();
   const subjects = useMemo(() => uniqueSubjects(sections), [sections]);
   const [openPickerKey, setOpenPickerKey] = useState<string | null>(null);
 
   if (sections.length === 0) {
-    return <EmptyInline text="No sections to display." />;
+    return <EmptyInline text={ui("No sections to display.")} />;
   }
   if (subjects.length === 0) {
     return (
-      <EmptyInline text="No subjects have been added yet. Select a section and add subjects." />
+      <EmptyInline text={ui("No subjects have been added yet. Select a section and add subjects.")} />
     );
   }
 
@@ -681,7 +683,7 @@ function MatrixView({
         <thead>
           <tr>
             <th className="sticky left-0 z-10 rounded-tl-3xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-5 py-4 text-left text-[9px] font-black uppercase tracking-wider text-white/90">
-              Subject
+              {ui("Subject")}
             </th>
             {sections.map((sec) => (
               <th
@@ -689,10 +691,10 @@ function MatrixView({
                 className="bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-white/90 last:rounded-tr-3xl"
               >
                 <span className="block">
-                  {sec.section ? `Section ${sec.section}` : "Main"}
+                  {sec.section ? ui("Section {0}", [sec.section]) : ui("Main")}
                 </span>
                 <span className="mt-1 block text-[8px] font-bold text-white/55">
-                  {sectionStudentCount(sec, allStudents)} students
+                  {ui("{0} students", [sectionStudentCount(sec, allStudents)])}
                 </span>
               </th>
             ))}
@@ -720,7 +722,7 @@ function MatrixView({
                     );
                     return sample?.totalMarks ? (
                       <span className="rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[7px] font-black text-[#8127cf]">
-                        {sample.totalMarks} marks
+                        {ui("{0} marks", [sample.totalMarks])}
                       </span>
                     ) : null;
                   })()}
@@ -757,7 +759,7 @@ function MatrixView({
                     ) : isBusy ? (
                       <div className="flex flex-col items-center gap-1.5 py-1">
                         <Loader2 className="h-5 w-5 animate-spin text-[#8127cf]" />
-                        <span className="text-[8px] font-bold text-[#8127cf]/60">Saving...</span>
+                        <span className="text-[8px] font-bold text-[#8127cf]/60">{ui("Saving...")}</span>
                       </div>
                     ) : isSingle ? (
                       <div className="flex flex-col items-center gap-1">
@@ -767,21 +769,21 @@ function MatrixView({
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
                                 name={teacher.fullName}
-                                alt="Teacher"
+                                alt={ui("Teacher")}
                                 initialsClassName="text-[9px]"
                               />
                             </div>
                             <span className="max-w-[100px] truncate text-[9px] font-bold text-ink-muted">
-                              {teacher.fullName || "Teacher"}
+                              {teacher.fullName || ui("Teacher")}
                             </span>
                           </>
                         ) : (
                           <span className="text-[9px] font-bold italic text-ink-subtle">
-                            No class teacher
+                            {ui("No class teacher")}
                           </span>
                         )}
                         <span className="text-[7px] font-bold text-ink-subtle">
-                          Follows class teacher
+                          {ui("Follows class teacher")}
                         </span>
                       </div>
                     ) : (
@@ -792,12 +794,12 @@ function MatrixView({
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
                                 name={teacher.fullName}
-                                alt="Teacher"
+                                alt={ui("Teacher")}
                                 initialsClassName="text-[9px]"
                               />
                             </div>
                             <span className="max-w-[110px] truncate text-[9px] font-bold text-[#1f1a23]">
-                              {teacher.fullName || "Teacher"}
+                              {teacher.fullName || ui("Teacher")}
                             </span>
                           </>
                         ) : (
@@ -807,7 +809,7 @@ function MatrixView({
                               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
                             </span>
                             <span className="text-[9px] font-bold text-rose-400">
-                              Unassigned
+                              {ui("Unassigned")}
                             </span>
                           </div>
                         )}
@@ -823,7 +825,7 @@ function MatrixView({
                               : "bg-[#8127cf]/8 text-[#8127cf] hover:bg-[#8127cf]/15",
                           )}
                         >
-                          {assigned ? "Change" : "Assign"}
+                          {assigned ? ui("Change") : ui("Assign")}
                         </SystemButton>
                         {isPickerOpen ? (
                           <div className="mt-1 w-full max-w-[200px] rounded-xl border border-[#cfc2d6]/15 bg-white p-2 shadow-lg">
@@ -916,6 +918,7 @@ function SectionDetailView({
   onUpdateSubject: ClassManagerProps["onUpdateSubject"];
   refreshAvailability: () => void;
 }) {
+  const ui = useUiText();
   const teachingMode: "SINGLE" | "SUBJECT" =
     section.teachingMode === "SUBJECT" ? "SUBJECT" : "SINGLE";
   const subjectCount = section.subjects?.length || 0;
@@ -963,7 +966,7 @@ function SectionDetailView({
     if (created) {
       setSubjectName("");
       setSubjectMarks("100");
-      toast.success("Subject added");
+      toast.success(ui("Subject added"));
     }
   };
 
@@ -1007,15 +1010,15 @@ function SectionDetailView({
           {/* Teaching mode toggle */}
           <div className="rounded-3xl border border-[#cfc2d6]/10 bg-gradient-to-br from-[#faf7fc] to-[#f8f5fb] p-4">
             <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Teaching Mode
+              {ui("Teaching Mode")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               {(
                 [
                   {
                     mode: "SINGLE" as const,
-                    title: "One Teacher",
-                    desc: "Class teacher takes all subjects",
+                    title: ui("One Teacher"),
+                    desc: ui("Class teacher takes all subjects"),
                     icon: UserCheck,
                     activeClasses: "border-[#0d9488] bg-gradient-to-br from-white to-[#f0fdfa] shadow-[0_6px_20px_-4px_rgba(13,148,136,0.25)]",
                     activeTitleColor: "text-[#0f766e]",
@@ -1023,8 +1026,8 @@ function SectionDetailView({
                   },
                   {
                     mode: "SUBJECT" as const,
-                    title: "Per Subject",
-                    desc: "Each subject has its own teacher",
+                    title: ui("Per Subject"),
+                    desc: ui("Each subject has its own teacher"),
                     icon: Users,
                     activeClasses: "border-[#d97706] bg-gradient-to-br from-white to-[#fffbeb] shadow-[0_6px_20px_-4px_rgba(217,119,6,0.25)]",
                     activeTitleColor: "text-[#b45309]",
@@ -1091,11 +1094,11 @@ function SectionDetailView({
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
                 <BookOpen className="h-3.5 w-3.5 text-[#8127cf]" />
-                Subjects ({subjectCount})
+                {ui("Subjects ({0})", [subjectCount])}
               </p>
               {teachingMode === "SINGLE" && subjectCount > 0 ? (
                 <span className="rounded-full bg-[#ccfbf1] px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#0f766e]">
-                  All follow class teacher
+                  {ui("All follow class teacher")}
                 </span>
               ) : null}
             </div>
@@ -1113,13 +1116,13 @@ function SectionDetailView({
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <FormInput
-                          label="Subject Name"
+                          label={ui("Subject Name")}
                           value={editSubjectName}
-                          placeholder="Subject name"
+                          placeholder={ui("Subject name")}
                           onChange={setEditSubjectName}
                         />
                         <FormInput
-                          label="Total Marks"
+                          label={ui("Total Marks")}
                           type="number"
                           value={editSubjectMarks}
                           placeholder="100"
@@ -1140,7 +1143,7 @@ function SectionDetailView({
                           {subjectUpdateBusyId === subject.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            "Save"
+                            ui("Save")
                           )}
                         </SystemButton>
                         <SystemButton variant="ghost"
@@ -1148,7 +1151,7 @@ function SectionDetailView({
                           onClick={() => setEditingSubjectId(null)}
                           className="px-4"
                         >
-                          Cancel
+                          {ui("Cancel")}
                         </SystemButton>
                       </div>
                     </div>
@@ -1162,14 +1165,14 @@ function SectionDetailView({
                             </p>
                             {subject.totalMarks ? (
                               <span className="shrink-0 rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[7px] font-black text-[#8127cf]">
-                                {subject.totalMarks} marks
+                                {ui("{0} marks", [subject.totalMarks])}
                               </span>
                             ) : null}
                           </div>
                           <p className="mt-1 text-[9px] font-bold text-ink-subtle">
                             {teachingMode === "SINGLE" ? (
                               <span className="text-[#0f766e]">
-                                Follows class teacher
+                                {ui("Follows class teacher")}
                               </span>
                             ) : subject.teacher?.fullName ? (
                               <span className="flex items-center gap-1.5">
@@ -1187,7 +1190,7 @@ function SectionDetailView({
                               </span>
                             ) : (
                               <span className="text-rose-400">
-                                Teacher unassigned
+                                {ui("Teacher unassigned")}
                               </span>
                             )}
                           </p>
@@ -1204,7 +1207,7 @@ function SectionDetailView({
                             className="flex items-center gap-1 px-2 justify-start"
                           >
                             <BookOpen className="h-3 w-3" />
-                            Syllabus
+                            {ui("Syllabus")}
                           </SystemButton>
                           <SystemButton variant="ghost"
                             type="button"
@@ -1212,7 +1215,7 @@ function SectionDetailView({
                               startEditingSubject(subject)
                             }
                             className="flex items-center justify-center"
-                            title="Edit subject"
+                            title={ui("Edit subject")}
                           >
                             <Pencil className="h-3 w-3" />
                           </SystemButton>
@@ -1235,8 +1238,8 @@ function SectionDetailView({
                           <TeacherPicker
                             label={
                               subjectBusyId === subject.id
-                                ? "Saving..."
-                                : "Subject Teacher"
+                                ? ui("Saving...")
+                                : ui("Subject Teacher")
                             }
                             teachers={teachers}
                             availability={availability}
@@ -1282,7 +1285,7 @@ function SectionDetailView({
             })}
 
             {subjectCount === 0 ? (
-              <EmptyInline text="No subjects are attached to this section yet." />
+              <EmptyInline text={ui("No subjects are attached to this section yet.")} />
             ) : null}
           </div>
 
@@ -1292,17 +1295,17 @@ function SectionDetailView({
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#8127cf]/10">
                 <Plus className="h-3 w-3 text-[#8127cf]" />
               </span>
-              Add Subject
+              {ui("Add Subject")}
             </div>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <FormInput
-                label="Subject Name"
+                label={ui("Subject Name")}
                 value={subjectName}
-                placeholder="e.g. Mathematics"
+                placeholder={ui("e.g. Mathematics")}
                 onChange={setSubjectName}
               />
               <FormInput
-                label="Total Marks"
+                label={ui("Total Marks")}
                 type="number"
                 value={subjectMarks}
                 placeholder="100"
@@ -1312,7 +1315,7 @@ function SectionDetailView({
             {teachingMode === "SUBJECT" ? (
               <div className="mt-3">
                 <TeacherPicker
-                  label="Subject Teacher (optional)"
+                  label={ui("Subject Teacher (optional)")}
                   teachers={teachers}
                   availability={availability}
                   assignmentMode="subject"
@@ -1346,11 +1349,10 @@ function SectionDetailView({
                 </span>
                 <span className="min-w-0">
                   <span className="block text-[11px] font-black text-[#1f1a23]">
-                    Add to all {allSections.length} sections
+                    {ui("Add to all {0} sections", [allSections.length])}
                   </span>
                   <span className="block text-[9px] font-bold text-ink-muted">
-                    Sections that already have this subject are
-                    skipped.
+                    {ui("Sections that already have this subject are skipped.")}
                   </span>
                 </span>
               </SystemButton>
@@ -1367,7 +1369,7 @@ function SectionDetailView({
                 ) : (
                   <>
                     <Plus className="h-3.5 w-3.5" />
-                    Add Subject
+                    {ui("Add Subject")}
                   </>
                 )}
               </SystemButton>
@@ -1385,8 +1387,8 @@ function SectionDetailView({
               </div>
               <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]/60">
                 {teachingMode === "SINGLE"
-                  ? "Class Teacher"
-                  : "Homeroom Teacher"}
+                  ? ui("Class Teacher")
+                  : ui("Homeroom Teacher")}
               </p>
             </div>
             <div className="mt-3 flex items-center gap-3">
@@ -1395,7 +1397,7 @@ function SectionDetailView({
                   <AvatarImage
                     src={teacherAvatar(section.classTeacher)}
                     name={section.classTeacher?.fullName}
-                    alt="Teacher"
+                    alt={ui("Teacher")}
                     initialsClassName="text-base"
                   />
                 ) : (
@@ -1406,10 +1408,10 @@ function SectionDetailView({
               </div>
               <div className="min-w-0">
                 <p className="truncate text-base font-black text-[#1f1a23]">
-                  {section.classTeacher?.fullName || "Unassigned"}
+                  {section.classTeacher?.fullName || ui("Unassigned")}
                 </p>
                 <p className="truncate text-[9px] font-bold text-ink-subtle">
-                  {section.classTeacher?.email || "No teacher assigned"}
+                  {section.classTeacher?.email || ui("No teacher assigned")}
                 </p>
               </div>
             </div>
@@ -1417,10 +1419,10 @@ function SectionDetailView({
               <TeacherPicker
                 label={
                   teacherBusy
-                    ? "Saving..."
+                    ? ui("Saving...")
                     : teachingMode === "SINGLE"
-                      ? "Change Class Teacher"
-                      : "Change Homeroom Teacher"
+                      ? ui("Change Class Teacher")
+                      : ui("Change Homeroom Teacher")
                 }
                 teachers={teachers}
                 availability={availability}
@@ -1454,7 +1456,7 @@ function SectionDetailView({
                   <Users className="h-3 w-3 text-[#be123c]" />
                 </div>
                 <p className="text-[9px] font-black uppercase tracking-wider text-[#be123c]">
-                  Students
+                  {ui("Students")}
                 </p>
               </div>
               <span className="rounded-full bg-[#fff1f2] px-2.5 py-0.5 text-[10px] font-black text-[#be123c]">
@@ -1491,13 +1493,13 @@ function SectionDetailView({
                 <>
                   <Users className="h-3 w-3" />
                   {showAllStudents
-                    ? "Collapse"
-                    : "View All Students"}
+                    ? ui("Collapse")
+                    : ui("View All Students")}
                 </>
               ) : (
                 <>
                   <Plus className="h-3 w-3" />
-                  Add First Student
+                  {ui("Add First Student")}
                 </>
               )}
             </SystemButton>
@@ -1524,7 +1526,7 @@ function SectionDetailView({
                 "text-[9px] font-black uppercase tracking-wider",
                 completedSteps === totalSteps ? "text-emerald-600/60" : "text-ink-subtle",
               )}>
-                {completedSteps === totalSteps ? "Setup Complete" : "Setup Progress"}
+                {completedSteps === totalSteps ? ui("Setup Complete") : ui("Setup Progress")}
               </p>
             </div>
             <div className="mt-3 flex items-center gap-3">
@@ -1565,15 +1567,15 @@ function SectionDetailView({
                 {[
                   {
                     done: hasTeacher,
-                    label: "Class teacher assigned",
+                    label: ui("Class teacher assigned"),
                   },
                   {
                     done: subjectCount > 0,
-                    label: "Subjects added",
+                    label: ui("Subjects added"),
                   },
                   {
                     done: allSubjectsAssigned,
-                    label: "Teachers assigned to subjects",
+                    label: ui("Teachers assigned to subjects"),
                   },
                 ].map((step) => (
                   <div
@@ -1617,7 +1619,7 @@ function SectionDetailView({
           <div className="flex items-center justify-between gap-3">
             <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
               <GraduationCap className="h-3.5 w-3.5 text-[#8127cf]" />
-              All Students ({students.length})
+              {ui("All Students ({0})", [students.length])}
             </p>
             <SystemButton variant="ghost"
               type="button"
@@ -1625,7 +1627,7 @@ function SectionDetailView({
               className="flex items-center gap-1.5 px-3 justify-start"
             >
               <Plus className="h-3 w-3" />
-              Add Student
+              {ui("Add Student")}
             </SystemButton>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1644,7 +1646,7 @@ function SectionDetailView({
                     {student.fullName}
                   </p>
                   <p className="text-[9px] font-bold text-ink-subtle">
-                    Roll {student.rollNo || "N/A"}
+                    {ui("Roll {0}", [student.rollNo || "N/A"])}
                   </p>
                 </div>
               </SystemButton>
@@ -1656,7 +1658,7 @@ function SectionDetailView({
               className="flex w-full items-center justify-center gap-2 px-4 py-3 sm:w-auto sm:min-w-[200px]"
             >
               <Plus className="h-4 w-4" />
-              Add Student
+              {ui("Add Student")}
             </SystemButton>
           </div>
           {students.length > 8 && !showAllStudents ? (
@@ -1665,7 +1667,7 @@ function SectionDetailView({
               onClick={() => setShowAllStudents(true)}
               className="underline decoration-[#8127cf]/30 underline-offset-2 hover:decoration-[#8127cf]"
             >
-              Show all {students.length} students
+              {ui("Show all {0} students", [students.length])}
             </SystemButton>
           ) : null}
         </div>
@@ -1765,7 +1767,7 @@ export function ClassManager({
   }, [sortedSections]);
 
   const totalStudents = allStudents.length;
-  const className = cls.name || "Class";
+  const className = cls.name || ui("Class");
   const academicYear = cls.academicYear || new Date().getFullYear();
 
   // Teaching mode of the initially-selected class (for header badge)
@@ -1816,8 +1818,8 @@ export function ClassManager({
                         <Users className="h-2.5 w-2.5" />
                       )}
                       {primaryTeachingMode === "SINGLE"
-                        ? "Single Teacher"
-                        : "Per Subject"}
+                        ? ui("Single Teacher")
+                        : ui("Per Subject")}
                     </span>
                   </div>
                 </div>
@@ -1829,7 +1831,7 @@ export function ClassManager({
                     type="button"
                     onClick={onRefresh}
                     className="flex items-center justify-center"
-                    title="Refresh data"
+                    title={ui("Refresh data")}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                   </SystemButton>
@@ -1840,7 +1842,7 @@ export function ClassManager({
                   className="flex items-center justify-center"
                 >
                   <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
+                  <span className="sr-only">{ui("Close")}</span>
                 </SystemButton>
               </div>
             </div>
@@ -1861,8 +1863,8 @@ export function ClassManager({
                   )}
                   title={
                     readySections === sortedSections.length
-                      ? "Every section has a class teacher and at least one subject"
-                      : "A section is ready once it has a class teacher and at least one subject"
+                      ? ui("Every section has a class teacher and at least one subject")
+                      : ui("A section is ready once it has a class teacher and at least one subject")
                   }
                 >
                   {readySections === sortedSections.length ? (
@@ -1877,8 +1879,8 @@ export function ClassManager({
                     )}
                   >
                     {readySections === sortedSections.length
-                      ? "All sections ready"
-                      : `${readySections}/${sortedSections.length} ready`}
+                      ? ui("All sections ready")
+                      : ui("{0}/{1} ready", [readySections, sortedSections.length])}
                   </span>
                   <span
                     className="h-1.5 w-12 overflow-hidden rounded-full bg-white/70"
@@ -1901,7 +1903,7 @@ export function ClassManager({
                   {sortedSections.length}
                 </span>
                 <span className="text-[10px] font-bold text-ink-subtle">
-                  section{sortedSections.length !== 1 ? "s" : ""}
+                  {ui(sortedSections.length !== 1 ? "sections" : "section")}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 rounded-xl border border-[#0d9488]/10 bg-white px-3 py-1.5 shadow-sm">
@@ -1910,7 +1912,7 @@ export function ClassManager({
                   {totalSubjects}
                 </span>
                 <span className="text-[10px] font-bold text-ink-subtle">
-                  subject{totalSubjects !== 1 ? "s" : ""}
+                  {ui(totalSubjects !== 1 ? "subjects" : "subject")}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 rounded-xl border border-[#f43f5e]/10 bg-white px-3 py-1.5 shadow-sm">
@@ -1919,7 +1921,7 @@ export function ClassManager({
                   {totalStudents}
                 </span>
                 <span className="text-[10px] font-bold text-ink-subtle">
-                  student{totalStudents !== 1 ? "s" : ""}
+                  {ui(totalStudents !== 1 ? "students" : "student")}
                 </span>
               </div>
             </div>
@@ -1954,7 +1956,7 @@ export function ClassManager({
             {mobileRailOpen ? (
               <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-4 py-3 lg:hidden">
                 <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-                  Sections
+                  {ui("Sections")}
                 </span>
                 <SystemButton variant="ghost"
                   type="button"
@@ -2000,10 +2002,10 @@ export function ClassManager({
                         : "text-[#1f1a23]",
                     )}
                   >
-                    All Sections
+                    {ui("All Sections")}
                   </p>
                   <p className="text-[8px] font-bold text-ink-subtle">
-                    Matrix view
+                    {ui("Matrix view")}
                   </p>
                 </div>
               </SystemButton>
@@ -2058,27 +2060,25 @@ export function ClassManager({
                           )}
                         >
                           {sec.section
-                            ? `Section ${sec.section}`
-                            : "Main Section"}
+                            ? ui("Section {0}", [sec.section])
+                            : ui("Main Section")}
                         </p>
                         <p className="mt-0.5 truncate text-[8px] font-bold text-ink-subtle">
-                          {sec.classTeacher?.fullName || "No teacher yet"}
+                          {sec.classTeacher?.fullName || ui("No teacher yet")}
                         </p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="text-[8px] font-bold text-ink-subtle">
-                            {studentCount} student
-                            {studentCount !== 1 ? "s" : ""}
+                            {ui(studentCount !== 1 ? "{0} students" : "{0} student", [studentCount])}
                           </span>
                           <span className="text-[8px] font-bold text-ink-subtle">
-                            {sectionSubjectCount} subject
-                            {sectionSubjectCount !== 1 ? "s" : ""}
+                            {ui(sectionSubjectCount !== 1 ? "{0} subjects" : "{0} subject", [sectionSubjectCount])}
                           </span>
                           {/* Says what the dot means. A section can look fine
                               in the list and still have nobody teaching it. */}
                           {gaps.length > 0 ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[8px] font-black text-amber-700">
                               <AlertCircle className="h-2 w-2" />
-                              Needs {gaps.join(" & ")}
+                              {ui(gaps.length === 2 ? "Needs teacher & subjects" : gaps[0] === "teacher" ? "Needs teacher" : "Needs subjects")}
                             </span>
                           ) : null}
                         </div>
@@ -2113,9 +2113,9 @@ export function ClassManager({
                       <Plus className="h-4 w-4" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-xs font-black text-[#8127cf]">Add section</span>
+                      <span className="block text-xs font-black text-[#8127cf]">{ui("Add section")}</span>
                       <span className="block text-[8px] font-bold text-ink-subtle">
-                        Copies subjects across
+                        {ui("Copies subjects across")}
                       </span>
                     </span>
                   </SystemButton>
@@ -2147,11 +2147,10 @@ export function ClassManager({
                     </div>
                     <div>
                       <h2 className="text-lg font-black text-[#1f1a23]">
-                        Subject-Teacher Matrix
+                        {ui("Subject-Teacher Matrix")}
                       </h2>
                       <p className="text-[10px] font-bold text-ink-muted">
-                        Overview of all subjects and teacher
-                        assignments across sections
+                        {ui("Overview of all subjects and teacher assignments across sections")}
                       </p>
                     </div>
                   </div>
@@ -2189,16 +2188,13 @@ export function ClassManager({
                       <div>
                         <h2 className="text-lg font-black text-[#1f1a23]">
                           {selectedSection.section
-                            ? `Section ${selectedSection.section}`
-                            : "Main Section"}
+                            ? ui("Section {0}", [selectedSection.section])
+                            : ui("Main Section")}
                         </h2>
                         <p className="text-[10px] font-bold text-ink-muted">
                           {selectedSection.classTeacher?.fullName ||
-                            "No class teacher assigned"}{" "}
-                          / {selectedStudents.length} student
-                          {selectedStudents.length !== 1
-                            ? "s"
-                            : ""}
+                            ui("No class teacher assigned")}{" "}
+                          / {ui(selectedStudents.length !== 1 ? "{0} students" : "{0} student", [selectedStudents.length])}
                         </p>
                       </div>
                     </div>
@@ -2234,7 +2230,7 @@ export function ClassManager({
                   />
                 </>
               ) : (
-                <EmptyInline text="Select a section from the sidebar to view its details." />
+                <EmptyInline text={ui("Select a section from the sidebar to view its details.")} />
               )}
             </div>
           </div>
@@ -2253,8 +2249,7 @@ export function ClassManager({
               <span>{academicYear}</span>
               <span>/</span>
               <span>
-                {sortedSections.length} section
-                {sortedSections.length !== 1 ? "s" : ""}
+                {ui(sortedSections.length !== 1 ? "{0} sections" : "{0} section", [sortedSections.length])}
               </span>
             </div>
             <SystemButton variant="outline"
@@ -2270,7 +2265,7 @@ export function ClassManager({
               className="flex items-center gap-2 px-3.5 justify-start"
             >
               <Settings className="h-3 w-3" />
-              Settings
+              {ui("Settings")}
             </SystemButton>
           </div>
         </div>
