@@ -22,6 +22,8 @@ import { useExamIntegrity } from "./use-exam-integrity";
 import { ExamIntegrityNotice } from "./exam-integrity-policy";
 import { examCameraCopy } from "./exam-camera-copy";
 import { notifyCandidateExamSession } from "@/components/providers/candidate-exam-guard";
+import { answerStatus, readDraft, reconcileDraft, retryDelay, writeDraft, type DraftDecision } from "@/lib/school-ai/exam-draft";
+import { examRecoveryCopy } from "./exam-recovery-copy";
 
 type Attempt = { id: string; status: string; startedAt: string; deadlineAt: string; sequence: number; responses: ExamResponses; submittedAt: string | null; serverNow: string; paper: CandidatePaper; accepted?: boolean };
 type PendingSave = { sequence: number; responses: ExamResponses; submit: boolean };
@@ -31,7 +33,10 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
   const room = examRoomCopy(locale), cameraCopy = examCameraCopy(locale);
   const [focusQuestion, setFocusQuestion] = useState<string | null>(null);
   const [reviewMarks, setReviewMarks] = useState<string[]>([]);
-  const t = examCopy(locale), extension = assessmentExtensionCopy(locale);
+  const t = examCopy(locale), extension = assessmentExtensionCopy(locale), recovery = examRecoveryCopy(locale);
+  const [online, setOnline] = useState(true);
+  const [draftDecision, setDraftDecision] = useState<DraftDecision>({ kind: "NONE" });
+  const failures = useRef(0);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const changeCameraStream = useCallback((next: MediaStream | null) => {
@@ -66,6 +71,11 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     setAttempt(value); attemptRef.current = value; setNow(clockNow());
     if (value) { offset.current = new Date(value.serverNow).getTime() - clockNow(); answersRef.current = value.responses; setAnswers(value.responses); }
     setDirty(false); latestDirty.current = false; pendingRef.current = null; setConflict(false); expiredRequested.current = false;
+    // Unsent edits from before a refresh or crash are offered back, never applied silently.
+    const storage = typeof window === "undefined" ? null : window.localStorage;
+    const decision = value ? reconcileDraft(readDraft(storage, value.id), value) : { kind: "NONE" as const };
+    setDraftDecision(decision);
+    if (value && (decision.kind === "NONE" || value.status !== "IN_PROGRESS")) writeDraft(storage, null, value.id);
   }, [clockNow]);
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -116,13 +126,26 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
         const next = payload.attempt as Attempt;
         pendingRef.current = null; attemptRef.current = next; setAttempt(next); offset.current = new Date(next.serverNow).getTime() - clockNow();
         const remainsDirty = !same(answersRef.current, request.responses);
-        setDirty(remainsDirty); latestDirty.current = remainsDirty;
+        setDirty(remainsDirty); latestDirty.current = remainsDirty; failures.current = 0;
+        writeDraft(window.localStorage, remainsDirty ? { attemptId: next.id, baseSequence: next.sequence, responses: answersRef.current, savedAt: new Date().toISOString() } : null, next.id);
         if (next.status !== "IN_PROGRESS") { notifyCandidateExamSession(null); setLateAnswers(next.accepted === false && !same(answersRef.current, next.responses)); answersRef.current = next.responses; setAnswers(next.responses); setDirty(false); latestDirty.current = false; setConfirm(false); break; }
         if (!submit || request.submit) break;
       }
     } catch (cause) { setError(cause instanceof Error && cause.name !== "TimeoutError" ? cause.message : t.failure); }
     finally { savingRef.current = false; setBusy(false); }
   }, [api, conflict, t.failure, clockNow]);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update(); window.addEventListener("online", update); window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+  // Transient failures retry automatically (sooner when the connection returns); conflicts never do.
+  useEffect(() => {
+    if (!error || conflict || !online || attempt?.status !== "IN_PROGRESS" || !latestDirty.current) return;
+    const timeout = window.setTimeout(() => { failures.current += 1; setError(""); }, retryDelay(failures.current));
+    return () => window.clearTimeout(timeout);
+  }, [error, conflict, online, attempt?.status]);
+  useEffect(() => { if (online && error && !conflict) { failures.current = 0; setError(""); } }, [online]);
   useEffect(() => {
     if (!dirty || conflict || busy || error || attempt?.status !== "IN_PROGRESS") return;
     const timeout = window.setTimeout(() => { void save(); }, 1200);
@@ -142,6 +165,7 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
   const update = (questionId: string, value: string) => {
     const next = { ...answersRef.current, [questionId]: value };
     answersRef.current = next; setAnswers(next); setDirty(true); latestDirty.current = true;
+    if (attemptRef.current) writeDraft(window.localStorage, { attemptId: attemptRef.current.id, baseSequence: attemptRef.current.sequence, responses: next, savedAt: new Date().toISOString() }, attemptRef.current.id);
   };
   const start = async (version: number, camera?: CameraStartEvidence) => {
     if (busy) return;
@@ -177,6 +201,16 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     {attempt && <ExamIntegrityNotice policy={exam?.integrityPolicy} locale={locale} />}
     {attempt && <ExamProctorCapture id={id} attemptId={attempt.id} active={!finished && remaining > 0} deadlineAt={new Date(new Date(attempt.deadlineAt).getTime() - offset.current).toISOString()} locale={locale} clockNow={clockNow} initialCameraStream={cameraStream} cameraRequired={exam?.cameraRequired} onIntegrityEvent={report} />}
     {attempt && !finished && !monitoringAvailable && <p role="status" className="sk-panel p-4 text-sm text-ink-subtle">{cameraCopy.monitoringUnavailable}</p>}
+    {attempt && !finished && !online && <p role="alert" className="sk-panel border-status-warning-border bg-status-warning-surface p-4 text-sm text-status-warning-text">{recovery.offline}</p>}
+    {attempt && !finished && draftDecision.kind !== "NONE" && <section role="alertdialog" aria-labelledby="exam-draft-title" className="sk-panel space-y-3 border-status-warning-border p-5">
+      <h2 id="exam-draft-title" className="font-bold">{recovery.restoreTitle}</h2>
+      <p className="text-sm">{draftDecision.kind === "RESTORABLE" ? recovery.restoreHint : recovery.outdatedHint}</p>
+      <p className="text-sm">{recovery.questions}: {draftDecision.changed.map(questionId => attempt.paper.questions.findIndex(item => item.id === questionId) + 1).filter(Boolean).join(", ")}</p>
+      <div className="flex flex-wrap gap-2">
+        {draftDecision.kind === "RESTORABLE" && <Button onClick={() => { const draft = readDraft(window.localStorage, attempt.id); if (draft) { answersRef.current = { ...attempt.responses, ...draft.responses }; setAnswers(answersRef.current); setDirty(true); latestDirty.current = true; } setDraftDecision({ kind: "NONE" }); }}>{recovery.restore}</Button>}
+        <Button variant="outline" onClick={() => { writeDraft(window.localStorage, null, attempt.id); setDraftDecision({ kind: "NONE" }); }}>{draftDecision.kind === "RESTORABLE" ? recovery.discard : recovery.dismiss}</Button>
+      </div>
+    </section>}
     {attempt && !finished && <>
       <div className="sk-panel sticky top-3 z-10 flex flex-wrap items-center justify-between gap-3 p-4"><div className="flex items-center gap-2" role="timer" aria-label={t.time}><Clock3 aria-hidden="true" /><span className="font-mono text-lg font-bold" dir="ltr">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span></div><p role="status" className="text-sm">{busy ? t.saving : dirty ? t.unsaved : t.saved}</p><p className="text-sm">{t.answered}: {answered} / {attempt.paper.questions.length}</p><Button variant="outline" disabled={busy || conflict} onClick={() => save(remaining === 0)}><Save />{room.saveNow}</Button></div>
       {remaining === 0 && <p role="alert" className="sk-panel p-4">{t.expired}</p>}<p className="text-sm text-ink-subtle">{t.savingHint}</p><p className="whitespace-pre-wrap">{attempt.paper.instructions}</p>
@@ -194,7 +228,7 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
         if (focusQuestion && !questions.some(question => question.id === focusQuestion)) return null;
         return <section key={section.id} className="space-y-4"><h2 className="text-lg font-bold">{section.title}</h2><p className="text-sm text-ink-subtle">{t.required}: {section.answerCount} / {section.questionCount} · {t.answered}: {count}</p>{questions.filter(question => !focusQuestion || question.id === focusQuestion).map((question) => {
           const full = count >= section.answerCount && !answers[question.id]?.trim();
-          return <div key={question.id} id={`exam-question-${question.id}`} tabIndex={-1} className="sk-panel scroll-mt-32 space-y-4 p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-widest text-primary">{t.question} {attempt.paper.questions.findIndex(item => item.id === question.id) + 1}</p><Button type="button" size="sm" variant="ghost" aria-pressed={reviewMarks.includes(question.id)} onClick={() => toggleReview(question.id)}><Flag aria-hidden="true" size={16} />{reviewMarks.includes(question.id) ? room.unflag : room.flag}</Button></div><h3 className="whitespace-pre-wrap text-lg font-semibold leading-relaxed"><bdi dir="auto">{question.prompt}</bdi></h3>{full && <p role="status" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-status-warning-text">{room.sectionLimit}</p>}<CandidateFigures figures={question.figures}/><p className="text-sm text-ink-subtle">{t.marks}: {question.marks}</p>{question.type === "SINGLE_CHOICE" ? <fieldset id={`exam-answer-${question.id}`} tabIndex={-1} className="space-y-2" disabled={full}><legend className="sr-only">{t.choice}: {question.prompt}</legend>{question.options.map((option) => <Button key={option.id} variant="choice" className="h-auto min-h-12 w-full justify-start whitespace-normal text-start" aria-pressed={answers[question.id] === option.id} onClick={() => update(question.id, option.id)}><bdi dir="auto">{option.text}</bdi></Button>)}</fieldset> : ["MULTIPLE_CHOICE", "NUMERIC", "MATH", "CODE"].includes(question.type) ? <AdvancedAnswer question={question} locale={locale} value={answers[question.id] ?? ""} disabled={full} onChange={value => update(question.id, value)} /> : <FormField name={`exam-answer-${question.id}`} id={`exam-answer-${question.id}`} label={t.answer}><Textarea rows={question.type === "EXTENDED_TEXT" ? 8 : 4} maxLength={20000} disabled={full} value={answers[question.id] ?? ""} onChange={(event) => update(question.id, event.target.value)} /></FormField>}<Button variant="ghost" disabled={!answers[question.id]} onClick={() => update(question.id, "")}>{t.clear}</Button></div>;
+          return <div key={question.id} id={`exam-question-${question.id}`} tabIndex={-1} className="sk-panel scroll-mt-32 space-y-4 p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs font-bold uppercase tracking-widest text-primary">{t.question} {attempt.paper.questions.findIndex(item => item.id === question.id) + 1}</p><Button type="button" size="sm" variant="ghost" aria-pressed={reviewMarks.includes(question.id)} onClick={() => toggleReview(question.id)}><Flag aria-hidden="true" size={16} />{reviewMarks.includes(question.id) ? room.unflag : room.flag}</Button></div><h3 className="whitespace-pre-wrap text-lg font-semibold leading-relaxed"><bdi dir="auto">{question.prompt}</bdi></h3>{full && <p role="status" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-status-warning-text">{room.sectionLimit}</p>}<CandidateFigures figures={question.figures}/><p className="flex flex-wrap items-center gap-3 text-sm text-ink-subtle"><span>{t.marks}: {question.marks}</span>{(() => { const status = answerStatus(answers[question.id], attempt.responses[question.id], { saving: busy, failed: !!error || !online }); return <span data-answer-status={status} className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${status === "CONFIRMED" ? "border-status-success-border text-status-success-text" : status === "FAILED" ? "border-status-error-border text-status-error-text" : ""}`}>{recovery[status]}</span>; })()}</p>{question.type === "SINGLE_CHOICE" ? <fieldset id={`exam-answer-${question.id}`} tabIndex={-1} className="space-y-2" disabled={full}><legend className="sr-only">{t.choice}: {question.prompt}</legend>{question.options.map((option) => <Button key={option.id} variant="choice" className="h-auto min-h-12 w-full justify-start whitespace-normal text-start" aria-pressed={answers[question.id] === option.id} onClick={() => update(question.id, option.id)}><bdi dir="auto">{option.text}</bdi></Button>)}</fieldset> : ["MULTIPLE_CHOICE", "NUMERIC", "MATH", "CODE"].includes(question.type) ? <AdvancedAnswer question={question} locale={locale} value={answers[question.id] ?? ""} disabled={full} onChange={value => update(question.id, value)} /> : <FormField name={`exam-answer-${question.id}`} id={`exam-answer-${question.id}`} label={t.answer}><Textarea rows={question.type === "EXTENDED_TEXT" ? 8 : 4} maxLength={20000} disabled={full} value={answers[question.id] ?? ""} onChange={(event) => update(question.id, event.target.value)} /></FormField>}<Button variant="ghost" disabled={!answers[question.id]} onClick={() => update(question.id, "")}>{t.clear}</Button></div>;
         })}</section>;
       })}</fieldset>
       {focusQuestion && <div className="flex flex-wrap justify-between gap-3"><Button variant="outline" disabled={focusIndex <= 0} onClick={() => goTo(attempt.paper.questions[focusIndex - 1].id)}><ArrowLeft className="rtl:rotate-180" aria-hidden="true" />{room.previous}</Button><Button variant="outline" disabled={focusIndex >= attempt.paper.questions.length - 1} onClick={() => goTo(attempt.paper.questions[focusIndex + 1].id)}>{room.next}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button></div>}
