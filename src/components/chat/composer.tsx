@@ -104,7 +104,7 @@ export function Composer({
 
       if (!presign.ok) {
         const json = await presign.json().catch(() => ({}));
-        return { file, error: json.error ?? ui("Upload was refused") };
+        return { file, error: json.error ? ui(json.error) : ui("Upload was refused") };
       }
 
       const { storageKey, uploadUrl } = await presign.json();

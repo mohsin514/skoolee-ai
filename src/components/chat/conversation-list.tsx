@@ -17,11 +17,14 @@ import { localeTag } from "@/lib/locale/package";
 
 type Ui = ReturnType<typeof useUiText>;
 
+/** The server's stand-in previews for media messages are interface copy; message text is not. */
+const MEDIA_PREVIEWS = new Set(["📷 Photo", "📎 Attachment", "Attachment"]);
 
-const FILTERS: { value: ConversationFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "unread", label: "Unread" },
-  { value: "archived", label: "Archived" },
+
+const FILTERS: { value: ConversationFilter; label: (ui: Ui) => string }[] = [
+  { value: "all", label: (ui) => ui("All") },
+  { value: "unread", label: (ui) => ui("Unread") },
+  { value: "archived", label: (ui) => ui("Archived") },
 ];
 
 /** "now", "3m", "2h", "Tue", "14 Aug" — enough to place a message without a date. */
@@ -37,10 +40,10 @@ function relativeTime(iso: string | null, ui: Ui, tag: string) {
   return then.toLocaleDateString(tag, { day: "numeric", month: "short" });
 }
 
-const KIND_BADGE: Record<string, { label: string; className: string }> = {
-  GROUP: { label: "Group", className: "bg-[#fbf0fe] text-[#8127cf]" },
-  CLASS: { label: "Class", className: "bg-emerald-50 text-emerald-700" },
-  ANNOUNCEMENT: { label: "Notice", className: "bg-amber-50 text-amber-700" },
+const KIND_BADGE: Record<string, { label: (ui: Ui) => string; className: string }> = {
+  GROUP: { label: (ui) => ui("Group"), className: "bg-[#fbf0fe] text-[#8127cf]" },
+  CLASS: { label: (ui) => ui("Class"), className: "bg-emerald-50 text-emerald-700" },
+  ANNOUNCEMENT: { label: (ui) => ui("Notice"), className: "bg-amber-50 text-amber-700" },
 };
 
 export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
@@ -127,7 +130,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
                 className="relative flex-1 border-transparent data-[selected=true]:border-border data-[selected=true]:bg-card data-[selected=true]:text-primary data-[selected=true]:shadow-sm"
               >
 
-                <span className="relative">{ui(f.label)}</span>
+                <span className="relative">{f.label(ui)}</span>
               </Button>
             ))}
           </div>
@@ -225,7 +228,7 @@ function ConversationRow({
                 badge.className
               )}
             >
-              {ui(badge.label)}
+              {badge.label(ui)}
             </span>
           )}
           <span
@@ -235,7 +238,9 @@ function ConversationRow({
             )}
           >
             {sentByMe && <span className="text-ink-faint">{ui("You:")} </span>}
-            {c.lastMessagePreview || c.subtitle ? <bdi>{c.lastMessagePreview || c.subtitle}</bdi> : ui("No messages yet")}
+            {c.lastMessagePreview && MEDIA_PREVIEWS.has(c.lastMessagePreview)
+              ? ui(c.lastMessagePreview)
+              : c.lastMessagePreview || c.subtitle ? <bdi>{c.lastMessagePreview || c.subtitle}</bdi> : ui("No messages yet")}
           </span>
 
           {unread && (
@@ -281,12 +286,12 @@ function EmptyList({
   const ui = useUiText();
   const copy =
     filter === "unread"
-      ? { title: "Nothing unread", body: "You are all caught up." }
+      ? { title: ui("Nothing unread"), body: ui("You are all caught up.") }
       : filter === "archived"
-        ? { title: "No archived chats", body: "Archived conversations land here." }
+        ? { title: ui("No archived chats"), body: ui("Archived conversations land here.") }
         : {
-            title: "No conversations yet",
-            body: "Start one with a colleague, a teacher, or the office.",
+            title: ui("No conversations yet"),
+            body: ui("Start one with a colleague, a teacher, or the office."),
           };
 
   return (
@@ -295,8 +300,8 @@ function EmptyList({
         <Inbox className="h-7 w-7" />
       </span>
       <div>
-        <p className="text-sm font-semibold text-foreground">{ui(copy.title)}</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink-muted">{ui(copy.body)}</p>
+        <p className="text-sm font-semibold text-foreground">{copy.title}</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-muted">{copy.body}</p>
       </div>
       {filter === "all" && (
         <Button variant="default" size="sm"

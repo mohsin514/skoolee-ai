@@ -23,40 +23,42 @@ interface ChatSettingsDialogProps {
   onClose: () => void;
 }
 
+type Ui = ReturnType<typeof useUiText>;
+
 const TOGGLES: {
   key: keyof ChatSettings;
-  label: string;
-  help: string;
+  label: (ui: Ui) => string;
+  help: (ui: Ui) => string;
 }[] = [
   {
     key: "parentToSupport",
-    label: "Guardians may message the office",
-    help: "Accounts, library and front desk. Leadership and their children's teachers are always reachable.",
+    label: (ui) => ui("Guardians may message the office"),
+    help: (ui) => ui("Accounts, library and front desk. Leadership and their children's teachers are always reachable."),
   },
   {
     key: "studentToSupport",
-    label: "Students may message the office",
-    help: "Same departments, for pupils with their own login.",
+    label: (ui) => ui("Students may message the office"),
+    help: (ui) => ui("Same departments, for pupils with their own login."),
   },
   {
     key: "parentToParent",
-    label: "Guardians may message each other",
-    help: "Off by default. Turning this on lets any guardian find any other guardian on the campus.",
+    label: (ui) => ui("Guardians may message each other"),
+    help: (ui) => ui("Off by default. Turning this on lets any guardian find any other guardian on the campus."),
   },
   {
     key: "studentToStudent",
-    label: "Students may message each other",
-    help: "Off by default. Consider your safeguarding policy before enabling pupil-to-pupil messaging.",
+    label: (ui) => ui("Students may message each other"),
+    help: (ui) => ui("Off by default. Consider your safeguarding policy before enabling pupil-to-pupil messaging."),
   },
   {
     key: "attachmentsEnabled",
-    label: "Allow file attachments",
-    help: "Images and documents up to 10 MB.",
+    label: (ui) => ui("Allow file attachments"),
+    help: (ui) => ui("Images and documents up to 10 MB."),
   },
   {
     key: "quietHoursEnabled",
-    label: "Quiet hours for staff",
-    help: "Outside these hours a family's message still arrives, but staff are not notified.",
+    label: (ui) => ui("Quiet hours for staff"),
+    help: (ui) => ui("Outside these hours a family's message still arrives, but staff are not notified."),
   },
 ];
 
@@ -101,7 +103,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json.error ?? ui("Could not save"));
+        setError(json.error ? ui(json.error) : ui("Could not save"));
         return;
       }
       setHasSaved(true);
@@ -167,10 +169,10 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                           htmlFor={`chat-setting-${toggle.key}`}
                           className="block cursor-pointer text-xs font-black text-[#1f1a23]"
                         >
-                          {ui(toggle.label)}
+                          {toggle.label(ui)}
                         </label>
                         <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-ink-muted">
-                          {ui(toggle.help)}
+                          {toggle.help(ui)}
                         </p>
                       </div>
 
