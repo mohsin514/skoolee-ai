@@ -11,7 +11,10 @@ import {
   scopedCampusWhere,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { updateClassWithTeacherAssignment } from "@/lib/api/teacher-assignments";
+import { authorizeAssignment, updateClassWithTeacherAssignment } from "@/lib/api/teacher-assignments";
+import { effectiveDate, findDuplicateClass, isIdentityConflict, recordTeachingAssignment } from "@/lib/academic/structure";
+import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { lockTimetableCampus } from "@/lib/timetable/locking";
 
 async function assertTeacherInCampus(teacherId: string | null | undefined, campusId: string, schoolId: string) {
   if (!teacherId) return null;
@@ -98,42 +101,38 @@ export async function POST(req: NextRequest) {
     const teachingMode = String(body.teachingMode || "SINGLE").toUpperCase() === "SUBJECT" ? "SUBJECT" : "SINGLE";
 
     const className = parsed.data.name.trim();
-    const duplicates = await prisma.class.findMany({
-      where: {
-        campusId,
-        name: className,
-        academicYear: parsed.data.academicYear,
-        OR: targetSections.map((section) => ({ section })),
-      },
-      select: { name: true, section: true },
-    });
-    if (duplicates.length) {
-      const label = duplicates.map((item) => `${item.name}${item.section ? ` ${item.section}` : ""}`).join(", ");
-      throw new ApiError(`${label} already exists`, 409);
-    }
-
-    const classes = await prisma.$transaction(
-      targetSections.map((section) =>
-        prisma.class.create({
-          data: {
-            campusId,
-            name: className,
-            section,
-            academicYear: parsed.data.academicYear,
-            classTeacherId,
-            teachingMode,
-          },
-          include: {
-            classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-            subjects: {
-              include: { teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } },
-              orderBy: { name: "asc" },
+    // SKO-462: create inside the campus fence with the actor re-authorized; the normalized duplicate
+    // check answers with the conflicting class, and the database index settles any concurrent create.
+    let classes;
+    try {
+      classes = await schoolAiTransaction(user, async tx => {
+        await lockTimetableCampus(tx, user.schoolId, campusId);
+        await authorizeAssignment(tx, user, "students");
+        if (!await tx.campus.findFirst({ where: { id: campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true } })) throw new ApiError("Classes can only be added to an active campus", 409);
+        for (const section of targetSections) {
+          const duplicate = await findDuplicateClass(tx, { schoolId: user.schoolId, campusId }, { name: className, section, academicYear: parsed.data.academicYear });
+          if (duplicate) throw new ApiError(`${duplicate.name}${duplicate.section ? ` ${duplicate.section}` : ""} already exists for ${parsed.data.academicYear} (class ${duplicate.id}).`, 409);
+        }
+        const created = [];
+        for (const section of targetSections) {
+          const cls = await tx.class.create({
+            data: { schoolId: user.schoolId, campusId, name: className, section, academicYear: parsed.data.academicYear, classTeacherId, teachingMode },
+            include: {
+              classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
+              subjects: { include: { teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } }, orderBy: { name: "asc" } },
+              _count: { select: { students: true, subjects: true } },
             },
-            _count: { select: { students: true, subjects: true } },
-          },
-        })
-      )
-    );
+          });
+          if (classTeacherId) await recordTeachingAssignment(tx, user, { campusId, classId: cls.id, subjectId: null, teacherId: classTeacherId, from: effectiveDate(body.effectiveFrom) });
+          created.push(cls);
+        }
+        await tx.auditLog.createMany({ data: created.map(cls => ({ schoolId: user.schoolId, tableName: "class", recordId: cls.id, newValue: { name: cls.name, section: cls.section, academicYear: cls.academicYear }, userId: user.userId })) });
+        return created;
+      });
+    } catch (error) {
+      if (isIdentityConflict(error)) throw new ApiError(`${className} already exists for ${parsed.data.academicYear}. Reload to see it.`, 409);
+      throw error;
+    }
 
     notify("CLASS_CREATED", {
       schoolId: user.schoolId,
@@ -143,17 +142,6 @@ export async function POST(req: NextRequest) {
       className,
       section: sections.length ? sections.join(",") : undefined,
       classId: classes[0]?.id,
-    });
-
-    // One insert for all sections — this used to be a sequential round-trip per
-    // section, which is most of the wall-clock time when the database is remote.
-    await prisma.auditLog.createMany({
-      data: classes.map((cls) => ({
-        tableName: 'class',
-        recordId: cls.id,
-        newValue: { name: cls.name, section: cls.section, academicYear: cls.academicYear },
-        userId: user.userId,
-      })),
     });
 
     return Response.json(
@@ -223,13 +211,24 @@ export async function DELETE(req: NextRequest) {
       select: { id: true, campusId: true, name: true, section: true, academicYear: true, status: true, archivedAt: true, archivePreviousStatus: true, _count: { select: { students: true, subjects: true, exams: true, feeStructures: true, attendance: true, timetables: true, classHistory: true, admissionQueries: true } } },
     });
     if (!existing) throw new ApiError("Class not found", 404);
-    const dependencies = { students: existing._count.students, subjects: existing._count.subjects, exams: existing._count.exams, feeStructures: existing._count.feeStructures, attendance: existing._count.attendance, timetables: existing._count.timetables, classHistory: existing._count.classHistory, admissionQueries: existing._count.admissionQueries };
+    // Enrolled means active and not archived — the same rule the archive itself enforces.
+    const enrolledStudents = await prisma.student.count({ where: { schoolId: user.schoolId, classId: id, archivedAt: null, status: "active" } });
+    const dependencies = { students: enrolledStudents, subjects: existing._count.subjects, exams: existing._count.exams, feeStructures: existing._count.feeStructures, attendance: existing._count.attendance, timetables: existing._count.timetables, classHistory: existing._count.classHistory, admissionQueries: existing._count.admissionQueries };
     if (new URL(req.url).searchParams.get("preview") === "true") return Response.json({ success: true, action: "archive", record: `${existing.name}${existing.section ? ` ${existing.section}` : ""}`, dependencies, permanentDeletion: "restricted when history exists" });
     if (existing.archivedAt) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies });
     const body = await req.json().catch(() => ({}));
     const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Administrative archive";
-    await prisma.class.update({ where: { id }, data: { archivedAt: new Date(), archiveReason: reason, archivePreviousStatus: existing.status, status: "COMPLETED" } });
-    await prisma.auditLog.create({ data: { tableName: "class", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason, dependencies }, userId: user.userId } });
+    // SKO-462: archive inside the campus fence with delete authority re-checked, and never strand
+    // enrolled students — they move to another class first, then the class is archived as history.
+    await schoolAiTransaction(user, async tx => {
+      await lockTimetableCampus(tx, user.schoolId, existing.campusId);
+      await authorizeAssignment(tx, user, "students", "delete");
+      const enrolled = await tx.student.count({ where: { schoolId: user.schoolId, classId: id, archivedAt: null, status: "active" } });
+      if (enrolled) throw new ApiError(`${enrolled} enrolled student(s) are still in this class. Move them to another class before archiving it.`, 409);
+      const archived = await tx.class.updateMany({ where: { id, schoolId: user.schoolId, archivedAt: null }, data: { archivedAt: new Date(), archiveReason: reason, archivePreviousStatus: existing.status, status: "COMPLETED" } });
+      if (archived.count !== 1) throw new ApiError("This class changed meanwhile. Reload and try again.", 409);
+      await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason, dependencies }, userId: user.userId } });
+    });
     notify("CLASS_DELETED", {
       schoolId: user.schoolId,
       campusId: existing.campusId,

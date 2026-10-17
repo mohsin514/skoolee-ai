@@ -173,6 +173,7 @@ export const TENANT_MODELS = new Set<string>([
   "supportIncident",
   "syllabusTopic",
   "teacherAttendance",
+  "teachingAssignment",
   "timetable",
   "timetableSlot",
   "transportRoute",

@@ -579,8 +579,8 @@ test("academic setup refuses conflicting cycle details, ambiguous classes and ar
   await raw.class.update({ where: { id: existing.id }, data: { teachingMode: "SINGLE", archivedAt: new Date() } });
   await assert.rejects(() => previewSchoolAiExecution(fixture.user, record.id, "academics.setup_year", record.version), { code: "CLASS_DETAILS_CONFLICT" });
   await raw.class.update({ where: { id: existing.id }, data: { archivedAt: null } });
-  await raw.class.create({ data: { schoolId, campusId: fixture.campusId, academicYear: 2027, name: "grade 4", section: "a" } });
-  await assert.rejects(() => previewSchoolAiExecution(fixture.user, record.id, "academics.setup_year", record.version), { code: "CLASS_DUPLICATE_CONFLICT" });
+  // SKO-462: an ambiguous active duplicate can no longer exist; the database refuses it outright.
+  await assert.rejects(() => raw.class.create({ data: { schoolId, campusId: fixture.campusId, academicYear: 2027, name: "grade 4", section: "a" } }), /Unique constraint/);
 });
 
 test("a changed class assignment or workspace version invalidates an academic setup preview", async () => {

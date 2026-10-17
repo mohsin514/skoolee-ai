@@ -57,6 +57,8 @@ import { PlansPanel } from "@/components/billing/PlansPanel";
 import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
+import { classArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
@@ -268,10 +270,12 @@ export default function CampusAdminDashboard() {
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
   const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
   const [showActivityLogModal, setShowActivityLogModal] = useState(false);
+  const ui = useUiText();
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     description: string;
     confirmLabel: string;
+    tone?: "danger" | "warning" | "primary";
     run: () => Promise<void>;
   } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
@@ -588,6 +592,15 @@ export default function CampusAdminDashboard() {
   };
 
   const handleChangeSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
+    // SKO-462: a scheduled or already-marked subject shows what moves before the teacher changes.
+    const impact = await fetchAcademicImpact("subject", subjectId).catch(() => null);
+    if (impact && (impact.counts.timetableSlots || impact.counts.marks)) {
+      setConfirmAction({ title: ui("Change the teacher of {0}?", [impact.label]), description: teacherChangeText(impact, ui), confirmLabel: ui("Change Teacher"), tone: "warning", run: async () => { await saveSubjectTeacher(classId, subjectId, teacherId); } });
+      return;
+    }
+    await saveSubjectTeacher(classId, subjectId, teacherId);
+  };
+  const saveSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
     setSavingSubjectId(subjectId);
     try {
       const res = await fetch("/api/subjects", {
@@ -695,15 +708,17 @@ export default function CampusAdminDashboard() {
   };
 
   const handleDeleteClass = async (cls: any) => {
-    const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`);
+    const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`, { method: "DELETE" });
     const preview = await previewResponse.json();
     if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate class impact");
-    const impacts = Object.entries(preview.dependencies || {}).filter(([, count]) => Number(count) > 0).map(([label, count]) => `${count} ${label}`).join(", ") || "no linked records";
+    const enrolled = Number(preview.dependencies?.students || 0);
     setConfirmAction({
-      title: `Archive ${classLabel(cls)}?`,
-      description: `This class has ${impacts}. Archive hides it from current class lists while preserving its academic and financial history. You can restore it later.`,
-      confirmLabel: "Archive Class",
+      title: ui("Archive {0}?", [classLabel(cls)]),
+      description: classArchiveText(preview.dependencies || {}, ui),
+      confirmLabel: enrolled ? ui("Close") : ui("Archive Class"),
+      tone: enrolled ? "primary" : "warning",
       run: async () => {
+        if (enrolled) return;
         const res = await fetch(`/api/classes?id=${cls.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || "Class could not be archived");
@@ -715,7 +730,7 @@ export default function CampusAdminDashboard() {
   };
 
   const handleDeleteStudent = async (student: any) => {
-    const previewResponse = await fetch(`/api/students?id=${encodeURIComponent(student.id)}&preview=true`);
+    const previewResponse = await fetch(`/api/students?id=${encodeURIComponent(student.id)}&preview=true`, { method: "DELETE" });
     const preview = await previewResponse.json();
     if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate student impact");
     const impacts = Object.entries(preview.dependencies || {}).filter(([, count]) => Number(count) > 0).map(([label, count]) => `${count} ${label}`).join(", ") || "no linked records";
@@ -734,16 +749,22 @@ export default function CampusAdminDashboard() {
     });
   };
 
-  const handleDeleteSubject = (subject: any) => {
+  const handleDeleteSubject = async (subject: any) => {
+    // SKO-462: the real impact, fetched before anything is confirmed.
+    const impact = await fetchAcademicImpact("subject", subject.id).catch((error: Error) => { toast.error(error.message); return null; });
+    if (!impact) return;
+    const blocked = Boolean(impact.counts.marks || impact.counts.exams || impact.counts.examSchedules);
     setConfirmAction({
-      title: `Delete ${subject.name}?`,
-      description: "This will permanently remove this subject. Subjects with existing marks cannot be deleted.",
-      confirmLabel: "Delete Subject",
+      title: ui("Delete {0}?", [subject.name]),
+      description: subjectRemovalText(impact, ui),
+      confirmLabel: blocked ? ui("Close") : ui("Delete Subject"),
+      tone: blocked ? "primary" : "danger",
       run: async () => {
+        if (blocked) return;
         const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || "Subject could not be deleted");
-        toast.success("Subject deleted");
+        toast.success(ui("Subject deleted · {0}", [new Date().toLocaleString()]));
         await loadData();
       },
     });
@@ -1432,7 +1453,7 @@ export default function CampusAdminDashboard() {
         title={confirmAction?.title || ""}
         description={confirmAction?.description || ""}
         confirmLabel={confirmAction?.confirmLabel || "Confirm"}
-        tone="danger"
+        tone={confirmAction?.tone ?? "danger"}
         busy={confirmBusy}
         onCancel={() => setConfirmAction(null)}
         onConfirm={runConfirmedAction}

@@ -147,6 +147,8 @@ import {
   StatusPill,
 } from "@/components/shared-admin";
 import { Input as SystemInput } from "@/components/ui/input";
+import { classArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 type PrincipalView =
@@ -235,7 +237,8 @@ export default function PrincipalDashboard() {
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
   const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
   const [applyingSubjectClassId, setApplyingSubjectClassId] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; confirmLabel: string; tone?: "danger" | "warning" | "primary"; run: () => Promise<void> } | null>(null);
+  const ui = useUiText();
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [savingClassUpdate, setSavingClassUpdate] = useState(false);
   const [savingStudentUpdate, setSavingStudentUpdate] = useState(false);
@@ -340,6 +343,15 @@ export default function PrincipalDashboard() {
   };
 
   const handleChangeSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
+    // SKO-462: a scheduled or already-marked subject shows what moves before the teacher changes.
+    const impact = await fetchAcademicImpact("subject", subjectId).catch(() => null);
+    if (impact && (impact.counts.timetableSlots || impact.counts.marks)) {
+      setConfirmAction({ title: ui("Change the teacher of {0}?", [impact.label]), description: teacherChangeText(impact, ui), confirmLabel: ui("Change Teacher"), tone: "warning", run: async () => { await saveSubjectTeacher(classId, subjectId, teacherId); } });
+      return;
+    }
+    await saveSubjectTeacher(classId, subjectId, teacherId);
+  };
+  const saveSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
     setSavingSubjectId(subjectId);
     try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, teacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Subject teacher could not be updated"); toast.success("Subject teacher updated"); (result.clashes || []).forEach((c: any) => toast.warning(c.message)); await refetch(); }
     catch (error: any) { toast.error(error.message); } finally { setSavingSubjectId(null); }
@@ -375,19 +387,17 @@ export default function PrincipalDashboard() {
 
   const handleDeleteClass = async (cls: any) => {
     try {
-      const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`);
+      const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`, { method: "DELETE" });
       const preview = await previewResponse.json();
       if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate class impact");
-      const impact = Object.entries(preview.dependencies || {})
-        .filter(([, count]) => Number(count) > 0)
-        .map(([label, count]) => `${count} ${label}`)
-        .join(", ") || "no linked records";
       const label = `${cls.name}${cls.section ? ` · ${cls.section}` : ""}`;
       setConfirmAction({
-        title: `Archive ${label}?`,
-        description: `This class has ${impact}. Archiving hides it from current class lists and preserves its academic and financial history. You can restore it later.`,
-        confirmLabel: "Archive Class",
+        title: ui("Archive {0}?", [label]),
+        description: classArchiveText(preview.dependencies || {}, ui),
+        confirmLabel: Number(preview.dependencies?.students || 0) ? ui("Close") : ui("Archive Class"),
+        tone: Number(preview.dependencies?.students || 0) ? "primary" : "warning",
         run: async () => {
+          if (Number(preview.dependencies?.students || 0)) return;
           setConfirmBusy(true);
           try {
             const response = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}`, {
@@ -416,8 +426,12 @@ export default function PrincipalDashboard() {
     setConfirmAction({ title: "Delete Student", description: `Delete "${student.fullName}" (Roll: ${student.rollNo})? All associated records will be removed.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/students/${student.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete student"); toast.success("Student deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
   };
 
-  const handleDeleteSubject = (subject: any) => {
-    setConfirmAction({ title: "Delete Subject", description: `Delete "${subject.name}"? This will also remove all marks associated with this subject.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success("Subject deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+  const handleDeleteSubject = async (subject: any) => {
+    // SKO-462: the real impact, fetched before anything is confirmed (marks are never silently removed).
+    const impact = await fetchAcademicImpact("subject", subject.id).catch((error: Error) => { toast.error(error.message); return null; });
+    if (!impact) return;
+    const blocked = Boolean(impact.counts.marks || impact.counts.exams || impact.counts.examSchedules);
+    setConfirmAction({ title: ui("Delete {0}?", [subject.name]), description: subjectRemovalText(impact, ui), confirmLabel: blocked ? ui("Close") : ui("Delete Subject"), tone: blocked ? "primary" : "danger", run: async () => { if (blocked) return; setConfirmBusy(true); try { const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success(ui("Subject deleted · {0}", [new Date().toLocaleString()])); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
   };
 
   const handleUpdateTeacher = async (teacherId: string, updates: Record<string, any>) => {
@@ -843,7 +857,7 @@ export default function PrincipalDashboard() {
       />
       {showActivityLogModal ? <ActivityLogModal onClose={() => setShowActivityLogModal(false)} /> : null}
       {showHelpModal ? <HelpModal onClose={() => setShowHelpModal(false)} /> : null}
-      <ConfirmAction open={!!confirmAction} title={confirmAction?.title || ""} description={confirmAction?.description || ""} confirmLabel={confirmAction?.confirmLabel} busy={confirmBusy} onConfirm={async () => { if (confirmAction) { await confirmAction.run(); setConfirmAction(null); } }} onCancel={() => setConfirmAction(null)} />
+      <ConfirmAction open={!!confirmAction} title={confirmAction?.title || ""} description={confirmAction?.description || ""} confirmLabel={confirmAction?.confirmLabel} tone={confirmAction?.tone} busy={confirmBusy} onConfirm={async () => { if (confirmAction) { await confirmAction.run(); setConfirmAction(null); } }} onCancel={() => setConfirmAction(null)} />
     </RoleShell>
   );
 }

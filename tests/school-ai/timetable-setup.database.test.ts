@@ -36,7 +36,7 @@ async function approved(f: Fixture, proposal = f.proposal) { const record = awai
 async function preview(f: Fixture, record: Awaited<ReturnType<typeof approved>>) { return previewSchoolAiExecution(f.user, record.id, "timetable.create_draft", record.version); }
 async function apply(f: Fixture, record: Awaited<ReturnType<typeof approved>>, hash: string, key = randomUUID()) { return executeSchoolAiTool(f.user, record.id, { operation: "timetable.create_draft", version: record.version, previewHash: hash, idempotencyKey: key }); }
 async function otherSchedule(f: Fixture, patch: Partial<TimetableSetupProposal["slots"][number]> = {}, year = 2026, term = "ANNUAL") {
-  const cls = await db.class.create({ data: { schoolId, campusId: f.campusId, name: "Grade 9", academicYear: year } });
+  const cls = await db.class.create({ data: { schoolId, campusId: f.campusId, name: "Grade 9", section: randomUUID().slice(0, 8), academicYear: year } });
   const { id: _, ...slot } = { ...f.proposal.slots[0], ...patch };
   return db.timetable.create({ data: { schoolId, campusId: f.campusId, classId: cls.id, academicYear: year, term, status: "PUBLISHED", slots: { create: { ...slot, schoolId } } }, include: { slots: true } });
 }
@@ -294,7 +294,7 @@ test("timetable execution rejects cross-campus access, families, teachers and fr
 });
 test("concurrent plans for different classes cannot double-book a shared teacher and room", async () => {
   const f = await fixture();
-  const otherClass = await db.class.create({ data: { schoolId, campusId: f.campusId, name: "Grade 9", academicYear: 2026, teachingMode: "SUBJECT" } });
+  const otherClass = await db.class.create({ data: { schoolId, campusId: f.campusId, name: "Grade 9", section: randomUUID().slice(0, 8), academicYear: 2026, teachingMode: "SUBJECT" } });
   const otherSubject = await db.subject.create({ data: { schoolId, campusId: f.campusId, classId: otherClass.id, name: "Science", teacherId: f.teacherId } });
   const second = { ...f.proposal, classId: otherClass.id, slots: [{ ...f.proposal.slots[0], subjectId: otherSubject.id }] };
   const records = [await approved(f), await approved(f, second)];

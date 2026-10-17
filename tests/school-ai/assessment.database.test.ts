@@ -45,7 +45,7 @@ before(async () => {
   await raw.school.create({ data: { id: schoolId, name: "Synthetic exam school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Synthetic", status: "ACTIVE" } });
   for (const id of [campusId, anotherCampusId]) await raw.campus.create({ data: { id, schoolId, name: "Synthetic campus", regId: id, city: "Synthetic" } });
   for (const user of [admin, teacher, unrelatedTeacher, student, secondStudent, wrongClass, wrongCampus, parent]) await raw.user.create({ data: { id: user.userId, schoolId, campusId: user.campusId, email: user.email, role: user.role, fullName: `Synthetic ${user.role}`, onboardingComplete: true } });
-  for (const id of [classId, otherClassId]) await raw.class.create({ data: { id, schoolId, campusId, name: "Synthetic class", academicYear: 2026 } });
+  for (const [index, id] of [classId, otherClassId].entries()) await raw.class.create({ data: { id, schoolId, campusId, name: "Synthetic class", section: `S${index + 1}`, academicYear: 2026 } });
   await raw.subject.create({ data: { id: subjectId, schoolId, campusId, classId, name: "Mathematics", teacherId: teacher.userId } });
   for (const [id, userId, cls] of [[studentId, student.userId, classId], [secondStudentId, secondStudent.userId, classId], [wrongClassId, wrongClass.userId, otherClassId]]) await raw.student.create({ data: { id, schoolId, campusId, classId: cls, studentUserId: userId, fullName: "Synthetic learner", rollNo: id.slice(0, 8), gender: "MALE", status: "active" } });
   const fixture = assessmentFixture(subjectId, classId);

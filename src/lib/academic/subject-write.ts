@@ -5,6 +5,7 @@ import { moduleFlags } from "@/lib/permissions";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { effectiveDate, recordTeachingAssignment } from "./structure";
 type SubjectInput = { classId: string; campusId?: string | null; name: string; teacherId?: string | null; totalMarks: number; applyToAllSections?: boolean };
 export async function assertSubjectWrite(tx: TxClient, user: AuthUser, action: "add" | "edit") {
   if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
@@ -29,6 +30,7 @@ export async function createCampusSubjects(user: AuthUser, input: SubjectInput) 
     if (!create.length) throw new ApiError("This subject already exists in the selected sections.", 409);
     const created = [];
     for (const target of create) created.push(await tx.subject.create({ data: { schoolId: user.schoolId, campusId: cls.campusId, classId: target.id, name, totalMarks, teacherId }, include: { class: { select: { id: true, name: true, section: true } }, teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } } }));
+    if (teacherId) for (const row of created) await recordTeachingAssignment(tx, user, { campusId: cls.campusId, classId: row.classId, subjectId: row.id, teacherId, from: effectiveDate(undefined) });
     const subject = created.find(row => row.classId === cls.id) ?? created[0]; await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "subject", recordId: subject.id, newValue: { name, totalMarks, createdIds: created.map(row => row.id) }, userId: user.userId } }); return { subject, cls, createdCount: created.length };
   });
 }

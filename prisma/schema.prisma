@@ -234,6 +234,7 @@ model School {
   schoolAiExamRemedies SchoolAiExamRemedy[]
   schoolAiExamFormAllocations SchoolAiExamFormAllocation[]
   schoolAiExamPauses SchoolAiExamPause[]
+  teachingAssignments TeachingAssignment[]
   assignments             Assignment[]
   assignmentRubricVersions AssignmentRubricVersion[]
   assignmentVersions      AssignmentVersion[]
@@ -5063,6 +5064,28 @@ model SchoolAiExamClarification {
   @@unique([assignmentId, version])
   @@index([schoolId, campusId, assignmentId])
   @@map("school_ai_exam_clarifications")
+}
+
+/// SKO-462: effective-dated teaching assignments. A teacher change closes the open row and opens a new
+/// one, so who taught a class or subject on any date stays answerable after the assignment changes.
+model TeachingAssignment {
+  id            String    @id @default(uuid())
+  schoolId      String    @default("") @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String    @map("campus_id")
+  classId       String    @map("class_id")
+  /// Null for the class-teacher role.
+  subjectId     String?   @map("subject_id")
+  role          String
+  teacherId     String?   @map("teacher_id")
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  createdById   String    @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, classId])
+  @@index([subjectId])
+  @@map("teaching_assignments")
 }
 
 /// SKO-408 R15.4: a supervised pause of one attempt, its reason, who paused and resumed it, and the time restored.

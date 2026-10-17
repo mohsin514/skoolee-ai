@@ -13,6 +13,8 @@ import {
   scopedCampusWhere,
 } from "@/lib/api/scope";
 import { deleteSubjectWithTimetableSync, updateSubjectWithTeacherAssignment } from "@/lib/api/teacher-assignments";
+import { academicImpact } from "@/lib/academic/structure";
+import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 
 export async function GET(req: NextRequest) {
   try {
@@ -115,6 +117,8 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) throw new ApiError("Subject id is required", 400);
+    // SKO-462: the impact is shown before a subject is removed.
+    if (searchParams.get("preview") === "true") return Response.json({ success: true, action: "delete", impact: await schoolAiTransaction(user, tx => academicImpact(tx, user, "subject", id)) });
 
     await deleteSubjectWithTimetableSync(user, id);
 

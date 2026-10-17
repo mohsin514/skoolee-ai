@@ -235,7 +235,7 @@ export default function StudentsPage() {
     try {
       if (status === "archived") {
         const previews = await Promise.all([...selected].map(async (id) => {
-          const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`);
+          const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`, { method: "DELETE" });
           const preview = await response.json();
           if (!response.ok) throw new Error(preview.error || "Could not calculate archive impact");
           return preview.dependencies as Record<string, number>;
