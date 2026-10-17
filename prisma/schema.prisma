@@ -194,6 +194,8 @@ model School {
   dormRooms               DormRoom[]
   dormAllocations         DormAllocation[]
   complaintEvents         ComplaintEvent[]
+  phoneCallbacks          PhoneCallback[]
+  phoneCallbackEvents     PhoneCallbackEvent[]
   bookCategories          BookCategory[]
   books                   Book[]
   libraryMembers          LibraryMember[]
@@ -680,6 +682,7 @@ model User {
   @@index([schoolId])
   @@map("users")
   ownedComplaints Complaint[] @relation("ComplaintOwner")
+  ownedCallbacks  PhoneCallback[] @relation("PhoneCallbackOwner")
 }
 
 // Staff records depth: payroll, bank, documents and timeline for faculty.
@@ -3622,16 +3625,78 @@ model PhoneCallLog {
   school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String    @map("campus_id")
   campus       Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
-  name         String
-  phone        String
-  direction    String // IN | OUT
-  date         DateTime
-  followUpDate DateTime? @map("follow_up_date")
-  note         String?
-  createdAt    DateTime  @default(now()) @map("created_at")
+  name           String
+  phone          String
+  // SKO-465: digits only, for search. Two callers sharing a number stay two separate contacts.
+  phoneDigits    String          @default("") @map("phone_digits")
+  direction      String // IN | OUT
+  date           DateTime
+  purpose        String?
+  // Legacy single follow-up date; callbacks are now owned tasks in PhoneCallback.
+  followUpDate   DateTime?       @map("follow_up_date")
+  note           String?
+  // A sensitive note is shown only to campus leaders, the person who logged the call and callback owners.
+  sensitive      Boolean         @default(false)
+  recordedById   String?         @map("recorded_by_id")
+  idempotencyKey String?         @map("idempotency_key")
+  requestHash    String?         @map("request_hash")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  callbacks      PhoneCallback[]
 
+  @@unique([campusId, idempotencyKey])
+  @@index([campusId, date])
   @@index([schoolId])
   @@map("phone_call_logs")
+}
+
+/// SKO-465: a promised callback is an owned task. It stays OPEN through unsuccessful attempts and
+/// reschedules until an outcome is recorded; a follow-up obligation is a new callback linked to it.
+model PhoneCallback {
+  id            String               @id @default(uuid())
+  schoolId      String               @default("") @map("school_id")
+  school        School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String               @map("campus_id")
+  callId        String               @map("call_id")
+  call          PhoneCallLog         @relation(fields: [callId], references: [id], onDelete: Cascade)
+  ownerId       String?              @map("owner_id")
+  owner         User?                @relation("PhoneCallbackOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  dueAt         DateTime             @map("due_at")
+  status        String               @default("OPEN") // OPEN | DONE
+  attempts      Int                  @default(0)
+  outcome       String?              @db.Text
+  completedAt   DateTime?            @map("completed_at")
+  completedById String?              @map("completed_by_id")
+  previousId    String?              @map("previous_id")
+  previous      PhoneCallback?       @relation("PhoneCallbackChain", fields: [previousId], references: [id], onDelete: SetNull)
+  next          PhoneCallback[]      @relation("PhoneCallbackChain")
+  version       Int                  @default(1)
+  createdById   String               @map("created_by_id")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  events        PhoneCallbackEvent[]
+
+  @@index([campusId, status, dueAt])
+  @@index([callId])
+  @@index([schoolId])
+  @@map("phone_callbacks")
+}
+
+model PhoneCallbackEvent {
+  id         String        @id @default(uuid())
+  schoolId   String        @default("") @map("school_id")
+  school     School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId   String        @map("campus_id")
+  callbackId String        @map("callback_id")
+  callback   PhoneCallback @relation(fields: [callbackId], references: [id], onDelete: Cascade)
+  kind       String // CREATED | REASSIGNED | RESCHEDULED | ATTEMPTED | COMPLETED
+  ownerId    String?       @map("owner_id")
+  dueAt      DateTime?     @map("due_at")
+  note       String?       @db.Text
+  actorId    String        @map("actor_id")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([callbackId, createdAt])
+  @@index([schoolId])
+  @@map("phone_callback_events")
 }
 
 model CertificateTemplate {

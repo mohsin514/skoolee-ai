@@ -25,6 +25,7 @@ import { PanelTitle } from "@/components/shared-admin";
 import { DormitoryAllocations } from "./dormitory-allocations";
 import { VisitorRegister } from "./visitor-register";
 import { ComplaintsDesk } from "./complaints-desk";
+import { PhoneCallLog } from "./phone-call-log";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
 import { formatPKR } from "@/components/fees/fee-utils";
@@ -48,7 +49,6 @@ import {
   ITEM_TRANSACTION_KINDS,
   libraryMemberSchema,
   PAGE_SIZES,
-  phoneCallFormSchema,
   postalFormSchema,
   POSTAL_DIRECTIONS,
   supplierSchema,
@@ -1310,88 +1310,8 @@ export function PostalPanel() {
 }
 
 export function PhoneCallsPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/phone-calls"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // PhoneCallLog is (name, phone, direction, date, followUpDate, note), with
-  // direction stored as IN/OUT. The old form sent `callerName`, the strings
-  // INCOMING/OUTGOING, a `purpose` field with no column behind it, and no
-  // `date` — which the route requires — so no call could be logged. `phone` is
-  // non-null in the model, so it is required rather than optional here.
-  const form = useValidatedForm({
-    schema: phoneCallFormSchema,
-    initialValues: {
-      name: "",
-      phone: "",
-      direction: "IN",
-      date: new Date().toISOString().slice(0, 10),
-      followUpDate: "",
-      note: "",
-    },
-    onSubmit: async (values) => {
-      if (!(await submitTo("/api/front-desk/phone-calls", values, form))) return;
-      toast.success("Call logged");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Phone} title="Phone Call Log" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Log Call</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Caller" error={form.errors.name}>
-            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} />
-          </OpField>
-          <OpField label="Phone" error={form.errors.phone}>
-            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
-          </OpField>
-          <OpField label="Direction" error={form.errors.direction}>
-            <SystemSelect className={`${inputCls} w-28`} {...form.field("direction")}>
-              <option value="IN">Incoming</option>
-              <option value="OUT">Outgoing</option>
-            </SystemSelect>
-          </OpField>
-          <OpField label="Date" error={form.errors.date}>
-            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("date")} />
-          </OpField>
-          <OpField label="Follow-up" error={form.errors.followUpDate}>
-            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("followUpDate")} />
-          </OpField>
-          <OpField label="Note" error={form.errors.note} width="flex-1">
-            <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Direction", "Caller", "Phone", "Follow-up", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No calls logged" /> : rows.map((c: any) => (
-              <tr key={c.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{c.date ? new Date(c.date).toLocaleDateString() : new Date(c.createdAt).toLocaleString()}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.direction === "IN" ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}>{c.direction === "IN" ? "Incoming" : "Outgoing"}</span></td>
-                <td className={tdCls}>{c.name}</td>
-                <td className={tdCls}>{c.phone || "—"}</td>
-                <td className={tdCls}>{c.followUpDate ? new Date(c.followUpDate).toLocaleDateString() : "—"}</td>
-                <td className={tdCls}>{c.note || "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-465: owned callbacks, restricted notes and history live in PhoneCallLog.
+  return <PhoneCallLog />;
 }
 
 export function CertificatesPanel() {

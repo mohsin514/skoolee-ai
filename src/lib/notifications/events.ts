@@ -389,6 +389,18 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
       return [...new Set([...managers, ...classTeacher, ...teacherIds])];
     },
   },
+  // ── Front desk ─────────────────────────────────────────
+  // SKO-465: the callback owner is told once per callback; the note never travels in the notification.
+  PHONE_CALLBACK_ASSIGNED: {
+    title: () => "Callback assigned to you",
+    message: (c) => `Return the call from ${s(c.callerName)} (assigned by ${s(c.actorName)})`,
+    icon: "PhoneCall",
+    link: "/receptionist?view=phone-calls",
+    category: "ACTION",
+    source: (c) => (c.callbackId ? { type: "callback", id: s(c.callbackId) } : null),
+    dueAt: (c) => (c.dueAt ? new Date(s(c.dueAt)) : null),
+    recipients: async (c) => (c.ownerId ? [s(c.ownerId)] : []),
+  },
   // ── Leave Management ───────────────────────────────────
   LEAVE_APPLIED: {
     title: () => "Leave request to review",

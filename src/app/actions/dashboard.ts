@@ -1683,7 +1683,7 @@ async function receptionistSummary(schoolId: string, campusId: string) {
   const today = startOfToday();
   const fortnight = daysAgo(13);
 
-  const [visitorsToday, openVisits, visitors, complaintGroups, calls, postal, certificates] = await Promise.all([
+  const [visitorsToday, openVisits, visitors, complaintGroups, calls, callbacksDue, postal, certificates] = await Promise.all([
     prisma.visitorLog.count({ where: { campusId, schoolId, inTime: { gte: today }, status: { not: "REFUSED" } } }),
     // On site means not yet checked out, whatever the arrival day; refused visitors were never admitted (SKO-466).
     prisma.visitorLog.count({ where: { campusId, schoolId, status: "ON_SITE" } }),
@@ -1695,8 +1695,10 @@ async function receptionistSummary(schoolId: string, campusId: string) {
     prisma.complaint.groupBy({ by: ["status"], where: { campusId, schoolId, confidential: false }, _count: true }),
     prisma.phoneCallLog.findMany({
       where: { campusId, schoolId, date: { gte: fortnight } },
-      select: { date: true, direction: true, followUpDate: true },
+      select: { date: true, direction: true },
     }),
+    // Open callbacks due by the end of today, overdue ones included; a count only, never a caller or note (SKO-465).
+    prisma.phoneCallback.count({ where: { campusId, schoolId, status: "OPEN", dueAt: { lt: new Date(today.getTime() + 86_400_000) } } }),
     prisma.postalRecord.findMany({
       where: { campusId, schoolId, date: { gte: fortnight } },
       select: { date: true, direction: true },
@@ -1713,7 +1715,7 @@ async function receptionistSummary(schoolId: string, campusId: string) {
     callsByDay: bucketByDay(calls.map((c) => ({ date: c.date })), 14),
     callsIn: calls.filter((c) => c.direction === "IN").length,
     callsOut: calls.filter((c) => c.direction === "OUT").length,
-    followUpsDue: calls.filter((c) => c.followUpDate && c.followUpDate >= today).length,
+    followUpsDue: callbacksDue,
     postalReceived: postal.filter((p) => p.direction === "RECEIVE").length,
     postalDispatched: postal.filter((p) => p.direction === "DISPATCH").length,
     postalByDay: bucketByDay(postal.map((p) => ({ date: p.date })), 14),

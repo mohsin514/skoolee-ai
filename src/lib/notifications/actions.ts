@@ -12,6 +12,7 @@ import { requireMembership } from "@/lib/chat/membership";
 export type SourceState = "open" | "resolved" | "unavailable";
 export type SourceView = { state: SourceState; link: string | null; resolution?: string | null };
 const LEADERS = ["SUPER_ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"];
+const FRONT_DESK = [...LEADERS, "ADMIN", "RECEPTIONIST"];
 
 async function canReviewLeave(user: AuthUser, db: TxClient) {
   if (!LEADERS.includes(user.role)) return false;
@@ -27,6 +28,15 @@ export async function sourceView(user: AuthUser, row: { sourceType: string | nul
     if (!request || !(await canReviewLeave(user, db)) || (user.role !== "SUPER_ADMIN" && request.campusId !== user.campusId)) return { state: "unavailable", link: null };
     const link = user.role === "PRINCIPAL" ? "/principal?view=leave" : "/admin?view=leave";
     if (request.status !== "PENDING") return { state: "resolved", link, resolution: request.status === "CANCELLED" ? "CANCELLED" : "COMPLETED" };
+    return { state: "open", link };
+  }
+  if (row.sourceType === "callback") {
+    // SKO-465: the action is the owner's until the callback is completed or handed to someone else.
+    const callback = await db.phoneCallback.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, ownerId: true, campusId: true } });
+    if (!callback || (user.role !== "SUPER_ADMIN" && callback.campusId !== user.campusId) || !FRONT_DESK.includes(user.role)) return { state: "unavailable", link: null };
+    const link = user.role === "RECEPTIONIST" ? "/receptionist?view=phone-calls" : user.role === "PRINCIPAL" ? "/principal?view=phone-calls" : "/admin?view=phone-calls";
+    if (callback.status !== "OPEN") return { state: "resolved", link, resolution: "COMPLETED" };
+    if (callback.ownerId !== user.userId) return { state: "resolved", link, resolution: "REASSIGNED" };
     return { state: "open", link };
   }
   if (row.sourceType === "chat") {

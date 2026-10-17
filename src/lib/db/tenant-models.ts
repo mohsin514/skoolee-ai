@@ -119,6 +119,8 @@ export const TENANT_MODELS = new Set<string>([
   "payrollRun",
   "periodDefinition",
   "phoneCallLog",
+  "phoneCallback",
+  "phoneCallbackEvent",
   "postalRecord",
   "promptTemplate",
   "readinessTask",
