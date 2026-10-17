@@ -18,6 +18,7 @@ import { CoverageGaps, QuestionBank, QuestionBankLabels } from "./question-bank"
 import { CurriculumExecution } from "./curriculum-execution";
 import { LearningPlanEditor, LearningTools } from "./learning-plans";
 import { PaperSemanticReview } from "./paper-semantic-review";
+import { ExamReleasePanel } from "./exam-release-panel";
 import { learningCopy } from "./learning-copy";
 import { useWorkspaceDraft } from "./draft-safety";
 
@@ -211,6 +212,11 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
         </>}
       </fieldset>
       {curriculum && <LearningTools key={`learning:${selected?.id ?? "draft"}:${selected?.version ?? 0}`} record={selected} curriculum={curriculum} locale={locale} disabled={dirty || !canCreate || busy || (curriculum.lessonPlans?.length ?? 0) >= 50} onGenerated={plan => { setSelected(null); idempotencyKey.current = uid(); changeCurriculum({ ...curriculum, lessonPlans: [...(curriculum.lessonPlans ?? []).filter(row => row.id !== plan.id), plan] }); setMessage(learningCopy(locale).newDraft); }} />}
+      {paper && selected && kind === "PAPER" && !dirty && <ExamReleasePanel key={`release:${selected.id}:${selected.version}`} recordId={selected.id} locale={locale} canApprove={canApprove} disabled={!canCreate || busy} onChanged={async () => {
+        // Review decisions write a new server version; reopen it so the editor never saves over them.
+        const response = await fetch(`/api/school-ai/workspace/${encodeURIComponent(selected.id)}`, { cache: "no-store" }); const payload = await response.json();
+        if (response.ok) loadRecord(payload.record ?? payload.data); await onRefresh();
+      }} />}
       {paper && <PaperSemanticReview key={`semantics:${selected?.id ?? "draft"}:${selected?.version ?? 0}`} record={selected} paper={paper} locale={locale} disabled={dirty || !canCreate || busy} />}
       {curriculum && selected?.status === "APPROVED" && <CurriculumExecution key={`execution:${selected.id}:${selected.version}`} record={selected} language={locale} canApply={canApprove} onApplied={onRefresh} />}
       <div className="sk-panel flex flex-wrap items-center gap-3 p-4"><Button disabled={busy || readonly} onClick={() => save()}><Save />{t.save}</Button><Button variant="outline" disabled={busy} onClick={readiness}>{t.validate}</Button><Button variant="outline" disabled={busy || readonly || dirty || !selected} onClick={() => save("review")}>{t.submitReview}</Button>{canApprove && selected?.status === "IN_REVIEW" && <Button disabled={busy || dirty} onClick={approve}>{t.approve}</Button>}{paper && <Button variant="outline" disabled={busy || selected?.status !== "APPROVED" || dirty} onClick={print}><Printer />{t.print}</Button>}{dirty && <span className="text-sm text-ink-subtle">{t.unsaved}</span>}</div>{paper && <p className="text-sm text-ink-subtle">{t.printHint}</p>}

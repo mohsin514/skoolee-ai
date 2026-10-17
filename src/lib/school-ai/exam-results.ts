@@ -20,12 +20,14 @@ export async function getExamResults(user: AuthUser, assignmentId: string, attem
   const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
   if (!student) await staffExamAccess(user, assignment, "view", tx);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, ...(student ? { studentId: student.id, userId: user.userId } : { id: attemptId ?? "" }) } });
-  if (!attempt || (student && new Date() < assignment.endsAt)) return { attempt: null, revisions: [], appeals: [] };
+  // SKO-408: learners see moderated results only after an explicit release, never automatically.
+  if (!attempt || (student && (!assignment.resultsReleasedAt || new Date() < assignment.endsAt))) return { attempt: null, revisions: [], appeals: [], released: !!assignment.resultsReleasedAt };
   const revisions = await tx.schoolAiExamResultRevision.findMany({ where: { attemptId: attempt.id, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { version: "desc" }, take: 100 });
   const appeals = await tx.schoolAiExamAppeal.findMany({ where: { attemptId: attempt.id, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { createdAt: "desc" }, take: 100 });
   // Criterion IDs and teacher evidence are authoring data. Students receive reviewed feedback only.
   const candidateReview = (value: unknown) => { const stored = value as { marks: unknown; note: unknown }; const parsed = examReviewSchema.parse({ marks: stored.marks, note: stored.note }); return { note: parsed.note, marks: parsed.marks.map(({ questionId, marks, feedback }) => ({ questionId, marks, feedback })), total: parsed.marks.reduce((sum, item) => sum + item.marks, 0) }; };
   return {
+   released: !!assignment.resultsReleasedAt, resultsReleasedAt: assignment.resultsReleasedAt,
    attempt: { id: attempt.id, status: attempt.status, reviewVersion: attempt.reviewVersion, review: attempt.review ? candidateReview(attempt.review) : null },
    revisions: revisions.map(row => ({ id: row.id, version: row.version, reason: row.reason, review: student ? candidateReview(row.review) : row.review, createdAt: row.createdAt })),
    appeals: appeals.map(row => ({ id: row.id, resultVersion: row.resultVersion, version: row.version, status: row.status, reason: row.reason, resolution: row.resolution, createdAt: row.createdAt, resolvedAt: row.resolvedAt })),
@@ -65,7 +67,7 @@ export async function appealExamResult(user: AuthUser, assignmentId: string, raw
  return schoolAiTransaction(user, async tx => {
   const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
   if (!student) throw new ApiError("Only the assigned student can request a result review.", 403);
-  if (new Date() < assignment.endsAt) throw new ApiError("Results become available after the exam window closes.", 409);
+  if (new Date() < assignment.endsAt || !assignment.resultsReleasedAt) throw new ApiError("Results become available after your school releases them.", 409);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId, status: "REVIEWED", reviewVersion: input.version } });
   if (!attempt) throw new ApiError("The result changed or is awaiting moderation. Refresh the result.", 409);
   const existing = await tx.schoolAiExamAppeal.findUnique({ where: { attemptId_resultVersion: { attemptId: attempt.id, resultVersion: input.version } } });

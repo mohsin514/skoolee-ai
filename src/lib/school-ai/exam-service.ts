@@ -1,4 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { sealRelease } from "./exam-release-service";
+import { contentHashPrefix } from "./release";
 import { DELIVERED_EXAM_MODES } from "./exam";
 import { approvedProfileFor, assertSecureAdmission, secureAdmission, supervisedAlternatives } from "./secure-browser-service";
 import { effectiveSettings } from "@/lib/accommodations/plan";
@@ -112,7 +114,10 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
     // SKO-449: a secure exam pins the approved profile version it is delivered with.
     if (input.mode !== "SECURE_BROWSER" && input.secureProfileId) throw new ApiError("A secure browser profile applies only to Safe Exam Browser exams.", 400);
     const secureProfile = input.mode === "SECURE_BROWSER" ? await approvedProfileFor(tx, user, record.campusId!, input.secureProfileId ?? "") : null;
-    const created = await tx.schoolAiExamAssignment.create({ data: { ...(secureProfile ? { secureProfileId: secureProfile.id, secureProfileVersion: secureProfile.version } : {}), id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: input.mode, status: "ACTIVE" }, select: selection });
+    // SKO-408: the sealed release — workbench papers must pass every release precondition; the hash is recorded either way.
+    const stored = await tx.schoolAiRecord.findFirstOrThrow({ where: { id: record.id, schoolId: user.schoolId }, select: { createdById: true } });
+    const seal = await sealRelease(tx, user, { id: record.id, version: record.version, createdById: stored.createdById, campusId: record.campusId }, paper);
+    const created = await tx.schoolAiExamAssignment.create({ data: { contentHash: seal.contentHash, rehearsalId: seal.rehearsalId, ...(secureProfile ? { secureProfileId: secureProfile.id, secureProfileVersion: secureProfile.version } : {}), id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: input.mode, status: "ACTIVE" }, select: selection });
     await writeAuditEvent(tx, user, { table: "school_ai_exam_assignments", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { paperId: record.id, paperVersion: created.paperVersion, classId: created.classId, status: created.status, mode: created.mode, students: input.studentIds.length, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() } });
     return created;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
@@ -126,7 +131,7 @@ export async function getSchoolAiExam(user: AuthUser, id: string) {
   const extraMinutes = effective.extraMinutes, breakMinutes = effective.breakMinutes;
   const recording = proctorPolicy(assignment.proctorPolicy);
   const secureBrowser = student ? await secureAdmission(prisma, assignment, student.id) : { required: assignment.mode === "SECURE_BROWSER" };
-  return { secureBrowser, version: assignment.version, integrityPolicy: examIntegrityDisclosure(assignment.proctorPolicy), cameraRequired: recording.requireCamera && !accommodation?.cameraExempt, cameraRetentionDays: recording.retentionDays, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false, cameraExempt: accommodation?.cameraExempt ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
+  return { secureBrowser, paperVersion: assignment.paperVersion, contentHashPrefix: assignment.contentHash ? contentHashPrefix(assignment.contentHash) : null, version: assignment.version, integrityPolicy: examIntegrityDisclosure(assignment.proctorPolicy), cameraRequired: recording.requireCamera && !accommodation?.cameraExempt, cameraRetentionDays: recording.retentionDays, baseDurationMinutes: paper.blueprint.durationMinutes, extraMinutes, breakMinutes, assistance: { reader: accommodation?.reader ?? false, scribe: accommodation?.scribe ?? false, largeText: accommodation?.largeText ?? false, cameraExempt: accommodation?.cameraExempt ?? false }, id: assignment.id, title: assignment.title, startsAt: assignment.startsAt, endsAt: assignment.endsAt, mode: assignment.mode, durationMinutes: paper.blueprint.durationMinutes + extraMinutes + breakMinutes, totalMarks: paper.blueprint.totalMarks, status: assignment.status, role: user.role, serverNow: new Date().toISOString() };
 }
 
 function receipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; responses: unknown; submittedAt: Date | null }, paper: PaperData, now: Date) {

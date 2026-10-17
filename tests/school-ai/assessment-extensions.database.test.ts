@@ -32,7 +32,10 @@ const ctx = <T>(user: AuthUser, work: () => Promise<T>) => runWithTenantContext(
 const review = (marks = 2) => ({ note: "Evidence checked", marks: [{ questionId: "q1", marks: 2, feedback: "Correct" }, { questionId: "q3", marks, feedback: "Method reviewed", evidence: [{ criterionId: "r2", quote: "combine", marks }] }] });
 const create = () => ctx(admin, () => createSchoolAiExam(admin, { idempotencyKey: randomUUID(), paperId, title: "Advanced assessment fixture", startsAt: "2026-10-12T09:59:00Z", endsAt: "2026-10-12T11:00:00Z", studentIds: [studentId,secondId], mode: "STANDARD" }, now));
 async function submitted() { const exam = await create(); const attempt = await ctx(student, () => startSchoolAiExam(student, exam.id, now)); await ctx(student, () => saveSchoolAiAttempt(student, exam.id, { sequence: 1, responses: { q1: "a1", q3: "I combine the quantities." }, submit: true }, now)); return { exam, attempt: attempt! }; }
-async function moderated() { const result = await submitted(); await ctx(admin, () => reviewSchoolAiAttempt(admin, result.exam.id, result.attempt.id, review(), now)); return result; }
+async function moderated() { const result = await submitted(); await ctx(admin, () => reviewSchoolAiAttempt(admin, result.exam.id, result.attempt.id, review(), now));
+  // SKO-408: learners see results only after an explicit release (covered by exam-release tests); fixtures record one.
+  await raw.schoolAiExamAssignment.update({ where: { id: result.exam.id }, data: { resultsReleasedAt: new Date(), resultsReleasedById: admin.userId } });
+  return result; }
 before(async () => {
  await raw.school.create({ data: { id: schoolId, name: "Synthetic advanced assessments", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Synthetic", status: "ACTIVE", plan: "PRO" } });
  for (const id of [campusId, otherAdmin.campusId!]) await raw.campus.create({ data: { id, schoolId, name: "Synthetic", regId: id, city: "Synthetic" } });

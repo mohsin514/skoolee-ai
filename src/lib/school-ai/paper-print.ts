@@ -8,7 +8,7 @@ const copy: Record<AssessmentLocale, { paper: string; name: string; roll: string
 const escape = (value: unknown) => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 
 /** One key-free projection feeds both online and print. Never serialize the authoring object into HTML. */
-export function buildCandidatePaperHtml(raw: PaperData, version: number): string {
+export function buildCandidatePaperHtml(raw: PaperData, version: number, hashPrefix: string | null = null): string {
   const paper = paperDataSchema.parse(raw);
   if (!Number.isSafeInteger(version) || version < 1) throw new Error("INVALID_APPROVED_PAPER_VERSION");
   const projection = candidatePaper(paper), c = copy[paper.language];
@@ -59,5 +59,5 @@ html[dir="rtl"] h2 { text-align: right; }
 .ending { text-align: center; border-top: 1px solid #87919d; padding-top: 12px; margin-top: 24px; font-size: 9pt; break-inside: avoid; break-before: avoid; }
 @media print { body { padding: 0; max-width: none; } }
 @media screen and (max-width: 500px) { body { padding: 16px; } h1 { font-size: 18pt; } .metadata { gap: 10px; } }
-</style></head><body><header class="masthead"><p class="eyebrow">${c.paper}</p><h1 dir="auto">${escape(projection.title)}</h1><div class="metadata"><span>${num(projection.durationMinutes)} ${c.duration}</span><span>${c.marks}: ${num(projection.totalMarks)}</span><span>${c.version}: ${num(version)}</span></div></header><div class="identity"><span>${c.name}:</span><span>${c.roll}:</span></div>${projection.instructions ? `<p class="instructions" dir="auto">${escape(projection.instructions)}</p>` : ""}${projection.resources?.map(resource => `<section class="section"><h2 dir="auto">${escape(resource.title)}</h2><p class="instructions" dir="auto">${escape(resource.content)}</p></section>`).join("") ?? ""}${sections}</body></html>`;
+</style></head><body><header class="masthead"><p class="eyebrow">${c.paper}</p><h1 dir="auto">${escape(projection.title)}</h1><div class="metadata"><span>${num(projection.durationMinutes)} ${c.duration}</span><span>${c.marks}: ${num(projection.totalMarks)}</span><span>${c.version}: ${num(version)}</span>${hashPrefix ? `<span dir="ltr">#${hashPrefix}</span>` : ""}</div></header><div class="identity"><span>${c.name}:</span><span>${c.roll}:</span></div>${projection.instructions ? `<p class="instructions" dir="auto">${escape(projection.instructions)}</p>` : ""}${projection.resources?.map(resource => `<section class="section"><h2 dir="auto">${escape(resource.title)}</h2><p class="instructions" dir="auto">${escape(resource.content)}</p></section>`).join("") ?? ""}${sections}</body></html>`;
 }

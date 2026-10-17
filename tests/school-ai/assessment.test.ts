@@ -64,9 +64,11 @@ test("server deadlines clamp late starts and classify stale, replay, expired and
   assert.equal(examSaveDecision(request), "STALE"); assert.equal(examSaveDecision({ ...request, sequence: 2 }), "REPLAY"); assert.equal(examSaveDecision({ ...request, sequence: 3 }), "SAVE");
   assert.equal(examSaveDecision({ ...request, now: endsAt }), "EXPIRED"); assert.equal(examSaveDecision({ ...request, status: "SUBMITTED" }), "FINISHED");
 });
-test("unsupported secure/proctored modes fail closed", () => {
+test("unsupported proctored mode fails closed; secure browser needs an approved profile at assignment (SKO-449)", () => {
   assert.doesNotThrow(() => assertSupportedExamMode("STANDARD"));
-  assert.throws(() => assertSupportedExamMode("SECURE_BROWSER"), /not enabled/); assert.throws(() => assertSupportedExamMode("PROCTORED"), /not enabled/);
+  // Mode-level check passes; `createSchoolAiExam` refuses SECURE_BROWSER without an approved, pinned profile (secure-browser.database.test.ts).
+  assert.doesNotThrow(() => assertSupportedExamMode("SECURE_BROWSER"));
+  assert.throws(() => assertSupportedExamMode("PROCTORED"), /not enabled/);
 });
 
 test("accommodation inputs are bounded and cannot forge approval identity", () => {

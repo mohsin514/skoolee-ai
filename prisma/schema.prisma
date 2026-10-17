@@ -228,6 +228,7 @@ model School {
   accommodationLiveAdjustments AccommodationLiveAdjustment[]
   secureBrowserProfiles SecureBrowserProfile[]
   secureBrowserExceptions SecureBrowserException[]
+  schoolAiRehearsals SchoolAiRehearsal[]
   assignments             Assignment[]
   assignmentRubricVersions AssignmentRubricVersion[]
   assignmentVersions      AssignmentVersion[]
@@ -3971,6 +3972,12 @@ model SchoolAiExamAssignment {
   accommodations Json @default("{}")
   gradebookPublication Json? @map("gradebook_publication")
   /// SKO-449: a SECURE_BROWSER exam pins the approved Safe Exam Browser profile version it was assigned with.
+  /// SKO-408: the sealed release — key-free content hash of the delivered paper, the rehearsal it relied on
+  /// (null only for legacy papers that never entered the item workbench) and the explicit result release.
+  contentHash          String?   @map("content_hash")
+  rehearsalId          String?   @map("rehearsal_id")
+  resultsReleasedAt    DateTime? @map("results_released_at")
+  resultsReleasedById  String?   @map("results_released_by_id")
   secureProfileId      String? @map("secure_profile_id")
   secureProfileVersion Int?    @map("secure_profile_version")
   status       String @default("DRAFT")
@@ -4987,4 +4994,23 @@ model SecureBrowserException {
   @@unique([assignmentId, studentId])
   @@index([schoolId, assignmentId])
   @@map("secure_browser_exceptions")
+}
+
+
+/// SKO-408: a staff rehearsal of one exact paper version. Results are BLOCKING or ADVISORY; a blocking
+/// result stands until a new paper version is rehearsed clean. Rows are append-only evidence.
+model SchoolAiRehearsal {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  recordId     String   @map("record_id")
+  paperVersion Int      @map("paper_version")
+  results      Json
+  blocking     Int      @default(0)
+  actorId      String   @map("actor_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, recordId, paperVersion])
+  @@map("school_ai_rehearsals")
 }
