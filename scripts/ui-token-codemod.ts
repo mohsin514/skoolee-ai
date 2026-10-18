@@ -68,7 +68,7 @@ function splitVariant(token: string): [string, string] {
 }
 
 export function transformClasses(text: string): string {
-  if (!/(?:-\[#|text-\[|font-(?:black|extrabold|bold)|tracking-)/.test(text)) return text;
+  if (!/(?:-\[#|text-\[|font-(?:black|extrabold|bold)|tracking-|shadow-\[)/.test(text)) return text;
   const tokens = text.split(/(\s+)/);
   const utilities = tokens.filter((t) => t.trim()).map((t) => splitVariant(t)[1]);
   const uppercase = utilities.includes("uppercase");
@@ -94,6 +94,9 @@ export function transformClasses(text: string): string {
     else if (utility === "font-bold" && uppercase) utility = "font-semibold";
 
     if (uppercase && WIDE_TRACKING.has(utility)) utility = "tracking-wider";
+
+    // Shadows are soft purple, never black or charcoal.
+    if (/^shadow-\[/.test(utility)) utility = utility.replace(/rgba?\((?:31,26,35|0,0,0)(,[\d.]+)?\)/g, (_m, a) => `rgba(120,70,180${a ?? ",0.2"})`).replace(/rgba?\((?:31_26_35|0_0_0)(_?\/_?[\d.]+)?\)/g, (_m, a) => `rgb(120_70_180${a ?? "/0.2"})`);
 
     return `${variant}${important}${utility}`;
   }).join("");

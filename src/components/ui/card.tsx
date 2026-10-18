@@ -37,7 +37,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, variant =
         cardSurface,
         cardVariants[variant],
         interactive
-          ? "cursor-pointer hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] motion-reduce:hover:translate-y-0"
+          ? "cursor-pointer hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(170,150,210,0.30),0_22px_50px_-16px_rgba(129,39,207,0.32)] motion-reduce:hover:translate-y-0"
           : variant === "default" && "hover:border-primary/20",
         className
       )}

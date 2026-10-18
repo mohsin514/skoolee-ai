@@ -219,14 +219,14 @@
      Tinted with the brand's own plum instead of neutral black, so a shadow
      reads as depth on the lilac canvas rather than as grey dirt. Replaces the
      Tailwind defaults, which keeps every existing shadow-sm…2xl consistent. */
-  --shadow-2xs: 0 1px 0 rgb(31 26 35 / 0.04);
-  --shadow-xs: 0 1px 2px rgb(31 26 35 / 0.06);
-  --shadow-sm: 0 1px 2px rgb(31 26 35 / 0.05), 0 2px 6px -2px rgb(80 42 118 / 0.12);
-  --shadow: 0 1px 3px rgb(31 26 35 / 0.06), 0 6px 16px -8px rgb(80 42 118 / 0.18);
-  --shadow-md: 0 2px 4px rgb(40 23 60 / 0.04), 0 12px 28px -14px rgb(80 42 118 / 0.26);
-  --shadow-lg: 0 4px 10px -4px rgb(31 26 35 / 0.08), 0 22px 48px -22px rgb(80 42 118 / 0.34);
-  --shadow-xl: 0 8px 20px -8px rgb(31 26 35 / 0.10), 0 32px 72px -28px rgb(80 42 118 / 0.40);
-  --shadow-2xl: 0 40px 96px -32px rgb(31 26 35 / 0.38);
+  --shadow-2xs: 0 1px 0 rgb(168 150 200 / 0.18);
+  --shadow-xs: 0 1px 2px rgb(150 130 190 / 0.16);
+  --shadow-sm: 0 1px 2px rgb(160 140 200 / 0.14), 0 3px 8px -3px rgb(129 39 207 / 0.12);
+  --shadow: 0 1px 3px rgb(160 140 200 / 0.16), 0 8px 18px -8px rgb(129 39 207 / 0.16);
+  --shadow-md: 0 2px 6px rgb(170 150 210 / 0.14), 0 14px 30px -14px rgb(129 39 207 / 0.22);
+  --shadow-lg: 0 4px 12px -4px rgb(170 150 210 / 0.20), 0 24px 50px -22px rgb(129 39 207 / 0.28);
+  --shadow-xl: 0 8px 22px -8px rgb(170 150 210 / 0.24), 0 34px 74px -28px rgb(129 39 207 / 0.32);
+  --shadow-2xl: 0 40px 96px -32px rgb(129 39 207 / 0.34);
   --shadow-brand: 0 10px 30px -12px rgb(129 39 207 / 0.55);
   --shadow-glow: 0 0 0 1px rgb(129 39 207 / 0.10), 0 10px 36px -10px rgb(129 39 207 / 0.38);
 }
@@ -782,9 +782,9 @@ button:disabled,
   --radius-pill: 9999px;
   --radius-workspace-mobile: 24px;
   --radius-workspace: 32px;
-  --shadow-panel: 0 2px 4px rgb(40 23 60 / .02), 0 12px 32px -20px rgb(80 42 118 / .24);
-  --shadow-toast: 0 28px 70px -18px rgb(31 26 35 / .28);
-  --shadow-workspace: 0 2px 4px rgb(40 23 60 / .02), 0 20px 60px -30px rgb(80 42 118 / .25), inset 0 1px 0 white;
+  --shadow-panel: 0 1px 3px rgb(170 150 210 / 0.14), 0 12px 32px -18px rgb(129 39 207 / 0.22);
+  --shadow-toast: 0 24px 60px -18px rgb(129 39 207 / 0.30), 0 2px 8px rgb(170 150 210 / 0.18);
+  --shadow-workspace: 0 2px 6px rgb(170 150 210 / 0.12), 0 20px 60px -30px rgb(129 39 207 / 0.26), inset 0 1px 0 white;
   --duration-fast: 150ms;
   --duration-control: 200ms;
   --duration-dialog-enter: 280ms;
@@ -1297,7 +1297,7 @@ button:disabled,
     .sk-hover-lift:hover {
       transform: translateY(-2px);
       border-color: rgb(129 39 207 / 0.28);
-      box-shadow: 0 10px 28px -8px rgb(31 26 35 / 0.14), 0 22px 50px -18px rgb(129 39 207 / 0.32);
+      box-shadow: 0 10px 28px -8px rgb(170 150 210 / 0.30), 0 22px 50px -18px rgb(129 39 207 / 0.32);
     }
   }
 
@@ -1468,7 +1468,7 @@ button:disabled,
 
 /* Sticky headers and toolbars pick up a shadow only once content scrolls
    beneath them (set data-stuck from an IntersectionObserver, or leave it). */
-[data-stuck="true"] { box-shadow: 0 8px 24px -16px rgb(31 26 35 / 0.35); }
+[data-stuck="true"] { box-shadow: 0 8px 24px -16px rgb(129 39 207 / 0.30); }
 
 @media (prefers-reduced-motion: reduce) {
   .sk-enter, .sk-enter-scale, .sk-fade-in, .sk-stagger > * { animation: none !important; }
