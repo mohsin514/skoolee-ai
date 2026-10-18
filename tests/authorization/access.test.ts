@@ -507,7 +507,7 @@ test('all temporary roles render desktop and mobile dashboard layouts', {timeout
    const journeys: Record<string, [string, string, string, string]> = {
      ACCOUNTANT:['invoices','Invoices','payments','Payments'], LIBRARIAN:['library','Library','leave','Leave'],
      RECEPTIONIST:['visitors','Visitors','complaints','Complaints'], APP_OWNER:['users','Users','audit','Audit Log'],
-     SUPER_ADMIN:['billing','Plans & Billing','settings','School Settings'], PRINCIPAL:['attendance','Attendance','report-cards','Report Cards'],
+     SUPER_ADMIN:['billing','Billing & plan','settings','School Settings'], PRINCIPAL:['attendance','Attendance','report-cards','Report Cards'],
    };
    const journey = journeys[role];
    if (journey) {

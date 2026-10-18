@@ -62,7 +62,7 @@ export function StudentToday() {
         <h2 id="today-heading" className="text-lg font-black">{isToday ? ui("Today") : <bdi>{data ? date(data.day) : ""}</bdi>}</h2>
         {data ? <p className="text-xs text-ink-muted" data-today-context>{data.clock ? <>{ui("School time")}{" "}<bdi>{data.clock}</bdi> · </> : null}<bdi>{data.timezone}</bdi>{data.cycle ? <> · {ui("Academic year")}{" "}<bdi>{data.cycle.label}</bdi></> : null}</p> : null}
       </div>
-      <nav className="flex items-center gap-1" aria-label={ui("Choose a day")}>
+      <nav className="flex min-w-0 max-w-full flex-wrap items-center gap-1" aria-label={ui("Choose a day")}>
         <Button size="sm" variant="outline" disabled={!data || loading} onClick={() => data && setDay(shift(data.day, -1))} data-day-prev>{ui("Previous day")}</Button>
         {!isToday ? <Button size="sm" variant="secondary" onClick={() => setDay(null)} data-day-today>{ui("Today")}</Button> : null}
         <Button size="sm" variant="outline" disabled={!data || loading} onClick={() => data && setDay(shift(data.day, 1))} data-day-next>{ui("Next day")}</Button>
