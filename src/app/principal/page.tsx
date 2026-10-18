@@ -2,6 +2,7 @@
 
 import { ActionQueue } from "@/components/principal/action-queue";
 import { LearningActions } from "@/components/learning/learning-actions";
+import { PolicyManager } from "@/components/policies/policy-manager";
 import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
 import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { Button } from "@/components/ui/button";
@@ -610,6 +611,7 @@ export default function PrincipalDashboard() {
           <div className="space-y-6">
             <ActionQueue campusId={data.campusId} />
             <LearningActions />
+            <PolicyManager />
             <AcademicOverview
               data={data}
               onNavigate={(view) => setActiveView(view as PrincipalView)}

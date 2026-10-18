@@ -7093,3 +7093,76 @@ model PracticeRevisit {
   @@index([schoolId, studentId, status])
   @@map("practice_revisits")
 }
+
+// ─── SKO-429: school policy assistant with cited answers
+
+/// One version of a school policy. Only APPROVED versions whose effective interval contains the
+/// question date, whose audience includes the asker and whose campus matches are ever searched.
+model SchoolPolicy {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  campusId      String?   @map("campus_id")
+  topic         String
+  title         String
+  office        String
+  audience      String
+  language      String    @default("en")
+  version       Int       @default(1)
+  status        String    @default("DRAFT")
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveUntil DateTime? @map("effective_until") @db.Date
+  supersedesId  String?   @map("supersedes_id")
+  /// [{ id, heading, text }]
+  sections      Json
+  createdById   String    @map("created_by_id")
+  approvedById  String?   @map("approved_by_id")
+  approvedAt    DateTime? @map("approved_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, status, audience])
+  @@index([schoolId, topic])
+  @@map("school_policies")
+}
+
+/// A question as asked, with the answer exactly as given (status, quoted sections, versions).
+model PolicyQuestion {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  campusId      String?   @map("campus_id")
+  askedById     String    @map("asked_by_id")
+  audience      String
+  question      String
+  answer        Json
+  status        String
+  feedback      String?
+  feedbackNote  String?   @map("feedback_note")
+  escalation    Json?
+  escalatedAt   DateTime? @map("escalated_at")
+  resolvedAt    DateTime? @map("resolved_at")
+  resolvedById  String?   @map("resolved_by_id")
+  resolution    String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, askedById, createdAt])
+  @@index([schoolId, escalatedAt])
+  @@map("policy_questions")
+}
+
+/// A policy owner's check: this question should be answered from this policy and section.
+model PolicyEvalCase {
+  id              String   @id @default(uuid())
+  schoolId        String   @map("school_id")
+  question        String
+  audience        String
+  expectedTopic   String   @map("expected_topic")
+  expectedSection String?  @map("expected_section")
+  expectNoAnswer  Boolean  @default(false) @map("expect_no_answer")
+  createdById     String   @map("created_by_id")
+  /// [{ at, passed, status, cited }]
+  runs            Json     @default("[]")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId])
+  @@map("policy_eval_cases")
+}

@@ -1,6 +1,7 @@
 "use client";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { LearningActions } from "@/components/learning/learning-actions";
+import { PolicyManager } from "@/components/policies/policy-manager";
 import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -1088,6 +1089,7 @@ export default function CampusAdminDashboard() {
 
           {activeView === "overview" ? <ActionQueue campusId={data.campusId} /> : null}
           {activeView === "overview" ? <LearningActions /> : null}
+          {activeView === "overview" ? <PolicyManager /> : null}
           {activeView === "overview" ? (
             <CampusOverview
               data={data}

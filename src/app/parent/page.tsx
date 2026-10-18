@@ -20,6 +20,7 @@ import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { LearnerInsights, learnerSeriesFromParent } from "@/components/insights";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { FamilyInbox } from "@/components/parent/family-inbox";
+import { PolicyAssistant } from "@/components/policies/policy-assistant";
 import { GuardianDigest } from "@/components/family/family-digest";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ export default function ParentOverviewPage() {
       <div className="space-y-3">
         {/* SKO-419: requests across every child come first; the panels below are the selected child's. */}
         <FamilyInbox />
+        <PolicyAssistant />
         {/* SKO-423: the selected child's reviewed weekly update. */}
         {selectedStudentId ? <GuardianDigest key={selectedStudentId} studentId={selectedStudentId} /> : null}
         <div className="sk-rise grid grid-cols-1 gap-3 md:grid-cols-3" style={{ animationDelay: "40ms" }}>
