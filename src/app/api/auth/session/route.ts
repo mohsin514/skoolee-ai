@@ -3,6 +3,7 @@ import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { runUnscoped } from "@/lib/db/tenant-context";
 import { dashboardPathForRole, roleLabel } from "@/lib/roles";
 import { candidateExamBoundary } from "@/lib/school-ai/exam-boundary-service";
 import { candidateExamUrl } from "@/lib/school-ai/exam-boundary";
@@ -19,10 +20,13 @@ export async function GET() {
       return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
     }
 
-    const profile = await prisma.user.findUnique({
-      where: { id: user.userId },
+    // SKO-484: the caller's own row, matched on id and school. A standalone owner has no campus until setup
+    // activates one, and the campus guard would refuse that read; scoping it to the signed-in identity
+    // keeps it as narrow as the guard while serving every valid session.
+    const profile = await runUnscoped("session: the signed-in user's own profile", () => prisma.user.findFirst({
+      where: { id: user.userId, schoolId: user.schoolId },
       select: { fullName: true, email: true, phone: true, profileImageUrl: true, isActive: true, schoolId: true, role: true, campusId: true },
-    });
+    }));
 
     if (!profile?.isActive || profile.schoolId !== user.schoolId || profile.role !== user.role || profile.campusId !== user.campusId) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
 
