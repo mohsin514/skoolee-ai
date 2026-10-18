@@ -12,6 +12,7 @@ import { GuardianAttendanceExplanations } from "@/components/attendance/class-re
 import { GuardianLeave, GuardianTrips } from "@/components/family/family-requests";
 import { FamilyPickups } from "@/components/pickup/pickup";
 import { FamilyActivities } from "@/components/activities/activities";
+import { FamilyCareMessages } from "@/components/care/care";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,8 @@ export default function ParentAttendancePage() {
         {/* SKO-440: clubs, sports and trips for this child. */}
         {pickupChildId ? <div className="mt-6"><FamilyActivities key={`act-${pickupChildId}`} studentId={pickupChildId} /></div> : null}
         {selectedStudentId ? <GuardianTrips key={`trips-${selectedStudentId}`} studentId={selectedStudentId} /> : null}
+        {/* SKO-439: only messages a safeguarding lead approved for this guardian; nothing is sent automatically. */}
+        <div className="mt-6"><FamilyCareMessages /></div>
       </div>
     </ParentPage>
   );

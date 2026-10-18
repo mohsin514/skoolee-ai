@@ -519,6 +519,49 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/parent/timetable",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-439: confidential notices carry no student, case reference or narrative.
+  SAFEGUARDING_CONCERN_RECEIVED: {
+    title: () => "New concern to triage",
+    message: () => "A safeguarding concern was recorded at your campus.",
+    icon: "ShieldAlert",
+    link: "/care",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SAFEGUARDING_CASE_ASSIGNED: {
+    title: () => "Case assigned to you",
+    message: () => "You are now the owner of a safeguarding case.",
+    icon: "ShieldCheck",
+    link: "/care",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SAFEGUARDING_DISCLOSURE_REVIEW: {
+    title: () => "Disclosure awaiting review",
+    message: () => "A proposed disclosure needs a second lead's review.",
+    icon: "ShieldQuestion",
+    link: "/care",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  CONFIDENTIAL_EMERGENCY_ACCESS: {
+    title: () => "Emergency access opened",
+    message: () => "Emergency access to a confidential record was opened and needs your review.",
+    icon: "ShieldAlert",
+    link: "/care",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  CARE_MESSAGE_STAFF: {
+    title: () => "Message from the school",
+    message: () => "The school shared a message with you.",
+    icon: "Mail",
+    link: "/care",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  CARE_MESSAGE_FAMILY: {
+    title: () => "Message from the school",
+    message: () => "The school shared a message with you.",
+    icon: "Mail",
+    link: "/parent/attendance",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-421: the family hears the outcome only; the reason and any note stay inside the request.
   LEARNER_LEAVE_DECIDED: {
     title: () => "Leave request answered",

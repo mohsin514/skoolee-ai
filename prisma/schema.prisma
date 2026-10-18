@@ -261,6 +261,17 @@ model School {
   activityPlaces ActivityPlace[]
   activitySessions ActivitySession[]
   activityAttendances ActivityAttendance[]
+  confidentialSettings ConfidentialSetting[]
+  confidentialMembers ConfidentialMember[]
+  emergencyAccesses EmergencyAccess[]
+  confidentialAccessLogs ConfidentialAccessLog[]
+  clinicVisits ClinicVisit[]
+  carePlans CarePlan[]
+  medicationInstructions MedicationInstruction[]
+  medicationDoses MedicationDose[]
+  safeguardingConcerns SafeguardingConcern[]
+  safeguardingEntries SafeguardingEntry[]
+  safeguardingDisclosures SafeguardingDisclosure[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -4002,6 +4013,220 @@ model ActivityAttendance {
   @@unique([sessionId, studentId])
   @@index([schoolId, studentId])
   @@map("activity_attendances")
+}
+
+/// SKO-439: confidential clinic and safeguarding workspaces. Each domain has its own membership; clinic access
+/// never grants safeguarding access. Nothing here is indexed by search, shown in student timelines or sent to AI.
+
+model ConfidentialSetting {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId           String   @map("campus_id")
+  domain             String // CLINIC | SAFEGUARDING
+  enabled            Boolean  @default(false)
+  procedureReference String?  @map("procedure_reference")
+  leadUserId         String?  @map("lead_user_id")
+  retentionMonths    Int?     @map("retention_months")
+  confirmedById      String?  @map("confirmed_by_id")
+  confirmedAt        DateTime? @map("confirmed_at")
+
+  @@unique([campusId, domain])
+  @@map("confidential_settings")
+}
+
+model ConfidentialMember {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId    String    @map("campus_id")
+  domain      String // CLINIC | SAFEGUARDING
+  userId      String    @map("user_id")
+  role        String // NURSE | CLINIC_STAFF | LEAD | DEPUTY
+  grantedById String    @map("granted_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  @@index([schoolId, userId, domain])
+  @@map("confidential_members")
+}
+
+model EmergencyAccess {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String    @map("campus_id")
+  domain       String
+  userId       String    @map("user_id")
+  studentId    String    @map("student_id")
+  purpose      String
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewedById String?   @map("reviewed_by_id")
+  reviewNote   String?   @map("review_note")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, userId, studentId])
+  @@map("emergency_accesses")
+}
+
+model ConfidentialAccessLog {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  domain     String
+  recordType String   @map("record_type")
+  recordId   String?  @map("record_id")
+  studentId  String?  @map("student_id")
+  actorId    String   @map("actor_id")
+  action     String // VIEW | EXPORT | CREATE | UPDATE | DENIED
+  emergencyAccessId String? @map("emergency_access_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, domain, createdAt])
+  @@map("confidential_access_logs")
+}
+
+model ClinicVisit {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId    String   @map("campus_id")
+  studentId   String   @map("student_id")
+  arrivedAt   DateTime @map("arrived_at")
+  observation String
+  actionTaken String   @map("action_taken")
+  outcome     String // RETURNED_TO_CLASS | SENT_HOME | EMERGENCY_SERVICES | STAYED_IN_CLINIC
+  recordedById String  @map("recorded_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId])
+  @@map("clinic_visits")
+}
+
+model CarePlan {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String   @map("campus_id")
+  studentId      String   @unique @map("student_id")
+  allergies      String?
+  actionPlan     String?  @map("action_plan")
+  teacherSummary String?  @map("teacher_summary")
+  updatedById    String   @map("updated_by_id")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("care_plans")
+}
+
+model MedicationInstruction {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId          String    @map("campus_id")
+  studentId         String    @map("student_id")
+  medicine          String
+  dose              String
+  schedule          String
+  authorizedBy      String    @map("authorized_by")
+  authorizationRef  String    @map("authorization_ref")
+  validFrom         DateTime  @map("valid_from")
+  validUntil        DateTime  @map("valid_until")
+  approvedById      String    @map("approved_by_id")
+  endedAt           DateTime? @map("ended_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  doses MedicationDose[]
+
+  @@index([schoolId, studentId])
+  @@map("medication_instructions")
+}
+
+model MedicationDose {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  instructionId String   @map("instruction_id")
+  instruction   MedicationInstruction @relation(fields: [instructionId], references: [id], onDelete: Cascade)
+  studentId     String   @map("student_id")
+  givenAt       DateTime @map("given_at")
+  dose          String
+  actorId       String   @map("actor_id")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId])
+  @@map("medication_doses")
+}
+
+model SafeguardingConcern {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String    @map("campus_id")
+  reference     String
+  studentId     String    @map("student_id")
+  source        String // STAFF_OBSERVATION | DISCLOSURE_BY_PUPIL | THIRD_PARTY | OTHER
+  observation   String
+  eventAt       DateTime  @map("event_at")
+  reporterId    String    @map("reporter_id")
+  ownerId       String?   @map("owner_id")
+  status        String    @default("NEW") // NEW | TRIAGED | ESCALATED | CLOSED
+  escalation    String?   // INTERNAL_REVIEW | EXTERNAL_REFERRAL
+  implicatedGuardianIds String[] @default([]) @map("implicated_guardian_ids")
+  version       Int       @default(1)
+  idempotencyKey String   @map("idempotency_key")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  closedAt      DateTime? @map("closed_at")
+
+  entries     SafeguardingEntry[]
+  disclosures SafeguardingDisclosure[]
+
+  @@unique([schoolId, reference])
+  @@unique([reporterId, idempotencyKey])
+  @@index([schoolId, campusId, status])
+  @@map("safeguarding_concerns")
+}
+
+model SafeguardingEntry {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  concernId String   @map("concern_id")
+  concern   SafeguardingConcern @relation(fields: [concernId], references: [id], onDelete: Cascade)
+  kind      String // CREATED | NOTE | OWNER | STATUS | ESCALATION | DISCLOSURE | CLOSED
+  body      String?
+  detail    Json     @default("{}")
+  actorId   String   @map("actor_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, concernId])
+  @@map("safeguarding_entries")
+}
+
+model SafeguardingDisclosure {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  concernId       String    @map("concern_id")
+  concern         SafeguardingConcern @relation(fields: [concernId], references: [id], onDelete: Cascade)
+  recipientType   String    @map("recipient_type") // GUARDIAN | STAFF | EXTERNAL_AGENCY
+  recipientUserId String?   @map("recipient_user_id")
+  recipientName   String    @map("recipient_name")
+  purpose         String
+  content         String
+  contentHash     String    @map("content_hash")
+  status          String    @default("PROPOSED") // PROPOSED | APPROVED | DECLINED | RELEASED
+  proposedById    String    @map("proposed_by_id")
+  reviewedById    String?   @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  releasedAt      DateTime? @map("released_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, concernId])
+  @@map("safeguarding_disclosures")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
