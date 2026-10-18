@@ -9451,3 +9451,67 @@ model SchoolAiAssessmentRepair {
   @@index([schoolId, campusId, assignmentId, status])
   @@map("school_ai_assessment_repairs")
 }
+
+// ─── SKO-471: learning transfer bridge. A receiving school imports permissioned evidence from another
+// school or curriculum for a learner it already enrolls (no new identity, no universal score, no automatic
+// placement). One case per learner and source learner reference: a replayed export is the same case; a new
+// source version makes every mapping and the bridge stale. Reading the evidence needs a guardian's current
+// consent; teachers review every mapping (one-to-many and "not comparable" allowed) before a bridge plan.
+model LearningTransferCase {
+  id                   String    @id @default(uuid())
+  schoolId             String    @map("school_id")
+  campusId             String    @map("campus_id")
+  studentId            String    @map("student_id")
+  sourceInstitution    String    @map("source_institution")
+  sourceLearnerRef     String    @map("source_learner_ref")
+  sourceCurriculumId   String    @map("source_curriculum_id")
+  sourceCurriculumName String    @map("source_curriculum_name")
+  sourceVersion        String    @map("source_version")
+  sourceLanguage       String?   @map("source_language")
+  sourceHash           String    @map("source_hash")
+  evidence             Json
+  destinationRecordId  String?   @map("destination_record_id")
+  destinationVersion   Int?      @map("destination_version")
+  consentGuardianId    String?   @map("consent_guardian_id")
+  consentScope         Json      @default("[]") @map("consent_scope")
+  consentGrantedAt     DateTime? @map("consent_granted_at")
+  consentExpiresAt     DateTime? @map("consent_expires_at")
+  consentRevokedAt     DateTime? @map("consent_revoked_at")
+  status               String    @default("DRAFT") // DRAFT, MAPPING, PLANNED, STALE
+  bridge               Json?
+  bridgePlanId         String?   @map("bridge_plan_id")
+  downloads            Json      @default("[]")
+  createdById          String    @map("created_by_id")
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+  mappings             LearningTransferMapping[]
+
+  @@unique([schoolId, studentId, sourceInstitution, sourceLearnerRef])
+  @@index([schoolId, campusId, status])
+  @@map("learning_transfer_cases")
+}
+
+model LearningTransferMapping {
+  id                     String    @id @default(uuid())
+  schoolId               String    @map("school_id")
+  caseId                 String    @map("case_id")
+  transferCase           LearningTransferCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  sourceObjectiveId      String    @map("source_objective_id")
+  sourceObjectiveVersion String    @map("source_objective_version")
+  sourceVersion          String    @map("source_version")
+  destinationVersion     Int?      @map("destination_version")
+  targetOutcomeIds       Json      @default("[]") @map("target_outcome_ids")
+  suggestion             Json?
+  decision               String    @default("PROPOSED") // PROPOSED, ACCEPTED, NOT_COMPARABLE, REJECTED
+  note                   String?   @db.Text
+  stale                  Boolean   @default(false)
+  reviewedById           String?   @map("reviewed_by_id")
+  reviewedAt             DateTime? @map("reviewed_at")
+  version                Int       @default(1)
+
+  @@unique([caseId, sourceObjectiveId])
+  @@index([schoolId, caseId])
+  @@map("learning_transfer_mappings")
+}
+

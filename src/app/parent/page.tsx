@@ -16,6 +16,7 @@ import {
 import { ParentPage } from "@/components/parent/parent-page";
 import { PathwayPanel } from "@/components/pathways/pathway-panel";
 import { FamilyCanteen } from "@/components/campus-packages/campus-packages";
+import { FamilyTransferConsent } from "@/components/learning/learning-transfer";
 import { ParentErrorState, ParentOverviewSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "./parent-data-context";
 import { useLocaleFormat } from "@/components/locale/LocaleProvider";
@@ -69,6 +70,7 @@ export default function ParentOverviewPage() {
         <FamilyInbox />
         <PathwayPanel />
         <FamilyCanteen />
+        <FamilyTransferConsent />
         <PolicyAssistant />
         {/* SKO-423: the selected child's reviewed weekly update. */}
         {selectedStudentId ? <GuardianDigest key={selectedStudentId} studentId={selectedStudentId} /> : null}

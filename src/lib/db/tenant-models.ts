@@ -158,6 +158,8 @@ export const TENANT_MODELS = new Set<string>([
   "learnerLeaveRequest",
   "learningResource",
   "learningResourceVersion",
+  "learningTransferCase",
+  "learningTransferMapping",
   "leaveAllocation",
   "leaveRequest",
   "leaveType",
