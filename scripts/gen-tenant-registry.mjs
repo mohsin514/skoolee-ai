@@ -33,6 +33,7 @@ const GLOBAL = [
   "SuperAdminAuditLog",
   "StripeWebhookReceipt", // Provider event receipts are globally unique and contain no tenant payload.
   "DataServiceVerification", // Platform hosting evidence for a service/region; no tenant data.
+  "Pilot", "PilotObservation", "PilotMeasure", "PilotClaim", // SKO-430: platform-operator pilot evidence; schools by reference, participants pseudonymous.
 ];
 
 const schema = fs.readFileSync(path.join(root, "prisma/schema.prisma"), "utf8");

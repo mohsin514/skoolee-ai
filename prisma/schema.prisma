@@ -6459,3 +6459,117 @@ model InterventionEvent {
   @@index([schoolId])
   @@map("intervention_events")
 }
+
+// ─── SKO-430: pilot measurement (platform-level, owner-only; no tenant data columns)
+
+/// A pilot charter. Linked to a school by reference only, so pilot evidence stays a platform
+/// operator record; participants are recorded under pseudonyms, never as user ids.
+model Pilot {
+  id                  String    @id @default(uuid())
+  name                String
+  targetSchoolId      String?   @map("target_school_id")
+  country             String
+  curriculum          String
+  language            String
+  useCase             String    @map("use_case")
+  startsOn            DateTime  @map("starts_on") @db.Date
+  endsOn              DateTime? @map("ends_on") @db.Date
+  championName        String    @map("champion_name")
+  measurementOwnerId  String    @map("measurement_owner_id")
+  /// [{ key, definition, successDefinition }]
+  workflows           Json
+  consentReference    String?   @map("consent_reference")
+  consentRecordedAt   DateTime? @map("consent_recorded_at")
+  /// NONE, AGGREGATE (anonymised figures only) or NAMED (the school may be identified).
+  caseStudyPermission String    @default("NONE") @map("case_study_permission")
+  permissionReference String?   @map("permission_reference")
+  synthetic           Boolean   @default(false)
+  status              String    @default("PLANNED")
+  createdById         String    @map("created_by_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  observations PilotObservation[]
+  measures     PilotMeasure[]
+  claims       PilotClaim[]
+
+  @@index([country, curriculum, language])
+  @@map("pilots")
+}
+
+/// One timed task. Active, elapsed and correction time are separate and nullable: a missing
+/// value is missing, never filled from another measure.
+model PilotObservation {
+  id                String   @id @default(uuid())
+  pilotId           String   @map("pilot_id")
+  pilot             Pilot    @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  workflow          String
+  phase             String
+  participant       String
+  task              String
+  difficulty        String
+  activeSeconds     Int?     @map("active_seconds")
+  elapsedSeconds    Int?     @map("elapsed_seconds")
+  correctionSeconds Int?     @map("correction_seconds")
+  completed         Boolean
+  assisted          Boolean  @default(false)
+  failureNote       String?  @map("failure_note")
+  source            String
+  synthetic         Boolean  @default(false)
+  excludedReason    String?  @map("excluded_reason")
+  observedOn        DateTime @map("observed_on") @db.Date
+  recordedById      String   @map("recorded_by_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([pilotId, workflow, phase])
+  @@map("pilot_observations")
+}
+
+/// Correctness samples, adoption, support, cost, satisfaction and commercial evidence. `state`
+/// keeps measured values apart from self-reports, targets and verbal intent.
+model PilotMeasure {
+  id           String    @id @default(uuid())
+  pilotId      String    @map("pilot_id")
+  pilot        Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  kind         String
+  workflow     String?
+  periodStart  DateTime  @map("period_start") @db.Date
+  periodEnd    DateTime  @map("period_end") @db.Date
+  value        Float?
+  denominator  Float?
+  unit         String
+  state        String
+  method       String
+  reference    String?
+  synthetic    Boolean   @default(false)
+  supersededAt DateTime? @map("superseded_at")
+  recordedById String    @map("recorded_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([pilotId, kind])
+  @@map("pilot_measures")
+}
+
+/// A proposed external statement. Approval freezes the finding it rests on; a later change to
+/// that finding makes the claim stale and blocks it from export until reviewed again.
+model PilotClaim {
+  id           String    @id @default(uuid())
+  pilotId      String    @map("pilot_id")
+  pilot        Pilot     @relation(fields: [pilotId], references: [id], onDelete: Cascade)
+  version      Int       @default(1)
+  statement    String
+  findingKey   String    @map("finding_key")
+  identifiable Boolean   @default(false)
+  status       String    @default("DRAFT")
+  snapshot     Json?
+  snapshotHash String?   @map("snapshot_hash")
+  reviewNote   String?   @map("review_note")
+  reviewedById String?   @map("reviewed_by_id")
+  reviewedAt   DateTime? @map("reviewed_at")
+  history      Json      @default("[]")
+  createdById  String    @map("created_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([pilotId, status])
+  @@map("pilot_claims")
+}
