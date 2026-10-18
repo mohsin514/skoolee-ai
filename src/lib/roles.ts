@@ -100,6 +100,8 @@ export function canAccessRoleDashboard(role: unknown, pathname: string): boolean
   // Excluding families here is what the "not PRINCIPAL / SUPER_ADMIN /
   // APP_OWNER" test was reaching for: those three are already redirected to
   // their own consoles before this runs, and everyone left who belongs is staff.
+  // SKO-489: the guardian access workflow is shared with group owners, who are otherwise sent to /super.
+  if (pathname === "/dashboard/guardians" || pathname.startsWith("/dashboard/guardians/")) return isStaffRole(normalized) || normalized === "SUPER_ADMIN";
   if (pathname.startsWith("/dashboard")) return isStaffRole(normalized);
 
   return true;

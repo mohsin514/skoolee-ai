@@ -1,6 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { PageCard } from "@/components/ui/page-card";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ChatDock, ChatProvider } from "@/components/chat";
@@ -29,7 +30,10 @@ export default async function DashboardLayout({
   // here, where the pages actually mount, so a family account can never render
   // the staff roster, marks entry or billing even if the guard slips.
   if (!user) redirect("/login");
-  if (!isStaffRole(user.role)) redirect(dashboardPathForRole(user.role));
+  // SKO-489: group owners share only the guardian access workflow; the proxy admits nothing else here.
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const sharedWithOwner = user.role === "SUPER_ADMIN" && (pathname === "/dashboard/guardians" || pathname.startsWith("/dashboard/guardians/"));
+  if (!isStaffRole(user.role) && !sharedWithOwner) redirect(dashboardPathForRole(user.role));
 
   const school = await prisma.school.findUnique({
     where: { id: user.schoolId },

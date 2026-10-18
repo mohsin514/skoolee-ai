@@ -332,6 +332,7 @@ export default function SuperAdminDashboard() {
     { icon: ShieldCheck, label: "Support Approvals", active: activeView === "support", onClick: () => setActiveView("support") },
     { icon: Sparkles, label: "AI Engine", onClick: openAI },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
+    { icon: Users, label: "Guardians and access", href: "/dashboard/guardians" },
   ];
 const bottomItems: RoleNavItem[] = [];
   const superAIFeatures = [

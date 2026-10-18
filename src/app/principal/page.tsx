@@ -578,6 +578,7 @@ export default function PrincipalDashboard() {
     { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", module: moduleForView("engagement"), onClick: () => setActiveView("engagement") },
     { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", module: moduleForView("ai"), onClick: () => setActiveView("ai") },
     { icon: MessageCircle, label: "Messages", href: "/messages" },
+    { icon: Users, label: "Guardians and access", href: "/dashboard/guardians" },
     { icon: School, label: "Admins & Access", active: activeView === "leadership", module: moduleForView("leadership"), onClick: () => setActiveView("leadership") },
   ];
   const bottomItems: RoleNavItem[] = [];

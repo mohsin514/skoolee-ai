@@ -257,12 +257,16 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL("/owner", req.url));
     }
 
-    if (role === "SUPER_ADMIN" && pathname.startsWith("/dashboard")) {
+    // SKO-489: the guardian access workflow lives at /dashboard/guardians and is authorized for group owners
+    // and principals (canManageOperations); keep them on it instead of bouncing to their home consoles.
+    const sharedDashboardTask = pathname === "/dashboard/guardians" || pathname.startsWith("/dashboard/guardians/");
+
+    if (role === "SUPER_ADMIN" && pathname.startsWith("/dashboard") && !sharedDashboardTask) {
       const target = pathname.startsWith("/dashboard/billing") ? "/super?view=billing" : "/super";
       return NextResponse.redirect(new URL(target, req.url));
     }
 
-    if (role === "PRINCIPAL" && pathname.startsWith("/dashboard")) {
+    if (role === "PRINCIPAL" && pathname.startsWith("/dashboard") && !sharedDashboardTask) {
       return NextResponse.redirect(new URL("/principal", req.url));
     }
 
