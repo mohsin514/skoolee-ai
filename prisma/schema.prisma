@@ -234,6 +234,10 @@ model School {
   familyDigests           FamilyDigest[]
   familyDigestEntries     FamilyDigestEntry[]
   familyDigestDeliveries  FamilyDigestDelivery[]
+  markSheetTemplates      MarkSheetTemplate[]
+  markScanBatches         MarkScanBatch[]
+  markScanPages           MarkScanPage[]
+  markScanCells           MarkScanCell[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3291,6 +3295,106 @@ model FamilyDigestDelivery {
   @@unique([studentId, weekStart, guardianUserId, channel])
   @@index([schoolId, guardianUserId])
   @@map("family_digest_deliveries")
+}
+
+/// SKO-412: a printable marks sheet for one exam subject. The QR carries only the opaque reference and page
+/// number; the roster is frozen in the template so a scan maps rows to pupils without reading names.
+model MarkSheetTemplate {
+  id           String   @id @default(uuid())
+  schoolId     String   @default("") @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String   @map("campus_id")
+  examId       String   @map("exam_id")
+  subjectId    String   @map("subject_id")
+  version      Int
+  reference    String   @unique
+  rowsPerPage  Int      @map("rows_per_page")
+  pageCount    Int      @map("page_count")
+  maxMarks     Int      @map("max_marks")
+  roster       Json
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  batches MarkScanBatch[]
+
+  @@unique([examId, subjectId, version])
+  @@index([schoolId])
+  @@map("mark_sheet_templates")
+}
+
+/// SKO-412: one scanning session for a template: captured pages, staged cells, review, approval, commit.
+model MarkScanBatch {
+  id             String            @id @default(uuid())
+  schoolId       String            @default("") @map("school_id")
+  school         School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String            @map("campus_id")
+  templateId     String            @map("template_id")
+  template       MarkSheetTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  status         String            @default("CAPTURING") // CAPTURING | REVIEW | APPROVED | COMMITTED | REVERSED | CANCELLED
+  version        Int               @default(1)
+  baseline       Json              @default("{}")
+  approvedById   String?           @map("approved_by_id")
+  approvedAt     DateTime?         @map("approved_at")
+  committedAt    DateTime?         @map("committed_at")
+  commitKey      String?           @map("commit_key")
+  receipt        Json?
+  reversedAt     DateTime?         @map("reversed_at")
+  createdById    String            @map("created_by_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  pages MarkScanPage[]
+  cells MarkScanCell[]
+
+  @@index([templateId, status])
+  @@index([schoolId])
+  @@map("mark_scan_batches")
+}
+
+model MarkScanPage {
+  id         String        @id @default(uuid())
+  schoolId   String        @default("") @map("school_id")
+  school     School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  batchId    String        @map("batch_id")
+  batch      MarkScanBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  pageNumber Int           @map("page_number")
+  storageKey String        @map("storage_key")
+  sha256     String
+  sharpness  Float
+  contrast   Float
+  status     String        @default("ACCEPTED") // ACCEPTED | RETAKE | REPLACED
+  reason     String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([batchId, pageNumber])
+  @@index([schoolId])
+  @@map("mark_scan_pages")
+}
+
+/// One pupil's mark as read from a page. The proposal and its confidence are kept; only the reviewed value is imported.
+model MarkScanCell {
+  id               String        @id @default(uuid())
+  schoolId         String        @default("") @map("school_id")
+  school           School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  batchId          String        @map("batch_id")
+  batch            MarkScanBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  pageNumber       Int           @map("page_number")
+  rowNumber        Int           @map("row_number")
+  studentId        String        @map("student_id")
+  proposedValue    Float?        @map("proposed_value")
+  proposedAbsent   Boolean       @default(false) @map("proposed_absent")
+  confidence       Float?
+  alternatives     Json          @default("[]")
+  reviewedValue    Float?        @map("reviewed_value")
+  reviewedAbsent   Boolean       @default(false) @map("reviewed_absent")
+  reviewedById     String?       @map("reviewed_by_id")
+  reviewedAt       DateTime?     @map("reviewed_at")
+  status           String        @default("NEEDS_REVIEW") // NEEDS_REVIEW | REVIEWED | EXCLUDED
+  corrected        Boolean       @default(false)
+
+  @@unique([batchId, studentId])
+  @@index([schoolId])
+  @@map("mark_scan_cells")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

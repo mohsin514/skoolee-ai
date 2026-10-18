@@ -7,6 +7,7 @@ import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 
+import { MarkScanPanel } from "@/components/marks/mark-scan-panel";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -687,6 +688,8 @@ export default function MarksPage() {
         onCancel={() => setClearTarget(null)}
         onConfirm={confirmClearColumn}
       />
+      {/* SKO-412: paper marks sheets — capture, review every mark, approve, import. */}
+      {selectedExamId && markSheet?.subjects?.length ? <div className="mt-4"><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
     </TeacherPage>
   );
 }
