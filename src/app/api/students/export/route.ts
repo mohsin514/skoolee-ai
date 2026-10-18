@@ -10,6 +10,8 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { requestSchool } from "@/lib/capacity/identity";
+import { withBackgroundAdmission } from "@/lib/capacity/admission";
 
 // GET /api/academic/students/export?classId=&search=&status=
 //
@@ -39,7 +41,15 @@ const COLUMNS: { header: string; get: (s: any) => unknown }[] = [
   { header: "City", get: (s) => s.city },
 ];
 
+// SKO-451: a whole-roster export is background work; admission keeps one school's exports from starving the
+// interactive work of others and answers 429 with a retry time instead of queueing.
 export async function GET(req: NextRequest) {
+  const schoolId = await requestSchool();
+  if (!schoolId) return exportStudents(req);
+  return withBackgroundAdmission(schoolId, "students-export", () => exportStudents(req), { readOnly: true });
+}
+
+async function exportStudents(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
@@ -54,36 +64,43 @@ export async function GET(req: NextRequest) {
     const search = sp.get("search")?.trim();
     const archivedOnly = sp.get("status") === "archived";
 
-    const students = await prisma.student.findMany({
-      where: {
-        ...scopedCampusWhere(user, campusId),
-        class: { is: archivedOnly ? {} : { archivedAt: null } },
-        ...(classId ? { classId } : {}),
-        ...(archivedOnly
-          ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }
-          : { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } }),
-        ...(search
-          ? {
-              OR: [
-                { fullName: { contains: search, mode: "insensitive" as const } },
-                { rollNo: { contains: search, mode: "insensitive" as const } },
-                { guardianName: { contains: search, mode: "insensitive" as const } },
-                { guardianPhone: { contains: search, mode: "insensitive" as const } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        class: { select: { name: true, section: true, academicYear: true } },
-        studentUser: { select: { email: true } },
-      },
-      orderBy: [{ class: { name: "asc" } }, { rollNo: "asc" }],
-    });
-
-    const rows = [
-      COLUMNS.map((c) => csvCell(c.header)).join(","),
-      ...students.map((s) => COLUMNS.map((c) => csvCell(c.get(s))).join(",")),
-    ];
+    const where = {
+      ...scopedCampusWhere(user, campusId),
+      class: { is: archivedOnly ? {} : { archivedAt: null } },
+      ...(classId ? { classId } : {}),
+      ...(archivedOnly
+        ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }
+        : { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } }),
+      ...(search
+        ? {
+            OR: [
+              { fullName: { contains: search, mode: "insensitive" as const } },
+              { rollNo: { contains: search, mode: "insensitive" as const } },
+              { guardianName: { contains: search, mode: "insensitive" as const } },
+              { guardianPhone: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    // SKO-451: list the roster's ids in order with one cheap query, then read and render the rows a page at a
+    // time, yielding between pages, so one large export never holds the event loop or a pooled connection long
+    // enough to delay other schools' answer saves and registers.
+    const PAGE = 250;
+    const ids = (await prisma.student.findMany({ where, select: { id: true }, orderBy: [{ class: { name: "asc" } }, { rollNo: "asc" }, { id: "asc" }] })).map((s) => s.id);
+    const rows = [COLUMNS.map((c) => csvCell(c.header)).join(",")];
+    for (let i = 0; i < ids.length; i += PAGE) {
+      if (i) await new Promise((resolve) => setImmediate(resolve));
+      const chunk = ids.slice(i, i + PAGE);
+      const page = await prisma.student.findMany({
+        where: { ...where, id: { in: chunk } },
+        include: {
+          class: { select: { name: true, section: true, academicYear: true } },
+          studentUser: { select: { email: true } },
+        },
+      });
+      const byId = new Map(page.map((s) => [s.id, s]));
+      for (const id of chunk) { const s = byId.get(id); if (s) rows.push(COLUMNS.map((c) => csvCell(c.get(s))).join(",")); }
+    }
 
     // The BOM is what makes Excel read UTF-8 rather than mangling every Urdu
     // name in the file — the roster stores nameUr, so this is not hypothetical.

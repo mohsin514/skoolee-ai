@@ -30,6 +30,7 @@ import {
   EyeOff,
   FileText,
   FlaskConical,
+  Gauge,
   Globe,
   HelpCircle,
   KeyRound,
@@ -77,9 +78,10 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { formatSupportInstant } from "@/lib/owner/support-ui";
 import { SubscriptionRequestReview } from "@/components/owner/SubscriptionRequestReview";
 import { PilotEvidence } from "@/components/owner/PilotEvidence";
+import { CapacityReport } from "@/components/owner/CapacityReport";
 
-type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments" | "support" | "subscription-requests" | "pilots";
-const WORKSPACE_VIEWS: readonly OwnerView[] = ["schools", "users", "audit", "sessions", "billing", "pricing", "payments", "support", "subscription-requests", "pilots"];
+type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments" | "support" | "subscription-requests" | "pilots" | "capacity";
+const WORKSPACE_VIEWS: readonly OwnerView[] = ["schools", "users", "audit", "sessions", "billing", "pricing", "payments", "support", "subscription-requests", "pilots", "capacity"];
 
 function planLabel(plan: string) {
   return getPlanLimits(plan).name;
@@ -297,6 +299,7 @@ export default function OwnerDashboard() {
     { icon: WalletCards, label: "Payments", active: activeView === "payments", onClick: () => setActiveView("payments") },
     { icon: CreditCard, label: "Subscription requests", active: activeView === "subscription-requests", onClick: () => setActiveView("subscription-requests") },
     { icon: FlaskConical, label: "Pilot evidence", active: activeView === "pilots", onClick: () => setActiveView("pilots") },
+    { icon: Gauge, label: "Capacity", active: activeView === "capacity", onClick: () => setActiveView("capacity") },
     { icon: FileText, label: "Audit Log", active: activeView === "audit", onClick: () => setActiveView("audit") },
     { icon: Shield, label: "Sessions", active: activeView === "sessions", onClick: () => setActiveView("sessions") },
     { icon: ShieldCheck, label: "Support Access", active: activeView === "support", onClick: () => setActiveView("support") },
@@ -340,6 +343,7 @@ export default function OwnerDashboard() {
         {activeView === "support" && <SupportAccessView schools={stats?.schools || []} />}
         {activeView === "subscription-requests" && <SubscriptionRequestReview />}
         {activeView === "pilots" && <PilotEvidence />}
+        {activeView === "capacity" && <CapacityReport />}
       </section>
     </RoleShell>
   );

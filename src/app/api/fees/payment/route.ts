@@ -10,8 +10,16 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { requestSchool } from "@/lib/capacity/identity";
+import { measured } from "@/lib/capacity/admission";
 
+// SKO-451: payment confirmation is critical work: measured, never shed by background quotas.
 export async function POST(req: NextRequest) {
+  const schoolId = await requestSchool();
+  if (!schoolId) return confirmPayment(req);
+  return measured("CRITICAL", "payment-confirmation", schoolId, () => confirmPayment(req));
+}
+async function confirmPayment(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);

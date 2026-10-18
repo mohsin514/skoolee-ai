@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createTemplate, listForExam, startBatch } from "@/lib/marks-scan/service";
+import { requestSchool } from "@/lib/capacity/identity";
+import { withBackgroundAdmission } from "@/lib/capacity/admission";
 
 // SKO-412: paper marks sheets. GET ?examId=&subjectId= · POST {action: template, examId, subjectId, rowsPerPage?}
 // · POST {action: start, templateId | qr}
@@ -12,7 +14,13 @@ export async function GET(request: NextRequest) {
     return Response.json({ success: true, data: await listForExam(user, examId, subjectId) });
   } catch (error) { return errorResponse(error, "[marks-scan] GET failed"); }
 }
+// SKO-451: starting a scan batch is background (OCR) work under per-school admission.
 export async function POST(request: NextRequest) {
+  const schoolId = await requestSchool();
+  if (!schoolId) return startOrTemplate(request);
+  return withBackgroundAdmission(schoolId, "marks-scan", () => startOrTemplate(request));
+}
+async function startOrTemplate(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;

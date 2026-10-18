@@ -37,7 +37,8 @@ let examExpiryCursor: ExamExpiryCursor | null = null;
 async function pump() {
   while (!closing) {
     try {
-      await dispatch(db, (ref, jobId) => queue.add("reference", ref, { jobId, attempts: 1, removeOnComplete: true, removeOnFail: 100 }));
+      // SKO-451: fair per-school dispatch; critical kinds run first in the worker queue.
+      await dispatch(db, (ref, jobId, meta) => queue.add("reference", ref, { jobId, priority: meta.priority, attempts: 1, removeOnComplete: true, removeOnFail: 100 }));
     } catch {
       console.error(JSON.stringify({ component: "outbox-dispatcher", reason: "DISPATCH_UNAVAILABLE" }));
     }

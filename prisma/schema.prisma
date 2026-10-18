@@ -9372,3 +9372,45 @@ model BoardingRollCall {
   @@index([schoolId, campusId, takenAt])
   @@map("boarding_roll_calls")
 }
+
+// SKO-451: platform capacity. A resource policy is an operator's scoped, expiring, audited limit on background
+// work (platform default when targetSchoolId is null); revoking it restores the previous effective value. A
+// performance run records one measured workload against its objectives; neither implies a capacity claim.
+model ResourcePolicy {
+  id             String    @id @default(uuid())
+  targetSchoolId String?   @map("target_school_id")
+  scope          String // BACKGROUND_REQUESTS, BACKGROUND_JOBS
+  limitValue     Int       @map("limit_value")
+  reason         String    @db.Text
+  expiresAt      DateTime? @map("expires_at")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  revokedAt      DateTime? @map("revoked_at")
+  revokedById    String?   @map("revoked_by_id")
+  revokeReason   String?   @map("revoke_reason") @db.Text
+
+  @@index([targetSchoolId, scope])
+  @@map("resource_policies")
+}
+
+model PerformanceRun {
+  id           String   @id @default(uuid())
+  runId        String   @unique @map("run_id")
+  profile      String
+  environment  String
+  release      String
+  dataset      Json
+  concurrency  Json
+  results      Json
+  objectives   Json
+  passed       Boolean
+  policyIds    String[] @map("policy_ids")
+  notes        String?  @db.Text
+  startedAt    DateTime @map("started_at")
+  finishedAt   DateTime @map("finished_at")
+  recordedById String   @map("recorded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("performance_runs")
+}

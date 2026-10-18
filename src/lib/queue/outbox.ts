@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { runWithTenantContext } from "../db/tenant-context";
 
 export type Sql = Pick<Prisma.TransactionClient, "$queryRaw" | "$executeRaw">;
@@ -30,22 +30,59 @@ export async function appendEvent(tx: Sql, input: Omit<Event, "eventId"> & { ide
 }
 
 /** Dispatcher is a privileged process; cross-school selection returns references only. */
-export async function dispatch(db: Database, publish: (ref: Reference, deliveryId: string) => Promise<unknown>, limit = 50) {
+// SKO-451: dispatch is fair across schools. Each pass takes at most a few events per school (oldest first,
+// critical kinds first), interleaved so one school's backlog cannot hold the batch, and a school's background
+// events wait while its in-flight jobs (running, or dispatched in the last minute and not yet claimed) reach its
+// BACKGROUND_JOBS policy limit. Critical kinds (exam and payment confirmation) are never held back by that limit.
+export const DEFAULT_BACKGROUND_JOBS = 3;
+const CRITICAL_SQL = Prisma.sql`(e.kind = 'PAYMENT_CONFIRMATION' OR left(e.kind, 5) = 'EXAM_')`;
+export async function dispatch(db: Database, publish: (ref: Reference, deliveryId: string, meta: { kind: string; priority: number }) => Promise<unknown>, limit = 50, perSchool = 10) {
   const token = randomUUID();
-  const events = await db.$queryRaw<(Reference & { dispatchCount: number })[]>`
-    WITH candidates AS (
-      SELECT e.id FROM workflow_events e JOIN workflow_jobs j ON j.id=e.id AND j.school_id=e.school_id
+  const events = await db.$queryRaw<(Reference & { dispatchCount: number; kind: string; critical: boolean; availableAt: Date })[]>`
+    WITH ready AS (
+      SELECT e.id, e.school_id, e.available_at, e.kind, ${CRITICAL_SQL} AS critical
+      FROM workflow_events e JOIN workflow_jobs j ON j.id=e.id AND j.school_id=e.school_id
       WHERE j.state IN ('queued','retrying','running') AND e.available_at <= now()
         AND (e.lease_until IS NULL OR e.lease_until < now())
         AND (j.lease_until IS NULL OR j.lease_until < now())
-      ORDER BY e.available_at LIMIT ${Math.min(Math.max(limit, 1), 500)} FOR UPDATE OF e SKIP LOCKED
+    ), schools AS (SELECT DISTINCT school_id FROM ready),
+    -- resource_policies is written by Prisma in UTC; compare its expiry in UTC whatever the session time zone.
+    policy AS (
+      SELECT DISTINCT ON (target_school_id) target_school_id, limit_value FROM resource_policies
+      WHERE scope='BACKGROUND_JOBS' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > (now() AT TIME ZONE 'UTC'))
+      ORDER BY target_school_id, created_at DESC
+    ), inflight AS (
+      SELECT j.school_id, count(*)::int AS n FROM workflow_jobs j JOIN workflow_events e ON e.id=j.id AND e.school_id=j.school_id
+      WHERE NOT ${CRITICAL_SQL} AND ((j.state='running' AND j.lease_until > now())
+        OR (j.state IN ('queued','retrying') AND e.dispatched_at > now() - interval '60 seconds' AND e.available_at > now()))
+      GROUP BY j.school_id
+    ), picked AS (
+      SELECT p.id, p.critical, p.rn, p.available_at FROM schools s
+      LEFT JOIN inflight f ON f.school_id = s.school_id
+      LEFT JOIN policy pt ON pt.target_school_id = s.school_id
+      LEFT JOIN policy pd ON pd.target_school_id IS NULL
+      CROSS JOIN LATERAL (
+        SELECT r.id, r.critical, r.available_at,
+          row_number() OVER (ORDER BY r.critical DESC, r.available_at) AS rn,
+          CASE WHEN r.critical THEN 0 ELSE row_number() OVER (PARTITION BY r.critical ORDER BY r.available_at) END AS bn
+        FROM (SELECT * FROM ready r WHERE r.school_id = s.school_id ORDER BY r.critical DESC, r.available_at LIMIT ${Math.min(Math.max(perSchool, 1), 100)}) r
+      ) p
+      WHERE p.critical OR p.bn <= GREATEST(0, COALESCE(pt.limit_value, pd.limit_value, ${DEFAULT_BACKGROUND_JOBS}) - COALESCE(f.n, 0))
+      ORDER BY p.critical DESC, p.rn, p.available_at
+      LIMIT ${Math.min(Math.max(limit, 1), 500)}
     ) UPDATE workflow_events e SET lease_token=${token}, lease_until=now()+ interval '60 seconds', dispatch_count=dispatch_count+1
-      FROM candidates c WHERE e.id=c.id
-      RETURNING e.id AS "eventId", e.school_id AS "schoolId", e.dispatch_count AS "dispatchCount"`;
+      FROM picked c WHERE e.id=c.id AND (e.lease_until IS NULL OR e.lease_until < now())
+      RETURNING e.id AS "eventId", e.school_id AS "schoolId", e.dispatch_count AS "dispatchCount", e.kind, ${CRITICAL_SQL} AS critical, e.available_at AS "availableAt"`;
+  // Publish in the fair order: critical first, then one event per school per round.
+  events.sort((a, b) => Number(b.critical) - Number(a.critical) || a.availableAt.getTime() - b.availableAt.getTime());
+  const rounds = new Map<string, number>();
+  const ranked = events.map(e => { const r = rounds.get(e.schoolId) ?? 0; rounds.set(e.schoolId, r + 1); return { e, r }; });
+  ranked.sort((a, b) => Number(b.e.critical) - Number(a.e.critical) || a.r - b.r);
+  events.splice(0, events.length, ...ranked.map(x => x.e));
   for (const event of events) {
     try {
       // A fresh delivery identity permits recovery after Redis loss/removal. Consumer fences duplicates.
-      await publish({ eventId: event.eventId, schoolId: event.schoolId }, `${event.eventId}-${event.dispatchCount}`);
+      await publish({ eventId: event.eventId, schoolId: event.schoolId }, `${event.eventId}-${event.dispatchCount}`, { kind: event.kind, priority: event.critical ? 1 : event.kind === "REPORT_DELIVERY" || event.kind === "SCHOOL_AI_ANNOUNCEMENT" ? 5 : 10 });
       await db.$executeRaw`UPDATE workflow_events SET dispatched_at=now(), available_at=now()+interval '60 seconds', lease_token=NULL, lease_until=NULL
         WHERE id=${event.eventId} AND school_id=${event.schoolId} AND lease_token=${token}`;
     } catch {

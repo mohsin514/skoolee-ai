@@ -3,6 +3,8 @@ import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCam
 import { notify } from "@/lib/notifications/in-app";
 import { schoolToday } from "@/lib/datetime";
 import { attendanceRuleFor, entryHistory, exceptionQueue, publishRule, registerView, reviewExplanation, saveRegister } from "@/lib/attendance/register";
+import { requestSchool } from "@/lib/capacity/identity";
+import { measured } from "@/lib/capacity/admission";
 
 // SKO-405 class register.
 // GET  ?classId=&date=          → dated roster, marks (unmarked is null), register status, counts, rule
@@ -33,7 +35,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// SKO-451: morning marking is interactive work: measured per school, not throttled by background quotas.
 export async function POST(request: NextRequest) {
+  const schoolId = await requestSchool();
+  if (!schoolId) return saveOrReview(request);
+  return measured("INTERACTIVE", "attendance-register", schoolId, () => saveOrReview(request));
+}
+async function saveOrReview(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;

@@ -5,6 +5,8 @@ import { readBoundedJson, schoolAiError } from "@/lib/school-ai/http";
 import { withSebEvidence } from "@/lib/school-ai/secure-browser";
 
 import { startExamSchema } from "@/lib/school-ai/exam";
+import { requestSchool } from "@/lib/capacity/identity";
+import { measured } from "@/lib/capacity/admission";
 
 type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, context: Context) {
@@ -22,7 +24,13 @@ export async function POST(request: Request, context: Context) {
   }
   catch (error) { return schoolAiError(error); }
 }
+// SKO-451: answer saves and submission are critical work: measured, never shed by background quotas.
 export async function PATCH(request: Request, context: Context) {
+  const schoolId = await requestSchool();
+  if (!schoolId) return saveAttempt(request, context);
+  return measured("CRITICAL", "exam-answer-save", schoolId, () => saveAttempt(request, context));
+}
+async function saveAttempt(request: Request, context: Context) {
   try {
     assertSameOrigin(request);
     const user = await requireAuthUser(), id = (await context.params).id, body = await readBoundedJson(request, 2200000);
