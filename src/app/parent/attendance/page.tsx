@@ -10,13 +10,15 @@ import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } fr
 import { useParentData } from "../parent-data-context";
 import { GuardianAttendanceExplanations } from "@/components/attendance/class-register";
 import { GuardianLeave, GuardianTrips } from "@/components/family/family-requests";
+import { FamilyPickups } from "@/components/pickup/pickup";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentAttendancePage() {
   const tr = useUiText();
   const locale = useLocale();
-  const { data, loading, error, refetch, selectedStudentId } = useParentData();
+  const { data, loading, error, refetch, selectedStudentId, children, token } = useParentData();
+  const pickupChildId = token ? null : selectedStudentId ?? children[0]?.id ?? null;
 
   // Without this an expired session leaves the page on a skeleton
   // forever, because `data` never arrives and `loading` is already false.
@@ -108,6 +110,8 @@ export default function ParentAttendancePage() {
         {selectedStudentId ? <GuardianAttendanceExplanations studentId={selectedStudentId} /> : null}
         {/* SKO-421: leave for future days and trip permission for this child. */}
         {selectedStudentId ? <GuardianLeave key={`leave-${selectedStudentId}`} studentId={selectedStudentId} /> : null}
+        {/* SKO-438: who may collect this child; shown only to guardians with the pickup permission. */}
+        {pickupChildId ? <div className="mt-6"><FamilyPickups key={`pickup-${pickupChildId}`} studentId={pickupChildId} /></div> : null}
         {selectedStudentId ? <GuardianTrips key={`trips-${selectedStudentId}`} studentId={selectedStudentId} /> : null}
       </div>
     </ParentPage>

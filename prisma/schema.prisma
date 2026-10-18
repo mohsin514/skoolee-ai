@@ -253,6 +253,10 @@ model School {
   portfolioShares PortfolioShare[]
   studyPassages StudyPassage[]
   studyTurns StudyTurn[]
+  pickupAuthorizations PickupAuthorization[]
+  pickupRestrictions PickupRestriction[]
+  pickupChecks PickupCheck[]
+  pickupEvents PickupEvent[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3808,6 +3812,101 @@ model StudyTurn {
   @@index([schoolId, studentId, createdAt])
   @@index([schoolId, classId])
   @@map("study_turns")
+}
+
+/// SKO-438: a guardian's permission for a named person to collect one child at one campus within a window.
+/// The QR holds only an opaque token whose hash is stored here; it is consumed once, atomically.
+model PickupAuthorization {
+  id               String    @id @default(uuid())
+  schoolId         String    @default("") @map("school_id")
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId         String    @map("campus_id")
+  studentId        String    @map("student_id")
+  issuedById       String    @map("issued_by_id")
+  relationshipId   String    @map("relationship_id")
+  recipientName    String    @map("recipient_name")
+  recipientRelation String   @map("recipient_relation")
+  idMethod         String    @map("id_method") // PHOTO_ID | SCHOOL_PICKUP_CARD | KNOWN_TO_STAFF
+  idLast4          String?   @map("id_last4")
+  validFrom        DateTime  @map("valid_from")
+  validUntil       DateTime  @map("valid_until")
+  tokenHash        String    @unique @map("token_hash")
+  status           String    @default("ACTIVE") // ACTIVE | USED | REVOKED
+  revokedAt        DateTime? @map("revoked_at")
+  revokedById      String?   @map("revoked_by_id")
+  usedAt           DateTime? @map("used_at")
+  usedByCheckId    String?   @unique @map("used_by_check_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  checks PickupCheck[]
+
+  @@index([schoolId, studentId])
+  @@map("pickup_authorizations")
+}
+
+/// SKO-438: a restriction on releasing a child (custody order, do-not-release, supervised only). The gate
+/// sees that a restriction exists and what to do; the reason stays with authorized staff.
+model PickupRestriction {
+  id          String    @id @default(uuid())
+  schoolId    String    @default("") @map("school_id")
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId    String    @map("campus_id")
+  studentId   String    @map("student_id")
+  kind        String // CUSTODY_ORDER | DO_NOT_RELEASE | LEAD_APPROVAL
+  instruction String
+  reason      String?
+  leadUserId  String?   @map("lead_user_id")
+  endsAt      DateTime? @map("ends_at")
+  createdById String    @map("created_by_id")
+  liftedAt    DateTime? @map("lifted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId])
+  @@map("pickup_restrictions")
+}
+
+/// SKO-438: one gate check — scan, identity confirmation, release or escalation. Release always rechecks.
+model PickupCheck {
+  id              String    @id @default(uuid())
+  schoolId        String    @default("") @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  authorizationId String?   @map("authorization_id")
+  authorization   PickupAuthorization? @relation(fields: [authorizationId], references: [id], onDelete: Cascade)
+  studentId       String    @map("student_id")
+  gate            String
+  staffId         String    @map("staff_id")
+  status          String    @default("OPEN") // OPEN | RELEASED | BLOCKED | ESCALATED | CANCELLED
+  blockReason     String?   @map("block_reason")
+  identityMethod  String?   @map("identity_method")
+  identityAt      DateTime? @map("identity_at")
+  exceptionStatus String?   @map("exception_status") // REQUESTED | APPROVED | DENIED
+  exceptionNote   String?   @map("exception_note")
+  exceptionById   String?   @map("exception_by_id")
+  releasedAt      DateTime? @map("released_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, studentId])
+  @@index([schoolId, campusId, status])
+  @@map("pickup_checks")
+}
+
+/// SKO-438: the release history — who authorized, who collected, which staff verified, when, exceptions.
+model PickupEvent {
+  id              String   @id @default(uuid())
+  schoolId        String   @default("") @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentId       String   @map("student_id")
+  authorizationId String?  @map("authorization_id")
+  checkId         String?  @map("check_id")
+  kind            String // ISSUED | REVOKED | SCANNED | BLOCKED | RELEASED | EXCEPTION_REQUESTED | EXCEPTION_APPROVED | EXCEPTION_DENIED | RESTRICTION_ADDED | RESTRICTION_LIFTED
+  actorId         String?  @map("actor_id")
+  detail          Json     @default("{}")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId, createdAt])
+  @@map("pickup_events")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

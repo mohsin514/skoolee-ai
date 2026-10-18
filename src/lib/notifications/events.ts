@@ -345,6 +345,21 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/parent",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-438: pickup notices name no child or recipient; the pickup page has the detail.
+  PICKUP_RELEASED: {
+    title: () => "Pickup completed",
+    message: () => "Your child was collected under a pickup authorization you issued.",
+    icon: "ShieldCheck",
+    link: "/parent/attendance",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  PICKUP_EXCEPTION_REQUESTED: {
+    title: () => "Pickup needs a lead decision",
+    message: () => "A pickup could not be verified at the gate. The student is being kept supervised.",
+    icon: "ShieldAlert",
+    link: "/pickup",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-428: a learner asked for teacher help with a study question; the question stays on the study desk.
   STUDY_HELP_REQUESTED: {
     title: () => "A learner asked for help",

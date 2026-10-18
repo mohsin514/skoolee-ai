@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Mail,
   MessageCircle,
+  ShieldCheck,
   MessageSquare,
   Phone,
   ClipboardList,
@@ -84,6 +85,7 @@ export default function ReceptionistPage() {
       module: moduleForView(item.id),
       onClick: () => setActiveView(item.id),
     })),
+    { label: "Pickup desk", icon: ShieldCheck, href: "/pickup" },
     { label: "Messages", icon: MessageCircle, href: "/messages" },
   ];
 
