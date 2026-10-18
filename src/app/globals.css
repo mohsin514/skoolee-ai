@@ -221,10 +221,10 @@
      Tailwind defaults, which keeps every existing shadow-sm…2xl consistent. */
   --shadow-2xs: 0 1px 0 rgb(168 150 200 / 0.18);
   --shadow-xs: 0 1px 2px rgb(150 130 190 / 0.16);
-  --shadow-sm: 0 1px 2px rgb(160 140 200 / 0.14), 0 3px 8px -3px rgb(129 39 207 / 0.12);
+  --shadow-sm: 0 1px 3px rgb(150 120 200 / 0.18), 0 4px 10px -3px rgb(129 39 207 / 0.18);
   --shadow: 0 1px 3px rgb(160 140 200 / 0.16), 0 8px 18px -8px rgb(129 39 207 / 0.16);
-  --shadow-md: 0 2px 6px rgb(170 150 210 / 0.14), 0 14px 30px -14px rgb(129 39 207 / 0.22);
-  --shadow-lg: 0 4px 12px -4px rgb(170 150 210 / 0.20), 0 24px 50px -22px rgb(129 39 207 / 0.28);
+  --shadow-md: 0 2px 6px rgb(150 120 200 / 0.18), 0 16px 34px -14px rgb(129 39 207 / 0.32);
+  --shadow-lg: 0 4px 14px -4px rgb(150 120 200 / 0.24), 0 26px 54px -22px rgb(129 39 207 / 0.38);
   --shadow-xl: 0 8px 22px -8px rgb(170 150 210 / 0.24), 0 34px 74px -28px rgb(129 39 207 / 0.32);
   --shadow-2xl: 0 40px 96px -32px rgb(129 39 207 / 0.34);
   --shadow-brand: 0 10px 30px -12px rgb(129 39 207 / 0.55);
@@ -782,9 +782,9 @@ button:disabled,
   --radius-pill: 9999px;
   --radius-workspace-mobile: 24px;
   --radius-workspace: 32px;
-  --shadow-panel: 0 1px 3px rgb(170 150 210 / 0.14), 0 12px 32px -18px rgb(129 39 207 / 0.22);
+  --shadow-panel: 0 1px 3px rgb(150 120 200 / 0.18), 0 14px 36px -16px rgb(129 39 207 / 0.34);
   --shadow-toast: 0 24px 60px -18px rgb(129 39 207 / 0.30), 0 2px 8px rgb(170 150 210 / 0.18);
-  --shadow-workspace: 0 2px 6px rgb(170 150 210 / 0.12), 0 20px 60px -30px rgb(129 39 207 / 0.26), inset 0 1px 0 white;
+  --shadow-workspace: 0 2px 8px rgb(150 120 200 / 0.16), 0 24px 64px -28px rgb(129 39 207 / 0.38), inset 0 1px 0 white;
   --duration-fast: 150ms;
   --duration-control: 200ms;
   --duration-dialog-enter: 280ms;
@@ -816,14 +816,14 @@ button:disabled,
      changes the outer border (matches the production login fields). */
   --field-shadow-rest: 0 1px 2px rgb(55 27 77 / 0.05);
   --field-shadow-hover: var(--field-shadow-rest);
-  --field-focus-border: var(--focus-color);
+  --field-focus-border: #c3aee0;
   /* Focus = slightly bolder edge (1px inset on the 1px border, no layout
      shift) + a tight same-hue ring + a soft diffuse "smoky" glow. */
-  --field-focus-ring: 0 0 0 3px rgb(var(--focus-rgb) / 0.14), 0 1px 2px rgb(150 130 190 / 0.10);
+  --field-focus-ring: 0 4px 14px -4px rgb(129 39 207 / 0.18);
   /* = hsl(var(--destructive)); invalid focus repeats the pattern in red. */
   --field-error-rgb: 175 29 29;
   --field-error-border: rgb(var(--field-error-rgb));
-  --field-error-ring: 0 0 0 3px rgb(var(--field-error-rgb) / 0.10);
+  --field-error-ring: 0 4px 14px -4px rgb(var(--field-error-rgb) / 0.16);
   --field-icon-focus: var(--brand-1);
   /* Neutral work surfaces and status fills for the shared primitives. Status
      colours always travel with words; these only carry the tone. */
@@ -849,9 +849,9 @@ button:disabled,
   /* Derived tokens resolve where declared; restate them so .dark works on any subtree. */
   --focus-color: rgb(var(--focus-rgb));
   --field-focus-border: var(--focus-color);
-  --field-focus-ring: 0 0 0 3px rgb(var(--focus-rgb) / 0.14), 0 1px 2px rgb(150 130 190 / 0.10);
+  --field-focus-ring: 0 4px 14px -4px rgb(129 39 207 / 0.18);
   --field-error-border: rgb(var(--field-error-rgb));
-  --field-error-ring: 0 0 0 3px rgb(var(--field-error-rgb) / 0.10);
+  --field-error-ring: 0 4px 14px -4px rgb(var(--field-error-rgb) / 0.16);
 }
 /* Unlayered, so every interactive control shares one indicator. Screens adapt
    it through custom properties (focus-on-dark, focus-inset), never by forking. */
@@ -1217,30 +1217,31 @@ button:disabled,
    start, berry top end, indigo bottom) and a dot grid that fades out below
    the header. Painted on a fixed pseudo-element so phones (where
    background-attachment: fixed is ignored) still get a still backdrop. */
-.sk-app-canvas {
-  position: relative;
-  isolation: isolate;
-  background-color: hsl(var(--background));
-}
-.sk-app-canvas::before,
-.sk-app-canvas::after {
+/* Painted once on <body>, so every screen — role consoles, the AI studio,
+   exam delivery, onboarding and auth — sits on the same atmosphere. Screens
+   only need to stay transparent; .sk-app-canvas is kept as an alias. */
+.sk-app-canvas { position: relative; isolation: isolate; background-color: transparent; }
+body { position: relative; }
+body::before,
+body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
 }
-.sk-app-canvas::before {
+body::before {
   background:
-    radial-gradient(56rem 32rem at 0% -8%, rgb(129 39 207 / 0.085), transparent 62%),
-    radial-gradient(44rem 28rem at 100% -4%, rgb(177 14 107 / 0.055), transparent 60%),
-    radial-gradient(60rem 36rem at 55% 115%, rgb(79 70 229 / 0.05), transparent 62%);
+    radial-gradient(60rem 34rem at 0% -8%, rgb(129 39 207 / 0.13), transparent 62%),
+    radial-gradient(48rem 30rem at 100% -4%, rgb(177 14 107 / 0.08), transparent 60%),
+    radial-gradient(64rem 38rem at 55% 115%, rgb(79 70 229 / 0.08), transparent 62%),
+    radial-gradient(40rem 30rem at 100% 70%, rgb(156 72 234 / 0.06), transparent 65%);
 }
-.sk-app-canvas::after {
-  background-image: radial-gradient(rgb(129 39 207 / 0.11) 1px, transparent 1px);
+body::after {
+  background-image: radial-gradient(rgb(129 39 207 / 0.14) 1px, transparent 1px);
   background-size: 22px 22px;
-  -webkit-mask-image: linear-gradient(to bottom, black, transparent 22rem);
-  mask-image: linear-gradient(to bottom, black, transparent 22rem);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 26rem);
+  mask-image: linear-gradient(to bottom, black, transparent 26rem);
 }
 
 @layer components {
@@ -1328,12 +1329,12 @@ button:disabled,
 }
 
 @media (forced-colors: active) {
-  .sk-app-canvas::before, .sk-app-canvas::after { display: none; }
+  body::before, body::after { display: none; }
   .sk-text-gradient { -webkit-text-fill-color: currentColor; background: none; }
 }
 
 @media print {
-  .sk-app-canvas::before, .sk-app-canvas::after { display: none; }
+  body::before, body::after { display: none; }
 }
 
 /* ─── Tooltip ────────────────────────────────────────────────

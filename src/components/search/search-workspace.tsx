@@ -81,7 +81,7 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
     links[event.key === "ArrowDown" ? Math.min(links.length - 1, index + 1) : Math.max(0, index - 1)]?.focus();
   };
 
-  return <div className="min-h-dvh bg-background font-sans text-foreground" onKeyDown={onKeyDown} data-search-page>
+  return <div className="min-h-dvh font-sans text-foreground" onKeyDown={onKeyDown} data-search-page>
     <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur md:px-6">
       <Link href={dashboardHref} className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={ui("Back to dashboard")}><ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" /><span className="hidden sm:inline">{ui("Back to dashboard")}</span></Link>
       <h1 className="text-base font-semibold">{ui("Search records")}</h1>

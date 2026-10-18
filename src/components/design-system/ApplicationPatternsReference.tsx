@@ -24,7 +24,7 @@ export function ApplicationPatternsReference() {
   const [openReports, setOpenReports] = useState(3);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const rows = [{ id: "EXAMPLE-1", name: "Example student", status: "Draft" }].filter(row => row.name.toLowerCase().includes(search.toLowerCase()));
-  return <main dir={rtl ? "rtl" : "ltr"} className="min-h-dvh bg-background p-4 sm:p-8">
+  return <main dir={rtl ? "rtl" : "ltr"} className="min-h-dvh p-4 sm:p-8">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-ink-muted"><p>Synthetic data · Actual application components</p><Button variant="outline" onClick={() => setRtl(!rtl)}>Switch direction</Button></div>
     <PageCard className="mx-auto max-w-5xl space-y-6">
       <WorkspaceHeader icon={BookOpen} eyebrow="Application patterns" title="Shared workspace components" summary="Headers, metrics, filters, tables, cards and compound fields." />

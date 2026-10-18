@@ -316,7 +316,7 @@ export default function TeacherOnboardingPage() {
   if (loading) {
     // Same two-panel shape as the form, so nothing jumps when it arrives.
     return (
-      <main className="grid min-h-screen w-full grid-cols-1 bg-brand-50 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]" aria-busy="true">
+      <main className="grid min-h-screen w-full grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]" aria-busy="true">
         <div aria-hidden="true" className="hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 lg:block" />
         <div className="flex min-h-screen items-center justify-center p-4 sm:p-10 lg:p-14">
           <SkeletonRegion label={ui("Loading your profile…")} className="w-full max-w-lg">
@@ -346,7 +346,7 @@ export default function TeacherOnboardingPage() {
   }
 
   return (
-    <main className="grid min-h-screen w-full grid-cols-1 bg-brand-50 font-sans text-ink-strong lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]">
+    <main className="grid min-h-screen w-full grid-cols-1 font-sans text-ink-strong lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]">
 
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}

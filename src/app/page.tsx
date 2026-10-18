@@ -13,7 +13,7 @@ export default function EntryPage() {
     // The background matches the splash and /login exactly. It was #ffffff,
     // which meant any frame where the overlay was not painted showed pure white
     // between two off-white screens — the flash people were seeing.
-    <main className="min-h-screen bg-brand-50">
+    <main className="min-h-screen">
       {/*
         Single entry point of the app. The SplashScreen handles the branding
         animation and redirects to /login. Keeping this as a lightweight

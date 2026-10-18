@@ -279,7 +279,7 @@ export default function ProtectAccount() {
   );
 
   return (
-    <main lang={language} dir={directionFor(language)} className="grid min-h-screen w-full grid-cols-1 bg-brand-50 font-sans lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] print:block print:bg-white">
+    <main lang={language} dir={directionFor(language)} className="grid min-h-screen w-full grid-cols-1 font-sans lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] print:block print:bg-white">
 
       {/* ─── BRAND PANEL (matches /login) ─────────────────── */}
       <section className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 p-12 lg:flex xl:p-14 print:hidden">

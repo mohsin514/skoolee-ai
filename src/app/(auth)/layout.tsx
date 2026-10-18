@@ -19,7 +19,7 @@ export default async function AuthLayout({
           under it that did not re-declare a font fell back to the browser default.
           Every page here happens to set `font-sans` itself, which is why it was
           invisible; `font-sans` on the wrapper is what it always meant. */}
-      <div className="min-h-screen bg-brand-50 font-sans">
+      <div className="min-h-screen font-sans">
         {children}
       </div>
     </AuthLocaleProvider>

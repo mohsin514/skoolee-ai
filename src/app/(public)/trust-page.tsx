@@ -33,7 +33,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
   };
 
   return (
-    <main className="min-h-screen bg-brand-50 font-sans text-ink-strong">
+    <main className="min-h-screen font-sans text-ink-strong">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

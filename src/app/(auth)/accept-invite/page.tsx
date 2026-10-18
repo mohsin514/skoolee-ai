@@ -287,7 +287,7 @@ export default function AcceptInvitePage() {
   };
 
   return (
-    <main dir={directionFor(language)} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden bg-background font-sans text-foreground md:grid-cols-2">
+    <main dir={directionFor(language)} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden font-sans text-foreground md:grid-cols-2">
       <section className="relative hidden min-h-screen overflow-hidden md:block">
         <div className="absolute inset-0 z-10 bg-primary/10 mix-blend-multiply" />
         <img
@@ -314,7 +314,7 @@ export default function AcceptInvitePage() {
         </div>
       </section>
 
-      <section className="relative isolate flex min-h-screen items-center justify-center overflow-y-auto bg-brand-50 px-4 py-8 sm:p-6 md:p-8">
+      <section className="relative isolate flex min-h-screen items-center justify-center overflow-y-auto px-4 py-8 sm:p-6 md:p-8">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="sk-grid-pattern absolute inset-0" />
           <div className="absolute inset-x-0 -top-40 mx-auto h-80 w-80 max-w-full rounded-full bg-brand-200/50 blur-3xl" />

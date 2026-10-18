@@ -51,7 +51,7 @@ function demoMailto(context: string) {
 
 export function ProductPage({ copy }: { copy: ProductPageCopy }) {
   return (
-    <main className="min-h-screen bg-white text-ink-strong">
+    <main className="min-h-screen text-ink-strong">
       <header className="border-b border-border-subtle bg-white/95">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-normal">

@@ -122,7 +122,7 @@ export function PricingPage() {
   const formatLimit = (value: number) => value < 0 ? t.unlimited : number(value);
 
   return (
-    <main dir={direction} lang={language} className="min-h-screen bg-brand-50 px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
+    <main dir={direction} lang={language} className="min-h-screen px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="text-lg font-bold text-primary">SkooleeAI</Link>

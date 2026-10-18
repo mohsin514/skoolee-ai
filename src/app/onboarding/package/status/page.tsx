@@ -129,7 +129,7 @@ function CheckoutStatus() {
 
   const isRtl = language === "ar" || language === "ur";
   return (
-    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
+    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
       <section aria-labelledby="payment-status-title" className="sk-panel sk-enter mx-auto max-w-xl p-5 shadow-lg sm:p-10">
         <p className="sk-eyebrow text-primary">{copy.setup}</p>
         <h1 id="payment-status-title" className="mt-2 text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{copy.statusTitle}</h1>
@@ -190,7 +190,7 @@ function CheckoutStatus() {
 
 export default function CheckoutStatusPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-brand-50 px-4 py-8 sm:px-8 sm:py-12"><section className="sk-panel mx-auto max-w-xl p-5 sm:p-10"><StatusSkeleton label={getPackageCopy("en").loadingOrder.replace(/…$/, "")} /></section></main>}>
+    <Suspense fallback={<main className="min-h-screen px-4 py-8 sm:px-8 sm:py-12"><section className="sk-panel mx-auto max-w-xl p-5 sm:p-10"><StatusSkeleton label={getPackageCopy("en").loadingOrder.replace(/…$/, "")} /></section></main>}>
       <CheckoutStatus />
     </Suspense>
   );

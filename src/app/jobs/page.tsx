@@ -171,7 +171,7 @@ function Jobs({ id }: { id: string }) {
         </> : <label className={fieldLabel}>{t.channel}<Select value={channel} onChange={event => update("channel", event.target.value)}><option value="">{t.all}</option><option value="WHATSAPP">{t.WHATSAPP}</option><option value="EMAIL">{t.EMAIL}</option></Select></label>}
       </section>;
   const errorText = error === "denied" ? t.denied : error === "missing" ? t.missing : t.unknown;
-  return <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="mx-auto min-h-screen max-w-6xl space-y-5 bg-background p-4 text-foreground sm:p-8 [overflow-wrap:anywhere]">
+  return <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="mx-auto min-h-screen max-w-6xl space-y-5 p-4 text-foreground sm:p-8 [overflow-wrap:anywhere]">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex min-w-0 flex-1 items-start gap-3"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-primary shadow-xs"><ClipboardList className="size-5" /></span><div className="min-w-0"><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{t.title}</h1><p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-muted">{t.description}</p></div></div>
       <Button ref={refreshButton} variant="outline" loading={loading} disabled={busy} onClick={() => void status.refresh()}>{loading ? null : <RefreshCw aria-hidden />}{t.refresh}</Button>

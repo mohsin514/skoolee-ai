@@ -1071,7 +1071,7 @@ export default function CampusAdminDashboard() {
     // when the device has no connection at all.
     const offline = typeof navigator !== "undefined" && navigator.onLine === false;
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-subtle px-4 py-6 sm:p-6">
+      <div className="flex min-h-screen items-center justify-center px-4 py-6 sm:p-6">
         <h1 className="sr-only">{ui("Command Centre")}</h1>
         <ErrorState
           variant="page"

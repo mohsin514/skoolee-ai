@@ -165,7 +165,7 @@ export default function FirstLoginPage() {
   };
 
   return (
-    <main lang={language} dir={directionFor(language)} className="min-h-screen w-full flex items-center justify-center bg-brand-50 p-4 sm:p-5 font-sans">
+    <main lang={language} dir={directionFor(language)} className="min-h-screen w-full flex items-center justify-center p-4 sm:p-5 font-sans">
       <div className="w-full max-w-lg">
         <div className="sk-enter flex flex-col items-center mb-7">
           <SkooleeLogo size="2.2rem" weight="heavy" className="mb-3" />

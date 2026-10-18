@@ -74,7 +74,7 @@ export default function VerifySuccessPage() {
   }, [countdown, router]);
 
   return (
-    <main lang={language} dir={directionFor(language)} className="grid min-h-dvh w-full grid-cols-1 bg-white font-sans md:grid-cols-2">
+    <main lang={language} dir={directionFor(language)} className="grid min-h-dvh w-full grid-cols-1 font-sans md:grid-cols-2">
 
       {/* ─── LEFT SIDE: Visual Narrative ─── */}
       <section className="relative hidden min-h-dvh overflow-hidden md:block">

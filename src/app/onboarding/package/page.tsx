@@ -187,7 +187,7 @@ function PackageChoice() {
   };
 
   return (
-    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 px-4 py-6 text-ink-strong sm:px-8 sm:py-10">
+    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen px-4 py-6 text-ink-strong sm:px-8 sm:py-10">
       <div className="mx-auto max-w-7xl">
         <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className={buttonVariants({ variant: "link", className: "-ms-2 gap-2 px-2" })}>
           <ArrowLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
@@ -300,7 +300,7 @@ function PackageChoice() {
 
 export default function OnboardingPackagePage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-brand-50 px-4 py-6 sm:px-8 sm:py-10"><div className="mx-auto max-w-7xl"><PackagesSkeleton label="Loading packages" /></div></main>}>
+    <Suspense fallback={<main className="min-h-screen px-4 py-6 sm:px-8 sm:py-10"><div className="mx-auto max-w-7xl"><PackagesSkeleton label="Loading packages" /></div></main>}>
       <PackageChoice />
     </Suspense>
   );

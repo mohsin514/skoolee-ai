@@ -32,7 +32,7 @@ export function MessagesWorkspace({ dashboardHref }: { dashboardHref: string }) 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   return (
-    <div className="flex h-dvh flex-col bg-background font-sans text-foreground">
+    <div className="flex h-dvh flex-col font-sans text-foreground">
       <header className={`${chatHeader} relative z-30 shadow-xs md:px-6`}>
 
         <Link

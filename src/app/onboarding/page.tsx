@@ -384,7 +384,7 @@ export default function OnboardingWizard() {
   if (load.kind === "loading" || (load.kind === "ready" && (!view || !draft))) {
     // The wizard's own shape (step rail + step card), so nothing jumps when the saved setup lands.
     return (
-      <div className="min-h-screen w-full bg-brand-50 lg:flex" role="status" aria-live="polite" aria-busy="true">
+      <div className="min-h-screen w-full lg:flex" role="status" aria-live="polite" aria-busy="true">
         <span className="sr-only">{t.loading}</span>
         <div aria-hidden="true" className="hidden w-72 shrink-0 flex-col gap-4 border-e border-edge/30 bg-white/50 p-8 lg:flex">
           <Skeleton className="h-7 w-32" />
@@ -420,7 +420,7 @@ export default function OnboardingWizard() {
     const copy = onboardingCopy(pageLanguage);
     if (load.kind === "error") {
       return (
-        <main className="min-h-screen bg-brand-50 flex items-center justify-center p-4 sm:p-6">
+        <main className="min-h-screen flex items-center justify-center p-4 sm:p-6">
           <ErrorState
             variant="page"
             className="sk-enter-scale shadow-lg"
@@ -434,7 +434,7 @@ export default function OnboardingWizard() {
       );
     }
     return (
-      <main className="min-h-screen bg-brand-50 flex items-center justify-center p-4 sm:p-6">
+      <main className="min-h-screen flex items-center justify-center p-4 sm:p-6">
         <div className="sk-panel sk-enter-scale max-w-md w-full px-6 py-10 sm:px-10 space-y-4 text-center shadow-lg">
           <span aria-hidden="true" className="mx-auto grid size-14 place-items-center rounded-2xl border border-status-brand-border bg-status-brand-surface text-primary shadow-sm">
             <Lock className="h-6 w-6" />
@@ -489,7 +489,7 @@ export default function OnboardingWizard() {
   };
 
   return (
-    <div lang={language} dir={rtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 flex font-sans text-ink-strong selection:bg-primary/30">
+    <div lang={language} dir={rtl ? "rtl" : "ltr"} className="min-h-screen flex font-sans text-ink-strong selection:bg-primary/30">
 
       {/* ─── SIDEBAR (desktop) ─── */}
       <aside className="w-72 bg-white/50 backdrop-blur-md border-e border-edge/30 hidden lg:flex flex-col p-8 fixed h-full z-50 overflow-y-auto">

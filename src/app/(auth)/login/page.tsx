@@ -491,7 +491,7 @@ export default function LoginPage() {
   const PROOF = t.proof;
 
   return (
-    <main lang={language} dir={directionFor(language)} className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-brand-50 font-sans">
+    <main lang={language} dir={directionFor(language)} className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] font-sans">
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
