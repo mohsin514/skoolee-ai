@@ -2,7 +2,7 @@
 
 import { LocaleProvider, UiText } from "@/components/locale/LocaleProvider";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { NavigationAccessProvider, NavigationAccessNotice, useNavigationAccess } from "@/components/nav/NavigationAccess";
 import { SidebarNavigationContext } from "@/components/nav/WorkspaceSubnav";
@@ -94,6 +94,18 @@ function RoleShellContent({
 
   const toggleCollapsed = useCallback(() => setCollapsed((v) => !v), []);
 
+  // Each navigation fades the workspace in, so a new screen arrives instead
+  // of snapping. Opacity only: a transform would re-anchor fixed descendants
+  // for the length of the animation.
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = workspaceRef.current;
+    if (!element || typeof element.animate !== "function") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = element.animate([{ opacity: 0.001 }, { opacity: 1 }], { duration: 220, easing: "cubic-bezier(.16,1,.3,1)" });
+    return () => animation.cancel();
+  }, [pathname]);
+
   // A modified shortcut avoids intercepting screen-reader single-character commands.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -149,7 +161,7 @@ function RoleShellContent({
             dashboardHref={dashboardHref}
             actions={headerActions}
           /></div>
-          <div className="flex-1 min-h-0 flex flex-col">
+          <div ref={workspaceRef} className="flex-1 min-h-0 flex flex-col">
             <NavigationAccessNotice denied={denied} fallback={navigationAccessFallback} />
             <div style={{ display: denied ? "none" : "contents" }}>{children}</div>
           </div>

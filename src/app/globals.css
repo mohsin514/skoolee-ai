@@ -1385,3 +1385,94 @@ button:disabled,
 @keyframes sk-field-message-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 .sk-field-message { animation: sk-field-message-in 160ms var(--ease-enter) both; }
 @media (prefers-reduced-motion: reduce) { .sk-field-message { animation: none; } }
+
+/* ═══ Motion & interaction vocabulary ═════════════════════════════════════
+   Small, quick and purposeful: things arrive (enter), lists arrive in order
+   (stagger), interactive surfaces answer the pointer (hover/press), and
+   arrows lean the way they lead (nudge). Every rule is off under
+   prefers-reduced-motion. */
+
+@keyframes sk-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes sk-enter-scale { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes sk-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@layer components {
+  /* One element arriving. Delay with style={{ "--sk-delay": "80ms" }}. */
+  .sk-enter { animation: sk-enter 420ms var(--ease-enter) both; animation-delay: var(--sk-delay, 0ms); }
+  .sk-enter-scale { animation: sk-enter-scale 320ms var(--ease-enter) both; animation-delay: var(--sk-delay, 0ms); }
+  .sk-fade-in { animation: sk-fade 240ms ease-out both; animation-delay: var(--sk-delay, 0ms); }
+
+  /* A grid or list whose children arrive one after another (first 12). */
+  .sk-stagger > * { animation: sk-enter 420ms var(--ease-enter) both; }
+  .sk-stagger > :nth-child(2) { animation-delay: 40ms; }
+  .sk-stagger > :nth-child(3) { animation-delay: 80ms; }
+  .sk-stagger > :nth-child(4) { animation-delay: 120ms; }
+  .sk-stagger > :nth-child(5) { animation-delay: 160ms; }
+  .sk-stagger > :nth-child(6) { animation-delay: 200ms; }
+  .sk-stagger > :nth-child(7) { animation-delay: 240ms; }
+  .sk-stagger > :nth-child(8) { animation-delay: 280ms; }
+  .sk-stagger > :nth-child(9) { animation-delay: 300ms; }
+  .sk-stagger > :nth-child(10) { animation-delay: 320ms; }
+  .sk-stagger > :nth-child(11) { animation-delay: 340ms; }
+  .sk-stagger > :nth-child(n + 12) { animation-delay: 360ms; }
+
+  /* Clickable rows and list items (not table rows; Table owns those). */
+  .sk-row-interactive {
+    border-radius: var(--radius-control);
+    transition: background-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+  }
+  .sk-row-interactive:hover { background: var(--surface-hover); }
+  .sk-row-interactive:active { background: var(--surface-selected); }
+  .sk-row-interactive[aria-current="true"],
+  .sk-row-interactive[aria-current="page"],
+  .sk-row-interactive[aria-selected="true"],
+  .sk-row-interactive[data-state="selected"] {
+    background: var(--surface-selected);
+    box-shadow: inset 3px 0 0 var(--brand-600);
+  }
+  .sk-row-interactive:dir(rtl)[aria-current="true"],
+  .sk-row-interactive:dir(rtl)[aria-current="page"],
+  .sk-row-interactive:dir(rtl)[aria-selected="true"],
+  .sk-row-interactive:dir(rtl)[data-state="selected"] { box-shadow: inset -3px 0 0 var(--brand-600); }
+
+  /* Tactile press for custom clickable surfaces (Button already has it). */
+  .sk-press { transition: transform 120ms var(--ease-standard); }
+  .sk-press:active { transform: scale(0.985); }
+
+  /* An arrow or chevron inside a hovered/focused link leans forward. */
+  .sk-nudge-trigger .sk-nudge { transition: transform var(--duration-control) var(--ease-enter); }
+  .sk-nudge-trigger:hover .sk-nudge,
+  .sk-nudge-trigger:focus-visible .sk-nudge { transform: translateX(3px); }
+  .sk-nudge-trigger:dir(rtl):hover .sk-nudge,
+  .sk-nudge-trigger:dir(rtl):focus-visible .sk-nudge { transform: translateX(-3px); }
+
+  /* Animated underline for inline text links. */
+  .sk-link {
+    color: var(--brand-600);
+    font-weight: 600;
+    background: linear-gradient(currentColor, currentColor) no-repeat 0 100% / 0 1.5px;
+    transition: background-size var(--duration-control) var(--ease-enter), color var(--duration-fast);
+  }
+  .sk-link:dir(rtl) { background-position: 100% 100%; }
+  .sk-link:hover, .sk-link:focus-visible { background-size: 100% 1.5px; color: var(--brand-700); }
+
+  /* Icon tile that brightens with its card on hover. */
+  .group:hover .sk-icon-tile { transform: translateY(-1px) scale(1.04); box-shadow: var(--shadow-brand); }
+  .sk-icon-tile { transition: transform var(--duration-control) var(--ease-enter), box-shadow var(--duration-control) var(--ease-standard); }
+
+  /* Elevation steps for any surface, matching the tinted shadow scale. */
+  .sk-elevation-1 { box-shadow: var(--shadow-sm); }
+  .sk-elevation-2 { box-shadow: var(--shadow-md); }
+  .sk-elevation-3 { box-shadow: var(--shadow-lg); }
+  .sk-elevation-4 { box-shadow: var(--shadow-xl); }
+}
+
+/* Sticky headers and toolbars pick up a shadow only once content scrolls
+   beneath them (set data-stuck from an IntersectionObserver, or leave it). */
+[data-stuck="true"] { box-shadow: 0 8px 24px -16px rgb(31 26 35 / 0.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-enter, .sk-enter-scale, .sk-fade-in, .sk-stagger > * { animation: none !important; }
+  .sk-press:active, .group:hover .sk-icon-tile,
+  .sk-nudge-trigger:hover .sk-nudge, .sk-nudge-trigger:focus-visible .sk-nudge { transform: none; }
+}
