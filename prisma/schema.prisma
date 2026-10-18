@@ -287,6 +287,14 @@ model School {
   taxFixtureRuns TaxFixtureRun[]
   taxDocuments TaxDocument[]
   taxSubmissionAttempts TaxSubmissionAttempt[]
+  integrationConnections IntegrationConnection[]
+  integrationCredentials IntegrationCredential[]
+  integrationEvents IntegrationEvent[]
+  integrationDeliveries IntegrationDelivery[]
+  integrationDeliveryAttempts IntegrationDeliveryAttempt[]
+  integrationCommands IntegrationCommand[]
+  integrationRequestLogs IntegrationRequestLog[]
+  integrationExternalRefs IntegrationExternalRef[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -4590,6 +4598,163 @@ model TaxSubmissionAttempt {
   @@unique([documentId, attempt])
   @@index([schoolId, documentId])
   @@map("tax_submission_attempts")
+}
+
+/// SKO-445: scoped service connections for the public v1 contract and signed outbound webhooks. A connection is not a
+/// person: it never inherits its creator's privileges, only its campuses and scopes.
+
+model IntegrationConnection {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name              String
+  campusIds         String[]  @default([]) @map("campus_ids")
+  scopes            String[]  @default([])
+  contractVersion   String    @default("v1") @map("contract_version")
+  status            String    @default("ACTIVE") // ACTIVE | PAUSED | REVOKED
+  webhookUrl        String?   @map("webhook_url")
+  topics            String[]  @default([])
+  signingSecret     String?   @map("signing_secret") // encrypted
+  previousSigningSecret String? @map("previous_signing_secret") // encrypted, valid until previousSecretUntil
+  previousSecretUntil DateTime? @map("previous_secret_until")
+  rateLimitPerMinute Int      @default(60) @map("rate_limit_per_minute")
+  dailyQuota        Int       @default(10000) @map("daily_quota")
+  createdById       String    @map("created_by_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  revokedAt         DateTime? @map("revoked_at")
+
+  credentials IntegrationCredential[]
+  deliveries  IntegrationDelivery[]
+  commands    IntegrationCommand[]
+
+  @@index([schoolId, status])
+  @@map("integration_connections")
+}
+
+model IntegrationCredential {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId String                @map("connection_id")
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  keyId        String                @unique @map("key_id")
+  secretHash   String                @map("secret_hash")
+  status       String                @default("ACTIVE") // ACTIVE | REVOKED
+  expiresAt    DateTime?             @map("expires_at")
+  lastUsedAt   DateTime?             @map("last_used_at")
+  createdById  String                @map("created_by_id")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  revokedAt    DateTime?             @map("revoked_at")
+
+  @@index([schoolId, connectionId])
+  @@map("integration_credentials")
+}
+
+model IntegrationEvent {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  topic       String
+  campusId    String   @map("campus_id")
+  resourceId  String   @map("resource_id")
+  payload     Json
+  occurredAt  DateTime @map("occurred_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  deliveries IntegrationDelivery[]
+
+  @@index([schoolId, topic, occurredAt])
+  @@map("integration_events")
+}
+
+model IntegrationDelivery {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId  String                @map("connection_id")
+  connection    IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  eventId       String                @map("event_id")
+  event         IntegrationEvent      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status        String                @default("PENDING") // PENDING | DELIVERING | DELIVERED | FAILED | BLOCKED | PAUSED
+  attempts      Int                   @default(0)
+  nextAttemptAt DateTime              @default(now()) @map("next_attempt_at")
+  lastStatusCode Int?                 @map("last_status_code")
+  lastError     String?               @map("last_error")
+  deliveredAt   DateTime?             @map("delivered_at")
+  replayCount   Int                   @default(0) @map("replay_count")
+  leaseUntil    DateTime?             @map("lease_until")
+  createdAt     DateTime              @default(now()) @map("created_at")
+
+  attemptLog IntegrationDeliveryAttempt[]
+
+  @@unique([connectionId, eventId])
+  @@index([schoolId, status, nextAttemptAt])
+  @@map("integration_deliveries")
+}
+
+model IntegrationDeliveryAttempt {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  deliveryId    String              @map("delivery_id")
+  delivery      IntegrationDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  attempt       Int
+  replay        Int                 @default(0)
+  url           String
+  resolvedAddress String?           @map("resolved_address")
+  statusCode    Int?                @map("status_code")
+  outcome       String // DELIVERED | HTTP_ERROR | TIMEOUT | BLOCKED_DESTINATION | REDIRECT_REFUSED | NETWORK_ERROR | RATE_LIMITED
+  error         String?
+  durationMs    Int?                @map("duration_ms")
+  signedWith    Int                 @default(1) @map("signed_with")
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  @@index([schoolId, deliveryId])
+  @@map("integration_delivery_attempts")
+}
+
+model IntegrationCommand {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId   String                @map("connection_id")
+  connection     IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  idempotencyKey String                @map("idempotency_key")
+  requestHash    String                @map("request_hash")
+  statusCode     Int                   @map("status_code")
+  response       Json
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  @@unique([connectionId, idempotencyKey])
+  @@map("integration_commands")
+}
+
+model IntegrationRequestLog {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId String   @map("connection_id")
+  method       String
+  path         String
+  statusCode   Int      @map("status_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, connectionId, createdAt])
+  @@map("integration_request_logs")
+}
+
+model IntegrationExternalRef {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId String   @map("connection_id")
+  studentId    String   @map("student_id")
+  system       String
+  externalId   String   @map("external_id")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([connectionId, studentId, system])
+  @@map("integration_external_refs")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
