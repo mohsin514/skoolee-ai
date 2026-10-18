@@ -107,6 +107,15 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // Type-check only the application during `next build`. The root tsconfig
+  // also covers tests/, scripts/ and every local .next-app*/types folder,
+  // which pushed the build's type-check worker past the 8 GB Vercel
+  // container (SIGKILL, OOM). tsconfig.build.json extends it with src only;
+  // tests and scripts are still checked by the full `tsc -p .` locally.
+  typescript: {
+    tsconfigPath: "tsconfig.build.json",
+  },
+
   // Ignore build-time errors for BullMQ / ioredis (server-only)
   serverExternalPackages: ["bullmq", "ioredis"],
 };

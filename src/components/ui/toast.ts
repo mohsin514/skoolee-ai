@@ -36,7 +36,7 @@ export function friendlyErrorMessage(error: unknown, fallback?: string): string 
   return text;
 }
 
-function error(message: Message | unknown, data?: ExternalToast) {
+function error(message: unknown, data?: ExternalToast) {
   const normalized = typeof message === "string" || message instanceof Error || message == null
     ? friendlyErrorMessage(message)
     : (message as Message);
@@ -53,6 +53,9 @@ function success(message: Message, data?: ExternalToast) {
 
 const base = (message: Message, data?: ExternalToast) => sonner(message, data);
 
-export const toast: typeof sonner = Object.assign(base, sonner, { error, warning, success }) as typeof sonner;
+/** Sonner's toast, except `error` also accepts anything thrown (Error, unknown). */
+export type Toast = ((...args: Parameters<typeof sonner>) => ReturnType<typeof sonner>) & Omit<typeof sonner, "error"> & { error: typeof error };
+
+export const toast: Toast = Object.assign(base, sonner, { error, warning, success }) as Toast;
 
 export type { ExternalToast };
