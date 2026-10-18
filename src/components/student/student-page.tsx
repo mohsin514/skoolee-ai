@@ -114,7 +114,7 @@ export function StudentPage({
             )}
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h1 className="[overflow-wrap:anywhere] text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h1 className="[overflow-wrap:anywhere] text-lg font-black leading-snug tracking-tight text-[#1d1b20]">
                   {title}
                 </h1>
                 {/* The old eyebrow carried the page's live number — "92%
@@ -125,7 +125,7 @@ export function StudentPage({
                 </span>
               </div>
               {summary ? (
-                <p className="[overflow-wrap:anywhere] text-sm font-semibold leading-tight text-ink-muted">
+                <p className="mt-1 [overflow-wrap:anywhere] text-sm font-semibold leading-relaxed text-ink-muted">
                   {summary}
                 </p>
               ) : null}

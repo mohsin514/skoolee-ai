@@ -184,7 +184,7 @@ export default function StudentDashboard() {
             onClick={handleDownloadPdf}
             disabled={downloading}
           >
-            {downloading ? "Generating…" : "Report Card"}
+            {downloading ? tr("Generating…") : tr("Report Card")}
           </BrandButton>
         </>
       }

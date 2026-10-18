@@ -45,7 +45,7 @@ export function PolicyAssistant() {
     <section aria-labelledby="policy-assistant" className="sk-panel space-y-3 p-4">
       <h2 id="policy-assistant" className="text-lg font-bold">{ui("Ask about school policy")}</h2>
       <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => { e.preventDefault(); if (busy || question.trim().length < 3) return; setBusy(true); const r = await post({ action: "ask", data: { question } }); if (r) { setAnswer(r); void load(); } setBusy(false); }}>
-        <FormField name="policy-question" label={ui("Your question")} hint={ui("For example: How do I request leave?")} className="min-w-[16rem] flex-1"><Input value={question} maxLength={500} onChange={(e) => setQuestion(e.target.value)} /></FormField>
+        <FormField name="policy-question" label={ui("Your question")} hint={ui("For example: How do I request leave?")} className="w-full min-w-0 sm:w-auto sm:min-w-[16rem] sm:flex-1"><Input value={question} maxLength={500} onChange={(e) => setQuestion(e.target.value)} /></FormField>
         <Button type="submit" disabled={busy || question.trim().length < 3}>{ui(busy ? "Checking current policies…" : "Ask")}</Button>
       </form>
       <div aria-live="polite">{error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}</div>
