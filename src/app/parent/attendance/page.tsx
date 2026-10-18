@@ -11,6 +11,7 @@ import { useParentData } from "../parent-data-context";
 import { GuardianAttendanceExplanations } from "@/components/attendance/class-register";
 import { GuardianLeave, GuardianTrips } from "@/components/family/family-requests";
 import { FamilyPickups } from "@/components/pickup/pickup";
+import { FamilyActivities } from "@/components/activities/activities";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,8 @@ export default function ParentAttendancePage() {
         {selectedStudentId ? <GuardianLeave key={`leave-${selectedStudentId}`} studentId={selectedStudentId} /> : null}
         {/* SKO-438: who may collect this child; shown only to guardians with the pickup permission. */}
         {pickupChildId ? <div className="mt-6"><FamilyPickups key={`pickup-${pickupChildId}`} studentId={pickupChildId} /></div> : null}
+        {/* SKO-440: clubs, sports and trips for this child. */}
+        {pickupChildId ? <div className="mt-6"><FamilyActivities key={`act-${pickupChildId}`} studentId={pickupChildId} /></div> : null}
         {selectedStudentId ? <GuardianTrips key={`trips-${selectedStudentId}`} studentId={selectedStudentId} /> : null}
       </div>
     </ParentPage>

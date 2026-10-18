@@ -345,6 +345,21 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/parent",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-440: activity notices name no child; the activities card has the detail.
+  ACTIVITY_PLACE_OFFERED: {
+    title: () => "A place is available",
+    message: () => "A waitlisted activity place is now offered to your child. Accept it before the offer expires.",
+    icon: "Ticket",
+    link: "/parent/attendance",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  ACTIVITY_CANCELLED: {
+    title: () => "Activity cancelled",
+    message: () => "An activity your child had a place in was cancelled by the school.",
+    icon: "CalendarX",
+    link: "/parent/attendance",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-438: pickup notices name no child or recipient; the pickup page has the detail.
   PICKUP_RELEASED: {
     title: () => "Pickup completed",

@@ -46,6 +46,7 @@ import {
   Users,
   Wrench,
   ShieldCheck,
+  Trophy,
   Network,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -966,6 +967,7 @@ export default function CampusAdminDashboard() {
         { icon: Building2, label: "Hostel", active: activeView === "dormitory", module: moduleForView("dormitory"), onClick: () => setActiveView("dormitory") },
         { icon: MessageCircle, label: "Complaints", active: activeView === "complaints", module: moduleForView("complaints"), onClick: () => setActiveView("complaints") },
         { icon: ShieldCheck, label: "Pickup desk", href: "/pickup" },
+        { icon: Trophy, label: "Activities", href: "/activities" },
         { icon: PhoneCall, label: "Phone Calls", active: activeView === "phone-calls", module: moduleForView("phone-calls"), onClick: () => setActiveView("phone-calls") },
         { icon: Mail, label: "Postal", active: activeView === "postal", module: moduleForView("postal"), onClick: () => setActiveView("postal") },
         { icon: FileText, label: "Certificates", active: activeView === "certificates", module: moduleForView("certificates"), onClick: () => setActiveView("certificates") },

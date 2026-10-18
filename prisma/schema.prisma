@@ -257,6 +257,10 @@ model School {
   pickupRestrictions PickupRestriction[]
   pickupChecks PickupCheck[]
   pickupEvents PickupEvent[]
+  activities Activity[]
+  activityPlaces ActivityPlace[]
+  activitySessions ActivitySession[]
+  activityAttendances ActivityAttendance[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3907,6 +3911,97 @@ model PickupEvent {
 
   @@index([schoolId, studentId, createdAt])
   @@map("pickup_events")
+}
+
+/// SKO-440: a club, sport or trip with its capacity, eligibility, cost and (for trips) the consent record it
+/// relies on. Places are counted against capacity; interest alone never holds a place.
+model Activity {
+  id            String    @id @default(uuid())
+  schoolId      String    @default("") @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String    @map("campus_id")
+  kind          String // CLUB | SPORT | TRIP
+  title         String
+  description   String
+  location      String
+  startsAt      DateTime  @map("starts_at")
+  endsAt        DateTime  @map("ends_at")
+  capacity      Int
+  classIds      String[]  @default([]) @map("class_ids")
+  staffIds      String[]  @default([]) @map("staff_ids")
+  costAmount    Int       @default(0) @map("cost_amount")
+  costCurrency  String    @default("PKR") @map("cost_currency")
+  tripId        String?   @unique @map("trip_id")
+  offerHours    Int       @default(48) @map("offer_hours")
+  cancellationTerms String @map("cancellation_terms")
+  status        String    @default("PUBLISHED") // PUBLISHED | CANCELLED
+  coordinatorId String    @map("coordinator_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  places   ActivityPlace[]
+  sessions ActivitySession[]
+
+  @@index([schoolId, campusId, startsAt])
+  @@map("activities")
+}
+
+/// SKO-440: one learner's place. WAITLIST → OFFERED (expiring) → RESERVED (conditional until consent and fee
+/// rules pass) → CONFIRMED; or DECLINED / EXPIRED / CANCELLED. A cancellation of a paid place hands off one
+/// refund request to the reviewed finance workflow.
+model ActivityPlace {
+  id               String    @id @default(uuid())
+  schoolId         String    @default("") @map("school_id")
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  activityId       String    @map("activity_id")
+  activity         Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  studentId        String    @map("student_id")
+  requestedById    String    @map("requested_by_id")
+  status           String // WAITLIST | OFFERED | RESERVED | CONFIRMED | DECLINED | EXPIRED | CANCELLED
+  offerExpiresAt   DateTime? @map("offer_expires_at")
+  feeStatus        String    @default("NONE") @map("fee_status") // NONE | DUE | PAID | WAIVED
+  invoiceId        String?   @map("invoice_id")
+  paymentId        String?   @map("payment_id")
+  refundState      String?   @map("refund_state") // NEEDED | REQUESTED
+  refundAdjustmentId String? @map("refund_adjustment_id")
+  cancelledAt      DateTime? @map("cancelled_at")
+  cancelledById    String?   @map("cancelled_by_id")
+  cancelReason     String?   @map("cancel_reason")
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([activityId, studentId])
+  @@index([schoolId, studentId])
+  @@map("activity_places")
+}
+
+model ActivitySession {
+  id         String   @id @default(uuid())
+  schoolId   String   @default("") @map("school_id")
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  activityId String   @map("activity_id")
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  startsAt   DateTime @map("starts_at")
+  endsAt     DateTime @map("ends_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, activityId])
+  @@map("activity_sessions")
+}
+
+model ActivityAttendance {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  sessionId String   @map("session_id")
+  studentId String   @map("student_id")
+  status    String // PRESENT | ABSENT | LATE_WITHDRAWAL
+  markedById String  @map("marked_by_id")
+  markedAt  DateTime @default(now()) @map("marked_at")
+
+  @@unique([sessionId, studentId])
+  @@index([schoolId, studentId])
+  @@map("activity_attendances")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

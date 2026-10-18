@@ -114,6 +114,22 @@ function latestAnswers(consents: { guardianUserId: string; choice: string; creat
   return latest;
 }
 
+/** SKO-440: the current consent state of each learner for one trip (same rules as the roster). */
+export async function tripConsentStatus(db: TxClient, schoolId: string, tripId: string, studentIds: string[]) {
+  const out = new Map<string, ChildConsent>();
+  if (!studentIds.length) return out;
+  const trip = await db.trip.findFirst({ where: { id: tripId, schoolId }, include: { versions: { orderBy: { version: "asc" } }, consents: { where: { studentId: { in: studentIds } }, include: { tripVersion: { select: { version: true } } } } } });
+  if (!trip || trip.status !== "OPEN") { for (const id of studentIds) out.set(id, "PENDING"); return out; }
+  const current = trip.versions.at(-1)!, baseline = baselineOf(trip.versions);
+  const guardians = await eligibleGuardians(db, schoolId, studentIds, current.consentKind as Kind);
+  for (const studentId of studentIds) {
+    const mine = trip.consents.filter(c => c.studentId === studentId).map(c => ({ guardianUserId: c.guardianUserId, choice: c.choice, createdAt: c.createdAt, version: c.tripVersion.version }));
+    const signatories = guardians.filter(g => g.studentId === studentId).map(g => g.guardianUserId!);
+    out.set(studentId, signatories.length ? childStatus(current.signatoryRule as Rule, signatories, latestAnswers(mine, baseline)) : "PENDING");
+  }
+  return out;
+}
+
 export async function tripRoster(user: AuthUser, tripId: string) {
   staffOnly(user);
   const trip = await prisma.trip.findFirst({ where: { id: tripId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, include: { versions: { orderBy: { version: "asc" } }, invitees: true, consents: { include: { tripVersion: { select: { version: true } } }, orderBy: { createdAt: "asc" } } } });
