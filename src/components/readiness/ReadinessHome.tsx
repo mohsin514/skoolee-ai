@@ -63,7 +63,7 @@ export function ReadinessHome() {
   return <main lang={language} dir={rtl ? "rtl" : "ltr"} className="mx-auto w-full max-w-5xl min-w-0 space-y-5 p-3 sm:p-6">
     <header className="sk-panel space-y-2 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-bold"><ClipboardCheck aria-hidden="true" className="h-6 w-6 text-[#8127cf]" />{t.title}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold"><ClipboardCheck aria-hidden="true" className="h-6 w-6 text-primary" />{t.title}</h1>
         {view?.lead && <span className={`rounded-full border px-3 py-1 text-sm font-semibold ${view.readiness.status === "READY" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>{view.readiness.status === "READY" ? t.statusReady : t.statusSetup}</span>}
       </div>
       <p className="text-sm text-slate-600">{t.intro}</p>

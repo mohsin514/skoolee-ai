@@ -72,7 +72,7 @@ export function TeacherView({
 
         </div>
         {selectedTeacherId && (
-          <span className="text-[10px] font-bold text-ink-muted">
+          <span className="text-2xs font-bold text-ink-muted">
             {selectedTeacherSlots.length} slot{selectedTeacherSlots.length !== 1 ? "s" : ""} across all classes
           </span>
         )}
@@ -89,10 +89,10 @@ export function TeacherView({
 
       {!selectedTeacherId && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[28px] bg-[#fbf0fe]">
-            <User className="h-8 w-8 text-[#8127cf]/30" />
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[28px] bg-brand-50">
+            <User className="h-8 w-8 text-primary/30" />
           </div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Select a Teacher</h3>
+          <h3 className="text-lg font-bold text-ink-strong">Select a Teacher</h3>
           <p className="mt-2 max-w-sm text-sm font-semibold text-ink-muted">
             Choose a teacher above to see their full weekly schedule across every class they teach.
           </p>
@@ -102,19 +102,19 @@ export function TeacherView({
       {selectedTeacherId && (
         <div className="sk-panel overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
+            <div className="grid border-b border-muted" style={{ gridTemplateColumns: gridCols }}>
               <div className="flex items-center justify-center p-3">
-                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Period</span>
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period</span>
               </div>
               {visibleDays.map((day) => (
                 <div
                   key={day.num}
-                  className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${
-                    weekendDays.includes(day.num) ? "opacity-50 bg-[#f3f4f9]/70" : ""
+                  className={`flex flex-col items-center justify-center py-3 border-l border-muted ${
+                    weekendDays.includes(day.num) ? "opacity-50 bg-muted/70" : ""
                   }`}
                 >
-                  <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                  <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                  <span className="text-3xs font-bold text-ink-subtle mt-0.5">{day.full}</span>
                 </div>
               ))}
             </div>
@@ -123,12 +123,12 @@ export function TeacherView({
               periods.map((period) => (
                 <div
                   key={period.num}
-                  className="grid border-b border-[#f3f4f9] last:border-b-0"
+                  className="grid border-b border-muted last:border-b-0"
                   style={{ gridTemplateColumns: gridCols }}
                 >
-                  <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
-                    <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-                    <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{period.start}</span>
+                  <div className="flex flex-col items-center justify-center p-2 border-r border-muted">
+                    <span className="text-2xs font-bold text-primary">P{period.num}</span>
+                    <span className="text-3xs font-bold text-ink-subtle mt-0.5">{period.start}</span>
                   </div>
                   {visibleDays.map((day) => {
                     const isOff = weekendDays.includes(day.num);
@@ -138,7 +138,7 @@ export function TeacherView({
                     return (
                       <div
                         key={day.num}
-                        className={`border-l border-[#f3f4f9] p-1 ${isOff ? "opacity-40 bg-[#f3f4f9]/70" : ""}`}
+                        className={`border-l border-muted p-1 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
                       >
                         {slotInfo ? (
                           <div
@@ -147,20 +147,20 @@ export function TeacherView({
                             }`}
                           >
                             <p
-                              className={`text-[10px] font-black leading-tight ${
+                              className={`text-2xs font-bold leading-tight ${
                                 isConflict ? "text-rose-700" : "text-emerald-700"
                               }`}
                             >
                               {slotInfo.subject}
                             </p>
-                            <p className="text-[8px] font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</p>
+                            <p className="text-3xs font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</p>
                             {isConflict && (
-                              <span className="mt-0.5 text-[7px] font-black uppercase text-rose-600">CONFLICT</span>
+                              <span className="mt-0.5 text-3xs font-semibold uppercase text-rose-600">CONFLICT</span>
                             )}
                           </div>
                         ) : (
-                          <div className="h-full min-h-[48px] rounded-xl border border-dashed border-[#cfc2d6]/15 flex items-center justify-center">
-                            <span className="text-[8px] font-semibold text-ink-subtle">—</span>
+                          <div className="h-full min-h-[48px] rounded-xl border border-dashed border-edge/15 flex items-center justify-center">
+                            <span className="text-3xs font-semibold text-ink-subtle">—</span>
                           </div>
                         )}
                       </div>

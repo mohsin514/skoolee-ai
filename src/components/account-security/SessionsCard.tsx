@@ -21,31 +21,31 @@ export function SessionsCard({ sessions, t, locale, busyId, onEnd }: {
   return (
     <section aria-labelledby="security-sessions-heading" className={securityCardClass}>
       <div className="flex flex-wrap items-start gap-4">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3ecfa] text-[#8127cf]">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-primary">
           <MonitorSmartphone aria-hidden="true" className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <h4 id="security-sessions-heading" className="text-base font-black tracking-tight text-[#1f1a23]">{t.sessionsTitle}</h4>
+          <h4 id="security-sessions-heading" className="text-base font-bold tracking-tight text-ink-strong">{t.sessionsTitle}</h4>
           <p className="mt-1 text-sm font-semibold leading-relaxed text-ink-muted">{t.sessionsBody}</p>
         </div>
       </div>
 
       {sessions.length === 0 ? (
-        <p className="mt-5 rounded-2xl border border-dashed border-[#d8cfe5] bg-[#fcfaff] p-4 text-sm font-semibold text-ink-muted">{t.empty}</p>
+        <p className="mt-5 rounded-2xl border border-dashed border-field-border bg-surface-subtle p-4 text-sm font-semibold text-ink-muted">{t.empty}</p>
       ) : (
         <ul className="mt-5 space-y-3">
           {sessions.map(session => {
             const Icon = session.userAgent && MOBILE.test(session.userAgent) ? Smartphone : Laptop;
             const busy = busyId === session.id;
             return (
-              <li key={session.id} className="flex flex-col gap-4 rounded-2xl border border-[#ece3f3] bg-[#fcfaff] p-4 sm:flex-row sm:items-center">
+              <li key={session.id} className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8127cf] shadow-[0_2px_6px_-2px_rgba(55,27,77,0.2)]">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-[0_2px_6px_-2px_rgba(55,27,77,0.2)]">
                     <Icon aria-hidden="true" className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="min-w-0 text-sm font-bold text-[#1f1a23] [overflow-wrap:anywhere]"><bdi dir="ltr">{session.userAgent || t.unknown}</bdi></p>
+                      <p className="min-w-0 text-sm font-bold text-ink-strong [overflow-wrap:anywhere]"><bdi dir="ltr">{session.userAgent || t.unknown}</bdi></p>
                       {session.current && <Badge variant="secondary">{t.thisDevice}</Badge>}
                     </div>
                     <p className="mt-1 text-xs font-semibold text-ink-muted">{t.signed}: {formatInstant(session.loginAt, locale)}</p>

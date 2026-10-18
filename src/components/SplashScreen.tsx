@@ -67,12 +67,12 @@ export default function SplashScreen() {
   const pct = Math.round(progress * 100);
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-[#fff7fe]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-brand-50">
       {/* Same drifting mesh and 56px rule as the auth brand panel, at a fraction
           of the opacity so it reads as texture on the light ground. */}
       <div aria-hidden className="absolute inset-0 overflow-hidden">
-        <div className="sk-blob absolute -left-[15%] -top-[20%] h-[65%] w-[65%] rounded-full bg-[#9c48ea] opacity-[0.18] blur-[110px]" />
-        <div className="sk-blob sk-blob-2 absolute -right-[18%] top-[25%] h-[60%] w-[60%] rounded-full bg-[#b073f0] opacity-[0.14] blur-[120px]" />
+        <div className="sk-blob absolute -left-[15%] -top-[20%] h-[65%] w-[65%] rounded-full bg-brand-400 opacity-[0.18] blur-[110px]" />
+        <div className="sk-blob sk-blob-2 absolute -right-[18%] top-[25%] h-[60%] w-[60%] rounded-full bg-brand-300 opacity-[0.14] blur-[120px]" />
         <div
           className="absolute inset-0 opacity-[0.04]"
           style={{
@@ -101,10 +101,10 @@ export default function SplashScreen() {
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={pct}
-            className="relative h-1.5 w-[200px] overflow-hidden rounded-full bg-[#8127cf]/12"
+            className="relative h-1.5 w-[200px] overflow-hidden rounded-full bg-primary/12"
           >
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-[width] duration-100 ease-linear"
+              className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-[width] duration-100 ease-linear"
               style={{ width: `${Math.max(6, pct)}%` }}
             />
             {isPending && (
@@ -114,7 +114,7 @@ export default function SplashScreen() {
         </div>
 
         <p
-          className="sk-rise mt-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#8127cf]/70"
+          className="sk-rise mt-5 text-2xs font-semibold uppercase tracking-wider text-primary/70"
           style={{ animationDelay: '160ms' }}
         >
           AI school management

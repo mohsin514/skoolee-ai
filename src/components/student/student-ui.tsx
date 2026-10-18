@@ -13,7 +13,7 @@ export const BRAND = "#8127cf";
 export type Tone = "purple" | "green" | "rose" | "amber";
 
 export const TONES: Record<Tone, { ring: string; text: string; soft: string; solid: string }> = {
-  purple: { ring: "#8127cf", text: "text-[#8127cf]", soft: "bg-[#fbf0fe]", solid: "bg-[#8127cf]" },
+  purple: { ring: "#8127cf", text: "text-primary", soft: "bg-brand-50", solid: "bg-primary" },
   green: { ring: "#059669", text: "text-emerald-600", soft: "bg-emerald-50", solid: "bg-emerald-600" },
   rose: { ring: "#e11d48", text: "text-rose-600", soft: "bg-rose-50", solid: "bg-rose-600" },
   amber: { ring: "#d97706", text: "text-amber-600", soft: "bg-amber-50", solid: "bg-amber-600" },
@@ -138,7 +138,7 @@ export function ProgressRing({
           <CountUp value={Math.round(value)} suffix="%" />
         </span>
         {label && (
-          <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider text-ink-subtle">{label}</span>
+          <span className="mt-0.5 text-3xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</span>
         )}
       </div>
     </div>
@@ -169,7 +169,7 @@ export function StatCard({
   const t = TONES[tone];
   return (
     <div
-      className="sk-rise relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]"
+      className="sk-rise relative overflow-hidden rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]"
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {/* A tinted edge carries the tone without a coloured card. */}
@@ -179,7 +179,7 @@ export function StatCard({
       />
       <div className="relative flex min-w-0 items-center justify-between gap-[10px]">
         <div className="min-w-0 flex-1">
-          <p dir="auto" className="[overflow-wrap:anywhere] text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
+          <p dir="auto" className="[overflow-wrap:anywhere] text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-[22px]">
             {value}
           </p>
           <p dir="auto" className="mt-1.5 [overflow-wrap:anywhere] text-xs font-semibold leading-tight text-ink-muted">
@@ -223,9 +223,9 @@ export function PanelHeading({
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-sm font-black tracking-tight text-[#1d1b20] [overflow-wrap:anywhere]">{title}</h3>
+          <h3 className="text-sm font-bold tracking-tight text-ink-strong [overflow-wrap:anywhere]">{title}</h3>
           {sub && (
-            <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p>
+            <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p>
           )}
         </div>
       </div>
@@ -246,7 +246,7 @@ export function Panel({
 }) {
   return (
     <div
-      className={`sk-rise min-w-0 rounded-[22px] border border-[#cfc2d6]/20 bg-white p-[12px] sm:p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${className}`}
+      className={`sk-rise min-w-0 rounded-[22px] border border-edge/20 bg-white p-[12px] sm:p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${className}`}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {children}
@@ -274,11 +274,11 @@ export function StudentEmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 px-6 py-12 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#fbf0fe]">
-        <Icon className="h-6 w-6 text-[#8127cf]/40" />
+    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-edge/25 bg-brand-50/15 px-6 py-12 text-center">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-brand-50">
+        <Icon className="h-6 w-6 text-primary/40" />
       </div>
-      <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">{title}</h3>
+      <h3 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
       <p className="mt-1 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">{description}</p>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>

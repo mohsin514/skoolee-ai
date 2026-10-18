@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -66,7 +66,7 @@ export function CampusPolicy({ campuses }: { campuses?: { id: string; name: stri
     : ui("Campus setting. No group template sets this value.");
   const badge = (r: Row) => r.source === "GROUP_LOCKED" ? ui("Locked") : r.source === "GROUP_DEFAULT" ? ui("Inherited") : r.source === "OVERRIDE" ? ui("Overridden") : ui("Campus setting");
   return <section className="min-w-0 space-y-3" data-campus-policy>
-    <header><h2 className="text-lg font-black">{ui("Campus policy")}</h2>{data ? <p className="text-sm text-ink-muted"><bdi>{data.campus.name}</bdi>{data.template ? <> · <bdi>{data.template.title}</bdi>{data.version ? <> · <bdi dir="ltr">v{data.version.version}</bdi></> : null}</> : null}</p> : null}</header>
+    <header><h2 className="text-lg font-bold">{ui("Campus policy")}</h2>{data ? <p className="text-sm text-ink-muted"><bdi>{data.campus.name}</bdi>{data.template ? <> · <bdi>{data.template.title}</bdi>{data.version ? <> · <bdi dir="ltr">v{data.version.version}</bdi></> : null}</> : null}</p> : null}</header>
     <div className="grid gap-2 sm:grid-cols-3">
       {campuses?.length ? <FormField name="cp-campus" label={ui("Campus")}><Select value={campusId} onChange={e => setCampusId(e.target.value)} data-policy-campus>{campuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></FormField> : null}
       <FormField name="cp-domain" label={ui("Policy domain")}><Select value={domain} onChange={e => setDomain(e.target.value as Domain)} data-policy-domain><option value="GRADING">{ui("Grading")}</option><option value="CALENDAR">{ui("Calendar")}</option></Select></FormField>
@@ -78,7 +78,7 @@ export function CampusPolicy({ campuses }: { campuses?: { id: string; name: stri
       {data.scheduled ? <p className="rounded-xl border border-sky-300 bg-sky-50 p-3 text-sm dark:bg-sky-950/30" data-policy-scheduled>{ui("Version {0} is scheduled for {1}.", [String(data.scheduled.version), dateTime(data.scheduled.effectiveFrom)])}</p> : null}
       <ul className="grid gap-2 sm:grid-cols-2">{data.rows.map(r => <li key={r.key} className={cn("sk-panel space-y-1 p-3", r.source === "OVERRIDE" && "border-amber-400", r.source === "GROUP_LOCKED" && "border-slate-400")} data-policy-row={r.key} data-policy-source={r.source}>
         <div className="flex items-start justify-between gap-2"><p className="text-sm font-bold">{ui(LABELS[r.key] ?? r.label)}</p><span className="rounded-full border px-2 text-xs font-bold">{badge(r)}</span></div>
-        <p className="text-lg font-black"><bdi>{show(ui, r.key, r.value)}</bdi></p>
+        <p className="text-lg font-bold"><bdi>{show(ui, r.key, r.value)}</bdi></p>
         <p className="text-xs text-ink-muted">{source(r)}</p>
         {r.override ? <p className="text-xs" dir="auto">{ui("Reason: {0}", [r.override.reason])}</p> : null}
         {data.canRequest && !at && (r.source === "GROUP_DEFAULT" || r.source === "OVERRIDE") ? <Button size="sm" variant="outline" onClick={() => setReq({ key: r.key, value: toRaw(r.key, r.value), reason: "", validUntil: "" })} data-request-override={r.key}>{ui("Request override")}</Button> : null}
@@ -134,7 +134,7 @@ function DraftEditor({ template, lib, reload }: { template: Template; lib: Libra
         {draft ? <Button disabled={busy} onClick={async () => { setBusy(true); try { setPreview(await call(`/api/group-policy?view=preview&versionId=${draft.id}${effective ? `&effectiveFrom=${encodeURIComponent(new Date(effective).toISOString())}` : ""}`)); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-draft-preview>{ui("Preview campus impact")}</Button> : null}</div>
     </> : null}
     {preview && draft && !inReview ? <div className="space-y-2 rounded-xl border p-3" data-impact>
-      <p className="sticky top-0 bg-surface py-1 font-black" data-impact-count>{ui("{0} campuses affected · {1} blocking", [String(preview.affected), String(preview.blocking)])}</p>
+      <p className="sticky top-0 bg-surface py-1 font-bold" data-impact-count>{ui("{0} campuses affected · {1} blocking", [String(preview.affected), String(preview.blocking)])}</p>
       {preview.campuses.map(c => <div key={c.campusId} className={cn("rounded-xl border p-2 text-sm", !c.compatible && "border-red-400")} data-impact-campus={c.name} data-compatible={c.compatible}>
         <p className="font-bold"><bdi>{c.name}</bdi> · <bdi dir="ltr">{c.country}</bdi>{c.board ? <> · <bdi>{c.board}</bdi></> : null} · {c.compatible ? ui("Compatible") : ui("Blocked")}</p>
         {c.problems.map(p => <p key={p} className="text-red-700 dark:text-red-300" dir="auto">{ui(p)}</p>)}
@@ -160,16 +160,16 @@ export function GroupPolicy() {
   useEffect(() => { void load(); }, [load]);
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   return <div className="min-w-0 space-y-6" data-group-policy>
-    <header><h1 className="text-xl font-black">{ui("Group policy")}</h1><p className="text-sm text-ink-muted">{ui("Shared rules for campuses, with reviewed local exceptions. Published versions never change; new rules apply from their effective date.")}</p></header>
+    <header><h1 className="text-xl font-bold">{ui("Group policy")}</h1><p className="text-sm text-ink-muted">{ui("Shared rules for campuses, with reviewed local exceptions. Published versions never change; new rules apply from their effective date.")}</p></header>
     <CampusPolicy campuses={lib?.campuses} />
     {denied ? null : lib ? <section className="space-y-4" data-group-library>
-      <h2 className="text-lg font-black">{ui("Group templates")}</h2>
+      <h2 className="text-lg font-bold">{ui("Group templates")}</h2>
       {lib.pending.length ? <div className="sk-panel space-y-2 p-4" data-override-requests><h3 className="font-bold">{ui("Override requests")}</h3>{lib.pending.map(o => <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-2 text-sm" data-override-request={o.key}>
         <span><bdi>{lib.campuses.find(c => c.id === o.campusId)?.name}</bdi> · {ui(LABELS[o.key] ?? o.key)}: <bdi>{show(ui, o.key, o.value)}</bdi> · {ui("until {0}", [date(o.validUntil)])} · <span dir="auto">{o.reason}</span></span>
         {o.requestedById !== lib.userId ? <span className="flex gap-2"><Button size="sm" disabled={busy} onClick={() => void run(() => call("/api/group-policy", "POST", { action: "decide-override", id: o.id, decision: "APPROVE" }), "Override approved.")} data-override-approve>{ui("Approve")}</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/group-policy", "POST", { action: "decide-override", id: o.id, decision: "DECLINE" }), "Override declined.")} data-override-decline>{ui("Decline")}</Button></span> : <span className="text-xs text-ink-muted">{ui("Another owner must decide your own request.")}</span>}
       </div>)}</div> : null}
       {lib.templates.length ? lib.templates.map(t => <div key={t.id} className="sk-panel space-y-2 p-4" data-template={t.title}>
-        <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-black"><bdi>{t.title}</bdi> · {t.domain === "GRADING" ? ui("Grading") : ui("Calendar")}</p><p className="text-xs text-ink-muted">{ui("Campuses: {0}", [t.campusIds.map(id => lib.campuses.find(c => c.id === id)?.name ?? "").join(", ")])}{t.countries.length ? <> · {ui("Countries: {0}", [t.countries.join(", ")])}</> : null}{t.boards.length ? <> · {ui("Boards: {0}", [t.boards.join(", ")])}</> : null}</p></div><Button size="sm" variant="outline" onClick={() => setOpen(open === t.id ? null : t.id)} data-template-open>{open === t.id ? ui("Close") : ui("Edit")}</Button></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-bold"><bdi>{t.title}</bdi> · {t.domain === "GRADING" ? ui("Grading") : ui("Calendar")}</p><p className="text-xs text-ink-muted">{ui("Campuses: {0}", [t.campusIds.map(id => lib.campuses.find(c => c.id === id)?.name ?? "").join(", ")])}{t.countries.length ? <> · {ui("Countries: {0}", [t.countries.join(", ")])}</> : null}{t.boards.length ? <> · {ui("Boards: {0}", [t.boards.join(", ")])}</> : null}</p></div><Button size="sm" variant="outline" onClick={() => setOpen(open === t.id ? null : t.id)} data-template-open>{open === t.id ? ui("Close") : ui("Edit")}</Button></div>
         {open === t.id ? <DraftEditor key={t.versions.map(v => v.id + v.status).join()} template={t} lib={lib} reload={load} /> : null}
       </div>) : <p className="sk-panel p-4 text-sm" data-library-empty>{ui("No group template yet. Until one is published, each campus keeps its current settings as its baseline.")}</p>}
       <div className="sk-panel space-y-2 p-4" data-template-new>

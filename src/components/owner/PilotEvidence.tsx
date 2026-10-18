@@ -77,7 +77,7 @@ export function PilotEvidence() {
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-black text-ink"><FlaskConical className="h-5 w-5" aria-hidden /> {ui("Pilot evidence")}</h2>
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><FlaskConical className="h-5 w-5" aria-hidden /> {ui("Pilot evidence")}</h2>
           <p className="mt-1 max-w-2xl text-sm text-ink-muted">{ui("Measured pilot results only. Targets, self-reports and synthetic demos are labelled and never counted as results.")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -99,9 +99,9 @@ export function PilotEvidence() {
             {pilots.map((pilot) => (
               <li key={pilot.id}>
                 <Button variant="ghost" type="button" onClick={() => setSelected(pilot.id === selected ? null : pilot.id)} aria-pressed={pilot.id === selected}
-                  className={`w-full rounded-2xl border p-4 text-start transition ${pilot.id === selected ? "border-[#8127cf] bg-[#fbf0fe]" : "border-border bg-white hover:border-[#8127cf]/50"}`}>
+                  className={`w-full rounded-2xl border p-4 text-start transition ${pilot.id === selected ? "border-primary bg-brand-50" : "border-border bg-white hover:border-primary/50"}`}>
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-black text-ink"><bdi>{pilot.name}</bdi></span>
+                    <span className="font-bold text-ink"><bdi>{pilot.name}</bdi></span>
                     <Badge>{ui(STATUS_LABEL[pilot.status] ?? pilot.status)}</Badge>
                     {pilot.synthetic ? <Badge tone="warn">{ui("Synthetic — not a result")}</Badge> : null}
                   </span>
@@ -120,7 +120,7 @@ export function PilotEvidence() {
 
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "warn" | "good" | "bad" }) {
   const cls = tone === "warn" ? "bg-amber-100 text-amber-900" : tone === "good" ? "bg-emerald-100 text-emerald-900" : tone === "bad" ? "bg-rose-100 text-rose-900" : "bg-surface-muted text-ink";
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{children}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-2xs font-bold ${cls}`}>{children}</span>;
 }
 
 function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullName: string }[]; onCreated: (id: string) => void; onError: (message: string) => void }) {
@@ -137,7 +137,7 @@ function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullN
         onCreated(pilot.id);
       } catch (err) { onError((err as Error).message); } finally { setBusy(false); }
     }}>
-      <h3 className="font-black text-ink md:col-span-2">{ui("Pilot charter")}</h3>
+      <h3 className="font-bold text-ink md:col-span-2">{ui("Pilot charter")}</h3>
       <FormField name="pilot-f1" label={ui("Pilot name")} required><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></FormField>
       <FormField name="pilot-f2" label={ui("Measurement owner")} required><Select value={form.measurementOwnerId} onChange={(e) => set("measurementOwnerId", e.target.value)}>{owners.map((o) => <option key={o.id} value={o.id}>{o.fullName}</option>)}</Select></FormField>
       <FormField name="pilot-f3" label={ui("Country code")} hint={ui("Two letters, for example PK, SA or AE.")} required><Input dir="ltr" maxLength={2} value={form.country} onChange={(e) => set("country", e.target.value)} /></FormField>
@@ -175,7 +175,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
   return (
     <section className="mt-6 space-y-6" aria-labelledby="pilot-detail-heading">
       <div className="rounded-2xl border border-border p-4">
-        <h3 id="pilot-detail-heading" className="text-base font-black text-ink"><bdi>{pilot.name}</bdi></h3>
+        <h3 id="pilot-detail-heading" className="text-base font-bold text-ink"><bdi>{pilot.name}</bdi></h3>
         {pilot.synthetic ? <p className="mt-1 text-sm font-semibold text-amber-800">{ui("Synthetic demonstration: excluded from every finding, claim and export.")}</p> : null}
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div><dt className="text-xs font-bold text-ink-muted">{ui("Cohort")}</dt><dd dir="ltr"><bdi>{pilot.country} · {pilot.curriculum} · {pilot.language} · {pilot.useCase}</bdi></dd></div>
@@ -196,7 +196,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
       </div>
 
       <div>
-        <h4 className="mb-2 font-black text-ink">{ui("Task time: baseline vs follow-up")}</h4>
+        <h4 className="mb-2 font-bold text-ink">{ui("Task time: baseline vs follow-up")}</h4>
         <p className="mb-2 text-xs text-ink-muted">{ui("Task time = active time + review and correction time, paired by participant, task and difficulty. Elapsed time is shown separately.")}</p>
         <div className="overflow-x-auto">
           <Table>
@@ -220,12 +220,12 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
       </div>
 
       <div>
-        <h4 className="mb-2 font-black text-ink">{ui("Correctness samples")}</h4>
+        <h4 className="mb-2 font-bold text-ink">{ui("Correctness samples")}</h4>
         <p className="mb-2 text-xs text-ink-muted">{ui("Extraction accuracy and final approved accuracy are separate measures and are never combined.")}</p>
         <MeasureTable rows={findings.correctness.flatMap((c) => [c.extraction, c.final])} />
       </div>
       <div>
-        <h4 className="mb-2 font-black text-ink">{ui("Adoption, support, cost and commercial evidence")}</h4>
+        <h4 className="mb-2 font-bold text-ink">{ui("Adoption, support, cost and commercial evidence")}</h4>
         <MeasureTable rows={findings.other} />
       </div>
 
@@ -235,7 +235,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
       </div>
 
       <div>
-        <h4 className="mb-2 font-black text-ink">{ui("Observations")}</h4>
+        <h4 className="mb-2 font-bold text-ink">{ui("Observations")}</h4>
         <p className="mb-2 text-xs text-ink-muted">{ui("Participants are pseudonyms. Participant-level rows stay in this console and are never exported.")}</p>
         <div className="overflow-x-auto">
           <Table>
@@ -302,7 +302,7 @@ function ObservationForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: R
       if (ok) setF({ ...blank, workflow: f.workflow, phase: f.phase, observedOn: f.observedOn });
       setBusy(false);
     }}>
-      <h4 className="font-black text-ink sm:col-span-2">{ui("Record observation")}</h4>
+      <h4 className="font-bold text-ink sm:col-span-2">{ui("Record observation")}</h4>
       <FormField name="pilot-f16" label={ui("Workflow")} required><Select value={f.workflow} onChange={(e) => set("workflow", e.target.value)}>{pilot.workflows.map((w) => <option key={w.key} value={w.key}>{w.key}</option>)}</Select></FormField>
       <FormField name="pilot-f17" label={ui("Phase")} required><Select value={f.phase} onChange={(e) => set("phase", e.target.value)}>{Object.entries(PHASE_LABEL).map(([k, v]) => <option key={k} value={k}>{ui(v)}</option>)}</Select></FormField>
       <FormField name="pilot-f18" label={ui("Participant pseudonym")} hint={ui("For example T-03. Never a name, email or phone.")} required><Input dir="ltr" value={f.participant} onChange={(e) => set("participant", e.target.value)} /></FormField>
@@ -335,7 +335,7 @@ function MeasureForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: Recor
       if (ok) setF({ ...blank, kind: f.kind, periodStart: f.periodStart, periodEnd: f.periodEnd });
       setBusy(false);
     }}>
-      <h4 className="font-black text-ink sm:col-span-2">{ui("Record measure")}</h4>
+      <h4 className="font-bold text-ink sm:col-span-2">{ui("Record measure")}</h4>
       <FormField name="pilot-f27" label={ui("Measure")} required><Select value={f.kind} onChange={(e) => set("kind", e.target.value)}>{Object.entries(KIND_LABEL).map(([k, v]) => <option key={k} value={k}>{ui(v)}</option>)}</Select></FormField>
       {f.kind.startsWith("CORRECTNESS") ? <FormField name="pilot-f28" label={ui("Workflow")} required><Select value={f.workflow} onChange={(e) => set("workflow", e.target.value)}>{pilot.workflows.map((w) => <option key={w.key} value={w.key}>{w.key}</option>)}</Select></FormField> : <div />}
       <FormField name="pilot-f29" label={ui("Period start")} required><Input type="date" value={f.periodStart} onChange={(e) => set("periodStart", e.target.value)} /></FormField>
@@ -360,7 +360,7 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
   const [notes, setNotes] = useState<Record<string, string>>({});
   return (
     <div className="space-y-3">
-      <h4 className="font-black text-ink">{ui("External claims")}</h4>
+      <h4 className="font-bold text-ink">{ui("External claims")}</h4>
       <p className="text-xs text-ink-muted">{ui("A target is not a result. A claim is approved against the exact evidence it cites; if that evidence changes, the claim becomes stale and is blocked from export.")}</p>
       <form className="grid gap-3 rounded-2xl border border-border p-4 md:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault();
@@ -400,7 +400,7 @@ function ExportView({ exported, onClose }: { exported: Exported; onClose: () => 
   return (
     <div className="mb-6 rounded-2xl border border-border p-4" role="region" aria-label={ui("Export of approved claims")}>
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-black text-ink">{ui("Export of approved claims")}</h3>
+        <h3 className="font-bold text-ink">{ui("Export of approved claims")}</h3>
         <Button size="sm" variant="ghost" onClick={onClose}>{ui("Close")}</Button>
       </div>
       <p className="mt-1 text-xs text-ink-muted">{ui("{0} statements exported · {1} excluded", [exported.statements.length, exported.excluded.length])}</p>

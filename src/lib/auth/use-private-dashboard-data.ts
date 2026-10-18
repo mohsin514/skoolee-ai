@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { userMessage } from "@/lib/errors";
 
 /** Private dashboard results belong to one scoped provider mount, never a module cache. */

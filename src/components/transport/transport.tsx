@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -92,19 +92,19 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
   const pendingFor = (studentId: string) => queue.filter(x => x.body.studentId === studentId).map(x => x.label);
   return <section className="min-w-0 space-y-4" data-trip={t.id} data-trip-status={t.status}>
     <header className="sk-panel sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 p-3" data-trip-header>
-      <div className="min-w-0"><h2 className="text-lg font-black"><bdi>{t.label}</bdi> · <bdi dir="ltr">{t.vehicleNumber}</bdi></h2><p className="text-xs text-ink-muted">{direction(ui, t.direction)} · <bdi>{t.serviceDate}</bdi> · {statusLabel(ui, t.status)} · {ui("Coordinator: {0}", [t.coordinator])}</p></div>
+      <div className="min-w-0"><h2 className="text-lg font-bold"><bdi>{t.label}</bdi> · <bdi dir="ltr">{t.vehicleNumber}</bdi></h2><p className="text-xs text-ink-muted">{direction(ui, t.direction)} · <bdi>{t.serviceDate}</bdi> · {statusLabel(ui, t.status)} · {ui("Coordinator: {0}", [t.coordinator])}</p></div>
       {onBack ? <Button variant="secondary" onClick={onBack}>{ui("Back")}</Button> : null}
     </header>
     <p className="text-xs text-ink-muted">{ui("Record events only while the vehicle is safely stopped. This is a manifest, not live location.")}</p>
     {queue.length ? <div className="rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm dark:bg-amber-950/30" data-trip-pending={queue.length}><p className="font-bold">{ui("{0} events saved on this device only — not yet confirmed by the server.", [String(queue.length)])}</p><Button size="sm" className="mt-2" onClick={() => void flush()} data-trip-flush>{ui("Send now")}</Button></div> : null}
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-trip-counts>
-      <div className="sk-panel p-3"><p className="text-2xl font-black" data-count="unresolved">{data.counts.unresolved}</p><p className="text-xs">{ui("Unresolved")}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-black" data-count="boarded">{data.counts.boarded}/{data.counts.expected}</p><p className="text-xs">{ui("{0} of {1} expected students boarded", [String(data.counts.boarded), String(data.counts.expected)])}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-black" data-count="handedOver">{data.counts.handedOver}</p><p className="text-xs">{ui("Handed over")}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-black" data-count="absent">{data.counts.absent}</p><p className="text-xs">{ui("Not travelling")}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="unresolved">{data.counts.unresolved}</p><p className="text-xs">{ui("Unresolved")}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="boarded">{data.counts.boarded}/{data.counts.expected}</p><p className="text-xs">{ui("{0} of {1} expected students boarded", [String(data.counts.boarded), String(data.counts.expected)])}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="handedOver">{data.counts.handedOver}</p><p className="text-xs">{ui("Handed over")}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="absent">{data.counts.absent}</p><p className="text-xs">{ui("Not travelling")}</p></div>
     </div>
     {data.exceptions.some(e => e.status === "OPEN") ? <div className="sk-panel space-y-2 border-amber-400 p-3" data-trip-exceptions>
-      <h3 className="font-black">{data.exceptions.filter(e => e.status === "OPEN").length === 1 ? ui("One exception needs attention") : ui("{0} exceptions need attention", [String(data.exceptions.filter(e => e.status === "OPEN").length)])}</h3>
+      <h3 className="font-bold">{data.exceptions.filter(e => e.status === "OPEN").length === 1 ? ui("One exception needs attention") : ui("{0} exceptions need attention", [String(data.exceptions.filter(e => e.status === "OPEN").length)])}</h3>
       {data.exceptions.filter(e => e.status === "OPEN").map(e => <div key={e.id} className="rounded-xl border px-3 py-2 text-sm" data-trip-exception={e.kind}>
         <p className="font-bold">{kindLabel(ui, e.kind)}{e.studentId ? <> · <bdi>{data.passengers.find(p => p.studentId === e.studentId)?.name ?? ""}</bdi></> : null}</p>
         <p dir="auto">{e.note}</p><p className="text-xs text-ink-muted">{ui("Owner: {0}", [e.owner])} · <bdi>{dateTime(e.createdAt)}</bdi></p>
@@ -186,7 +186,7 @@ export function TripDesk() {
   if (error) return <p className="sk-panel p-4 text-sm" data-trip-desk-error>{ui(error)}</p>;
   if (!data) return <p className="text-sm text-ink-muted">{ui("Loading the latest manifest; boarding actions are unavailable.")}</p>;
   return <section className="min-w-0 space-y-3" data-trip-desk>
-    <header><h1 className="text-xl font-black">{ui("Today's trips")}</h1><p className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></p></header>
+    <header><h1 className="text-xl font-bold">{ui("Today's trips")}</h1><p className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></p></header>
     {data.trips.length ? <TripList rows={data.trips} onOpen={setOpen} /> : <p className="sk-panel p-4 text-sm" data-trip-empty>{ui("No trip assigned for today. Contact the transport coordinator.")}</p>}
   </section>;
 }
@@ -267,7 +267,7 @@ export function FamilyJourney({ studentId }: { studentId: string }) {
   useEffect(() => { call(`/api/family/transport?studentId=${encodeURIComponent(studentId)}`).then(setData).catch(() => setData(null)); }, [studentId]);
   if (!data?.journeys.length) return null;
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-family-journey>
-    <h3 className="text-base font-black">{ui("School transport today")}</h3>
+    <h3 className="text-base font-bold">{ui("School transport today")}</h3>
     <p className="text-xs text-ink-muted">{ui("Recorded by the school's bus attendant. This is not live location.")}</p>
     <ul className="space-y-2">{data.journeys.map(j => <li key={j.id} className="rounded-xl border px-3 py-2 text-sm" data-family-journey-row={j.status}><p className="font-bold">{direction(ui, j.direction)} · <bdi>{j.label}</bdi> · <bdi dir="ltr">{j.vehicleNumber}</bdi></p><p>{statusLabel(ui, j.status)}{j.boardedAt ? <> · {ui("Boarded {0}", [dateTime(j.boardedAt)])}</> : null}{j.handedOverAt ? <> · {ui("Handed over {0} to {1}", [dateTime(j.handedOverAt), receiverLabel(ui, j.receiverType ?? "")])}</> : null}</p></li>)}</ul>
   </section>;

@@ -171,7 +171,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16 }}
             style={{ zIndex: z }}
-            className="fixed inset-0 flex items-end justify-center bg-[#1f1a23]/45 backdrop-blur-sm sm:items-center sm:p-4"
+            className="fixed inset-0 flex items-end justify-center bg-ink-strong/45 backdrop-blur-sm sm:items-center sm:p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) onClose();
             }}
@@ -189,25 +189,25 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(31,26,35,0.4)] sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(31,26,35,0.5)]"
             >
               {/* ── Head ── */}
-              <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/25 bg-gradient-to-br from-white via-white to-[#fbf0fe]/70 px-5 pb-4 pt-4">
+              <header className="relative shrink-0 overflow-hidden border-b border-edge/25 bg-gradient-to-br from-white via-white to-brand-50/70 px-5 pb-4 pt-4">
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute -end-12 -top-16 h-40 w-40 rounded-full bg-[#8127cf]/10 blur-3xl"
+                  className="pointer-events-none absolute -end-12 -top-16 h-40 w-40 rounded-full bg-primary/10 blur-3xl"
                 />
 
                 <div className="relative flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#b10e6b] text-white shadow-[0_8px_20px_-8px_rgba(129,39,207,0.75)]">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-berry text-white shadow-[0_8px_20px_-8px_rgba(129,39,207,0.75)]">
                       <UserRoundSearch className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
                       <h2
                         id="new-conversation-title"
-                        className="truncate text-sm font-black tracking-tight text-[#1f1a23]"
+                        className="truncate text-sm font-bold tracking-tight text-ink-strong"
                       >
                         {mode === "group" ? ui("New group") : ui("New conversation")}
                       </h2>
-                      <p className="truncate text-[10px] font-semibold text-ink-muted">
+                      <p className="truncate text-2xs font-semibold text-ink-muted">
                         {total === 1 ? ui("{0} person you can reach", [total]) : ui("{0} people you can reach", [total])}
                       </p>
                     </div>
@@ -230,7 +230,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     are never listed below, but without seeing your own name
                     here there was no way to confirm that. */}
                 {viewer && (
-                  <div className="relative mt-3 flex items-center gap-2 rounded-xl bg-white/70 px-2.5 py-2 ring-1 ring-[#cfc2d6]/30">
+                  <div className="relative mt-3 flex items-center gap-2 rounded-xl bg-white/70 px-2.5 py-2 ring-1 ring-edge/30">
                     <ChatAvatar
                       name={viewer.fullName}
                       seed={viewer.id}
@@ -238,14 +238,14 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       className="shrink-0"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[11px] font-black text-[#1f1a23]">
+                      <span className="block truncate text-2xs font-bold text-ink-strong">
                         <bdi>{viewer.fullName}</bdi>
                       </span>
-                      <span className="block truncate text-[9px] font-semibold text-ink-muted">
+                      <span className="block truncate text-2xs font-semibold text-ink-muted">
                         {fill(ui("Signed in as {0} · you are not in this list"), [roleLabel(viewer.role, language)])}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-full bg-[#8127cf] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                    <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-white">
                       {ui("You")}
                     </span>
                   </div>
@@ -253,7 +253,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               </header>
 
               {/* ── Controls ── */}
-              <div className="shrink-0 space-y-3 border-b border-[#cfc2d6]/25 px-5 py-4">
+              <div className="shrink-0 space-y-3 border-b border-edge/25 px-5 py-4">
                 {canCreateGroup && (
                   <div
                     className="relative flex gap-1 rounded-xl bg-[#f4ecf8]/70 p-1"
@@ -305,7 +305,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                               key={c.id}
                               initial={{ opacity: 0, scale: 0.85 }}
                               animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-1 rounded-full bg-[#fbf0fe] py-0.5 ps-0.5 pe-1.5 text-[10px] font-bold text-[#8127cf] ring-1 ring-[#8127cf]/20"
+                              className="flex items-center gap-1 rounded-full bg-brand-50 py-0.5 ps-0.5 pe-1.5 text-2xs font-bold text-primary ring-1 ring-primary/20"
                             >
                               <ChatAvatar name={c.fullName} seed={c.id} size="sm" className="scale-[0.78]" />
                               <bdi className="max-w-[110px] truncate">{c.fullName}</bdi>
@@ -364,14 +364,14 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                     </p>
                   ) : total === 0 ? (
                     <div className="flex flex-col items-center gap-3 px-8 py-12 text-center">
-                      <span className="sk-float grid h-14 w-14 place-items-center rounded-3xl bg-gradient-to-br from-[#8127cf] to-[#b10e6b] text-white shadow-[0_16px_36px_-14px_rgba(129,39,207,0.75)]">
+                      <span className="sk-float grid h-14 w-14 place-items-center rounded-3xl bg-gradient-to-br from-primary to-berry text-white shadow-[0_16px_36px_-14px_rgba(129,39,207,0.75)]">
                         <Users className="h-6 w-6" />
                       </span>
                       <div>
-                        <p className="text-xs font-black text-[#1f1a23]">
+                        <p className="text-xs font-bold text-ink-strong">
                           {query ? ui("Nobody matches that") : ui("No contacts available")}
                         </p>
-                        <p className="mt-1 max-w-[260px] text-[11px] font-semibold leading-relaxed text-ink-muted">
+                        <p className="mt-1 max-w-[260px] text-2xs font-semibold leading-relaxed text-ink-muted">
                           {query
                             ? ui("Try a different name.")
                             : ui("Your school decides who you can message. Contact the office if someone is missing.")}
@@ -381,7 +381,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   ) : (
                     grouped.map((group) => (
                       <section key={group.label}>
-                        <h3 className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-[#cfc2d6]/20 bg-white/95 px-5 py-2 text-[10px] font-black uppercase tracking-wider text-ink-faint backdrop-blur-md">
+                        <h3 className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-edge/20 bg-white/95 px-5 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint backdrop-blur-md">
                           {group.heading}
                           <span className="font-bold text-ink-faint/70">{group.contacts.length}</span>
                         </h3>
@@ -405,7 +405,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                   />
 
                                   <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-xs font-black text-[#1f1a23]">
+                                    <span className="block truncate text-xs font-bold text-ink-strong">
                                       <bdi>{contact.fullName}</bdi>
                                     </span>
                                     {/* Never the bare role label — it only
@@ -416,7 +416,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                         so a second "Campus Admin" is visibly
                                         somebody else. */}
                                     {(contact.context ?? contact.email ?? contact.campusName) && (
-                                      <span className="block truncate text-[10px] font-semibold text-ink-muted">
+                                      <span className="block truncate text-2xs font-semibold text-ink-muted">
                                         <bdi>{contact.context ?? contact.email ?? contact.campusName}</bdi>
                                       </span>
                                     )}
@@ -427,8 +427,8 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                       className={cn(
                                         "grid h-5 w-5 shrink-0 place-items-center rounded-lg border transition-all",
                                         isSelected
-                                          ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_4px_12px_-4px_rgba(129,39,207,0.7)]"
-                                          : "border-[#cfc2d6]/60"
+                                          ? "border-primary bg-gradient-to-br from-primary to-brand-400 text-white shadow-[0_4px_12px_-4px_rgba(129,39,207,0.7)]"
+                                          : "border-edge/60"
                                       )}
                                       aria-hidden
                                     >
@@ -454,7 +454,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               </div>
 
               {mode === "group" && (
-                <footer className="shrink-0 border-t border-[#cfc2d6]/25 bg-white px-5 py-4">
+                <footer className="shrink-0 border-t border-edge/25 bg-white px-5 py-4">
                   <Button variant="default" size="sm"
                     type="button"
                     onClick={submitGroup}

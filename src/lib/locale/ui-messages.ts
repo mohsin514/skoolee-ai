@@ -1,6 +1,8 @@
 import { arabicNavigationUi, urduNavigationUi } from "./navigation-ui-messages";
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
+import { arabicDesignSystemUi, urduDesignSystemUi } from "./design-system-ui-messages";
 export const arabicUi: Record<string, string> = {
+  ...arabicDesignSystemUi,
   "Uploading": "جارٍ الرفع",
   "Logo uploaded": "تم رفع الشعار",
   "Upload failed": "فشل الرفع",
@@ -370,6 +372,7 @@ export const arabicUi: Record<string, string> = {
 };
 
 export const urduUi: Record<string, string> = {
+  ...urduDesignSystemUi,
   "Uploading": "اپ لوڈ ہو رہا ہے",
   "Logo uploaded": "لوگو اپ لوڈ ہو گیا",
   "Upload failed": "اپ لوڈ ناکام ہو گیا",

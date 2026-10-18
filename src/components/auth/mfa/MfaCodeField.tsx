@@ -49,11 +49,11 @@ export function MfaCodeField({ id, value, onChange, recovery, onRecoveryChange, 
 
   return (
     <FormField name="code" id={id} required error={error} label={label} hint={hint}>
-      <InputGroup surfaceClassName="bg-[#fcfaff] min-h-16">
+      <InputGroup surfaceClassName="bg-surface-subtle min-h-16">
         {recovery
           // Hidden on narrow screens so a full 24-character recovery code fits without scrolling.
-          ? <LifeBuoy aria-hidden="true" data-field-affix="start" className="hidden size-5 text-[#8127cf] sm:block" />
-          : <Smartphone aria-hidden="true" data-field-affix="start" className="size-5 text-[#8127cf]" />}
+          ? <LifeBuoy aria-hidden="true" data-field-affix="start" className="hidden size-5 text-primary sm:block" />
+          : <Smartphone aria-hidden="true" data-field-affix="start" className="size-5 text-primary" />}
         <Input
           ref={inputRef}
           id={id}

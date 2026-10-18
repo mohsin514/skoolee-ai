@@ -42,7 +42,7 @@ export function AvatarImage({
     if (!name) return null;
     return (
       <span
-        className={`flex h-full w-full items-center justify-center bg-[#fbf0fe] font-black uppercase tracking-wide text-[#8127cf]/70 ${initialsClassName}`}
+        className={`flex h-full w-full items-center justify-center bg-brand-50 font-semibold uppercase tracking-wide text-primary/70 ${initialsClassName}`}
         aria-label={alt}
       >
         {initialsOf(name)}

@@ -71,7 +71,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { NO_ENTRY_ANIMATION } from "@/components/insights";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -143,12 +143,12 @@ export function statusTone(status?: string) {
     return "bg-emerald-50 text-emerald-600";
   }
   if (["Invited", "PENDING", "TRIAL", "REVIEW", "LOCKED", "Subject Teachers"].includes(status || "")) {
-    return "bg-[#fbf0fe] text-[#8127cf]";
+    return "bg-brand-50 text-primary";
   }
   if (["Expired", "FAILED", "BLOCKED", "SUSPENDED", "NO_REPORT", "Unassigned"].includes(status || "")) {
     return "bg-rose-50 text-rose-600";
   }
-  return "bg-[#f3f4f9] text-ink";
+  return "bg-muted text-ink";
 }
 
 export function classLabel(item: any) {
@@ -314,21 +314,21 @@ export function LeadershipPanel({
 
   return (
     <div className="space-y-7">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-[#fbf0fe] via-white to-[#f3eeff] rounded-[32px] border border-[#cfc2d6]/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-[#8127cf]/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-brand-100 rounded-[32px] border border-edge/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           {/* Eyebrow → title → explanation, in that order, matching the
               academics overview. It previously led with the campus name in
               grey and buried the actual heading underneath it at 9px. */}
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
               <LayoutGrid className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
                 Staff · {data.campusName}
               </p>
-              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Admins &amp; Access</h2>
+              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Admins &amp; Access</h2>
               <p className="mt-0.5 max-w-xl text-xs font-semibold text-ink-muted">
                 Who runs this campus: admin access, the principal, office staff, and invitations still outstanding.
               </p>
@@ -355,15 +355,15 @@ export function LeadershipPanel({
         {/* Donut + Campus Identity */}
         <div className="space-y-6">
           {/* Donut Chart */}
-          <div className="sk-panel sk-rise group p-6 border-[#cfc2d6]/10" style={{ animationDelay: "80ms" }}>
+          <div className="sk-panel sk-rise group p-6 border-edge/10" style={{ animationDelay: "80ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Leadership</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Team Overview</h3>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Leadership</p>
+                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Team Overview</h3>
               </div>
               <div className="relative shrink-0">
-                <div className="absolute -inset-2 bg-[#8127cf]/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                <div className="absolute -inset-2 bg-primary/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="relative h-10 w-10 rounded-2xl bg-brand-50 flex items-center justify-center text-primary">
                   <Users className="h-5 w-5" />
                 </div>
               </div>
@@ -394,30 +394,30 @@ export function LeadershipPanel({
                     <div key={item.label} className="flex items-center justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="truncate text-[11px] font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
+                        <span className="truncate text-2xs font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
                       </div>
-                      <span className="shrink-0 text-xs font-bold text-[#1d1b20]">{item.value}</span>
+                      <span className="shrink-0 text-xs font-bold text-ink-strong">{item.value}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[130px] rounded-2xl bg-[#fbf0fe]/40">
+              <div className="flex items-center justify-center h-[130px] rounded-2xl bg-brand-50/40">
                 <p className="text-xs font-bold text-ink-subtle">No team data yet</p>
               </div>
             )}
           </div>
 
           {/* Campus Identity */}
-          <div className="sk-panel sk-rise group p-6 border-[#cfc2d6]/10" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise group p-6 border-edge/10" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Identity</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Campus Details</h3>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Identity</p>
+                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Campus Details</h3>
               </div>
               <div className="relative shrink-0">
-                <div className="absolute -inset-2 bg-[#8127cf]/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+                <div className="absolute -inset-2 bg-primary/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="relative h-10 w-10 rounded-2xl bg-brand-50 flex items-center justify-center text-primary">
                   <Building className="h-5 w-5" />
                 </div>
               </div>
@@ -431,13 +431,13 @@ export function LeadershipPanel({
                 { icon: GraduationCap, label: "Year", value: data.academicYear || "Not set" },
                 { icon: Users, label: "Students", value: `${data.studentCount || 0}` },
               ].map((f, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/40 px-3 py-2">
-                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf] shrink-0">
+                <div key={i} className="flex items-center gap-2 rounded-xl bg-brand-50/40 px-3 py-2">
+                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-primary/10 to-brand-300/10 flex items-center justify-center text-primary shrink-0">
                     <f.icon className="w-3 h-3" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[7px] font-black uppercase tracking-wider text-ink-subtle">{f.label}</p>
-                    <p className="text-[11px] font-bold text-[#1f1a23] truncate">{f.value}</p>
+                    <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">{f.label}</p>
+                    <p className="text-2xs font-bold text-ink-strong truncate">{f.value}</p>
                   </div>
                 </div>
               ))}
@@ -448,20 +448,20 @@ export function LeadershipPanel({
         {/* Admin Team & Principal Panel */}
         <div className="space-y-6">
           {/* Admin Team + Pending In One Card */}
-          <div className="sk-panel sk-rise p-6 border-[#cfc2d6]/10" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise p-6 border-edge/10" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Team</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Admin Team</h3>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Team</p>
+                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Admin Team</h3>
               </div>
               <div className="flex items-center gap-2">
                 {adminCount > 0 ? (
-                  <span className="rounded-full bg-[#8127cf]/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#8127cf]">
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
                     {adminCount} active
                   </span>
                 ) : null}
                 {pendingCount > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
                     <Clock className="w-3 h-3" />
                     {pendingCount}
                   </span>
@@ -477,7 +477,7 @@ export function LeadershipPanel({
                 <PendingFacultyRow key={invite.id} invite={invite} onResend={() => onResend(invite.id)} onCancel={() => onCancel(invite.id)} />
               ))}
               {!data.campusAdmins?.length && !data.pendingAdminInvitations?.length ? (
-                <div className="flex items-center justify-center h-20 rounded-2xl bg-[#fbf0fe]/40">
+                <div className="flex items-center justify-center h-20 rounded-2xl bg-brand-50/40">
                   <p className="text-xs font-bold text-ink-subtle">No admin access assigned yet.</p>
                 </div>
               ) : null}
@@ -485,13 +485,13 @@ export function LeadershipPanel({
           </div>
 
           {/* Principal Card */}
-          <div className="sk-panel p-6 border-[#cfc2d6]/10">
+          <div className="sk-panel p-6 border-edge/10">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Authority</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Principal</h3>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Authority</p>
+                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Principal</h3>
               </div>
-              <div className="h-10 w-10 rounded-2xl bg-[#fbf0fe] flex items-center justify-center text-[#8127cf]">
+              <div className="h-10 w-10 rounded-2xl bg-brand-50 flex items-center justify-center text-primary">
                 <GraduationCap className="h-5 w-5" />
               </div>
             </div>
@@ -505,10 +505,10 @@ export function LeadershipPanel({
                   <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-base font-black text-[#1f1a23] tracking-tight truncate">{data.principal.fullName}</h4>
-                  <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider mt-0.5 truncate">{data.principal.email}</p>
+                  <h4 className="text-base font-bold text-ink-strong tracking-tight truncate">{data.principal.fullName}</h4>
+                  <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mt-0.5 truncate">{data.principal.email}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-600">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-emerald-600">
                       <UserCheck className="w-2.5 h-2.5" />
                       Active
                     </span>
@@ -527,8 +527,8 @@ export function LeadershipPanel({
                     <GraduationCap className="h-6 w-6" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-[#1f1a23]">No Principal Assigned</p>
-                    <p className="text-[10px] font-semibold text-ink-muted mt-0.5">Tap below to appoint a principal</p>
+                    <p className="text-sm font-bold text-ink-strong">No Principal Assigned</p>
+                    <p className="text-2xs font-semibold text-ink-muted mt-0.5">Tap below to appoint a principal</p>
                   </div>
                 </div>
                 <BrandButton variant="dark" icon={<GraduationCap className="w-3.5 h-3.5" />} onClick={onInvitePrincipal}>
@@ -539,15 +539,15 @@ export function LeadershipPanel({
           </div>
 
           {/* Operations Staff Card */}
-          <div className="sk-panel p-6 border-[#cfc2d6]/10">
+          <div className="sk-panel p-6 border-edge/10">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Operations</p>
-                <h3 className="text-lg font-bold text-[#1d1b20] mt-0.5">Operations Staff</h3>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Operations</p>
+                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Operations Staff</h3>
               </div>
               <div className="flex items-center gap-2">
                 {opsCount > 0 ? (
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-600">
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-blue-600">
                     {opsCount} active
                   </span>
                 ) : null}
@@ -555,17 +555,17 @@ export function LeadershipPanel({
             </div>
             <div className="space-y-3">
               {data.operationsStaff?.map((staff: any) => (
-                <div key={staff.id} className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/30 via-white to-blue-50/30 px-4 py-3 border border-transparent hover:border-blue-100 transition-all">
+                <div key={staff.id} className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-50/30 via-white to-blue-50/30 px-4 py-3 border border-transparent hover:border-blue-100 transition-all">
                   <div className="relative shrink-0">
                     <div className="h-10 w-10 rounded-xl bg-white border border-blue-100 shadow-sm flex items-center justify-center overflow-hidden">
                       <AvatarImage name={staff.email} alt="" className="h-full w-full object-cover" />
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-bold text-[#1f1a23] truncate">{staff.fullName}</h4>
-                    <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider truncate">{staff.email}</p>
+                    <h4 className="text-sm font-bold text-ink-strong truncate">{staff.fullName}</h4>
+                    <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider truncate">{staff.email}</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-blue-600">
+                  <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-blue-600">
                     {staff.role}
                   </span>
                   <SystemButton variant="destructive" type="button" onClick={() => onRemove(staff.id, staff.role)}
@@ -909,11 +909,11 @@ export function ExamDetailModal({
       }
     >
 
-        <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1 mb-6">
+        <div className="flex items-center gap-1 rounded-2xl bg-muted p-1 mb-6">
           {(["marks", "reports", "analytics"] as const).map((t) => (
             <SystemButton variant="ghost" key={t} onClick={() => setTab(t)}
               className={cn("px-5 py-2.5",
-                tab === t ? "bg-white text-[#8127cf] shadow-md" : "text-ink-muted hover:text-[#8127cf]"
+                tab === t ? "bg-white text-primary shadow-md" : "text-ink-muted hover:text-primary"
               )}>
               {t === "marks" ? "Marks Sheet" : t === "reports" ? `Report Cards (${reportCards.length})` : "Analytics"}
             </SystemButton>
@@ -922,22 +922,22 @@ export function ExamDetailModal({
 
         {loading ? (
           <div className="space-y-3 animate-skeleton-in">
-            <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10">
+            <div className="overflow-x-auto rounded-2xl border border-edge/10">
               <div className="grid grid-cols-[40px_1fr_80px_80px_80px_60px_60px] gap-0">
-                <div className="col-span-7 flex gap-4 px-4 py-3 bg-[#fbf0fe]/30 border-b border-[#cfc2d6]/10">
+                <div className="col-span-7 flex gap-4 px-4 py-3 bg-brand-50/30 border-b border-edge/10">
                   {Array.from({ length: 7 }).map((_, i) => (
-                    <div key={i} className="h-2.5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div key={i} className="h-2.5 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                   ))}
                 </div>
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="col-span-7 flex items-center gap-4 px-4 py-3 border-b border-[#cfc2d6]/5 animate-skeleton-in" style={{ animationDelay: `${i * 50}ms` }}>
-                    <div className="h-3 w-5 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
-                    <div className="h-3 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer flex-1" />
-                    <div className="h-3 w-10 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                  <div key={i} className="col-span-7 flex items-center gap-4 px-4 py-3 border-b border-edge/5 animate-skeleton-in" style={{ animationDelay: `${i * 50}ms` }}>
+                    <div className="h-3 w-5 rounded-full bg-border-subtle/30 skeleton-shimmer" />
+                    <div className="h-3 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer flex-1" />
+                    <div className="h-3 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                   </div>
                 ))}
               </div>
@@ -946,7 +946,7 @@ export function ExamDetailModal({
         ) : (
           <>
             {tab === "marks" && (
-              <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10">
+              <div className="overflow-x-auto rounded-2xl border border-edge/10">
                 {students.length === 0 ? (
                   <div className="py-16 text-center">
                     <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
@@ -955,15 +955,15 @@ export function ExamDetailModal({
                 ) : (
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">#</th>
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Student</th>
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Roll No</th>
+                      <tr className="border-b border-edge/10 bg-brand-50/30">
+                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">#</th>
+                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Student</th>
+                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Roll No</th>
                         {subjects.map((s: any) => (
-                          <th key={s.id} className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">{s.name}<br /><span className="text-[8px] font-semibold">/ {s.totalMarks}</span></th>
+                          <th key={s.id} className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">{s.name}<br /><span className="text-3xs font-semibold">/ {s.totalMarks}</span></th>
                         ))}
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Total</th>
-                        <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">%</th>
+                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Total</th>
+                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">%</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -972,25 +972,25 @@ export function ExamDetailModal({
                         const maxTotal = subjects.reduce((s: number, sub: any) => s + sub.totalMarks, 0);
                         const pct = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
                         return (
-                          <tr key={student.id} className="border-b border-[#cfc2d6]/5 hover:bg-[#fbf0fe]/20 transition-colors">
+                          <tr key={student.id} className="border-b border-edge/5 hover:bg-brand-50/20 transition-colors">
                             <td className="px-4 py-3 text-xs font-bold text-ink-subtle">{idx + 1}</td>
                             <td className="px-4 py-3">
-                              <p className="text-sm font-bold text-[#1f1a23] truncate max-w-[180px]">{student.fullName}</p>
+                              <p className="text-sm font-bold text-ink-strong truncate max-w-[180px]">{student.fullName}</p>
                             </td>
                             <td className="px-4 py-3 text-xs font-semibold text-ink-muted">{student.rollNo}</td>
                             {subjects.map((sub: any) => {
                               const val = getMarkValue(student.id, sub.id);
                               return (
                                 <td key={sub.id} className="px-4 py-3 text-center">
-                                  <span className={cn("text-sm font-bold", val === null ? "text-ink-subtle" : val < sub.totalMarks * 0.5 ? "text-rose-500" : "text-[#1f1a23]")}>
+                                  <span className={cn("text-sm font-bold", val === null ? "text-ink-subtle" : val < sub.totalMarks * 0.5 ? "text-rose-500" : "text-ink-strong")}>
                                     {val ?? "—"}
                                   </span>
                                 </td>
                               );
                             })}
-                            <td className="px-4 py-3 text-center text-sm font-black text-[#8127cf]">{total}</td>
+                            <td className="px-4 py-3 text-center text-sm font-bold text-primary">{total}</td>
                             <td className="px-4 py-3 text-center">
-                              <span className={cn("text-sm font-black", pct >= 80 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-rose-500")}>{pct}%</span>
+                              <span className={cn("text-sm font-bold", pct >= 80 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-rose-500")}>{pct}%</span>
                             </td>
                           </tr>
                         );
@@ -1016,15 +1016,15 @@ export function ExamDetailModal({
                         className="text-left p-4">
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="min-w-0">
-                            <p className="text-sm font-bold text-[#1f1a23] truncate">{rc.student?.fullName}</p>
-                            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">Roll: {rc.student?.rollNo || "—"}</p>
+                            <p className="text-sm font-bold text-ink-strong truncate">{rc.student?.fullName}</p>
+                            <p className="text-2xs font-semibold text-ink-subtle mt-0.5">Roll: {rc.student?.rollNo || "—"}</p>
                           </div>
                           <StatusPill status={rc.status} />
                         </div>
-                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-[#cfc2d6]/10">
-                          <span className="text-xl font-black text-[#8127cf]">{rc.grade || "—"}</span>
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-edge/10">
+                          <span className="text-xl font-bold text-primary">{rc.grade || "—"}</span>
                           <span className="text-sm font-bold text-ink-muted">{Math.round(rc.percentage || 0)}%</span>
-                          <span className="ml-auto text-[10px] font-bold text-ink-subtle">Rank #{rc.rank || "—"}</span>
+                          <span className="ml-auto text-2xs font-bold text-ink-subtle">Rank #{rc.rank || "—"}</span>
                         </div>
                       </SystemButton>
                     ))}
@@ -1044,16 +1044,16 @@ export function ExamDetailModal({
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {[
-                        { label: "Class Average", value: `${Math.round(analytics.classAverage || 0)}%`, icon: Award, tone: "bg-[#fbf0fe] text-[#8127cf]" },
+                        { label: "Class Average", value: `${Math.round(analytics.classAverage || 0)}%`, icon: Award, tone: "bg-brand-50 text-primary" },
                         { label: "Passed", value: analytics.passCount ?? 0, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
                         { label: "Failed", value: analytics.failCount ?? 0, icon: X, tone: "bg-rose-50 text-rose-500" },
-                        { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-[#f3f4f9] text-ink" },
+                        { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-muted text-ink" },
                       ].map((s) => (
                         <div key={s.label} className="sk-panel p-5">
                           <div className="flex items-start justify-between">
                             <div>
-                              <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">{s.label}</p>
-                              <p className="text-2xl font-black text-[#1f1a23]">{s.value}</p>
+                              <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-2">{s.label}</p>
+                              <p className="text-2xl font-bold text-ink-strong">{s.value}</p>
                             </div>
                             <div className={cn("h-10 w-10 rounded-2xl flex items-center justify-center shrink-0", s.tone)}>
                               <s.icon className="w-4 h-4" />
@@ -1065,17 +1065,17 @@ export function ExamDetailModal({
 
                     {analytics.subjectAverages?.length > 0 && (
                       <div className="sk-panel p-6">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Subject Performance</p>
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-4">Subject Performance</p>
                         <div className="space-y-3">
                           {analytics.subjectAverages.map((sa: any) => {
                             const avg = Math.round(sa.average || 0);
                             return (
                               <div key={sa.subjectId || sa.name}>
                                 <div className="flex items-center justify-between mb-1.5">
-                                  <span className="text-xs font-bold text-[#1f1a23]">{sa.name}</span>
-                                  <span className={cn("text-xs font-black", avg >= 80 ? "text-emerald-600" : avg >= 50 ? "text-amber-600" : "text-rose-500")}>{avg}%</span>
+                                  <span className="text-xs font-bold text-ink-strong">{sa.name}</span>
+                                  <span className={cn("text-xs font-bold", avg >= 80 ? "text-emerald-600" : avg >= 50 ? "text-amber-600" : "text-rose-500")}>{avg}%</span>
                                 </div>
-                                <div className="h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
+                                <div className="h-2 bg-muted rounded-full overflow-hidden">
                                   <div className={cn("h-full rounded-full transition-all duration-700",
                                     avg >= 80 ? "bg-emerald-500" : avg >= 50 ? "bg-amber-500" : "bg-rose-500"
                                   )} style={{ width: `${avg}%` }} />
@@ -1089,18 +1089,18 @@ export function ExamDetailModal({
 
                     {analytics.topStudents?.length > 0 && (
                       <div className="sk-panel p-6">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle mb-4">Top Performers</p>
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-4">Top Performers</p>
                         <div className="space-y-2">
                           {analytics.topStudents.map((ts: any, idx: number) => (
-                            <div key={ts.studentId || idx} className="flex items-center gap-3 p-3 rounded-2xl bg-[#fbf0fe]/30">
-                              <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black shrink-0",
-                                idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-[#e8e0ec] text-ink" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-[#f3f4f9] text-ink-muted"
+                            <div key={ts.studentId || idx} className="flex items-center gap-3 p-3 rounded-2xl bg-brand-50/30">
+                              <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold shrink-0",
+                                idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-border-subtle text-ink" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-muted text-ink-muted"
                               )}>#{idx + 1}</span>
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-[#1f1a23] truncate">{ts.name || ts.fullName}</p>
+                                <p className="text-sm font-bold text-ink-strong truncate">{ts.name || ts.fullName}</p>
                               </div>
-                              <span className="text-sm font-black text-[#8127cf]">{Math.round(ts.percentage || 0)}%</span>
-                              <span className="text-sm font-bold text-[#1f1a23]">{ts.grade}</span>
+                              <span className="text-sm font-bold text-primary">{Math.round(ts.percentage || 0)}%</span>
+                              <span className="text-sm font-bold text-ink-strong">{ts.grade}</span>
                             </div>
                           ))}
                         </div>
@@ -1109,15 +1109,15 @@ export function ExamDetailModal({
 
                     {analytics.needsAttention?.length > 0 && (
                       <div className="sk-panel p-6">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70 mb-4">Needs Attention</p>
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-rose-500/70 mb-4">Needs Attention</p>
                         <div className="space-y-2">
                           {analytics.needsAttention.map((ns: any) => (
                             <div key={ns.studentId} className="flex items-center gap-3 p-3 rounded-2xl bg-rose-50/30 border border-rose-100">
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-[#1f1a23] truncate">{ns.name || ns.fullName}</p>
-                                <p className="text-[10px] font-semibold text-rose-500 mt-0.5">{ns.reason}</p>
+                                <p className="text-sm font-bold text-ink-strong truncate">{ns.name || ns.fullName}</p>
+                                <p className="text-2xs font-semibold text-rose-500 mt-0.5">{ns.reason}</p>
                               </div>
-                              <span className="text-sm font-black text-rose-500">{Math.round(ns.percentage || 0)}%</span>
+                              <span className="text-sm font-bold text-rose-500">{Math.round(ns.percentage || 0)}%</span>
                             </div>
                           ))}
                         </div>
@@ -1214,7 +1214,7 @@ export function ExamCreateModal({
           </FormSelect>
         </div>
         {classes.length === 0 && (
-          <p className="text-[10px] font-semibold text-amber-600">
+          <p className="text-2xs font-semibold text-amber-600">
             No classes found. Create a class first, then add an exam cycle.
           </p>
         )}
@@ -1466,10 +1466,10 @@ export function ReportCardsPanel({
               sortable: true,
               render: (r: any) => (
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">
+                  <p className="truncate text-sm font-bold text-ink-strong">
                     {r.student?.fullName || "Student"}
                   </p>
-                  <p className="truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                  <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     {r.student?.rollNo || "No roll"}
                   </p>
                 </div>
@@ -1501,9 +1501,9 @@ export function ReportCardsPanel({
               align: "right",
               render: (r: any) =>
                 r.percentage == null ? (
-                  <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                  <span className="text-2xs font-semibold text-ink-subtle">—</span>
                 ) : (
-                  <span className={cn("text-sm font-black", scoreTone(pct(r)))}>
+                  <span className={cn("text-sm font-bold", scoreTone(pct(r)))}>
                     {Math.round(pct(r))}%
                   </span>
                 ),
@@ -1513,7 +1513,7 @@ export function ReportCardsPanel({
               label: "Grade",
               align: "center",
               render: (r: any) => (
-                <span className="text-xs font-black text-[#8127cf]">{r.grade || "—"}</span>
+                <span className="text-xs font-bold text-primary">{r.grade || "—"}</span>
               ),
             },
             {
@@ -1543,17 +1543,17 @@ export function ReportCardsPanel({
             >
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black tracking-tight text-[#1f1a23]">
+                  <p className="truncate text-sm font-bold tracking-tight text-ink-strong">
                     {report.student?.fullName || "Student"}
                   </p>
-                  <p className="mt-1 truncate text-[10px] font-bold text-ink-muted">
+                  <p className="mt-1 truncate text-2xs font-bold text-ink-muted">
                     {report.exam?.title || "Report"}
                   </p>
                 </div>
                 <StatusPill status={report.status} />
               </div>
               <div className="flex items-end justify-between gap-3">
-                <p className="text-[9px] font-semibold text-ink-muted">
+                <p className="text-2xs font-semibold text-ink-muted">
                   {report.student?.class ? classLabel(report.student.class) : "—"}
                   {report.student?.rollNo ? ` · ${report.student.rollNo}` : ""}
                 </p>
@@ -1562,11 +1562,11 @@ export function ReportCardsPanel({
                     <p className="text-xs font-bold text-ink-subtle">No marks</p>
                   ) : (
                     <>
-                      <p className={cn("text-xl font-black leading-none", scoreTone(pct(report)))}>
+                      <p className={cn("text-xl font-bold leading-none", scoreTone(pct(report)))}>
                         {Math.round(pct(report))}%
                       </p>
                       {report.grade ? (
-                        <p className="mt-0.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                        <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
                           Grade {report.grade}
                         </p>
                       ) : null}
@@ -1576,7 +1576,7 @@ export function ReportCardsPanel({
               </div>
               {/* A score bar makes a row of cards comparable at a glance. */}
               {report.percentage != null ? (
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f9]">
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className={cn(
                       "h-full rounded-full transition-all",
@@ -1596,7 +1596,7 @@ export function ReportCardsPanel({
       )}
 
       {filtered.length > 0 ? (
-        <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-4 py-2.5 shadow-sm">
+        <div className="rounded-[18px] border border-edge/20 bg-white px-4 py-2.5 shadow-sm">
           <Pagination
             page={paged.page}
             totalPages={paged.totalPages}
@@ -1693,15 +1693,15 @@ export function FacultyPanel({
   return (
     <div className="space-y-6">
       {/* ── Header: same anatomy as the academics overview ── */}
-      <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
               <Users className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
-              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Teachers</h2>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Staff</p>
+              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Teachers</h2>
             </div>
           </div>
           <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
@@ -1812,8 +1812,8 @@ export function FacultyPanel({
                   label: "Teacher",
                   render: (t: any) => (
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-[#1f1a23]">{t.fullName}</p>
-                      <p className="truncate text-[10px] font-semibold text-ink-subtle">{t.email}</p>
+                      <p className="truncate text-sm font-bold text-ink-strong">{t.fullName}</p>
+                      <p className="truncate text-2xs font-semibold text-ink-subtle">{t.email}</p>
                     </div>
                   ),
                 },
@@ -1834,8 +1834,8 @@ export function FacultyPanel({
                     return (
                       <span
                         className={cn(
-                          "inline-flex min-w-[28px] justify-center rounded-full px-2 py-0.5 text-[10px] font-black",
-                          n === 0 ? "bg-amber-50 text-amber-700" : "bg-[#fbf0fe] text-[#8127cf]",
+                          "inline-flex min-w-[28px] justify-center rounded-full px-2 py-0.5 text-2xs font-bold",
+                          n === 0 ? "bg-amber-50 text-amber-700" : "bg-brand-50 text-primary",
                         )}
                       >
                         {n}
@@ -1848,7 +1848,7 @@ export function FacultyPanel({
                   label: "Classes led",
                   align: "center",
                   render: (t: any) => (
-                    <span className="text-xs font-black text-ink">{classCount(t)}</span>
+                    <span className="text-xs font-bold text-ink">{classCount(t)}</span>
                   ),
                 },
                 {
@@ -1897,7 +1897,7 @@ export function FacultyPanel({
 
           {filteredInvites.length ? (
             <>
-              <p className="pt-2 pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+              <p className="pt-2 pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 Invited, not signed up yet
               </p>
               {filteredInvites.map((invite: any) => (
@@ -1951,7 +1951,7 @@ function MetricCard({
   onClick?: () => void;
 }) {
   const tones = {
-    violet: "bg-[#f3eeff] text-[#8127cf]",
+    violet: "bg-brand-100 text-primary",
     teal: "bg-teal-50 text-teal-600",
     amber: "bg-amber-50 text-amber-600",
     emerald: "bg-emerald-50 text-emerald-600",
@@ -1960,9 +1960,9 @@ function MetricCard({
   const className = cn(
     "rounded-[24px] border bg-white p-5 text-left transition-all duration-200",
     active
-      ? "border-[#8127cf] shadow-[0_4px_16px_-4px_rgba(129,39,207,0.30)]"
-      : "border-[#cfc2d6]/25 shadow-sm",
-    interactive ? "cursor-pointer hover:-translate-y-0.5 hover:border-[#8127cf]/40 hover:shadow-md" : "",
+      ? "border-primary shadow-[0_4px_16px_-4px_rgba(129,39,207,0.30)]"
+      : "border-edge/25 shadow-sm",
+    interactive ? "cursor-pointer hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" : "",
   );
   // A card with nothing to do is not a button — rendering it as a disabled one
   // announced "dimmed button" to screen readers for what is just a number.
@@ -1975,10 +1975,10 @@ function MetricCard({
       <span className={cn("flex h-10 w-10 items-center justify-center rounded-2xl", tones[tone])}>
         <Icon className="h-5 w-5" />
       </span>
-      <p className="mt-3 text-3xl font-black tracking-tight text-[#1f1a23]">{value}</p>
+      <p className="mt-3 text-3xl font-extrabold tracking-tight text-ink-strong">{value}</p>
       <p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p>
       {hint ? (
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{hint}</p>
+        <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{hint}</p>
       ) : null}
     </Tag>
   );
@@ -2043,9 +2043,9 @@ export function AIPanel({
         >
           {displayInsights?.length ? (
             displayInsights.map((insight: any) => (
-              <div key={insight.id} className="rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-                <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">{insight.feature.replaceAll("_", " ")}</p>
-                <p className="mt-1 text-sm font-black text-[#1f1a23]">{insight.title}</p>
+              <div key={insight.id} className="rounded-2xl bg-brand-50/60 px-4 py-3">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{insight.feature.replaceAll("_", " ")}</p>
+                <p className="mt-1 text-sm font-bold text-ink-strong">{insight.title}</p>
                 <p className="mt-1 text-xs font-semibold leading-relaxed text-ink-muted">{insight.summary}</p>
               </div>
             ))
@@ -2097,9 +2097,9 @@ export function MoveStudentModal({
       tone="sky"
       onClose={onClose}
     >
-      <div className="rounded-3xl bg-[#fbf0fe]/65 p-5 mb-5">
-        <p className="text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+      <div className="rounded-3xl bg-brand-50/65 p-5 mb-5">
+        <p className="text-sm font-bold text-ink-strong">{student.fullName}</p>
+        <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           Current: {classLabel(student.class)} · Roll: {student.rollNo}
         </p>
       </div>
@@ -2275,7 +2275,7 @@ export function ClassDetailModal({
       {/* Tabs — the modal used to be one long scroll mixing class settings,
           subjects and students together, which made it hard to tell what a
           given control actually affected. */}
-      <div className="mb-5 flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1">
+      <div className="mb-5 flex items-center gap-2 rounded-2xl bg-muted p-1">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
@@ -2286,13 +2286,13 @@ export function ClassDetailModal({
               onClick={() => setTab(t.key)}
               className={cn(
                 "flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5",
-                active ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
+                active ? "bg-white text-primary shadow-sm" : "text-ink-muted hover:text-primary"
               )}
             >
               <Icon className="h-3.5 w-3.5" />
               {t.label}
               {t.badge !== undefined ? (
-                <span className={cn("rounded-full px-1.5 py-0.5 text-[8px]", active ? "bg-[#fbf0fe] text-[#8127cf]" : "bg-white/70 text-ink-subtle")}>
+                <span className={cn("rounded-full px-1.5 py-0.5 text-3xs", active ? "bg-brand-50 text-primary" : "bg-white/70 text-ink-subtle")}>
                   {t.badge}
                 </span>
               ) : null}
@@ -2312,8 +2312,8 @@ export function ClassDetailModal({
           {/* Teaching mode — the single most important setting on this screen,
               so it leads and explains itself rather than sitting as an
               unexplained toggle next to the teacher field. */}
-          <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
-            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">How is this section taught?</p>
+          <div className="rounded-3xl bg-brand-50/65 p-5">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">How is this section taught?</p>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {([
                 { mode: "SINGLE" as const, title: "One teacher", copy: "The class teacher takes every subject in this section." },
@@ -2329,21 +2329,21 @@ export function ClassDetailModal({
                     className={cn(
                       "p-4 text-left",
                       active
-                        ? "border-[#8127cf] bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
-                        : "border-transparent bg-white/60 hover:border-[#8127cf]/25 hover:bg-white"
+                        ? "border-primary bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
+                        : "border-transparent bg-white/60 hover:border-primary/25 hover:bg-white"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className={cn("text-sm font-black", active ? "text-[#8127cf]" : "text-[#1f1a23]")}>{option.title}</p>
-                      {active ? <CheckCircle2 className="h-4 w-4 shrink-0 text-[#8127cf]" /> : null}
+                      <p className={cn("text-sm font-bold", active ? "text-primary" : "text-ink-strong")}>{option.title}</p>
+                      {active ? <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" /> : null}
                     </div>
-                    <p className="mt-1 text-[10px] font-bold leading-relaxed text-ink-muted">{option.copy}</p>
+                    <p className="mt-1 text-2xs font-bold leading-relaxed text-ink-muted">{option.copy}</p>
                   </SystemButton>
                 );
               })}
             </div>
             {teachingMode === "SINGLE" ? (
-              <p className="mt-3 rounded-2xl bg-white/70 p-3 text-[10px] font-bold leading-relaxed text-ink-muted">
+              <p className="mt-3 rounded-2xl bg-white/70 p-3 text-2xs font-bold leading-relaxed text-ink-muted">
                 Every subject below follows the class teacher automatically — changing the class teacher updates them all.
               </p>
             ) : null}
@@ -2352,16 +2352,16 @@ export function ClassDetailModal({
           {/* Class teacher — saves on selection, no separate Save click. In
               SUBJECT mode this is an optional homeroom/coordinator, kept clearly
               distinct from the per-subject teachers set on the Subjects tab. */}
-          <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
+          <div className="rounded-3xl bg-brand-50/65 p-5">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {teachingMode === "SINGLE" ? "Class Teacher" : "Homeroom Teacher (optional)"}
                 </p>
-                <p className="mt-1 truncate text-base font-black tracking-tight text-[#1f1a23]">
+                <p className="mt-1 truncate text-base font-bold tracking-tight text-ink-strong">
                   {cls.classTeacher?.fullName || "Unassigned"}
                 </p>
-                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                <p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {teachingMode === "SINGLE"
                     ? (cls.classTeacher?.email || "Assign a teacher to make this roster visible in the teacher dashboard.")
                     : "Optional coordinator for this section. Subject teachers are assigned on the Subjects tab."}
@@ -2391,12 +2391,12 @@ export function ClassDetailModal({
                 showUnassignedHint={!cls.classTeacher?.id}
               />
               {teachingMode === "SUBJECT" ? (
-                <p className="mt-2 text-[10px] font-bold leading-relaxed text-ink-muted">
+                <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-muted">
                   This is the section coordinator, separate from the subject teachers listed on the Subjects tab.
                 </p>
               ) : null}
               {teacherBusy ? (
-                <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-[#8127cf]" />
+                <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-primary" />
               ) : null}
             </div>
           </div>
@@ -2410,7 +2410,7 @@ export function ClassDetailModal({
                 onClick={() => setEditingClass(!editingClass)}
                 className={cn(
                   "flex items-center gap-1.5 px-3 justify-start",
-                  editingClass ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+                  editingClass ? "bg-muted text-ink-muted" : "bg-brand-50 text-primary hover:bg-brand-100"
                 )}
               >
                 {editingClass ? "Cancel" : "Edit"}
@@ -2454,7 +2454,7 @@ export function ClassDetailModal({
             <PanelTitle icon={BookOpen} title="Subjects" />
             <div className="flex items-center gap-2">
               {unassignedCount > 0 && teachingMode === "SUBJECT" ? (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-600">
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
                   {unassignedCount} unassigned
                 </span>
               ) : null}
@@ -2463,8 +2463,8 @@ export function ClassDetailModal({
           </div>
 
           {teachingMode === "SINGLE" ? (
-            <p className="rounded-2xl bg-[#fbf0fe]/60 p-4 text-[11px] font-bold leading-relaxed text-ink-muted">
-              All subjects are taught by <span className="text-[#8127cf]">{cls.classTeacher?.fullName || "the class teacher (unassigned)"}</span>.
+            <p className="rounded-2xl bg-brand-50/60 p-4 text-2xs font-bold leading-relaxed text-ink-muted">
+              All subjects are taught by <span className="text-primary">{cls.classTeacher?.fullName || "the class teacher (unassigned)"}</span>.
               Switch to “Teacher per subject” on the Overview tab to assign them individually.
             </p>
           ) : null}
@@ -2473,7 +2473,7 @@ export function ClassDetailModal({
             {cls.subjects?.map((subject: any) => {
               const isEditing = editingSubjectId === subject.id;
               return (
-                <div key={subject.id} className="rounded-2xl bg-[#fbf0fe]/55 p-4">
+                <div key={subject.id} className="rounded-2xl bg-brand-50/55 p-4">
                   {isEditing ? (
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2502,8 +2502,8 @@ export function ClassDetailModal({
                     <>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-black text-[#1f1a23]">{subject.name}</p>
-                          <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                          <p className="truncate text-sm font-bold text-ink-strong">{subject.name}</p>
+                          <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                             {subject.teacher?.fullName || "Teacher unassigned"} {subject.totalMarks ? `- ${subject.totalMarks} marks` : ""}
                           </p>
                         </div>
@@ -2545,7 +2545,7 @@ export function ClassDetailModal({
                             showUnassignedHint={!subject.teacher?.id}
                           />
                           {subjectBusyId === subject.id ? (
-                            <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-[#8127cf]" />
+                            <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-primary" />
                           ) : null}
                         </div>
                       ) : null}
@@ -2578,16 +2578,16 @@ export function ClassDetailModal({
                 <span
                   className={cn(
                     "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
-                    applyToAllSections ? "border-[#8127cf] bg-[#8127cf]" : "border-[#cfc2d6]/50 bg-white"
+                    applyToAllSections ? "border-primary bg-primary" : "border-edge/50 bg-white"
                   )}
                 >
                   {applyToAllSections ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[11px] font-black text-[#1f1a23]">
+                  <span className="block text-2xs font-bold text-ink-strong">
                     Add to all {siblingSections.length} sections of {cls.name}
                   </span>
-                  <span className="block text-[9px] font-bold text-ink-muted">
+                  <span className="block text-2xs font-bold text-ink-muted">
                     Sections that already have this subject are skipped.
                   </span>
                 </span>
@@ -2626,8 +2626,8 @@ export function ClassDetailModal({
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-                  <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                  <p className="truncate text-sm font-bold text-ink-strong">{student.fullName}</p>
+                  <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     Roll {student.rollNo} - Guardian {student.guardianName || "N/A"}
                   </p>
                 </div>
@@ -2900,12 +2900,12 @@ export function StudentDetailModal({
             <span className="text-sm font-bold text-ink" dir="rtl">{student.nameUr}</span>
           ) : null}
           {student.category?.name ? (
-            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
               {student.category.name}
             </span>
           ) : null}
           {student.group?.name ? (
-            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-sky-600">
+            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-sky-600">
               {student.group.name}
             </span>
           ) : null}
@@ -2928,7 +2928,7 @@ export function StudentDetailModal({
     >
       {/* Pinned inside the scroll area: on a profile this long the actions
           and the tab strip used to scroll out of reach within one flick. */}
-      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-[#cfc2d6]/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-edge/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <SystemButton variant="default" type="button" onClick={onMove} className="flex items-center gap-1.5 px-3 justify-start">
@@ -2989,7 +2989,7 @@ export function StudentDetailModal({
           }}
           className={cn(
             "ml-auto flex shrink-0 items-center gap-1.5 px-3 justify-start",
-            editing ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+            editing ? "bg-muted text-ink-muted" : "bg-brand-50 text-primary hover:bg-brand-100"
           )}
         >
           <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
@@ -2999,7 +2999,7 @@ export function StudentDetailModal({
       {detailError ? (
         <p
           role="alert"
-          className="mx-6 mb-2 rounded-lg bg-rose-50 px-3 py-2 text-[10px] font-bold text-rose-600"
+          className="mx-6 mb-2 rounded-lg bg-rose-50 px-3 py-2 text-2xs font-bold text-rose-600"
         >
           {detailError} — address, medical and guardian detail may be missing, so editing is
           disabled. Close and reopen the profile to retry.
@@ -3031,8 +3031,8 @@ export function StudentDetailModal({
             className={cn(
               "flex items-center gap-1.5 px-3.5 justify-start",
               profileTab === key
-                ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                : "bg-[#fbf0fe]/70 text-ink-muted hover:bg-[#f0e0f8] hover:text-[#8127cf]"
+                ? "bg-primary text-white shadow-lg shadow-primary/20"
+                : "bg-brand-50/70 text-ink-muted hover:bg-brand-100 hover:text-primary"
             )}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -3058,7 +3058,7 @@ export function StudentDetailModal({
         as chips here, and once again in the metric row below.
       */}
       {editing ? (
-        <div className="mb-5 space-y-3 rounded-[24px] border border-[#cfc2d6]/25 bg-[#faf7fc] p-5">
+        <div className="mb-5 space-y-3 rounded-[24px] border border-edge/25 bg-surface-subtle p-5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormInput label="Full Name (English)" value={ed("fullName")} placeholder="Student name" onChange={(v) => setEd("fullName", v)} />
             <FormInput label="Full Name (Urdu)" value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
@@ -3110,8 +3110,8 @@ export function StudentDetailModal({
               <div className="grid grid-cols-2 gap-3">
                 {tagsLoading ? (
                   <>
-                    <div className="h-10 w-full rounded-xl bg-[#8127cf]/10 animate-pulse" />
-                    <div className="h-10 w-full rounded-xl bg-[#8127cf]/10 animate-pulse" />
+                    <div className="h-10 w-full rounded-xl bg-primary/10 animate-pulse" />
+                    <div className="h-10 w-full rounded-xl bg-primary/10 animate-pulse" />
                   </>
                 ) : (
                   <>
@@ -3446,22 +3446,22 @@ export function StudentAdmissionsPanel({
     return (
       <div className="space-y-4">
         <div className="sk-panel p-5">
-          <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
+          <div className="h-4 w-36 rounded-lg bg-primary/10 animate-pulse" />
           <div className="mt-4 space-y-2">
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
                 <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-3.5 w-40 rounded bg-[#8127cf]/10 animate-pulse" />
-                  <div className="h-3 w-28 rounded bg-[#8127cf]/10 animate-pulse" />
+                  <div className="h-3.5 w-40 rounded bg-primary/10 animate-pulse" />
+                  <div className="h-3 w-28 rounded bg-primary/10 animate-pulse" />
                 </div>
-                <div className="h-6 w-16 shrink-0 rounded-full bg-[#8127cf]/10 animate-pulse" />
+                <div className="h-6 w-16 shrink-0 rounded-full bg-primary/10 animate-pulse" />
               </div>
             ))}
           </div>
         </div>
         <div className="sk-panel p-5">
-          <div className="h-4 w-36 rounded-lg bg-[#8127cf]/10 animate-pulse" />
-          <div className="mt-4 h-14 w-full max-w-xs rounded-2xl bg-[#8127cf]/10 animate-pulse" />
+          <div className="h-4 w-36 rounded-lg bg-primary/10 animate-pulse" />
+          <div className="mt-4 h-14 w-full max-w-xs rounded-2xl bg-primary/10 animate-pulse" />
         </div>
       </div>
     );
@@ -3481,7 +3481,7 @@ export function StudentAdmissionsPanel({
               {siblings.map((s) => (
                 <div key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
                   <div>
-                    <p className="text-sm font-black text-[#1f1a23]">
+                    <p className="text-sm font-bold text-ink-strong">
                       {s.id === student.id ? `${s.fullName} (this student)` : s.fullName}
                     </p>
                     <p className="text-xs font-semibold text-ink-muted">
@@ -3489,7 +3489,7 @@ export function StudentAdmissionsPanel({
                     </p>
                   </div>
                   {s.id !== student.id ? (
-                    <span className="rounded-full bg-[#8127cf]/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
                       Sibling
                     </span>
                   ) : null}
@@ -3524,10 +3524,10 @@ export function StudentAdmissionsPanel({
                 {linkResults.map((s) => (
                   <div key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
                     <div>
-                      <p className="text-sm font-bold text-[#1f1a23]">{s.fullName}</p>
+                      <p className="text-sm font-bold text-ink-strong">{s.fullName}</p>
                       <p className="text-xs font-semibold text-ink-muted">{s.rollNo} · {classLabel(s.class)}</p>
                     </div>
-                    <BrandButton variant="soft" className="h-8 px-3 text-[10px]" onClick={() => linkSiblings(s.id)} disabled={linkBusy}>
+                    <BrandButton variant="soft" className="h-8 px-3 text-2xs" onClick={() => linkSiblings(s.id)} disabled={linkBusy}>
                       {linkBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : "Link"}
                     </BrandButton>
                   </div>
@@ -3582,9 +3582,9 @@ export function StudentAdmissionsPanel({
         ) : (
           <div className="space-y-2">
             {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
+              <div key={doc.id} className="flex items-center justify-between gap-3 rounded-2xl bg-brand-50/60 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-[#1f1a23]">{doc.fileName}</p>
+                  <p className="truncate text-sm font-bold text-ink-strong">{doc.fileName}</p>
                   <p className="text-xs font-semibold text-ink-muted">
                     {kindLabel(doc.kind)} · {formatDate(doc.uploadedAt)}
                   </p>
@@ -3595,7 +3595,7 @@ export function StudentAdmissionsPanel({
                       href={doc.downloadUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex h-8 items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] hover:bg-[#8127cf] hover:text-white transition-all"
+                      className="flex h-8 items-center gap-1.5 rounded-xl bg-brand-50 px-3 text-2xs font-semibold uppercase tracking-wider text-primary hover:bg-primary hover:text-white transition-all"
                     >
                       <Download className="h-3 w-3" />View
                     </a>
@@ -3636,12 +3636,12 @@ export function StudentAdmissionsPanel({
         <div className="space-y-0">
           {timeline.map((ev, idx) => (
             <div key={ev.id} className="relative flex gap-3 pl-5">
-              {idx < timeline.length - 1 ? <div className="absolute left-[5px] top-5 h-full w-px bg-[#cfc2d6]/40" /> : null}
-              <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[#8127cf] bg-white" />
+              {idx < timeline.length - 1 ? <div className="absolute left-[5px] top-5 h-full w-px bg-edge/40" /> : null}
+              <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-primary bg-white" />
               <div className="pb-4">
-                <p className="text-sm font-bold text-[#1f1a23]">{ev.title}</p>
+                <p className="text-sm font-bold text-ink-strong">{ev.title}</p>
                 {ev.detail ? <p className="text-xs font-semibold text-ink-muted">{ev.detail}</p> : null}
-                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {ev.kind} · {formatDate(ev.createdAt)}
                 </p>
               </div>
@@ -3924,7 +3924,7 @@ export function TeacherDetailModal({
         <>
           <span
             className={cn(
-              "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider",
+              "inline-flex items-center rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
               (teacher._count?.taughtSubjects || taughtSubjects.length) === 0
                 ? "bg-amber-50 text-amber-600"
                 : "bg-emerald-50 text-emerald-600",
@@ -3935,12 +3935,12 @@ export function TeacherDetailModal({
               : `${teacher._count?.taughtSubjects || taughtSubjects.length} subjects`}
           </span>
           {(teacher._count?.ledClasses || ledClasses.length) > 0 ? (
-            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-sky-600">
+            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-sky-600">
               Class teacher · {teacher._count?.ledClasses || ledClasses.length}
             </span>
           ) : null}
           {!teacher.onboardingComplete ? (
-            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-600">
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
               Onboarding pending
             </span>
           ) : null}
@@ -3960,7 +3960,7 @@ export function TeacherDetailModal({
       wide
     >
       {/* Pinned inside the scroll area so the tab strip and Edit stay reachable. */}
-      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-[#cfc2d6]/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-edge/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/*
           Tabs, matching the student profile. This dialog used to be a single
@@ -3983,8 +3983,8 @@ export function TeacherDetailModal({
               className={cn(
                 "flex items-center gap-1.5 px-3.5 justify-start",
                 teacherTab === key
-                  ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                  : "bg-[#fbf0fe]/70 text-ink-muted hover:bg-[#f0e0f8] hover:text-[#8127cf]",
+                  ? "bg-primary text-white shadow-lg shadow-primary/20"
+                  : "bg-brand-50/70 text-ink-muted hover:bg-brand-100 hover:text-primary",
               )}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -3998,7 +3998,7 @@ export function TeacherDetailModal({
             onClick={() => setEditing(!editing)}
             className={cn(
               "flex items-center gap-1.5 px-3 justify-start",
-              editing ? "bg-[#f3f4f9] text-ink-muted" : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e0f8]"
+              editing ? "bg-muted text-ink-muted" : "bg-brand-50 text-primary hover:bg-brand-100"
             )}
           >
             <Pencil className="h-3 w-3" />
@@ -4011,7 +4011,7 @@ export function TeacherDetailModal({
       {/* ── Header Card ── */}
       {/* Photo, name, email and flags are all in the dialog header now. */}
       {editing ? (
-        <div className="mb-5 rounded-[24px] border border-[#cfc2d6]/25 bg-[#faf7fc] p-5">
+        <div className="mb-5 rounded-[24px] border border-edge/25 bg-surface-subtle p-5">
           <FormInput label="Full Name" value={ed("fullName")} placeholder="Teacher name" onChange={(v) => setEd("fullName", v)} />
         </div>
       ) : null}
@@ -4040,11 +4040,11 @@ export function TeacherDetailModal({
               */}
               <div>
                 <span className="sk-field-label">Email</span>
-                <div className="flex h-14 w-full items-center rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold text-ink-muted">
+                <div className="flex h-14 w-full items-center rounded-2xl border border-edge/20 bg-muted px-4 text-sm font-bold text-ink-muted">
                   <Lock className="mr-2 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
                   <span className="truncate">{teacher.email || "No email"}</span>
                 </div>
-                <p className="mt-1.5 pl-2 text-[10px] font-semibold text-ink-subtle">
+                <p className="mt-1.5 pl-2 text-2xs font-semibold text-ink-subtle">
                   This is the teacher&apos;s sign-in address and cannot be changed here.
                 </p>
               </div>
@@ -4191,9 +4191,9 @@ export function TeacherDetailModal({
           </div>
           <div className="space-y-2">
             {ledClasses.map((cls: any) => (
-              <div key={cls.id} className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
-                <p className="text-sm font-black text-[#1f1a23]">{classLabel(cls)}</p>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+              <div key={cls.id} className="rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
+                <p className="text-sm font-bold text-ink-strong">{classLabel(cls)}</p>
+                <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {cls._count?.students || 0} students - {cls._count?.subjects || 0} subjects
                 </p>
               </div>
@@ -4209,9 +4209,9 @@ export function TeacherDetailModal({
           </div>
           <div className="space-y-2">
             {taughtSubjects.map((subject: any) => (
-              <div key={subject.id} className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
-                <p className="text-sm font-black text-[#1f1a23]">{subject.name}</p>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+              <div key={subject.id} className="rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
+                <p className="text-sm font-bold text-ink-strong">{subject.name}</p>
+                <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {classLabel(subject.class)} - {subject.totalMarks || 100} marks
                 </p>
               </div>
@@ -4223,15 +4223,15 @@ export function TeacherDetailModal({
       ) : null}
 
       {isStaffAdmin && teacherTab === "record" ? (
-        <div className="mt-6 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-5">
+        <div className="mt-6 rounded-3xl border border-edge/20 bg-brand-50/40 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
                 <Wallet className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-base font-black tracking-tight text-[#1f1a23]">Staff Records</h3>
-                <p className="text-[11px] font-bold text-ink-muted">Payroll · Bank · Documents · Timeline</p>
+                <h3 className="text-base font-bold tracking-tight text-ink-strong">Staff Records</h3>
+                <p className="text-2xs font-bold text-ink-muted">Payroll · Bank · Documents · Timeline</p>
               </div>
             </div>
             <BrandButton
@@ -4262,7 +4262,7 @@ export function TeacherDetailModal({
               </div>
               <div className="sk-panel p-5">
                 <PanelTitle icon={Landmark} title="Bank Details" />
-                <p className="mt-1 text-[10px] font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
+                <p className="mt-1 text-2xs font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
                   <FormInput label="Account Holder Name" value={staffForm.bankAccountName || ""} placeholder="Name on account" onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountName: v }))} />
                   <FormInput label="Account Number" value={staffForm.bankAccountNumber || ""} placeholder="IBAN / account number" onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountNumber: v }))} />
@@ -4302,7 +4302,7 @@ export function TeacherDetailModal({
               </div>
               <div className="sk-panel p-5">
                 <PanelTitle icon={Landmark} title="Bank Details" />
-                <p className="mt-1 text-[10px] font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
+                <p className="mt-1 text-2xs font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
                 <div className="mt-4 space-y-3">
                   <DetailRow label="Account Holder" value={staff?.staffProfile?.bankAccountName || "Not set"} />
                   <DetailRow label="Account Number" value={staff?.staffProfile?.bankAccountNumber ? maskAccount(staff.staffProfile.bankAccountNumber) : "Not set"} />
@@ -4328,17 +4328,17 @@ export function TeacherDetailModal({
                   <EmptyInline text="No documents uploaded yet." />
                 ) : (
                   staffDocs.map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#8127cf]">
+                    <div key={doc.id} className="flex items-center gap-3 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-primary">
                         <FileText className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-black text-[#1f1a23]">{doc.fileName}</p>
-                        <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                        <p className="truncate text-xs font-bold text-ink-strong">{doc.fileName}</p>
+                        <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                           {doc.kind} · {formatStaffDate(doc.uploadedAt)}
                         </p>
                       </div>
-                      <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-[#8127cf]">
+                      <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-primary">
                         <Download className="h-4 w-4" />
                       </a>
                       <SystemButton variant="ghost" type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex items-center justify-center">
@@ -4380,14 +4380,14 @@ export function TeacherDetailModal({
                   <EmptyInline text="No staff record events yet." />
                 ) : (
                   staffTimeline.map((event) => (
-                    <div key={event.id} className="flex items-start gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white text-[#8127cf]">
+                    <div key={event.id} className="flex items-start gap-3 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white text-primary">
                         {event.kind === "SALARY" ? <Banknote className="h-3.5 w-3.5" /> : event.kind === "BANK" ? <CreditCard className="h-3.5 w-3.5" /> : <History className="h-3.5 w-3.5" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-black text-[#1f1a23]">{event.title}</p>
-                        {event.detail ? <p className="mt-0.5 text-[10px] font-semibold text-ink-muted">{event.detail}</p> : null}
-                        <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
+                        <p className="text-xs font-bold text-ink-strong">{event.title}</p>
+                        {event.detail ? <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{event.detail}</p> : null}
+                        <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
                       </div>
                     </div>
                   ))
@@ -4551,7 +4551,7 @@ export function ModalActions({
   hint?: ReactNode;
 }) {
   return (
-    <div className="mt-8 border-t border-[#cfc2d6]/15 pt-6">
+    <div className="mt-8 border-t border-edge/15 pt-6">
       {hint ? <p className="mb-3 text-xs font-semibold text-ink-muted">{hint}</p> : null}
       <div className="flex gap-3">
         <BrandButton variant="soft" className="flex-1 h-13" onClick={onClose}>
@@ -4691,8 +4691,8 @@ export function ClassGroupCard({
     <div className={cn(
       "sk-panel sk-rise group transition-all self-start",
       open
-        ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
-        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10",
+        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+        : "border-edge/5 hover:border-primary/10",
       // Expanded, the card carries per-section rows with their own metadata and
       // action buttons. In a half-width grid column those wrapped into a jumble,
       // so an open card takes the whole row.
@@ -4720,17 +4720,17 @@ export function ClassGroupCard({
       >
         <div className="relative flex items-center gap-3 min-w-0">
           <div className={cn(
-            "relative flex shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
+            "relative flex shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary shadow-sm transition-all",
             open ? "h-10 w-10" : "h-8 w-8"
           )}>
             <BookOpen className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
           </div>
           <div className="min-w-0">
-            <p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>
+            <p className={cn("truncate font-bold text-ink-strong transition-all", open ? "text-base" : "text-sm")}>
               {group.name}
             </p>
             {open ? (
-              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+              <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 {group.academicYear} - {sectionless
                   ? ui("No sections")
                   : ui(group.sections.length === 1 ? "{0} section" : "{0} sections", [group.sections.length])} · {ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])} · {ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}
@@ -4756,12 +4756,12 @@ export function ClassGroupCard({
               {ui("Delete")}
             </SystemButton>
           ) : null}
-          <span className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">
+          <span className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
             {ui(group.sections.length === 1 ? "{0} section" : "{0} sections", [group.sections.length])}
           </span>
           <ChevronDown
             className={cn(
-              "text-[#8127cf] transition-all duration-200",
+              "text-primary transition-all duration-200",
               open ? "h-5 w-5 rotate-180" : "h-4 w-4"
             )}
           />
@@ -4769,7 +4769,7 @@ export function ClassGroupCard({
       </div>
 
       {open ? (
-        <div className="border-t border-[#cfc2d6]/10 p-5 space-y-3">
+        <div className="border-t border-edge/10 p-5 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <MiniMetric label={ui("Students")} value={studentCount} active />
             <MiniMetric label={ui("Subjects")} value={subjectCount} />
@@ -4830,7 +4830,7 @@ export function ClassGroupCard({
               </SystemButton>
             )}
             {sectionless && addingSection ? (
-              <p className="mt-2 px-1 text-[9px] font-bold leading-relaxed text-ink-muted">
+              <p className="mt-2 px-1 text-2xs font-bold leading-relaxed text-ink-muted">
                 {ui("This class currently has no sections. Naming one moves the existing students and subjects into it — nothing is lost.")}
               </p>
             ) : null}
@@ -4878,28 +4878,28 @@ export function SectionCard({
   const displayStudents = showAllStudents ? students : students.slice(0, 6);
 
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/55 overflow-hidden">
+    <div className="rounded-2xl bg-brand-50/55 overflow-hidden">
       <div className="flex items-center justify-between gap-3 p-4">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-black text-[#1f1a23]">{cls.section ? ui("Section {0}", [cls.section]) : ui("Whole class")}</p>
+          <p className="text-sm font-bold text-ink-strong">{cls.section ? ui("Section {0}", [cls.section]) : ui("Whole class")}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             {isSubjectMode ? (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+              <span className="inline-flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
                 {subjectCount ? ui("{0}/{1} teachers", [assignedSubjectTeachers, subjectCount]) : ui("No subjects yet")}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+              <span className="inline-flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
                 {cls.classTeacher?.fullName || ui("No class teacher")}
               </span>
             )}
             <span className="text-ink-subtle">|</span>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])}</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])}</span>
             <span className="text-ink-subtle">|</span>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}</span>
             <span
-              className="rounded-full bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf]"
+              className="rounded-full bg-white px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-primary"
               title={cls.teachingMode === "SUBJECT" ? ui("Each subject has its own teacher") : ui("The class teacher takes every subject")}
             >
               {cls.teachingMode === "SUBJECT" ? ui("Per subject") : ui("One teacher")}
@@ -4948,10 +4948,10 @@ export function SectionCard({
       </div>
 
       {detailsOpen ? (
-        <div className="border-t border-[#cfc2d6]/10">
+        <div className="border-t border-edge/10">
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle flex items-center gap-1">
                 <BookOpen className="h-3 w-3" />
                 {ui("Subjects ({0})", [subjectCount])}
               </p>
@@ -4961,14 +4961,14 @@ export function SectionCard({
                 {cls.subjects.map((subject: any) => (
                   <div key={subject.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-black text-[#1f1a23] truncate">{subject.name}</p>
-                      <p className="text-[8px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5">
+                      <p className="text-xs font-bold text-ink-strong truncate">{subject.name}</p>
+                      <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle mt-0.5">
                         {subject.teacher?.fullName || ui("No teacher")} · {ui("{0} marks", [subject.totalMarks || 100])}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase tracking-wider",
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider",
                         subject.teacher?.id ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                       )}>
                         <span className={cn("h-1.5 w-1.5 rounded-full", subject.teacher?.id ? "bg-emerald-500" : "bg-amber-500")} />
@@ -4979,15 +4979,15 @@ export function SectionCard({
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-ink-subtle">
+              <p className="rounded-xl bg-white/70 px-3 py-2 text-2xs font-bold text-ink-subtle">
                 {ui("No subjects yet. Click Manage to add subjects, assign teachers, and build the syllabus.")}
               </p>
             )}
           </div>
 
-          <div className="border-t border-[#cfc2d6]/10 px-4 py-3">
+          <div className="border-t border-edge/10 px-4 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle flex items-center gap-1">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle flex items-center gap-1">
                 <GraduationCap className="h-3 w-3" />
                 {ui("Students ({0})", [studentCount])}
               </p>
@@ -5005,7 +5005,7 @@ export function SectionCard({
               <div className="grid grid-cols-2 gap-1.5">
                 {displayStudents.map((student: any) => (
                   <div key={student.id} className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-2">
-                    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-[#fbf0fe] border border-white">
+                    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-brand-50 border border-white">
                       <img
                         src={resolveMediaUrl(student.profileImageUrl) ?? undefined}
                         alt=""
@@ -5013,14 +5013,14 @@ export function SectionCard({
                       />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black text-[#1f1a23] truncate">{student.fullName}</p>
-                      <p className="text-[7px] font-bold uppercase tracking-wider text-ink-subtle">{ui("Roll {0}", [student.rollNo || "—"])}</p>
+                      <p className="text-2xs font-bold text-ink-strong truncate">{student.fullName}</p>
+                      <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Roll {0}", [student.rollNo || "—"])}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-white/70 px-3 py-2 text-[10px] font-bold text-ink-subtle">
+              <p className="rounded-xl bg-white/70 px-3 py-2 text-2xs font-bold text-ink-subtle">
                 {ui("No students enrolled yet. Click + Student to add.")}
               </p>
             )}
@@ -5035,29 +5035,29 @@ export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; curre
   const isCurrentUser = admin.id === currentUserId;
 
   return (
-    <div className="group/row relative bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-[#8127cf]/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/row:opacity-100 transition-opacity duration-500 pointer-events-none" />
+    <div className="group/row relative bg-gradient-to-br from-brand-50/50 via-white to-brand-50/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-primary/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/row:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div className="relative flex items-center justify-between gap-4">
         <div className="flex items-center gap-5 min-w-0">
           <div className="relative shrink-0">
-            <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-2xl blur-md opacity-0 group-hover/row:opacity-100 transition-opacity duration-500" />
-            <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-[#8127cf]/10 shadow-sm flex items-center justify-center overflow-hidden transition-all duration-300 group-hover/row:border-[#8127cf]/30 group-hover/row:shadow-md">
+            <div className="absolute -inset-2 bg-gradient-to-br from-primary/10 to-brand-300/8 rounded-2xl blur-md opacity-0 group-hover/row:opacity-100 transition-opacity duration-500" />
+            <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-primary/10 shadow-sm flex items-center justify-center overflow-hidden transition-all duration-300 group-hover/row:border-primary/30 group-hover/row:shadow-md">
               <AvatarImage name={admin.email} alt="" className="h-full w-full object-cover" />
             </div>
-            <div className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${isCurrentUser ? "bg-emerald-500" : "bg-[#8127cf]"}`} />
+            <div className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${isCurrentUser ? "bg-emerald-500" : "bg-primary"}`} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none truncate">{admin.fullName}</h4>
+              <h4 className="text-base font-bold text-ink-strong tracking-tight leading-none truncate">{admin.fullName}</h4>
               {isCurrentUser && (
-                <span className="shrink-0 inline-flex items-center rounded-full bg-gradient-to-r from-[#8127cf] to-[#b876f0] px-2 py-0.5 text-[7px] font-black uppercase tracking-wider text-white shadow-sm">
+                <span className="shrink-0 inline-flex items-center rounded-full bg-gradient-to-r from-primary to-brand-300 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-white shadow-sm">
                   Owner
                 </span>
               )}
             </div>
-            <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider leading-none mt-1 truncate">{admin.email}</p>
+            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider leading-none mt-1 truncate">{admin.email}</p>
             <div className="flex items-center gap-2 mt-2">
-              <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-[#8127cf]/60">
+              <span className="inline-flex items-center gap-1 text-3xs font-semibold uppercase tracking-wider text-primary/60">
                 <Shield className="w-2.5 h-2.5" />
                 {isCurrentUser ? "Current session" : formatStatus(admin.role)}
               </span>
@@ -5101,15 +5101,15 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none truncate">{inviteName || "Invitation pending"}</h4>
+              <h4 className="text-base font-bold text-ink-strong tracking-tight leading-none truncate">{inviteName || "Invitation pending"}</h4>
               <StatusPill status={deliveryFailed ? "Delivery failed" : expired ? "Expired" : formatStatus(invite.role)} />
             </div>
-            <p className="text-[9px] font-bold text-ink-muted uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
+            <p className="text-2xs font-semibold text-ink-muted uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
             {deliveryFailed && <p role="status" className="mt-2 text-xs text-rose-700">Email could not be delivered. Resend to try again.</p>}
             {expiryLabel ? (
               <div className="flex items-center gap-1.5 mt-2">
                 <Clock className={`w-2.5 h-2.5 ${expired ? "text-rose-500" : "text-amber-500"}`} />
-                <span className={`text-[8px] font-black uppercase tracking-wider ${expired ? "text-rose-600" : "text-amber-600"}`}>
+                <span className={`text-3xs font-semibold uppercase tracking-wider ${expired ? "text-rose-600" : "text-amber-600"}`}>
                   {expired ? "Expired" : "Expires"} {expiryLabel}
                 </span>
               </div>
@@ -5137,28 +5137,28 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
   const classes = teacher._count?.ledClasses ?? teacher.ledClasses?.length ?? 0;
 
   return (
-    <div className="sk-rise group/faculty relative bg-gradient-to-br from-[#fbf0fe]/50 via-white to-[#fbf0fe]/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-[#8127cf]/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500 pointer-events-none" />
+    <div className="sk-rise group/faculty relative bg-gradient-to-br from-brand-50/50 via-white to-brand-50/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-primary/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div className="relative flex items-center justify-between gap-4">
         <div className="flex items-center gap-5 min-w-0">
           <div className="relative shrink-0">
-            <div className="absolute -inset-2 bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/8 rounded-2xl blur-md opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500" />
-            <div className="relative h-12 w-12 bg-[#fbf0fe] rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center transition-all duration-300 group-hover/faculty:border-[#8127cf]/20 group-hover/faculty:shadow-md">
+            <div className="absolute -inset-2 bg-gradient-to-br from-primary/10 to-brand-300/8 rounded-2xl blur-md opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500" />
+            <div className="relative h-12 w-12 bg-brand-50 rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center transition-all duration-300 group-hover/faculty:border-primary/20 group-hover/faculty:shadow-md">
               <AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-sm" />
             </div>
           </div>
           <div className="min-w-0">
-            <h4 className="text-base font-black text-[#1f1a23] tracking-tight leading-none mb-1 truncate">{teacher.fullName}</h4>
-            <p className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider leading-none truncate">{teacher.email}</p>
+            <h4 className="text-base font-bold text-ink-strong tracking-tight leading-none mb-1 truncate">{teacher.fullName}</h4>
+            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider leading-none truncate">{teacher.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {classes > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-sky-600">
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-sky-600">
                   <School className="h-2.5 w-2.5" />
                   Class teacher · {classes}
                 </span>
               ) : null}
               {!teacher.onboardingComplete ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-amber-600">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-amber-600">
                   <Clock className="h-2.5 w-2.5" />
                   Onboarding
                 </span>
@@ -5173,7 +5173,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
           */}
           <span
             className={cn(
-              "inline-flex items-center rounded-full px-2.5 py-1 text-[8px] font-black uppercase tracking-wider",
+              "inline-flex items-center rounded-full px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider",
               subjects === 0 ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600",
             )}
           >
@@ -5207,10 +5207,10 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
 export function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">{title}</h3>
+      <h3 className="text-lg font-bold tracking-tight text-ink-strong">{title}</h3>
     </div>
   );
 }
@@ -5237,8 +5237,8 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
     <div className={cn(
       "sk-panel sk-rise group transition-all self-start",
       open
-        ? "border-[#cfc2d6]/25 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
-        : "border-[#cfc2d6]/5 hover:border-[#8127cf]/10"
+        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+        : "border-edge/5 hover:border-primary/10"
     )}>
       <SystemButton variant="ghost"
         type="button"
@@ -5250,19 +5250,19 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
         aria-expanded={open}
       >
         <div className="relative flex items-center gap-3 min-w-0">
-          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
+          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-primary/18" />
           <div className={cn(
-            "relative flex shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf] shadow-sm transition-all",
+            "relative flex shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary shadow-sm transition-all",
             open ? "h-10 w-10" : "h-8 w-8"
           )}>
             <Icon className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
           </div>
           <div className="min-w-0">
-            <p className={cn("truncate font-black text-[#1f1a23] transition-all", open ? "text-base" : "text-sm")}>
+            <p className={cn("truncate font-bold text-ink-strong transition-all", open ? "text-base" : "text-sm")}>
               {title}
             </p>
             {open ? (
-              <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+              <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 {childCount} item{childCount === 1 ? "" : "s"}
               </p>
             ) : null}
@@ -5270,13 +5270,13 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {open ? null : (
-            <span className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">
+            <span className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
               {childCount} items
             </span>
           )}
           <ChevronDown
             className={cn(
-              "text-[#8127cf] transition-all duration-200",
+              "text-primary transition-all duration-200",
               open ? "h-5 w-5 rotate-180" : "h-4 w-4"
             )}
           />
@@ -5284,7 +5284,7 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
       </SystemButton>
 
       {open ? (
-        <div className="border-t border-[#cfc2d6]/10 p-5">
+        <div className="border-t border-edge/10 p-5">
           {after ? (
             <div className="mb-3 flex justify-end">{after}</div>
           ) : null}
@@ -5298,8 +5298,8 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
 export function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/70 px-4 py-3 transition-colors duration-200 hover:bg-white">
-      <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle shrink-0">{label}</span>
-      <span className="min-w-0 truncate text-right text-sm font-bold text-[#1f1a23]">{value}</span>
+      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle shrink-0">{label}</span>
+      <span className="min-w-0 truncate text-right text-sm font-bold text-ink-strong">{value}</span>
     </div>
   );
 }
@@ -5308,10 +5308,10 @@ export function MiniMetric({ label, value, active }: { label: string; value: any
   return (
     <div className={cn(
       "rounded-2xl px-4 py-3.5 transition-all duration-200",
-      active ? "bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] shadow-sm" : "bg-[#fbf0fe]/60"
+      active ? "bg-gradient-to-br from-brand-50 to-brand-100 shadow-sm" : "bg-brand-50/60"
     )}>
-      <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle leading-none">{label}</p>
-      <p className={cn("mt-1.5 truncate text-base font-black leading-none", active ? "text-[#8127cf]" : "text-[#1f1a23]")}>{value}</p>
+      <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle leading-none">{label}</p>
+      <p className={cn("mt-1.5 truncate text-base font-bold leading-none", active ? "text-primary" : "text-ink-strong")}>{value}</p>
     </div>
   );
 }
@@ -5319,7 +5319,7 @@ export function MiniMetric({ label, value, active }: { label: string; value: any
 export function StatusPill({ status }: { status?: string }) {
   return (
     <span className={cn(
-      "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-wider transition-all duration-200",
+      "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-3xs font-semibold uppercase tracking-wider transition-all duration-200",
       statusTone(status)
     )}>
       {formatStatus(status)}
@@ -5329,7 +5329,7 @@ export function StatusPill({ status }: { status?: string }) {
 
 export function EmptyInline({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-[#f3eeff]/40 border border-[#cfc2d6]/8 p-5 text-center">
+    <div className="rounded-2xl bg-gradient-to-br from-brand-50/60 to-brand-100/40 border border-edge/8 p-5 text-center">
       <p className="text-sm font-semibold text-ink-muted leading-relaxed">{text}</p>
     </div>
   );
@@ -5343,32 +5343,32 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   return (
     <ModalFrame title="Help Center" eyebrow="Campus Support" icon={Sparkles} tone="emerald" onClose={onClose}>
       <div className="space-y-3">
-        <div className="rounded-3xl bg-[#fbf0fe]/65 p-5">
-          <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Getting Started</p>
+        <div className="rounded-3xl bg-brand-50/65 p-5">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Getting Started</p>
           <p className="mt-2 text-sm font-semibold leading-relaxed text-ink">
             This is your campus admin workspace. From here you can manage classes, teachers, students, exams, and AI-powered insights.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Classes</p>
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Classes</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Add classes with sections, assign class teachers, create subjects, and enroll students.</p>
           </div>
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Teachers</p>
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Teachers</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Invite teachers, assign them to subjects or as class teachers, and manage their access.</p>
           </div>
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Students</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Add students individually or via CSV bulk import. Track report cards and move between classes.</p>
           </div>
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-[#8127cf]/15 hover:shadow-sm">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Exams & Reports</p>
+          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Exams & Reports</p>
             <p className="mt-1 text-xs font-semibold text-ink-muted">Create exam cycles, enter marks from teacher dashboards, and generate report cards.</p>
           </div>
         </div>
-        <div className="rounded-3xl bg-[#fbf0fe]/50 p-5">
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Need more help?</p>
+        <div className="rounded-3xl bg-brand-50/50 p-5">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Need more help?</p>
           <p className="mt-1 text-xs font-semibold text-ink-muted">
             Contact your school administration for advanced support. Additional documentation and FAQs are available through your school&apos;s IT department.
           </p>
@@ -5404,8 +5404,8 @@ export function SpecialtyEditor({
   onToggleAll: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-[#cfc2d6]/25 bg-[#fbf0fe]/40 p-4">
-      <p className="mb-2 pl-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+    <div className="rounded-2xl border border-edge/25 bg-brand-50/40 p-4">
+      <p className="mb-2 pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
         Teaching specialities
       </p>
 
@@ -5417,14 +5417,14 @@ export function SpecialtyEditor({
         <span
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
-            teachesAll ? "border-emerald-500 bg-emerald-500" : "border-[#cfc2d6]/50 bg-white"
+            teachesAll ? "border-emerald-500 bg-emerald-500" : "border-edge/50 bg-white"
           )}
         >
           {teachesAll ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
         </span>
         <span className="min-w-0">
-          <span className="block text-[11px] font-black text-[#1f1a23]">Can teach all subjects</span>
-          <span className="block text-[9px] font-bold text-ink-muted">
+          <span className="block text-2xs font-bold text-ink-strong">Can teach all subjects</span>
+          <span className="block text-2xs font-bold text-ink-muted">
             Generalist — never warned about subject mismatch.
           </span>
         </span>
@@ -5436,7 +5436,7 @@ export function SpecialtyEditor({
             {specialties.map((s) => (
               <span
                 key={s}
-                className="inline-flex items-center gap-1 rounded-full bg-[#8127cf]/10 px-2.5 py-1 text-[9px] font-black text-[#8127cf]"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-2xs font-bold text-primary"
               >
                 {s}
                 <SystemButton variant="ghost"
@@ -5450,7 +5450,7 @@ export function SpecialtyEditor({
               </span>
             ))}
             {specialties.length === 0 ? (
-              <span className="text-[9px] font-bold text-ink-subtle">
+              <span className="text-2xs font-bold text-ink-subtle">
                 No specialities yet — add the subjects this teacher is qualified for.
               </span>
             ) : null}
@@ -5587,18 +5587,18 @@ export function StudentSetupPanel({
     <div className="space-y-8">
       {/* Header matches the academics overview so the students section of the
           admin does not read as a different application. */}
-      <div className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
               <Tag className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
-              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Categories &amp; Groups</h2>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Students</p>
+              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Categories &amp; Groups</h2>
             </div>
           </div>
-          <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
+          <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-bold text-primary shadow-sm">
             {categories.length + groups.length} tag{categories.length + groups.length === 1 ? "" : "s"} defined
           </span>
         </div>
@@ -5723,12 +5723,12 @@ function TagListCard({
     <div className="sk-panel p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
             <Icon className="h-5 w-5" />
           </div>
           <div>
-            <h4 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h4>
-            <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+            <h4 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h4>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               {items.length} {items.length === 1 ? "tag" : "tags"}
             </p>
           </div>
@@ -5744,13 +5744,13 @@ function TagListCard({
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3"
+                className="flex items-center gap-3 rounded-2xl border border-edge/20 bg-brand-50/40 px-4 py-3"
               >
                 <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-3 w-1/3 rounded-full bg-[#cfc2d6]/25 animate-pulse" />
-                  <div className="h-2.5 w-2/3 rounded-full bg-[#cfc2d6]/15 animate-pulse" />
+                  <div className="h-3 w-1/3 rounded-full bg-edge/25 animate-pulse" />
+                  <div className="h-2.5 w-2/3 rounded-full bg-edge/15 animate-pulse" />
                 </div>
-                <div className="h-5 w-14 shrink-0 rounded-full bg-[#cfc2d6]/20 animate-pulse" />
+                <div className="h-5 w-14 shrink-0 rounded-full bg-edge/20 animate-pulse" />
               </div>
             ))}
           </div>
@@ -5762,16 +5762,16 @@ function TagListCard({
             return (
               <div
                 key={item.id}
-                className="group flex items-center gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 py-3 transition-all hover:border-[#8127cf]/25 hover:bg-white"
+                className="group flex items-center gap-3 rounded-2xl border border-edge/20 bg-brand-50/40 px-4 py-3 transition-all hover:border-primary/25 hover:bg-white"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-black text-[#1f1a23]">{item.name}</p>
+                    <p className="truncate text-sm font-bold text-ink-strong">{item.name}</p>
                     {kind === "category" ? (
                       <StatusPill status={item.isActive === false ? "Inactive" : "Active"} />
                     ) : null}
                   </div>
-                  <p className="mt-0.5 truncate text-[10px] font-semibold text-ink-muted">
+                  <p className="mt-0.5 truncate text-2xs font-semibold text-ink-muted">
                     {item.description || "No description"}
                   </p>
                 </div>
@@ -5788,8 +5788,8 @@ function TagListCard({
                 ) : (
                   <span
                     className={cn(
-                      "shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider shadow-sm",
-                      studentCount > 0 ? "bg-white text-[#8127cf]" : "bg-[#f3f4f9] text-ink-subtle",
+                      "shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider shadow-sm",
+                      studentCount > 0 ? "bg-white text-primary" : "bg-muted text-ink-subtle",
                     )}
                   >
                     {studentCount === 0 ? "Unused" : `${studentCount} students`}
@@ -5890,14 +5890,14 @@ function TagFormModal({
             <span
               className={cn(
                 "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
-                isActive ? "border-emerald-500 bg-emerald-500" : "border-[#cfc2d6]/50 bg-white"
+                isActive ? "border-emerald-500 bg-emerald-500" : "border-edge/50 bg-white"
               )}
             >
               {isActive ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
             </span>
             <span className="min-w-0">
-              <span className="block text-[11px] font-black text-[#1f1a23]">Active</span>
-              <span className="block text-[9px] font-bold text-ink-muted">
+              <span className="block text-2xs font-bold text-ink-strong">Active</span>
+              <span className="block text-2xs font-bold text-ink-muted">
                 Inactive categories stay on existing students but can't be chosen for new admissions.
               </span>
             </span>
@@ -6093,8 +6093,8 @@ export function AdmissionQueriesPanel({
       className={cn(
         "px-3.5",
         active
-          ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-          : "bg-white text-ink-muted border border-[#cfc2d6]/25 hover:border-[#8127cf]/30 hover:text-[#8127cf]"
+          ? "bg-primary text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
+          : "bg-white text-ink-muted border border-edge/25 hover:border-primary/30 hover:text-primary"
       )}
     >
       {label}
@@ -6106,14 +6106,14 @@ export function AdmissionQueriesPanel({
       <div className="mb-5">
         {/* Same header anatomy as the academics overview: icon tile, eyebrow,
             title, and the one action that starts new work. */}
-        <div className="-mx-6 -mt-6 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
+        <div className="-mx-6 -mt-6 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-t-[32px] border-b border-edge/15 bg-gradient-to-br from-surface-subtle via-white to-brand-100 px-6 py-5">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
               <PhoneCall className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Students</p>
-              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Admission Enquiries</h2>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Students</p>
+              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Admission Enquiries</h2>
               <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                 Families who have asked about a place. Follow them up, then convert the ones who enrol.
               </p>
@@ -6272,14 +6272,14 @@ export function AdmissionQueriesPanel({
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="flex items-center gap-3 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4"
+              className="flex items-center gap-3 rounded-[20px] border border-edge/25 bg-white p-4"
             >
-              <div className="h-11 w-11 shrink-0 rounded-2xl bg-[#cfc2d6]/20 animate-pulse" />
+              <div className="h-11 w-11 shrink-0 rounded-2xl bg-edge/20 animate-pulse" />
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="h-3.5 w-1/3 rounded-full bg-[#cfc2d6]/25 animate-pulse" />
-                <div className="h-2.5 w-2/3 rounded-full bg-[#cfc2d6]/15 animate-pulse" />
+                <div className="h-3.5 w-1/3 rounded-full bg-edge/25 animate-pulse" />
+                <div className="h-2.5 w-2/3 rounded-full bg-edge/15 animate-pulse" />
               </div>
-              <div className="h-5 w-16 shrink-0 rounded-full bg-[#cfc2d6]/20 animate-pulse" />
+              <div className="h-5 w-16 shrink-0 rounded-full bg-edge/20 animate-pulse" />
             </div>
           ))}
         </div>
@@ -6304,8 +6304,8 @@ export function AdmissionQueriesPanel({
               label: "Enquiry",
               render: (q: any) => (
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1f1a23]">{q.name}</p>
-                  <p className="truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                  <p className="truncate text-sm font-bold text-ink-strong">{q.name}</p>
+                  <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     {QUERY_SOURCES_LABELS[q.source] || q.source}
                   </p>
                 </div>
@@ -6336,14 +6336,14 @@ export function AdmissionQueriesPanel({
                   new Date(q.nextFollowUp).getTime() < now;
                 if (!q.nextFollowUp) {
                   return (
-                    <span className="text-[11px] font-bold text-ink-subtle">Not scheduled</span>
+                    <span className="text-2xs font-bold text-ink-subtle">Not scheduled</span>
                   );
                 }
                 return (
                   <span
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
-                      overdue ? "bg-rose-100 text-rose-600" : "bg-[#fbf0fe] text-[#8127cf]",
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
+                      overdue ? "bg-rose-100 text-rose-600" : "bg-brand-50 text-primary",
                     )}
                   >
                     <CalendarClock className="h-3 w-3" />
@@ -6385,7 +6385,7 @@ export function AdmissionQueriesPanel({
                   "group/q relative w-full overflow-hidden p-4 text-left hover:-translate-y-0.5",
                   overdue
                     ? "border-rose-300/70 bg-rose-50/40 hover:border-rose-400/60"
-                    : "border-[#cfc2d6]/25 hover:border-[#8127cf]/30"
+                    : "border-edge/25 hover:border-primary/30"
                 )}
                 style={{ animationDelay: `${i * 50}ms` }}
               >
@@ -6394,11 +6394,11 @@ export function AdmissionQueriesPanel({
                 ) : null}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm transition-all duration-300 group-hover/q:from-[#8127cf] group-hover/q:to-[#9c48ea] group-hover/q:text-white">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm transition-all duration-300 group-hover/q:from-primary group-hover/q:to-brand-400 group-hover/q:text-white">
                       <SourceIcon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-[15px] font-black text-[#1f1a23] tracking-tight">{q.name}</p>
+                      <p className="truncate text-md font-bold text-ink-strong tracking-tight">{q.name}</p>
                       <p className="mt-0.5 truncate text-xs font-bold text-ink-muted">
                         {q.phone}
                         {q.email ? ` · ${q.email}` : ""}
@@ -6411,32 +6411,32 @@ export function AdmissionQueriesPanel({
                         not need the detail drawer first. */}
                     <EnquiryContact query={q} />
                     <StatusPill status={q.status} />
-                    <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                       {QUERY_SOURCES_LABELS[q.source] || q.source}
                     </span>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#f3f4f9] pt-2.5">
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-muted pt-2.5">
                   {q.nextFollowUp ? (
                     <span className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider",
-                      overdue ? "bg-rose-100 text-rose-600" : "bg-[#fbf0fe] text-[#8127cf]"
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
+                      overdue ? "bg-rose-100 text-rose-600" : "bg-brand-50 text-primary"
                     )}>
                       <CalendarClock className="h-3 w-3" />
                       {overdue ? "Overdue · " : "Next "}{formatDate(q.nextFollowUp)}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-ink-muted">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                       <Clock className="h-3 w-3" /> No follow-up set
                     </span>
                   )}
                   {q.assignedTo ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-sky-600">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-sky-600">
                       <User className="h-3 w-3" /> {q.assignedTo.fullName}
                     </span>
                   ) : null}
                   {q.convertedStudent ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
                       <UserCheck className="h-3 w-3" /> {q.convertedStudent.fullName}
                     </span>
                   ) : null}
@@ -6487,7 +6487,7 @@ function EnquiryContact({ query }: { query: any }) {
   const wa = String(query.phone || "").replace(/\D/g, "");
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const cls =
-    "flex h-7 w-7 items-center justify-center rounded-full border border-[#cfc2d6]/25 bg-white text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]";
+    "flex h-7 w-7 items-center justify-center rounded-full border border-edge/25 bg-white text-ink-muted transition-colors hover:border-primary/40 hover:text-primary";
   return (
     <div className="flex shrink-0 items-center gap-1">
       {digits.length >= 6 ? (
@@ -6703,7 +6703,7 @@ function QueryDetailModal({
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill status={query.status} />
             {overdue ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-rose-600">
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-rose-600">
                 <CalendarClock className="h-3 w-3" /> Follow-up overdue
               </span>
             ) : null}
@@ -6729,7 +6729,7 @@ function QueryDetailModal({
             </div>
           ) : (
             <>
-              <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4">
+              <div className="rounded-2xl border border-edge/20 bg-brand-50/40 p-4">
                 <DetailRow label="Phone" value={query.phone} />
                 <DetailRow label="Email" value={query.email || "—"} />
                 <DetailRow label="Class interested" value={query.classInterested ? classLabel(query.classInterested) : "Not specified"} />
@@ -6741,9 +6741,9 @@ function QueryDetailModal({
                 ) : null}
               </div>
               {query.note ? (
-                <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4">
-                  <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Note</p>
-                  <p className="whitespace-pre-wrap text-sm font-bold text-[#1f1a23]/80">{query.note}</p>
+                <div className="rounded-2xl border border-edge/20 bg-brand-50/40 p-4">
+                  <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Note</p>
+                  <p className="whitespace-pre-wrap text-sm font-bold text-ink-strong/80">{query.note}</p>
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-2">
@@ -6785,8 +6785,8 @@ function QueryDetailModal({
             </>
           )}
 
-          <div className="flex items-center justify-between border-t border-[#cfc2d6]/10 pt-4">
-            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+          <div className="flex items-center justify-between border-t border-edge/10 pt-4">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               {query._count?.followUps ?? followUps.length} follow-ups
             </span>
             {!deleteConfirm ? (
@@ -6799,7 +6799,7 @@ function QueryDetailModal({
               </SystemButton>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-rose-600">Sure?</span>
+                <span className="text-2xs font-bold text-rose-600">Sure?</span>
                 <BrandButton variant="soft" onClick={() => setDeleteConfirm(false)}>Keep</BrandButton>
                 <BrandButton variant="dark" onClick={doDelete} disabled={busy} className="bg-rose-600 hover:bg-rose-700">
                   Delete
@@ -6811,7 +6811,7 @@ function QueryDetailModal({
 
         <div className="lg:col-span-3">
           <div className="mb-3">
-            <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Follow-up Timeline</p>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Follow-up Timeline</p>
           </div>
           <div className="max-h-[420px] space-y-3 overflow-y-auto custom-scrollbar pr-1">
             {followUps.length === 0 ? (
@@ -6820,18 +6820,18 @@ function QueryDetailModal({
               followUps.map((fu) => (
                 <div key={fu.id} className="sk-panel p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-primary">
                       {formatDate(fu.date)}
                     </span>
                     {fu.actor?.fullName ? (
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                         by {fu.actor.fullName}
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1.5 whitespace-pre-wrap text-sm font-bold text-[#1f1a23]/85">{fu.note}</p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-sm font-bold text-ink-strong/85">{fu.note}</p>
                   {fu.nextDate ? (
-                    <p className="mt-2 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                    <p className="mt-2 text-2xs font-semibold uppercase tracking-wider text-primary">
                       Next: {formatDate(fu.nextDate)}
                     </p>
                   ) : null}
@@ -6839,8 +6839,8 @@ function QueryDetailModal({
               ))
             )}
           </div>
-          <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4">
-            <p className="mb-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Log a follow-up</p>
+          <div className="mt-4 rounded-2xl border border-edge/20 bg-brand-50/40 p-4">
+            <p className="mb-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Log a follow-up</p>
             <SystemTextarea
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
@@ -7014,8 +7014,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
             className={cn(
               "px-3.5",
               statusFilter === chip.key
-                ? "bg-[#8127cf] text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                : "border border-[#cfc2d6]/25 bg-white text-ink-muted hover:border-[#8127cf]/30 hover:text-[#8127cf]",
+                ? "bg-primary text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
+                : "border border-edge/25 bg-white text-ink-muted hover:border-primary/30 hover:text-primary",
             )}
           >
             {chip.label}
@@ -7077,7 +7077,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
           {filtered.map((s, i) => (
             <div
               key={s.id}
-              className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4 transition-all duration-300 hover:border-[#8127cf]/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               style={{ animationDelay: `${i * 50}ms` }}
             >
               <SystemCheckbox
@@ -7092,13 +7092,13 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
                   })
                 }
                 aria-label={`Select ${s.fullName}`}
-                className="h-4 w-4 shrink-0 cursor-pointer accent-[#8127cf]"
+                className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
               />
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3f4f9] text-ink-muted">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-ink-muted">
                 <Archive className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-black text-[#1f1a23] tracking-tight">{s.fullName}</p>
+                <p className="truncate text-md font-bold text-ink-strong tracking-tight">{s.fullName}</p>
                 <p className="mt-0.5 truncate text-xs font-bold text-ink-muted">
                   {s.rollNo}
                   {s.class ? ` · ${classLabel(s.class)}` : " · No class"}
@@ -7149,7 +7149,7 @@ const LEAVE_STATUS_STYLES: Record<string, string> = {
   PENDING: "border-amber-200 bg-amber-50 text-amber-700",
   APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
   REJECTED: "border-rose-200 bg-rose-50 text-rose-600",
-  CANCELLED: "border-[#cfc2d6]/20 bg-[#f3f4f9] text-ink-muted",
+  CANCELLED: "border-edge/20 bg-muted text-ink-muted",
 };
 
 function leaveDaysLabel(tenths: number) {
@@ -7461,22 +7461,22 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
   return (
     <div className="sk-panel sk-rise p-6">
       {/* Header matches the academics overview. */}
-      <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-[#cfc2d6]/15 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 py-5">
+      <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-edge/15 bg-gradient-to-br from-surface-subtle via-white to-brand-100 px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
               <Plane className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">Staff</p>
-              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Leave Management</h2>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Staff</p>
+              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Leave Management</h2>
               <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                 Approve requests, set leave types and allowances, and see what each member of staff has left.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+            <label className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Year
               <SystemInput
                 type="number"
@@ -7485,7 +7485,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 className="h-9 w-24 px-3"
               />
             </label>
-            <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
+            <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-bold text-primary shadow-sm">
               {pendingCount} pending
             </span>
           </div>
@@ -7564,16 +7564,16 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       {/* Who is actually out. Cover is a scheduling problem, and answering it
           previously meant reading every approved row and comparing dates. */}
       {leaveStats.outToday.length > 0 ? (
-        <div className="mb-4 rounded-[20px] border border-[#cfc2d6]/25 bg-[#fbf0fe]/40 p-4">
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Out of school today</p>
+        <div className="mb-4 rounded-[20px] border border-edge/25 bg-brand-50/40 p-4">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Out of school today</p>
           <div className="mt-2.5 flex flex-wrap gap-2">
             {leaveStats.outToday.map((r) => (
               <span
                 key={r.id}
                 title={`${r.leaveType?.name || "Leave"} · ${leaveDateLabel(r.fromDate)} → ${leaveDateLabel(r.toDate)}`}
-                className="flex items-center gap-2 rounded-full border border-[#cfc2d6]/30 bg-white px-3 py-1.5 text-[11px] font-bold text-[#1f1a23] shadow-sm"
+                className="flex items-center gap-2 rounded-full border border-edge/30 bg-white px-3 py-1.5 text-2xs font-bold text-ink-strong shadow-sm"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-[#8127cf]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                 {r.user?.fullName || "Unknown"}
                 <span className="font-semibold text-ink-subtle">
                   back {leaveDateLabel(new Date(new Date(r.toDate).getTime() + 86400000).toISOString())}
@@ -7594,7 +7594,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               onClick={() => setTab(t.id)}
               className={cn(
                 "flex items-center gap-1.5 px-3.5 justify-start",
-                tab === t.id ? "bg-[#8127cf] text-white shadow-md" : "bg-[#fbf0fe]/60 text-ink-muted hover:bg-[#f0e0f8]"
+                tab === t.id ? "bg-primary text-white shadow-md" : "bg-brand-50/60 text-ink-muted hover:bg-brand-100"
               )}
             >
               <Icon className="h-3.5 w-3.5" /> {t.label}
@@ -7637,22 +7637,22 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <EmptyInline text={`No requests match “${requestSearch}”.`} />
           ) : (
             visibleRequests.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4">
+              <div key={r.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black text-[#1f1a23]">
+                  <p className="text-sm font-bold text-ink-strong">
                     {r.user?.fullName || "Unknown"} <span className="text-ink-subtle">({r.user?.role || "—"})</span>
                   </p>
                   <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                     {r.leaveType?.name || "Leave"} · {leaveDaysLabel(r.days)} · {leaveDateLabel(r.fromDate)} → {leaveDateLabel(r.toDate)}
                   </p>
-                  {r.reason ? <p className="mt-1 text-[11px] font-semibold text-ink-subtle">{r.reason}</p> : null}
+                  {r.reason ? <p className="mt-1 text-2xs font-semibold text-ink-subtle">{r.reason}</p> : null}
                   {r.reviewedBy ? (
-                    <p className="mt-1 text-[10px] font-bold text-ink-subtle">
+                    <p className="mt-1 text-2xs font-bold text-ink-subtle">
                       Reviewed by {r.reviewedBy.fullName}{r.reviewNote ? ` — ${r.reviewNote}` : ""}
                     </p>
                   ) : null}
                 </div>
-                <span className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-wider ${LEAVE_STATUS_STYLES[r.status] || LEAVE_STATUS_STYLES.PENDING}`}>
+                <span className={`rounded-full border px-3 py-1 text-2xs font-semibold uppercase tracking-wider ${LEAVE_STATUS_STYLES[r.status] || LEAVE_STATUS_STYLES.PENDING}`}>
                   {r.status}
                 </span>
                 {r.status === "PENDING" ? (
@@ -7665,12 +7665,12 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                       aria-label={`Review note for ${r.user?.fullName || "this request"}`}
                       className="h-10 w-44 px-3"
                     />
-                    <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted cursor-pointer">
+                    <label className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted cursor-pointer">
                       <SystemCheckbox
 
                         checked={Boolean(overrides[r.id])}
                         onChange={(e) => setOverrides((prev) => ({ ...prev, [r.id]: e.target.checked }))}
-                        className="h-3.5 w-3.5 accent-[#8127cf]"
+                        className="h-3.5 w-3.5 accent-primary"
                       />
                       Override balance
                     </label>
@@ -7697,19 +7697,19 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <EmptyInline text="No leave types defined for this campus." />
           ) : (
             types.map((t) => (
-              <div key={t.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+              <div key={t.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                   <Layers className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black text-[#1f1a23]">{t.name}</p>
+                  <p className="text-sm font-bold text-ink-strong">{t.name}</p>
                   <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                     {t._count?.allocations || 0} allocation{(t._count?.allocations || 0) === 1 ? "" : "s"} ·{" "}
                     {t._count?.requests || 0} request{(t._count?.requests || 0) === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-muted">
+                  <label className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                     Default
                     <SystemInput
                       type="number"
@@ -7744,12 +7744,12 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <EmptyInline text="No allocations for this year yet. Add role-wide or per-user allocations." />
           ) : (
             allocations.map((a) => (
-              <div key={a.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-[#cfc2d6]/25 bg-white p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+              <div key={a.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                   {a.userId ? <User className="h-4 w-4" /> : <Users className="h-4 w-4" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black text-[#1f1a23]">
+                  <p className="text-sm font-bold text-ink-strong">
                     {a.leaveType?.name || "Leave"} · {leaveDaysLabel(a.days)}
                   </p>
                   <p className="mt-0.5 text-xs font-semibold text-ink-muted">
@@ -7844,7 +7844,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#cfc2d6]/15 text-ink-muted text-xs uppercase tracking-wider">
+                  <tr className="border-b border-edge/15 text-ink-muted text-xs uppercase tracking-wider">
                     <th className="text-left py-2 px-3 font-medium">Staff Member</th>
                     <th className="text-left py-2 px-3 font-medium">Role</th>
                     {types.map((t: any) => (
@@ -7852,7 +7852,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                     ))}
                   </tr>
                   {types.length > 0 ? (
-                    <tr className="border-b border-[#cfc2d6]/10 text-ink-subtle text-[10px] uppercase">
+                    <tr className="border-b border-edge/10 text-ink-subtle text-2xs uppercase">
                       <th />
                       <th />
                       {types.map((t: any) => (
@@ -7867,7 +7867,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 </thead>
                 <tbody>
                   {visibleBalances.map((row: any) => (
-                    <tr key={row.user.id} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
+                    <tr key={row.user.id} className="border-b border-edge/8 hover:bg-muted/50">
                       <td className="py-2 px-3 font-medium text-ink">{row.user.fullName}</td>
                       <td className="py-2 px-3 text-ink-muted capitalize">{row.user.role.toLowerCase().replace("_", " ")}</td>
                       {types.map((t: any) => {
@@ -8093,11 +8093,11 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
       </div>
 
       {run ? (
-        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-[#f6f2fa] px-4 py-3">
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-surface-sunken px-4 py-3">
           <span className="text-sm font-bold text-ink">
             {monthLabel} · {run.lines.length} staff · {run.status}
           </span>
-          <span className="text-sm font-black text-[#8127cf]">{paisa(totals.net)} net</span>
+          <span className="text-sm font-bold text-primary">{paisa(totals.net)} net</span>
           <span className="text-xs font-semibold text-emerald-600">{paisa(totals.paid)} paid</span>
         </div>
       ) : null}
@@ -8108,7 +8108,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#cfc2d6]/15 text-ink-muted text-xs uppercase tracking-wider">
+              <tr className="border-b border-edge/15 text-ink-muted text-xs uppercase tracking-wider">
                 <th className="text-left py-2 px-3 font-medium">Staff Member</th>
                 <th className="text-left py-2 px-3 font-medium">Role</th>
                 <th className="text-right py-2 px-3 font-medium">Basic</th>
@@ -8122,7 +8122,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
             </thead>
             <tbody>
               {run.lines.map((line: any) => (
-                <tr key={line.id} className="border-b border-[#cfc2d6]/8 hover:bg-[#f3f4f9]/50">
+                <tr key={line.id} className="border-b border-edge/8 hover:bg-muted/50">
                   <td className="py-2 px-3 font-medium text-ink">{line.user?.fullName}</td>
                   <td className="py-2 px-3 text-ink-muted capitalize">{(line.user?.role || "").toLowerCase().replace("_", " ")}</td>
                   <EditableAmountCell
@@ -8145,11 +8145,11 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                     disabled={line.status === "PAID" || savingId === line.id}
                     onSave={(raw) => saveLine(line.id, "bonus", raw)}
                   />
-                  <td className="text-right py-2 px-3 font-black text-[#1f1a23]">{paisa(line.net)}</td>
+                  <td className="text-right py-2 px-3 font-bold text-ink-strong">{paisa(line.net)}</td>
                   <td className="text-center py-2 px-3">
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-bold",
                         line.status === "PAID" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
                       )}
                     >
@@ -8168,7 +8168,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                   </td>
                 </tr>
               ))}
-              <tr className="bg-[#f6f2fa] font-black text-[#1f1a23]">
+              <tr className="bg-surface-sunken font-bold text-ink-strong">
                 <td className="py-2.5 px-3" colSpan={2}>
                   Totals
                 </td>
@@ -8189,9 +8189,9 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
         <EmptyInline text={`No payroll run for ${monthLabel}. Set a staff member's basic salary (Staff Records) and click Generate Payroll.`} />
       )}
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#cfc2d6]/15 pt-5">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-edge/15 pt-5">
         <div>
-          <h4 className="text-sm font-black tracking-tight text-[#1f1a23]">Payroll Report</h4>
+          <h4 className="text-sm font-bold tracking-tight text-ink-strong">Payroll Report</h4>
           <p className="text-xs font-bold text-ink-muted">Summary for {monthLabel} — totals per run and per staff</p>
         </div>
         <div className="flex gap-2">
@@ -8205,10 +8205,10 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
       </div>
 
       {report ? (
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-[#cfc2d6]/15">
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-edge/15">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#cfc2d6]/15 bg-[#f6f2fa] text-ink-muted text-xs uppercase tracking-wider">
+              <tr className="border-b border-edge/15 bg-surface-sunken text-ink-muted text-xs uppercase tracking-wider">
                 <th className="text-left py-2 px-3 font-medium">Run</th>
                 <th className="text-right py-2 px-3 font-medium">Basic</th>
                 <th className="text-right py-2 px-3 font-medium">Allowances</th>
@@ -8220,7 +8220,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
             </thead>
             <tbody>
               {report.runs.map((r: any) => (
-                <tr key={r.id} className="border-b border-[#cfc2d6]/8">
+                <tr key={r.id} className="border-b border-edge/8">
                   <td className="py-2 px-3 font-medium text-ink">
                     {r.year}-{String(r.month).padStart(2, "0")} <span className="text-ink-subtle font-semibold">({r.lines.length} lines)</span>
                   </td>
@@ -8232,7 +8232,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                   <td className="text-right py-2 px-3 font-bold text-emerald-600">{paisa(r.totals.paid)}</td>
                 </tr>
               ))}
-              <tr className="bg-[#f6f2fa] font-black text-[#1f1a23]">
+              <tr className="bg-surface-sunken font-bold text-ink-strong">
                 <td className="py-2.5 px-3">Grand Total</td>
                 <td className="text-right py-2.5 px-3">{paisa(report.grand.basic)}</td>
                 <td className="text-right py-2.5 px-3">{paisa(report.grand.allowances)}</td>
@@ -8283,10 +8283,10 @@ export { RolePermissionsPanel } from "./role-permissions-panel";
 // ────────────────────────────────────────────────────────────
 // Module 12 — Class Rooms
 const ROOM_COLORS = [
-  "bg-gradient-to-br from-[#8127cf] to-[#55208b]",
+  "bg-gradient-to-br from-primary to-[#55208b]",
   "bg-gradient-to-br from-[#0ea5e9] to-[#1d4ed8]",
-  "bg-gradient-to-br from-[#10b981] to-[#047857]",
-  "bg-gradient-to-br from-[#f59e0b] to-[#b45309]",
+  "bg-gradient-to-br from-emerald-500 to-emerald-700",
+  "bg-gradient-to-br from-amber-500 to-amber-700",
   "bg-gradient-to-br from-[#ef4444] to-[#991b1b]",
   "bg-gradient-to-br from-[#8b5cf6] to-[#5b21b6]",
 ];
@@ -8420,14 +8420,14 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <PanelTitle icon={Clock} title="Class & Exam Time Setup" />
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-full bg-[#f3f4f9] p-1">
+          <div className="flex rounded-full bg-muted p-1">
             {(["CLASS", "EXAM"] as const).map((t) => (
               <SystemButton variant="ghost"
                 key={t}
                 onClick={() => setTimeType(t)}
                 className={cn(
                   "px-4 py-1.5",
-                  timeType === t ? "bg-[#1f1a23] text-white" : "text-ink-muted hover:text-ink"
+                  timeType === t ? "bg-ink-strong text-white" : "text-ink-muted hover:text-ink"
                 )}
               >
                 {t === "CLASS" ? "Class Periods" : "Exam Periods"}
@@ -8441,9 +8441,9 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
       </div>
 
       {showAdd ? (
-        <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4">
+        <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-edge/20 bg-surface-sunken p-4">
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Period #</label>
+            <label className="mb-1 block pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period #</label>
             <SystemInput
               type="number"
               min={1}
@@ -8453,7 +8453,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">Start</label>
+            <label className="mb-1 block pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Start</label>
             <SystemInput
               type="time"
               className="h-10 w-28 px-3"
@@ -8462,7 +8462,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">End</label>
+            <label className="mb-1 block pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">End</label>
             <SystemInput
               type="time"
               className="h-10 w-28 px-3"
@@ -8530,17 +8530,17 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <React.Fragment key={p.id}>
             {gapMinutes > 0 ? (
               <div className="flex items-center gap-3 px-4 py-1" aria-hidden="true">
-                <span className="h-px flex-1 bg-[#cfc2d6]/25" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+                <span className="h-px flex-1 bg-edge/25" />
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {gapMinutes} min break
                 </span>
-                <span className="h-px flex-1 bg-[#cfc2d6]/25" />
+                <span className="h-px flex-1 bg-edge/25" />
               </div>
             ) : null}
             <div
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#fbf0fe]/25 px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-2xl border border-edge/15 bg-brand-50/25 px-4 py-3"
             >
-              <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black text-white ${ROOM_COLORS[i % ROOM_COLORS.length]}`}>
+              <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white ${ROOM_COLORS[i % ROOM_COLORS.length]}`}>
                 {p.periodNumber}
               </span>
               <span className="text-sm font-bold text-ink-subtle">Period {p.periodNumber}</span>
@@ -8583,7 +8583,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                   updatePeriod(p.id, "endTime", next);
                 }}
               />
-              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+              <span className="rounded-full bg-white px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
                 {lengthMinutes > 0 ? `${lengthMinutes} min` : "—"}
               </span>
               <SystemButton variant="ghost"

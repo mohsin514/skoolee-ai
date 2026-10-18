@@ -17,7 +17,7 @@ export function SsoChooser() {
   const look = async (slug: string) => { if (!slug.trim()) return; const r = await fetch(`/api/auth/sso/connections?school=${encodeURIComponent(slug.trim())}`); setData((await r.json()).data); };
   useEffect(() => { if (params.get("school")) void look(params.get("school")!); }, [params]);
   return <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-4 p-4" data-sso>
-    <h1 className="text-2xl font-black">{ui("Sign in with your school account")}</h1>
+    <h1 className="text-2xl font-bold">{ui("Sign in with your school account")}</h1>
     {error ? <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800" data-sso-error>{ui(error)}</p> : null}
     <FormField name="sso-school" label={ui("School code")} hint={ui("Your school's Skoolee code, for example cedar-school.")}><Input value={school} onChange={e => setSchool(e.target.value)} dir="ltr" data-sso-school /></FormField>
     <Button variant="outline" onClick={() => void look(school)} data-sso-find>{ui("Find sign-in options")}</Button>

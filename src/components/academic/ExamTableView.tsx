@@ -82,7 +82,7 @@ export function ExamTableView({
 
       <Table containerClassName="custom-scrollbar" className="w-full min-w-[900px] text-start">
         <TableHeader>
-          <TableRow className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
+          <TableRow className="border-b border-edge/10 bg-brand-50/30">
             <TableHead className="w-10 px-4 py-3">
               <SystemCheckbox
 
@@ -97,7 +97,7 @@ export function ExamTableView({
                 key={h.label}
                 aria-sort={h.key ? (sort.key === h.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none") : undefined}
                 className={cn(
-                  "px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted",
+                  "px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted",
                   h.className,
                 )}
               >
@@ -110,12 +110,12 @@ export function ExamTableView({
                     {h.label}
                     {sort.key === h.key ? (
                       sort.dir === "asc" ? (
-                        <ArrowUpWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowUpWideNarrow className="h-3 w-3 text-primary" />
                       ) : (
-                        <ArrowDownWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowDownWideNarrow className="h-3 w-3 text-primary" />
                       )
                     ) : (
-                      <ArrowUpDown className="h-3 w-3 text-[#cfc2d6]" />
+                      <ArrowUpDown className="h-3 w-3 text-edge" />
                     )}
                   </Button>
                 ) : (
@@ -140,8 +140,8 @@ export function ExamTableView({
               <TableRow
                 key={exam.id}
                 className={cn(
-                  "border-b border-[#cfc2d6]/5 transition-colors hover:bg-[#fbf0fe]/25",
-                  selected.has(exam.id) && "bg-[#fbf0fe]/40",
+                  "border-b border-edge/5 transition-colors hover:bg-brand-50/25",
+                  selected.has(exam.id) && "bg-brand-50/40",
                 )}
               >
                 <TableCell className="px-4 py-3">
@@ -164,7 +164,7 @@ export function ExamTableView({
                     ) : null}
                     {exam.title}
                   </Button>
-                  <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                  <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     {EXAM_TYPE_LABELS[exam.examType as ExamType] ||
                       exam.examType?.replaceAll("_", " ") ||
                       "Exam"}
@@ -186,13 +186,13 @@ export function ExamTableView({
                       </span>
                     </span>
                   ) : (
-                    <span className="text-[11px] font-semibold text-ink-subtle">Not scheduled</span>
+                    <span className="text-2xs font-semibold text-ink-subtle">Not scheduled</span>
                   )}
                 </TableCell>
                 <TableCell className="px-4 py-3">
                   {m && m.expectedMarks > 0 ? (
                     <div className="w-28">
-                      <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
+                      <div className="mb-1 flex items-center justify-between text-2xs font-bold">
                         <span className="text-ink-muted">
                           {m.enteredMarks}/{m.expectedMarks}
                         </span>
@@ -200,7 +200,7 @@ export function ExamTableView({
                           {pct}%
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f9]">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
                           className={cn(
                             "h-full rounded-full transition-all",
@@ -211,7 +211,7 @@ export function ExamTableView({
                       </div>
                     </div>
                   ) : (
-                    <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                    <span className="text-2xs font-semibold text-ink-subtle">—</span>
                   )}
                 </TableCell>
                 <TableCell className="px-4 py-3">
@@ -239,7 +239,7 @@ export function ExamTableView({
                         {action.label}
                       </Button>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
+                      <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
                         <CheckCircle2 className="h-3 w-3" /> Done
                       </span>
                     )}

@@ -17,7 +17,7 @@ import {
   Users,
   Wand2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -292,11 +292,11 @@ export function SeatingPlanner({
       <div className="space-y-3">
         <div className="grid gap-2.5 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 rounded-[18px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div key={i} className="h-20 rounded-[18px] bg-border-subtle/40 skeleton-shimmer" />
           ))}
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-24 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div key={i} className="h-24 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
         ))}
       </div>
     );
@@ -351,18 +351,18 @@ export function SeatingPlanner({
       </div>
 
       {/* ── The capacity explainer ──────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-gradient-to-r from-[#f3eeff] to-[#faf7fc] px-4 py-3">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#8127cf]" />
-        <p className="min-w-0 flex-1 text-[11px] font-semibold leading-relaxed text-ink-muted">
-          <span className="font-black text-[#1f1a23]">Exam seats are not teaching seats.</span> A
+      <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-edge/20 bg-gradient-to-r from-brand-100 to-surface-subtle px-4 py-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <p className="min-w-0 flex-1 text-2xs font-semibold leading-relaxed text-ink-muted">
+          <span className="font-bold text-ink-strong">Exam seats are not teaching seats.</span> A
           room that holds 30 pupils three to a bench has 10 benches — so on an exam day, at one
-          candidate per bench, it seats <span className="font-black text-[#8127cf]">10</span>.
+          candidate per bench, it seats <span className="font-bold text-primary">10</span>.
           Every number on this screen is the exam figure. Set each room&apos;s rows, benches and
-          seats-per-bench under <span className="font-black">Rooms</span> and the arithmetic
+          seats-per-bench under <span className="font-bold">Rooms</span> and the arithmetic
           happens on its own.
         </p>
         {capacity.unmeasured > 0 ? (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+          <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" />
             {capacity.unmeasured} room{capacity.unmeasured === 1 ? "" : "s"} unmeasured
           </span>
@@ -381,8 +381,8 @@ export function SeatingPlanner({
       ) : null}
 
       {/* ── Actions ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-[#cfc2d6]/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
-        <p className="text-xs font-black text-[#1f1a23]">
+      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+        <p className="text-xs font-bold text-ink-strong">
           {slots.length} exam slot{slots.length === 1 ? "" : "s"} across {papers.length} paper
           {papers.length === 1 ? "" : "s"}
         </p>
@@ -429,11 +429,11 @@ export function SeatingPlanner({
               icon={MapPin}
               actions={
                 slotShort > 0 ? (
-                  <span className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                  <span className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-700">
                     {slotShort} unseated
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
+                  <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
                     <Check className="h-3.5 w-3.5" />
                     All seated
                   </span>
@@ -459,18 +459,18 @@ export function SeatingPlanner({
                           : "",
                       ))}
                     >
-                      <p className="truncate text-xs font-black text-[#1f1a23]">
+                      <p className="truncate text-xs font-bold text-ink-strong">
                         {classLabel(paper.exam.class)}
                       </p>
-                      <p className="truncate text-[11px] font-bold text-ink-muted">
+                      <p className="truncate text-2xs font-bold text-ink-muted">
                         {paper.subject.name}
                       </p>
                       <div className="mt-2 flex items-center gap-1.5">
                         <Users className="h-3 w-3 shrink-0 text-ink-subtle" />
-                        <span className="text-[10px] font-black tabular-nums text-[#1f1a23]">
+                        <span className="text-2xs font-bold tabular-nums text-ink-strong">
                           {seated}/{head}
                         </span>
-                        <span className="ml-auto truncate text-[10px] font-bold text-ink-subtle">
+                        <span className="ml-auto truncate text-2xs font-bold text-ink-subtle">
                           {paper.rooms.length === 0
                             ? "No room"
                             : `${paper.rooms.map((r) => r.room.roomNumber).join(", ")} · ${seats} seats`}
@@ -533,8 +533,8 @@ export function SeatingPlanner({
                     key={i}
                     className="rounded-xl border border-amber-200/60 bg-amber-50/50 px-3 py-2"
                   >
-                    <p className="text-[11px] font-black text-[#1f1a23]">{f.label}</p>
-                    <p className="mt-0.5 text-[11px] font-semibold leading-snug text-amber-700">
+                    <p className="text-2xs font-bold text-ink-strong">{f.label}</p>
+                    <p className="mt-0.5 text-2xs font-semibold leading-snug text-amber-700">
                       {f.message}
                     </p>
                   </li>
@@ -677,7 +677,7 @@ function RoomAssignModal({
           secondary={
             <span
               className={cn(
-                "text-xs font-black",
+                "text-xs font-bold",
                 short > 0 ? "text-rose-600" : "text-emerald-600",
               )}
             >
@@ -691,19 +691,19 @@ function RoomAssignModal({
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-14 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div key={i} className="h-14 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
           ))}
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
           {/* ── Pick rooms ────────────────────────────────────────────── */}
           <div>
-            <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+            <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Rooms free in this slot
             </p>
             <div className="max-h-[26rem] space-y-1.5 overflow-y-auto pr-1 custom-scrollbar">
               {available.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-[#cfc2d6]/35 p-6 text-center text-xs font-bold text-ink-muted">
+                <p className="rounded-2xl border border-dashed border-edge/35 p-6 text-center text-xs font-bold text-ink-muted">
                   No rooms on this campus yet.
                 </p>
               ) : (
@@ -726,24 +726,24 @@ function RoomAssignModal({
                     >
                       <span
                         className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[10px] font-black",
-                          on ? "bg-[#8127cf] text-white" : "bg-[#f3eeff] text-[#8127cf]",
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-2xs font-bold",
+                          on ? "bg-primary text-white" : "bg-brand-100 text-primary",
                         )}
                       >
                         {on ? <Check className="h-4 w-4" /> : room.examCapacity}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
-                          <span className="truncate text-xs font-black text-[#1f1a23]">
+                          <span className="truncate text-xs font-bold text-ink-strong">
                             {room.roomNumber}
                           </span>
                           {room.isExamHall ? (
-                            <span className="rounded bg-[#f3eeff] px-1 py-px text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
+                            <span className="rounded bg-brand-100 px-1 py-px text-3xs font-semibold uppercase tracking-wider text-primary">
                               Hall
                             </span>
                           ) : null}
                         </span>
-                        <span className="mt-0.5 block truncate text-[10px] font-semibold text-ink-subtle">
+                        <span className="mt-0.5 block truncate text-2xs font-semibold text-ink-subtle">
                           {room.unmeasured
                             ? "No size recorded — set it under Rooms"
                             : room.busy
@@ -760,12 +760,12 @@ function RoomAssignModal({
 
           {/* ── The plan ──────────────────────────────────────────────── */}
           <div>
-            <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+            <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Seating plan
             </p>
             {!plan || plan.rooms.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#cfc2d6]/35 p-8 text-center">
-                <ArmchairIcon className="mx-auto mb-2 h-8 w-8 text-[#8127cf]/30" />
+              <div className="rounded-2xl border border-dashed border-edge/35 p-8 text-center">
+                <ArmchairIcon className="mx-auto mb-2 h-8 w-8 text-primary/30" />
                 <p className="text-xs font-bold text-ink-muted">
                   Pick rooms and seat the candidates to see the plan.
                 </p>
@@ -802,42 +802,42 @@ function RoomSeatMap({ room }: { room: PlanRoom }) {
 
   return (
     <div className="sk-panel overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-3 py-2">
-        <DoorOpen className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
-        <span className="text-xs font-black text-[#1f1a23]">Room {room.roomNumber}</span>
+      <div className="flex flex-wrap items-center gap-2 border-b border-edge/15 bg-surface-subtle px-3 py-2">
+        <DoorOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <span className="text-xs font-bold text-ink-strong">Room {room.roomNumber}</span>
         {room.isPrimary ? (
-          <span className="rounded bg-[#f3eeff] px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
+          <span className="rounded bg-brand-100 px-1.5 py-px text-3xs font-semibold uppercase tracking-wider text-primary">
             Primary
           </span>
         ) : null}
-        <span className="ml-auto text-[10px] font-bold tabular-nums text-ink-subtle">
+        <span className="ml-auto text-2xs font-bold tabular-nums text-ink-subtle">
           {room.seated} / {room.capacity} seats
           {room.teachingCapacity > room.capacity ? ` (${room.teachingCapacity} teaching)` : ""}
         </span>
       </div>
 
       <div className="p-2.5">
-        <p className="mb-2 rounded-lg bg-[#f3f4f9] py-1 text-center text-[8px] font-black uppercase tracking-[0.2em] text-ink-subtle">
+        <p className="mb-2 rounded-lg bg-muted py-1 text-center text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
           Front of room
         </p>
         <div className="space-y-1">
           {rows.map(([rowNo, seats]) => (
             <div key={rowNo} className="flex items-center gap-1">
-              <span className="w-5 shrink-0 text-[8px] font-black text-ink-subtle">R{rowNo}</span>
+              <span className="w-5 shrink-0 text-3xs font-bold text-ink-subtle">R{rowNo}</span>
               <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                 {seats.map((s) => (
                   <span
                     key={s.studentId}
                     title={`${s.fullName} · Roll ${s.rollNumber} · ${s.seatLabel}`}
-                    className="group flex min-w-0 flex-1 basis-16 cursor-default flex-col rounded-lg border border-[#cfc2d6]/25 bg-gradient-to-b from-white to-[#faf7fc] px-1.5 py-1 transition-colors hover:border-[#8127cf]/40 hover:from-[#faf5ff]"
+                    className="group flex min-w-0 flex-1 basis-16 cursor-default flex-col rounded-lg border border-edge/25 bg-gradient-to-b from-white to-surface-subtle px-1.5 py-1 transition-colors hover:border-primary/40 hover:from-brand-50"
                   >
-                    <span className="truncate text-[8px] font-black leading-tight text-[#8127cf]">
+                    <span className="truncate text-3xs font-bold leading-tight text-primary">
                       {s.seatLabel}
                     </span>
-                    <span className="truncate text-[9px] font-black leading-tight text-[#1f1a23]">
+                    <span className="truncate text-2xs font-bold leading-tight text-ink-strong">
                       {s.fullName}
                     </span>
-                    <span className="truncate text-[8px] font-semibold leading-tight text-ink-subtle">
+                    <span className="truncate text-3xs font-semibold leading-tight text-ink-subtle">
                       {s.rollNumber}
                     </span>
                   </span>

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Lock, MessageSquare, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -77,11 +77,11 @@ export function ComplaintsDesk() {
       : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{status !== "active" || owner || q ? ui("No complaints match these filters.") : ui("No open complaints. Record a complaint when one is received.")}</p>
       : <ul className="space-y-2" aria-label={ui("Complaints")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-rose-200 bg-rose-50/40" : "border-border"}`} data-complaint={row.referenceCode} data-complaint-status={row.status} data-confidential={row.confidential}>
         <div className="min-w-0 flex-1">
-          <p className="font-bold"><bdi>{row.referenceCode}</bdi> · <bdi>{row.type}</bdi>{row.confidential ? <span className="ms-2 inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-black text-violet-800"><Lock className="size-3" aria-hidden="true" />{ui("Confidential")}</span> : null}</p>
+          <p className="font-bold"><bdi>{row.referenceCode}</bdi> · <bdi>{row.type}</bdi>{row.confidential ? <span className="ms-2 inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 text-2xs font-bold text-violet-800"><Lock className="size-3" aria-hidden="true" />{ui("Confidential")}</span> : null}</p>
           <p className="text-xs text-ink-muted"><bdi>{row.complainantName}</bdi> · {ui("Received {0}", [formatDate(row.date)])}{row.reopenedCount ? ` · ${ui("Reopened {0} time(s)", [row.reopenedCount])}` : ""}</p>
           <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{row.dueDate ? ` · ${ui("Response due {0}", [formatDate(row.dueDate)])}` : ""}</p>
         </div>
-        <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${row.overdue ? "bg-rose-100 text-rose-800" : row.status === "RESOLVED" ? "bg-emerald-50 text-emerald-700" : "bg-muted"}`}>{row.overdue ? ui("Past response date") : ui(STATUS_LABEL[row.status])}</span>
+        <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${row.overdue ? "bg-rose-100 text-rose-800" : row.status === "RESOLVED" ? "bg-emerald-50 text-emerald-700" : "bg-muted"}`}>{row.overdue ? ui("Past response date") : ui(STATUS_LABEL[row.status])}</span>
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Open complaint {0}", [row.referenceCode])}>{ui("Open")}</Button>
       </li>)}</ul>}
 
@@ -169,7 +169,7 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
     {loadError ? <p role="alert" className="text-sm font-bold text-rose-700">{loadError}</p> : !detail ? <p role="status" className="text-sm">{ui("Loading complaints…")}</p> : <div className="space-y-4" data-complaint-case={detail.referenceCode}>
       {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-case-error>{error}</p> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Original report")}>
-        <p className="text-xs font-black uppercase text-ink-subtle">{ui("Original report")} · {ui("Received {0}", [formatDate(detail.date)])}</p>
+        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Original report")} · {ui("Received {0}", [formatDate(detail.date)])}</p>
         <p className="font-bold"><bdi>{detail.type}</bdi> · <bdi>{detail.complainantName}</bdi>{detail.phone ? <> · <bdi>{detail.phone}</bdi></> : null}</p>
         <p className="whitespace-pre-wrap"><bdi>{detail.description}</bdi></p>
       </section>
@@ -194,7 +194,7 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
         <Button variant="secondary" disabled={busy} onClick={() => { if (reason.trim().length < 5) { setError(ui("Explain why the complaint is reopened (at least 5 characters).")); return; } void run({ action: "reopen", reason }, "Complaint reopened."); }}>{ui("Reopen")}</Button>
       </div>}
       <section aria-label={ui("History")}>
-        <p className="mb-2 text-xs font-black uppercase text-ink-subtle">{ui("History")}</p>
+        <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
         <ol className="space-y-1.5 text-xs" data-case-history>{detail.events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
           <p className="font-bold">{ui(EVENT_LABEL[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorName ? ` · ${event.actorName}` : ""}</p>
           {event.kind === "ASSIGNED" ? <p>{event.ownerName ? ui("Owner: {0}", [event.ownerName]) : ui("Unassigned")}{event.dueDate ? ` · ${ui("Response due {0}", [formatDate(event.dueDate)])}` : ""}</p> : null}

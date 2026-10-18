@@ -93,17 +93,17 @@ export function TodaySchedule({
   /* ── Loading skeleton ── */
   if (loading) {
     return (
-      <div className="sk-panel overflow-hidden border-[#cfc2d6]/20 p-6 animate-skeleton-in">
+      <div className="sk-panel overflow-hidden border-edge/20 p-6 animate-skeleton-in">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
-            <div className="skeleton-shimmer h-9 w-9 rounded-2xl bg-[#e8e0ec]/60" />
-            <div className="skeleton-shimmer h-4 w-40 rounded-full bg-[#e8e0ec]/50" />
+            <div className="skeleton-shimmer h-9 w-9 rounded-2xl bg-border-subtle/60" />
+            <div className="skeleton-shimmer h-4 w-40 rounded-full bg-border-subtle/50" />
           </div>
-          <div className="skeleton-shimmer h-6 w-24 rounded-full bg-[#e8e0ec]/40" />
+          <div className="skeleton-shimmer h-6 w-24 rounded-full bg-border-subtle/40" />
         </div>
         <div className="flex gap-3 overflow-hidden">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="skeleton-shimmer h-[120px] w-[200px] shrink-0 rounded-3xl bg-[#e8e0ec]/45" />
+            <div key={i} className="skeleton-shimmer h-[120px] w-[200px] shrink-0 rounded-3xl bg-border-subtle/45" />
           ))}
         </div>
       </div>
@@ -113,16 +113,16 @@ export function TodaySchedule({
   if (entries.length === 0) return null;
 
   return (
-    <div className="sk-panel sk-rise relative overflow-hidden border-[#cfc2d6]/20">
+    <div className="sk-panel sk-rise relative overflow-hidden border-edge/20">
       {/* ambient background */}
-      <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[#8127cf]/[0.07] blur-3xl sk-blob" />
-      <div className="pointer-events-none absolute -bottom-28 -left-20 h-64 w-64 rounded-full bg-[#b10e6b]/[0.05] blur-3xl sk-blob sk-blob-2" />
+      <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-primary/[0.07] blur-3xl sk-blob" />
+      <div className="pointer-events-none absolute -bottom-28 -left-20 h-64 w-64 rounded-full bg-berry/[0.05] blur-3xl sk-blob sk-blob-2" />
 
       <div className="relative p-6">
         {/* ── Header row ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_8px_20px_-4px_rgba(129,39,207,0.45)]">
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-white shadow-[0_8px_20px_-4px_rgba(129,39,207,0.45)]">
               {liveEntry ? (
                 <span className="absolute -right-1 -top-1 flex h-3 w-3">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -134,14 +134,14 @@ export function TodaySchedule({
               <Clock className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black uppercase tracking-wider text-[#1d1b20] flex items-center gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-strong flex items-center gap-2">
                 Today&apos;s Schedule
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-[#fbf0fe] border border-[#8127cf]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">
+                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-brand-50 border border-primary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
                   <Timer className="h-3 w-3" />
                   {clock}
                 </span>
               </h3>
-              <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle">
+              <p className="mt-0.5 text-2xs font-semibold text-ink-subtle">
                 {doneCount} of {entries.length} periods done
                 {nextEntry && !liveEntry ? ` · next in ${minutesToNext}m` : liveEntry ? " · class in session" : " · all wrapped up"}
               </p>
@@ -151,12 +151,12 @@ export function TodaySchedule({
           <div className="flex items-center gap-3">
             <div className="hidden md:block w-28">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">Day progress</span>
-                <span className="text-[9px] font-black text-[#8127cf]">{Math.round(dayProgress)}%</span>
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Day progress</span>
+                <span className="text-2xs font-bold text-primary">{Math.round(dayProgress)}%</span>
               </div>
-              <div className="h-1.5 rounded-full bg-[#f3f4f9] overflow-hidden">
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-[width] duration-1000 ease-linear"
+                  className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-[width] duration-1000 ease-linear"
                   style={{ width: `${dayProgress}%` }}
                 />
               </div>
@@ -175,12 +175,12 @@ export function TodaySchedule({
         {/* ── Day progress (mobile) ── */}
         <div className="md:hidden mb-5">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">Day progress</span>
-            <span className="text-[9px] font-black text-[#8127cf]">{Math.round(dayProgress)}%</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Day progress</span>
+            <span className="text-2xs font-bold text-primary">{Math.round(dayProgress)}%</span>
           </div>
-          <div className="h-1.5 rounded-full bg-[#f3f4f9] overflow-hidden">
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-[width] duration-1000 ease-linear"
+              className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-[width] duration-1000 ease-linear"
               style={{ width: `${dayProgress}%` }}
             />
           </div>
@@ -201,12 +201,12 @@ export function TodaySchedule({
                 className={cn(
                   "sk-sweep-trigger block group relative isolate shrink-0 snap-start overflow-hidden p-4 text-left hover:-translate-y-1.5 min-w-[196px] w-[212px]",
                   active
-                    ? "border-transparent bg-gradient-to-br from-[#8127cf] via-[#9c48ea] to-[#b10e6b] shadow-[0_18px_44px_-12px_rgba(129,39,207,0.55)]"
+                    ? "border-transparent bg-gradient-to-br from-primary via-brand-400 to-berry shadow-[0_18px_44px_-12px_rgba(129,39,207,0.55)]"
                     : clashing
                     ? "border-rose-200 bg-rose-50/70"
                     : past
-                    ? "border-[#cfc2d6]/15 bg-white/55"
-                    : "border-[#cfc2d6]/20 bg-white hover:border-[#8127cf]/30"
+                    ? "border-edge/15 bg-white/55"
+                    : "border-edge/20 bg-white hover:border-primary/30"
                 )}
               >
                 <span className="sk-sweep bg-gradient-to-r from-transparent via-white/50 to-transparent" />
@@ -214,21 +214,21 @@ export function TodaySchedule({
                 <div className="relative z-10 flex items-start justify-between gap-2">
                   <span
                     className={cn(
-                      "inline-flex h-7 min-w-[34px] items-center justify-center rounded-xl px-2 text-[10px] font-black tracking-wider",
+                      "inline-flex h-7 min-w-[34px] items-center justify-center rounded-xl px-2 text-2xs font-bold tracking-wider",
                       active
                         ? "bg-white/20 text-white"
                         : clashing
                         ? "bg-rose-100 text-rose-700"
                         : past
-                        ? "bg-[#f3f4f9] text-ink-subtle"
-                        : "bg-[#fbf0fe] text-[#8127cf]"
+                        ? "bg-muted text-ink-subtle"
+                        : "bg-brand-50 text-primary"
                     )}
                   >
                     P{slot.periodNumber}
                   </span>
 
                   {active ? (
-                    <span className="flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white">
+                    <span className="flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-white">
                       <span className="relative flex h-1.5 w-1.5">
                         <span className="absolute h-full w-full animate-ping rounded-full bg-white opacity-80" />
                         <span className="relative h-1.5 w-1.5 rounded-full bg-white" />
@@ -236,17 +236,17 @@ export function TodaySchedule({
                       Live
                     </span>
                   ) : clashing ? (
-                    <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-rose-700">
+                    <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-rose-700">
                       <AlertTriangle className="h-2.5 w-2.5" />
                       Clash
                     </span>
                   ) : past ? (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
                       <CheckCircle2 className="h-2.5 w-2.5" />
                       Done
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-600">
+                    <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
                       Up next
                     </span>
                   )}
@@ -254,8 +254,8 @@ export function TodaySchedule({
 
                 <p
                   className={cn(
-                    "relative z-10 mt-3 text-[10px] font-black tabular-nums tracking-wide",
-                    active ? "text-white/75" : clashing ? "text-rose-600" : past ? "text-ink-subtle" : "text-[#8127cf]"
+                    "relative z-10 mt-3 text-2xs font-bold tabular-nums tracking-wide",
+                    active ? "text-white/75" : clashing ? "text-rose-600" : past ? "text-ink-subtle" : "text-primary"
                   )}
                 >
                   {slot.startTime} — {slot.endTime}
@@ -263,19 +263,19 @@ export function TodaySchedule({
 
                 <p
                   className={cn(
-                    "relative z-10 mt-1 truncate text-[15px] font-bold tracking-tight transition-colors",
-                    active ? "text-white" : past ? "text-ink-subtle" : "text-[#1d1b20] group-hover:text-[#8127cf]"
+                    "relative z-10 mt-1 truncate text-md font-bold tracking-tight transition-colors",
+                    active ? "text-white" : past ? "text-ink-subtle" : "text-ink-strong group-hover:text-primary"
                   )}
                 >
                   {slot.subject?.name || "Free period"}
                 </p>
 
-                <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold", active ? "text-white/60" : "text-ink-subtle")}>
+                <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 truncate text-2xs font-semibold", active ? "text-white/60" : "text-ink-subtle")}>
                   {slot.className}
                   {slot.classSection ? ` - ${slot.classSection}` : ""}
                 </p>
                 {slot.roomNumber ? (
-                  <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 text-[9px] font-semibold", active ? "text-white/45" : "text-ink-subtle")}>
+                  <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 text-2xs font-semibold", active ? "text-white/45" : "text-ink-subtle")}>
                     <MapPin className="h-2.5 w-2.5" />
                     {slot.roomNumber}
                   </p>

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mail, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -83,7 +83,7 @@ export function PostalRegister() {
           {row.referenceNo ? <p className="break-all text-xs" data-postal-reference><bdi dir="ltr">{row.referenceNo}</bdi></p> : <p className="text-xs text-ink-muted">{ui("No tracking reference")}</p>}
           <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : CLOSED.includes(row.status) ? null : <span className="font-bold text-amber-800">{ui("No owner yet")}</span>}{row.handedTo ? <> · {ui("Handed to")} <bdi>{row.handedTo}</bdi></> : null}</p>
         </div>
-        <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${CLOSED.includes(row.status) ? "bg-emerald-50 text-emerald-700" : "bg-muted"}`}>{statusLabel(ui, row.status)}</span>
+        <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${CLOSED.includes(row.status) ? "bg-emerald-50 text-emerald-700" : "bg-muted"}`}>{statusLabel(ui, row.status)}</span>
         <Button size="sm" variant="secondary" onClick={() => setOpenItem(row)} aria-label={ui("Open postal item {0}", [row.itemCode])}>{ui("Open")}</Button>
       </li>)}</ul>}
 
@@ -167,7 +167,7 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
     <div className="space-y-4" data-postal-item={item.itemCode}>
       {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-postal-item-error>{error}</p> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Item details")}>
-        <p className="text-xs font-black uppercase text-ink-subtle">{item.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · {formatDate(item.date)} · {statusLabel(ui, item.status)}</p>
+        <p className="text-xs font-semibold uppercase text-ink-subtle">{item.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · {formatDate(item.date)} · {statusLabel(ui, item.status)}</p>
         <p className="font-bold"><bdi>{item.toName}</bdi>{item.fromName ? <> · {ui("From")} <bdi>{item.fromName}</bdi></> : null}{item.courier ? <> · <bdi>{item.courier}</bdi></> : null}</p>
         {item.referenceNo ? <p className="break-all text-xs"><bdi dir="ltr">{item.referenceNo}</bdi></p> : null}
         {item.handedTo ? <p className="text-xs">{ui("Handed to")} <bdi>{item.handedTo}</bdi>{item.closedAt ? <> · <bdi>{dateTime(item.closedAt)}</bdi></> : null}</p> : null}
@@ -204,7 +204,7 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
         <div className="flex gap-2"><Button disabled={busy} onClick={correction}>{ui("Save correction")}</Button><Button variant="ghost" onClick={() => setCorrecting(false)}>{ui("Cancel")}</Button></div>
       </fieldset> : <Button variant="ghost" onClick={() => setCorrecting(true)}>{ui("Correct a mistake")}</Button>}
       <section aria-label={ui("History")}>
-        <p className="mb-2 text-xs font-black uppercase text-ink-subtle">{ui("History")}</p>
+        <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
         {historyError ? <p role="alert" className="text-xs text-rose-700">{historyError}</p> : !history ? <p role="status" className="text-xs">{ui("Loading history…")}</p>
           : <ol className="space-y-1.5 text-xs" data-postal-history>{history.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
             <p className="font-bold">{eventLabel(ui, event.kind)} · <bdi>{dateTime(event.createdAt)}</bdi>{event.actorName ? <> · <bdi>{event.actorName}</bdi></> : null}</p>

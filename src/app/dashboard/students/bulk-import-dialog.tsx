@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/csv";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
@@ -126,7 +126,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   const close = () => { if (committed) onSuccess(); reset(); onOpenChange(false); };
 
   return <Dialog open={open} onOpenChange={close}><DialogContent size="md">
-    <DialogHeader><DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-[#8127cf]" />{t("Bulk Student Import")}</DialogTitle><DialogDescription>{t("Upload and validate first. Live pupil records change only when you commit this reviewed batch.")}</DialogDescription></DialogHeader>
+    <DialogHeader><DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-primary" />{t("Bulk Student Import")}</DialogTitle><DialogDescription>{t("Upload and validate first. Live pupil records change only when you commit this reviewed batch.")}</DialogDescription></DialogHeader>
     <div className="space-y-4" dir="auto">
       {committed && batch ? <section aria-live="polite" className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
         <p className="font-bold">{batch.state === "REVERSED" ? t("Batch reversed") : t("Batch receipt")}</p>
@@ -136,9 +136,9 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
         {confirmReverse && analysis?.eligible && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p>{t("This deletes only unchanged pupils created by this batch. The action is recorded in the receipt.")}</p><div className="mt-3 flex gap-2"><Button variant="outline" onClick={() => setConfirmReverse(false)}>{t("Cancel")}</Button><Button variant="destructive" disabled={busy} onClick={() => void reverse()}>{t("Reverse batch")}</Button></div></div>}
         {batch.state !== "REVERSED" && <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void checkReversal()}>{t("Check reversal")}</Button>{analysis?.eligible && !confirmReverse && <Button variant="destructive" onClick={() => setConfirmReverse(true)}>{t("Reverse batch")}</Button>}</div>}
       </section> : <>
-        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 bg-[#fbf0fe]/30 p-6">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-edge/30 bg-brand-50/30 p-6">
           <input ref={input} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => void changeFile(event)} />
-          {fileName ? <div className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-[#8127cf]" /><span className="font-bold">{fileName}</span><Button variant="ghost" type="button" aria-label={t("Choose a different file")}  onClick={reset}><X className="h-4 w-4" /></Button></div> : <><Upload className="h-8 w-8 text-[#8127cf]/50" /><p className="text-sm font-bold">{t("Choose a CSV to stage a preview. Upload does not commit records.")}</p></>}
+          {fileName ? <div className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-primary" /><span className="font-bold">{fileName}</span><Button variant="ghost" type="button" aria-label={t("Choose a different file")}  onClick={reset}><X className="h-4 w-4" /></Button></div> : <><Upload className="h-8 w-8 text-primary/50" /><p className="text-sm font-bold">{t("Choose a CSV to stage a preview. Upload does not commit records.")}</p></>}
           <div className="flex flex-wrap justify-center gap-2"><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => input.current?.click()}><Upload className="h-4 w-4" />{fileName ? t("Choose Different File") : t("Choose CSV File")}</Button><Button type="button" variant="ghost" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4" />{t("Download Template")}</Button></div>
         </div>
         {busy && <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t("Validating rows. Live records are unchanged.")}</p>}

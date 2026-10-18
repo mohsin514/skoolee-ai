@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = [
@@ -299,11 +299,11 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
       <div className="space-y-4">
         <div className="flex gap-2">
           {steps.map((_, i) => (
-            <div key={i} className="h-12 flex-1 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div key={i} className="h-12 flex-1 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
           ))}
         </div>
-        <div className="h-72 rounded-[28px] bg-[#e8e0ec]/30 skeleton-shimmer" />
-        <div className="h-12 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-72 rounded-[28px] bg-border-subtle/30 skeleton-shimmer" />
+        <div className="h-12 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
       </div>
     );
   }
@@ -320,24 +320,24 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 i === step ? "" : i < step ? "" : ""
               } `)}
             >
-              {i < step ? <CheckCircle2 className="h-4 w-4" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/10 text-[10px]">{i + 1}</span>}
+              {i < step ? <CheckCircle2 className="h-4 w-4" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/10 text-2xs">{i + 1}</span>}
               <span className="hidden sm:inline">{s}</span>
             </Button>
           </div>
         ))}
       </div>
 
-      <div className="sk-panel border-[#cfc2d6]/12 p-6">
+      <div className="sk-panel border-edge/12 p-6">
         {/* STEP 1 */}
         {step === 0 && (
           <div className="space-y-5">
-            <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><CalendarDays className="h-5 w-5 text-[#8127cf]" />Define Year &amp; Terms</h3>
+            <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><CalendarDays className="h-5 w-5 text-primary" />Define Year &amp; Terms</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Year Label" value={yearLabel} onChange={setYearLabel} placeholder="2026-2027" />
               <Field label="Academic Year" type="number" value={String(year)} onChange={(v) => setYear(parseInt(v || "0", 10))} />
             </div>
             <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-muted">Number of Terms</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Number of Terms</p>
               <div className="flex gap-2">
                 {[1, 2, 3].map((n) => (
                   <Button aria-pressed={termCount === n} variant="choice" key={n} onClick={() => { setTermCount(n); setTerms(Array.from({ length: n }, () => ({ start: "", end: "" }))); }}
@@ -349,7 +349,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
             </div>
             <div className="space-y-3">
               {terms.map((t, i) => (
-                <div key={i} className="grid grid-cols-2 gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-3">
+                <div key={i} className="grid grid-cols-2 gap-3 rounded-2xl border border-edge/15 bg-surface-subtle p-3">
                   <Field label={`Term ${i + 1} Start`} type="date" value={t.start} onChange={(v) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, start: v } : x)))} />
                   <Field label={`Term ${i + 1} End`} type="date" value={t.end} onChange={(v) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, end: v } : x)))} />
                 </div>
@@ -366,7 +366,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         {/* STEP 2 — Calendar */}
         {step === 1 && (
           <div className="space-y-5">
-            <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><CalendarDays className="h-5 w-5 text-[#8127cf]" />Set Calendar</h3>
+            <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><CalendarDays className="h-5 w-5 text-primary" />Set Calendar</h3>
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => (
                 <Button aria-pressed={weekends.includes(d.num)} variant="choice" key={d.num} onClick={() => toggleWeekend(d.num)}
@@ -381,12 +381,12 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 {holidayMode ? (holidayPick ? `Finish range → ${holidayPick}` : "Pick end day…") : "✚ Mark holiday range"}
               </Button>
             </div>
-            <p className="text-[10px] font-semibold text-ink-muted">
+            <p className="text-2xs font-semibold text-ink-muted">
               Tip: click any calendar day to toggle that weekday as a weekend. Use “Mark holiday range” then click two days to draft a holiday.
             </p>
             <YearCalendar year={year} weekends={weekends} holidays={holidays} isHoliday={isHoliday} holidayOn={holidayOn} holidayMode={holidayMode} holidayPick={holidayPick} onDayClick={onDayClick} />
-            <div className="rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-muted">Add Holiday</p>
+            <div className="rounded-2xl border border-edge/15 bg-surface-subtle p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-muted">Add Holiday</p>
               <div className="flex flex-wrap items-end gap-3">
                 <Field label="Name" value={holidayDraft.name} onChange={(v) => setHolidayDraft((d) => ({ ...d, name: v }))} />
                 <Field label="From" type="date" value={holidayDraft.fromDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, fromDate: v }))} />
@@ -409,7 +409,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         {step === 2 && (
           <div className="space-y-5">
             <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><Clock className="h-5 w-5 text-[#8127cf]" />Define Periods</h3>
+              <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Clock className="h-5 w-5 text-primary" />Define Periods</h3>
               <div className="flex gap-2">
                 {(["CLASS", "EXAM"] as const).map((t) => (
                   <Button aria-pressed={periodTab === t} variant="choice" key={t} onClick={() => setPeriodTab(t)} className={`px-4 py-1.5 ${periodTab === t ? "" : ""} `}>
@@ -418,18 +418,18 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-edge/15 bg-surface-subtle p-4 sm:grid-cols-4">
               <Field label="Period #" type="number" value={periodDraft.periodNumber} onChange={(v) => setPeriodDraft((d) => ({ ...d, periodNumber: v }))} />
               <Field label="Start" type="time" value={periodDraft.startTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, startTime: v }))} />
               <Field label="End" type="time" value={periodDraft.endTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, endTime: v }))} />
               <Button variant="default" onClick={addPeriod} disabled={saving} className="flex items-end justify-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />Add</Button>
             </div>
             <div className="space-y-2">
-              {activePeriods.length === 0 && <p className="rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No {periodTab.toLowerCase()} periods yet</p>}
+              {activePeriods.length === 0 && <p className="rounded-2xl border border-dashed border-edge/30 bg-surface-subtle py-6 text-center text-sm text-ink-muted">No {periodTab.toLowerCase()} periods yet</p>}
               {activePeriods.map((p) => (
                 <div key={p.id} className="sk-panel flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f3eeff] text-sm font-black text-[#8127cf]">P{p.periodNumber}</span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100 text-sm font-bold text-primary">P{p.periodNumber}</span>
                     <span className="text-sm font-semibold text-ink">{p.startTime} – {p.endTime}</span>
                   </div>
                   <Button variant="ghost" onClick={() => deletePeriod(p.id)} className=""><Trash2 className="h-4 w-4" /></Button>
@@ -442,8 +442,8 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         {/* STEP 4 — Rooms */}
         {step === 3 && (
           <div className="space-y-5">
-            <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><Building2 className="h-5 w-5 text-[#8127cf]" />Classrooms</h3>
-            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4 sm:grid-cols-4">
+            <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Building2 className="h-5 w-5 text-primary" />Classrooms</h3>
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-edge/15 bg-surface-subtle p-4 sm:grid-cols-4">
               <Field label="Room #" value={roomDraft.roomNumber} onChange={(v) => setRoomDraft((d) => ({ ...d, roomNumber: v }))} />
               <Field label="Capacity" type="number" value={roomDraft.capacity} onChange={(v) => setRoomDraft((d) => ({ ...d, capacity: v }))} />
               <div className="sm:col-span-2 flex items-end">
@@ -454,13 +454,13 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               {rooms.map((r) => (
                 <div key={r.id} className="sk-panel flex items-center justify-between px-4 py-3">
                   <div>
-                    <p className="text-sm font-bold text-[#1f1a23]">Room {r.roomNumber}</p>
+                    <p className="text-sm font-bold text-ink-strong">Room {r.roomNumber}</p>
                     <p className="text-xs text-ink-muted">Capacity {r.capacity}</p>
                   </div>
                   <Button variant="ghost" onClick={() => deleteRoom(r.id)} className=""><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
-              {rooms.length === 0 && <p className="sm:col-span-3 rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No rooms yet — optional, skip if not used</p>}
+              {rooms.length === 0 && <p className="sm:col-span-3 rounded-2xl border border-dashed border-edge/30 bg-surface-subtle py-6 text-center text-sm text-ink-muted">No rooms yet — optional, skip if not used</p>}
             </div>
             <div className="flex justify-end">
               <Button variant="default" onClick={completeSetup} disabled={saving} className="justify-start flex items-center gap-2 px-6 py-3">
@@ -502,13 +502,13 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
   );
 }
 
-const TERM_COLORS = ["from-[#8127cf] to-[#6a1fb0]", "from-teal-500 to-teal-600", "from-amber-500 to-[#d97706]"];
+const TERM_COLORS = ["from-primary to-brand-700", "from-teal-500 to-teal-600", "from-amber-500 to-amber-600"];
 
 function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
   const filled = terms.filter((t) => t.start && t.end);
   if (filled.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-4 text-xs font-semibold text-ink-subtle">
+      <div className="flex items-center justify-center rounded-2xl border border-dashed border-edge/30 bg-surface-subtle py-4 text-xs font-semibold text-ink-subtle">
         Pick term dates above to preview the year divided into colored term blocks
       </div>
     );
@@ -520,8 +520,8 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
   const span = Math.max(1, max - min);
   return (
     <div className="sk-panel p-4">
-      <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-ink-muted">Year Preview</p>
-      <div className="relative flex h-10 w-full gap-1 overflow-hidden rounded-xl bg-[#f3f4f9]">
+      <p className="mb-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Year Preview</p>
+      <div className="relative flex h-10 w-full gap-1 overflow-hidden rounded-xl bg-muted">
         {filled.map((t, i) => {
           const s = new Date(t.start).getTime();
           const e = new Date(t.end).getTime();
@@ -530,7 +530,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
           return (
             <div
               key={i}
-              className={`absolute top-0 h-full rounded-lg bg-gradient-to-r ${TERM_COLORS[i % TERM_COLORS.length]} flex items-center justify-center text-[9px] font-black uppercase tracking-wider text-white`}
+              className={`absolute top-0 h-full rounded-lg bg-gradient-to-r ${TERM_COLORS[i % TERM_COLORS.length]} flex items-center justify-center text-2xs font-semibold uppercase tracking-wider text-white`}
               style={{ left: `${left}%`, width: `${width}%` }}
             >
               {width > 12 ? `Term ${i + 1}` : `T${i + 1}`}
@@ -540,7 +540,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {filled.map((t, i) => (
-          <span key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-ink-muted">
+          <span key={i} className="flex items-center gap-1.5 text-2xs font-bold text-ink-muted">
             <span className={`h-2 w-2 rounded-full bg-gradient-to-r ${TERM_COLORS[i % TERM_COLORS.length]}`} />
             Term {i + 1}: {t.start} → {t.end}
           </span>
@@ -553,7 +553,7 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
 function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ink-muted">{label}</span>
+      <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
       <SystemInput type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
         className="w-full" />
     </label>
@@ -580,7 +580,7 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
     <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
       {months.map(({ m, daysInMonth, leading }) => (
         <div key={m} className="sk-panel p-3">
-          <p className="mb-2 text-center text-xs font-black text-[#8127cf]">{MONTHS[m]} {year}</p>
+          <p className="mb-2 text-center text-xs font-bold text-primary">{MONTHS[m]} {year}</p>
           <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-bold text-ink-subtle">
             {WEEKDAYS.map((d) => <span key={d.num}>{d.short[0]}</span>)}
           </div>

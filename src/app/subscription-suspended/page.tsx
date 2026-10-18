@@ -15,7 +15,7 @@ export default function SubscriptionSuspendedPage() {
     window.location.assign("/login");
   };
   return (
-    <main className="min-h-screen bg-[#fbf0fe] px-6 py-12 text-[#1f1a23]">
+    <main className="min-h-screen bg-brand-50 px-6 py-12 text-ink-strong">
       <div className="mx-auto flex min-h-[70vh] max-w-3xl items-center">
         <Card className="sk-rise w-full border-amber-200 bg-white shadow-2xl shadow-amber-100/40" style={{ animationDelay: "0ms" }}>
           <CardContent className="p-8 md:p-10">
@@ -24,7 +24,7 @@ export default function SubscriptionSuspendedPage() {
                 <ShieldAlert className="h-6 w-6" />
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl font-black">{ui("Subscription needs attention")}</h1>
+                <h1 className="text-2xl font-bold">{ui("Subscription needs attention")}</h1>
                 <p className="mt-2 text-sm font-medium leading-6 text-ink">
                   {ui("Access to school operations is paused until billing is updated. Your records stay in place, and the billing owner can still open billing to restore the subscription.")}
                 </p>

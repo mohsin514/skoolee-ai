@@ -18,7 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
@@ -48,7 +48,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
+      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
         {SUB_TABS.map((tab) => {
           const Icon = tab.icon;
           const active = subTab === tab.key;
@@ -145,19 +145,19 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
           <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
             <div className="flex items-start justify-between mb-3">
               <div className="space-y-2">
-                <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-3 w-40 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-4 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-3 w-40 rounded-full bg-border-subtle/40 skeleton-shimmer" />
               </div>
               <div className="flex gap-1.5">
-                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-8 w-8 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
+                <div className="h-8 w-8 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {Array.from({ length: 3 }).map((_, j) => (
-                <div key={j} className="rounded-xl bg-[#f3f4f9]/50 p-2">
-                  <div className="h-2 w-12 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer mb-1" />
-                  <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div key={j} className="rounded-xl bg-muted/50 p-2">
+                  <div className="h-2 w-12 rounded-full bg-border-subtle/40 skeleton-shimmer mb-1" />
+                  <div className="h-4 w-16 rounded-full bg-border-subtle/50 skeleton-shimmer" />
                 </div>
               ))}
             </div>
@@ -171,8 +171,8 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Fee Structures"}</UiText></h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee Structures"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             {activeStructures.length}<UiText>{"active ·"}</UiText>{unassignedClasses.length}<UiText>{"classes without fees"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}><UiText>{"New Structure"}</UiText></BrandButton>
@@ -180,7 +180,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
       {unassignedClasses.length > 0 && (
         <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
-          <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 mb-1"><UiText>{"Classes Without Fee Structure"}</UiText></p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-amber-700 mb-1"><UiText>{"Classes Without Fee Structure"}</UiText></p>
           <p className="text-xs font-bold text-amber-800">
             {unassignedClasses.map((c) => classLabel(c.name, c.section)).join(", ")}
           </p>
@@ -211,19 +211,19 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
       {inactiveStructures.length > 0 && (
         <div>
-          <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Inactive Structures"}</UiText></h4>
+          <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Inactive Structures"}</UiText></h4>
           <div className="space-y-2 opacity-60">
             {inactiveStructures.map((fs) => (
-              <div key={fs.id} className="flex items-center justify-between rounded-2xl bg-[#f3f4f9]/50 px-4 py-3 border border-[#cfc2d6]/10">
+              <div key={fs.id} className="flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-3 border border-edge/10">
                 <div>
-                  <p className="text-sm font-black text-[#1f1a23]">
+                  <p className="text-sm font-bold text-ink-strong">
                     {classLabel(fs.class.name, fs.class.section)}
                   </p>
-                  <p className="text-[9px] font-bold text-ink-subtle">
+                  <p className="text-2xs font-bold text-ink-subtle">
                     {formatPKR(fs.monthlyFee, fs.currency)}<UiText>{"/mo · Ended"}</UiText>{new Date(fs.activeTo!).toLocaleDateString()}
                   </p>
                 </div>
-                <span className="text-[9px] font-black uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100"><UiText>{"Inactive"}</UiText></span>
+                <span className="text-2xs font-semibold uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100"><UiText>{"Inactive"}</UiText></span>
               </div>
             ))}
           </div>
@@ -264,10 +264,10 @@ function StructureCard({
     <div className="sk-panel p-5 transition-all hover:-translate-y-0.5">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <p className="text-sm font-black text-[#1f1a23]">
+          <p className="text-sm font-bold text-ink-strong">
             {classLabel(fs.class.name, fs.class.section)}
           </p>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5"><UiText>{"Since"}</UiText>{new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mt-0.5"><UiText>{"Since"}</UiText>{new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -298,26 +298,26 @@ function StructureCard({
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-        <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Monthly"}</UiText></p>
-          <p className="text-sm font-black text-[#8127cf]">{formatPKR(fs.monthlyFee, fs.currency)}</p>
+        <div className="rounded-xl bg-brand-50/50 px-3 py-2">
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Monthly"}</UiText></p>
+          <p className="text-sm font-bold text-primary">{formatPKR(fs.monthlyFee, fs.currency)}</p>
         </div>
         {oneTimeTotal > 0 && (
           <div className="rounded-xl bg-blue-50/50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"One-Time"}</UiText></p>
-            <p className="text-sm font-black text-blue-600">{formatPKR(oneTimeTotal, fs.currency)}</p>
+            <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"One-Time"}</UiText></p>
+            <p className="text-sm font-bold text-blue-600">{formatPKR(oneTimeTotal, fs.currency)}</p>
           </div>
         )}
         <div className="rounded-xl bg-amber-50/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Late Fee"}</UiText></p>
-          <p className="text-sm font-black text-amber-600">
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Late Fee"}</UiText></p>
+          <p className="text-sm font-bold text-amber-600">
             {fs.lateFeePercentage}%{fs.compoundLateFee ? tr(" cpd") : ""}
           </p>
         </div>
         {(fs.taxPercentage ?? 0) > 0 && (
           <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Tax"}</UiText></p>
-            <p className="text-sm font-black text-gray-600">{fs.taxPercentage}%</p>
+            <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Tax"}</UiText></p>
+            <p className="text-sm font-bold text-gray-600">{fs.taxPercentage}%</p>
           </div>
         )}
       </div>
@@ -325,13 +325,13 @@ function StructureCard({
       {hasExtras && (
         <div className="space-y-1.5">
           {Object.entries(oneTimeFees).map(([name, amount]) => (
-            <div key={name} className="flex items-center justify-between text-[10px] font-bold text-ink-muted px-1">
+            <div key={name} className="flex items-center justify-between text-2xs font-bold text-ink-muted px-1">
               <span>{name}</span>
               <span>{formatPKR(amount, fs.currency)}</span>
             </div>
           ))}
           {Object.entries(discountRules).map(([name, pct]) => (
-            <div key={name} className="flex items-center justify-between text-[10px] font-bold text-emerald-600/70 px-1">
+            <div key={name} className="flex items-center justify-between text-2xs font-bold text-emerald-600/70 px-1">
               <span>{name}<UiText>{"discount"}</UiText></span>
               <span>-{pct}%</span>
             </div>
@@ -437,7 +437,7 @@ function StructureModal({
   };
 
   const inputClass = "w-full";
-  const labelClass = "text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1";
+  const labelClass = "text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1";
 
   return (
     <Modal
@@ -502,9 +502,9 @@ function StructureModal({
             </label>
           </div>
 
-          <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
+          <div className="rounded-2xl border border-edge/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"One-Time Fees"}</UiText></p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"One-Time Fees"}</UiText></p>
               <Button variant="link"
                 type="button"
                 onClick={() => setOneTimeFees([...oneTimeFees, { name: "", amount: "" }])}
@@ -546,14 +546,14 @@ function StructureModal({
                 </div>
               ))}
               {oneTimeFees.length === 0 && (
-                <p className="text-[10px] font-semibold text-ink-subtle italic"><UiText>{"e.g. Admission Fee, Lab Fee, Books"}</UiText></p>
+                <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"e.g. Admission Fee, Lab Fee, Books"}</UiText></p>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
+          <div className="rounded-2xl border border-edge/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Discount Rules"}</UiText></p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Discount Rules"}</UiText></p>
               <Button variant="link"
                 type="button"
                 onClick={() => setDiscountRules([...discountRules, { name: "", pct: "" }])}
@@ -574,7 +574,7 @@ function StructureModal({
                     }}
                     className="flex-1"
                   />
-                  <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative w-24">
+                  <InputGroup surfaceClassName="bg-muted" className="relative w-24">
                     <SystemInput
                       type="number"
                       step="0.5"
@@ -599,7 +599,7 @@ function StructureModal({
                 </div>
               ))}
               {discountRules.length === 0 && (
-                <p className="text-[10px] font-semibold text-ink-subtle italic"><UiText>{"e.g. Sibling 10%, Staff Child 25%"}</UiText></p>
+                <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"e.g. Sibling 10%, Staff Child 25%"}</UiText></p>
               )}
             </div>
           </div>

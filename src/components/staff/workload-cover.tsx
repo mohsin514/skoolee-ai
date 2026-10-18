@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CalendarClock, UserCheck } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -70,7 +70,7 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
   return <div className="space-y-6" data-workload-cover>
     <section className="sk-panel space-y-3 p-5" aria-labelledby="workload-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h3 id="workload-title" className="flex items-center gap-2 text-sm font-black"><CalendarClock className="size-4 text-primary" aria-hidden />{ui("Teaching workload")}</h3>
+        <h3 id="workload-title" className="flex items-center gap-2 text-sm font-bold"><CalendarClock className="size-4 text-primary" aria-hidden />{ui("Teaching workload")}</h3>
         <FormField name="workload-week" label={ui("Week starting")}><Input type="date" value={week} onChange={event => setWeek(event.target.value)} /></FormField>
       </div>
       <p className="text-xs text-ink-muted" data-workload-definition>{ui(definition)}</p>
@@ -92,7 +92,7 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
 
     <section className="sk-panel space-y-3 p-5" aria-labelledby="cover-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h3 id="cover-title" className="flex items-center gap-2 text-sm font-black"><UserCheck className="size-4 text-primary" aria-hidden />{ui("Absence cover")}</h3>
+        <h3 id="cover-title" className="flex items-center gap-2 text-sm font-bold"><UserCheck className="size-4 text-primary" aria-hidden />{ui("Absence cover")}</h3>
         <FormField name="cover-date" label={ui("Date")}><Input type="date" value={day} onChange={event => setDay(event.target.value)} /></FormField>
       </div>
       <p className="text-xs text-ink-muted">{ui(scopeNote)} {ui("A free period alone is not availability: leave, cover, invigilation and capacity are checked, and again at approval.")}</p>

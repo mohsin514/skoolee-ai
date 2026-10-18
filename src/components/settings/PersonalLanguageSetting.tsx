@@ -78,8 +78,8 @@ export function PersonalLanguageSetting({ id = "personal-language", lockedReason
   return (
     <div className="space-y-4">
       {locked ? (
-        <p className="flex items-start gap-2.5 rounded-2xl border border-[#ece3f3] bg-[#fcfaff] px-4 py-3 text-sm font-semibold leading-relaxed text-ink-muted">
-          <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[#8127cf]" />{lockedReason}
+        <p className="flex items-start gap-2.5 rounded-2xl border border-border-subtle bg-surface-subtle px-4 py-3 text-sm font-semibold leading-relaxed text-ink-muted">
+          <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{lockedReason}
         </p>
       ) : null}
 
@@ -99,21 +99,21 @@ export function PersonalLanguageSetting({ id = "personal-language", lockedReason
                 <label key={inputId} htmlFor={inputId}
                   className={cn(
                     "sk-choice-card relative flex min-h-[76px] cursor-pointer items-center gap-3.5 rounded-2xl border bg-white px-4 py-3.5 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-200",
-                    selected ? "border-[#8127cf] bg-[#faf5ff] shadow-[0_0_0_1px_#8127cf,0_10px_24px_-18px_rgba(129,39,207,0.6)]" : "border-[#e5dcee] hover:border-[#c9b4dd] hover:bg-[#fcfaff]",
+                    selected ? "border-primary bg-brand-50 shadow-[0_0_0_1px_#8127cf,0_10px_24px_-18px_rgba(129,39,207,0.6)]" : "border-[#e5dcee] hover:border-[#c9b4dd] hover:bg-surface-subtle",
                     disabled && !selected && "cursor-not-allowed opacity-60",
                   )}>
                   <input type="radio" id={inputId} name={id} value={option.value} checked={selected}
                     onChange={() => { void change(option.value); }} className="sr-only" />
-                  <span aria-hidden="true" className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-black",
-                    selected ? "bg-[#8127cf] text-white" : "bg-[#f3ecfa] text-[#8127cf]")}>
+                  <span aria-hidden="true" className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
+                    selected ? "bg-primary text-white" : "bg-brand-100 text-primary")}>
                     {option.lang ? <span lang={option.lang}>{MONOGRAMS[option.lang]}</span> : <School className="size-5" />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span lang={option.lang} className="block text-[15px] font-black leading-snug text-[#1f1a23] [overflow-wrap:anywhere]">{option.native}</span>
+                    <span lang={option.lang} className="block text-md font-bold leading-snug text-ink-strong [overflow-wrap:anywhere]">{option.native}</span>
                     <span className="mt-0.5 block text-xs font-semibold text-ink-muted [overflow-wrap:anywhere]">{option.english}</span>
                   </span>
                   <span aria-hidden="true" className={cn("flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-                    selected ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#d8cfe5] bg-white")}>
+                    selected ? "border-primary bg-primary text-white" : "border-field-border bg-white")}>
                     {saving === option.value ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : selected ? <Check className="size-3.5" strokeWidth={3} /> : null}
                   </span>
                 </label>

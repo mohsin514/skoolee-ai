@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -158,7 +158,7 @@ export function ImprovementWorkspace() {
   const close = async () => { setModal(null); await load(); };
   return <div className="min-w-0 space-y-5" data-improvement data-mode={data.mode}>
     <header className="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 className="text-xl font-black">{ui("Improvement evidence")}</h1><p className="text-sm text-ink-muted" data-disclaimer>{ui("School-configured framework. No accreditation outcome is implied.")}</p></div>
+      <div><h1 className="text-xl font-bold">{ui("Improvement evidence")}</h1><p className="text-sm text-ink-muted" data-disclaimer>{ui("School-configured framework. No accreditation outcome is implied.")}</p></div>
       <div className="flex flex-wrap gap-2">
         {data.frameworks.length ? <Select className="w-auto" value={view?.framework.id ?? ""} onChange={e => setFrameworkId(e.target.value)} aria-label={ui("Framework")} data-framework-select>{data.frameworks.map(f => <option key={f.id} value={f.id}>{f.name} · {f.version}{f.status === "RETIRED" ? ` (${ui("Retired")})` : ""}</option>)}</Select> : null}
         {lead ? <Button variant="outline" onClick={() => setModal({ kind: "framework" })} data-framework-new>{ui("New framework version")}</Button> : null}
@@ -166,7 +166,7 @@ export function ImprovementWorkspace() {
     </header>
     {!view ? <p className="sk-panel p-4 text-sm" data-improvement-empty>{ui("No criteria mapped. Select a framework and add your first evidence link.")}</p> : <>
       <section className="sk-panel flex flex-wrap items-center justify-between gap-3 p-4" data-summary>
-        <div><p className="text-lg font-black" data-summary-current>{ui("Current: {0} of {1}", [String(view.summary.current), String(view.summary.total)])}</p>
+        <div><p className="text-lg font-bold" data-summary-current>{ui("Current: {0} of {1}", [String(view.summary.current), String(view.summary.total)])}</p>
           <p className="text-sm text-ink-muted">{view.summary.needsEvidence ? ui("{0} criteria need current evidence", [String(view.summary.needsEvidence)]) : ui("Every criterion has current, reviewed evidence.")}{view.summary.overdueActions ? ` · ${ui("{0} overdue actions", [String(view.summary.overdueActions)])}` : ""} · {ui("As of {0}", [date(view.asOf)])}</p>
           {data.mode === "REVIEWER" ? <p className="text-xs text-ink-muted" data-reviewer-scope>{ui("You can review the criteria you were granted. Restricted sources stay closed.")}</p> : null}</div>
         <div className="flex flex-wrap gap-2">

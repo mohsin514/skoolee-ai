@@ -15,20 +15,22 @@ interface StatCardProps {
   onClick?: () => void;
   countUp?: boolean;
   entranceDelay?: number;
+  /** Change since the previous period, e.g. { value: "+12%", direction: "up", label: "vs last term" }. */
+  trend?: { value: string; direction: "up" | "down" | "flat"; label?: string; positive?: boolean };
 }
 
 const toneClass = {
-  purple: "bg-[#fbf0fe] text-[#8127cf]",
+  purple: "bg-brand-50 text-primary",
   green: "bg-emerald-50 text-emerald-600",
-  rose: "bg-rose-50 text-[#b10e6b]",
-  dark: "bg-[#1f1a23] text-white",
+  rose: "bg-rose-50 text-berry",
+  dark: "bg-ink-strong text-white",
 };
 
 const toneGlowClass = {
-  purple: "bg-[#8127cf]/18",
+  purple: "bg-primary/18",
   green: "bg-emerald-500/18",
   rose: "bg-rose-500/18",
-  dark: "bg-[#1f1a23]/18",
+  dark: "bg-primary/14",
 };
 
 function useCountUp(target: number, enabled: boolean, duration = 700): string {
@@ -82,6 +84,7 @@ export function StatCard({
   onClick,
   countUp = false,
   entranceDelay = 0,
+  trend,
 }: StatCardProps) {
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!onClick) return;
@@ -96,23 +99,43 @@ export function StatCard({
   const displayValue = isNumeric && countUp ? animatedValue : String(value);
 
   const className = cn(
-    "sk-panel p-6",
+    "sk-panel relative isolate overflow-hidden p-5 sm:p-6",
     entranceDelay > 0 && "sk-rise",
-    onClick && "group w-full cursor-pointer text-start transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] active:scale-[0.99] motion-reduce:transform-none"
+    onClick && "group w-full cursor-pointer text-start transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] active:scale-[0.99] motion-reduce:transform-none"
   );
   const content = (
     <>
+      <span aria-hidden="true" className={cn("pointer-events-none absolute -end-10 -top-10 -z-10 size-32 rounded-full opacity-60 blur-2xl", toneGlowClass[tone])} />
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p dir="auto" className="mb-2 text-xs font-semibold text-ink-muted">
+        <div className="min-w-0">
+          <p dir="auto" className="mb-2 text-xs font-medium text-ink-muted">
             {label}
           </p>
-          <p dir="auto" className="text-3xl font-black leading-none text-foreground">{displayValue}</p>
-          {sub && <p dir="auto" className="mt-2 text-xs font-semibold text-ink-muted">{sub}</p>}
+          <p dir="auto" data-numeric className="text-3xl font-bold leading-none tracking-tight text-ink-strong">{displayValue}</p>
+          {sub && <p dir="auto" className="mt-2 text-xs text-ink-muted">{sub}</p>}
+          {trend && (
+            <p className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs">
+              <span
+                data-numeric
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold",
+                  trend.direction === "flat"
+                    ? "bg-surface-subtle text-ink-muted"
+                    : (trend.positive ?? trend.direction === "up")
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-rose-50 text-rose-700",
+                )}
+              >
+                <span aria-hidden="true">{trend.direction === "up" ? "↑" : trend.direction === "down" ? "↓" : "→"}</span>
+                {trend.value}
+              </span>
+              {trend.label && <span className="text-ink-subtle">{trend.label}</span>}
+            </p>
+          )}
         </div>
         <div className="relative shrink-0">
           {onClick && <div className={cn("absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500", toneGlowClass[tone])} />}
-          <div className={cn("relative h-11 w-11 rounded-2xl flex items-center justify-center", toneClass[tone])}>
+          <div className={cn("relative flex h-11 w-11 items-center justify-center rounded-2xl ring-1 ring-black/5 shadow-sm", toneClass[tone])}>
             <Icon className="w-5 h-5" />
           </div>
         </div>

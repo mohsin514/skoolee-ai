@@ -14,7 +14,7 @@ import {
   Phone,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import type {
   CollectionReport,
@@ -45,9 +45,9 @@ export function FeeReportsTab({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-5"><CurrencySelect value={currency} onChange={setCurrency} />
-      <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Reports"}</UiText></h3>
+      <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Reports"}</UiText></h3>
 
-      <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+      <div className="flex items-center gap-1 rounded-2xl bg-muted p-1">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -141,14 +141,14 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
   if (loading) {
     return (
       <div className="sk-panel overflow-hidden animate-skeleton-in">
-        <div className="px-5 py-3 bg-[#f3f4f9]/50">
-          <div className="h-3 w-full max-w-md rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="px-5 py-3 bg-muted/50">
+          <div className="h-3 w-full max-w-md rounded-full bg-border-subtle/40 skeleton-shimmer" />
         </div>
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 px-5 py-3 border-t border-[#f3f4f9]">
-            <div className="h-3.5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-            <div className="h-3.5 w-20 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-            <div className="h-3.5 flex-1 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+          <div key={i} className="flex items-center gap-4 px-5 py-3 border-t border-muted">
+            <div className="h-3.5 w-24 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+            <div className="h-3.5 w-20 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+            <div className="h-3.5 flex-1 rounded-full bg-border-subtle/30 skeleton-shimmer" />
           </div>
         ))}
       </div>
@@ -168,14 +168,14 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[9px] font-bold text-ink-subtle">
+        <p className="text-2xs font-bold text-ink-subtle">
           {tr("Defaulters")}: {defaulters.length}
         </p>
         <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}><UiText>{"Export CSV"}</UiText></BrandButton>
       </div>
 
       <div className="sk-panel sk-rise overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+        <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           <span><UiText>{"Student"}</UiText></span>
           <span><UiText>{"Guardian"}</UiText></span>
           <span><UiText>{"Overdue"}</UiText></span>
@@ -184,35 +184,35 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
           <span><UiText>{"Invoices"}</UiText></span>
           <span></span>
         </div>
-        <div className="divide-y divide-[#f3f4f9]">
+        <div className="divide-y divide-muted">
           {defaulters.map((d) => (
             <div
               key={d.studentId}
               className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 items-center hover:bg-rose-50/30 transition-colors"
             >
               <div className="min-w-0">
-                <p className="text-xs font-black text-[#1f1a23] truncate">{d.studentName}</p>
-                <p className="text-[9px] font-bold text-ink-subtle">
+                <p className="text-xs font-bold text-ink-strong truncate">{d.studentName}</p>
+                <p className="text-2xs font-bold text-ink-subtle">
                   {d.rollNo ? `${d.rollNo} · ` : ""}{classLabel(d.className, d.section)}
                 </p>
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-ink-muted truncate">{d.guardianName ?? "—"}</p>
+                <p className="text-2xs font-bold text-ink-muted truncate">{d.guardianName ?? "—"}</p>
                 {d.guardianPhone && (
-                  <p className="text-[9px] font-bold text-ink-subtle flex items-center gap-0.5">
+                  <p className="text-2xs font-bold text-ink-subtle flex items-center gap-0.5">
                     <Phone className="w-2.5 h-2.5" />
                     {d.guardianPhone}
                   </p>
                 )}
               </div>
-              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
+              <p className="text-xs font-bold text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
               <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
-              <span className={`text-[9px] font-black px-2 py-1 rounded-lg w-fit ${
+              <span className={`text-2xs font-bold px-2 py-1 rounded-lg w-fit ${
                 d.daysOverdue > 30 ? "bg-rose-50 text-rose-600" : d.daysOverdue > 15 ? "bg-amber-50 text-amber-600" : "bg-blue-50 text-blue-600"
               }`}>
                 {d.daysOverdue}d
               </span>
-              <p className="text-xs font-black text-ink-muted">{d.overdueInvoices}</p>
+              <p className="text-xs font-bold text-ink-muted">{d.overdueInvoices}</p>
               <Button variant="default"
                 type="button"
                 onClick={() => handleRemind(d.studentId)}
@@ -273,17 +273,17 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="sk-panel px-4 py-3">
-              <div className="h-2.5 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer mb-2" />
-              <div className="h-5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="h-2.5 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer mb-2" />
+              <div className="h-5 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
             </div>
           ))}
         </div>
         <div className="sk-panel overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-5 py-3 border-t border-[#f3f4f9] first:border-t-0">
-              <div className="h-3.5 flex-1 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-              <div className="h-3.5 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-              <div className="h-2 w-24 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+            <div key={i} className="flex items-center gap-4 px-5 py-3 border-t border-muted first:border-t-0">
+              <div className="h-3.5 flex-1 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+              <div className="h-3.5 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+              <div className="h-2 w-24 rounded-full bg-border-subtle/30 skeleton-shimmer" />
             </div>
           ))}
         </div>
@@ -314,33 +314,33 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[9px] font-bold text-ink-subtle">
+        <p className="text-2xs font-bold text-ink-subtle">
           {data.length}<UiText>{"Classes"}</UiText>
         </p>
         <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}><UiText>{"Export CSV"}</UiText></BrandButton>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div className="rounded-2xl bg-[#fbf0fe]/50 px-4 py-3 border border-[#cfc2d6]/10">
-          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Students"}</UiText></p>
-          <p className="text-xl font-black text-[#8127cf]">{totals.students}</p>
+        <div className="rounded-2xl bg-brand-50/50 px-4 py-3 border border-edge/10">
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Students"}</UiText></p>
+          <p className="text-xl font-bold text-primary">{totals.students}</p>
         </div>
         <div className="rounded-2xl bg-blue-50/50 px-4 py-3 border border-blue-100">
-          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Due"}</UiText></p>
-          <p className="text-xl font-black text-blue-600">{formatPKR(totals.due)}</p>
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Due"}</UiText></p>
+          <p className="text-xl font-bold text-blue-600">{formatPKR(totals.due)}</p>
         </div>
         <div className="rounded-2xl bg-emerald-50/50 px-4 py-3 border border-emerald-100">
-          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Collected"}</UiText></p>
-          <p className="text-xl font-black text-emerald-600">{formatPKR(totals.paid)}</p>
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Collected"}</UiText></p>
+          <p className="text-xl font-bold text-emerald-600">{formatPKR(totals.paid)}</p>
         </div>
         <div className="rounded-2xl bg-rose-50/50 px-4 py-3 border border-rose-100">
-          <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Total Overdue"}</UiText></p>
-          <p className="text-xl font-black text-rose-600">{formatPKR(totals.overdue)}</p>
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Overdue"}</UiText></p>
+          <p className="text-xl font-bold text-rose-600">{formatPKR(totals.overdue)}</p>
         </div>
       </div>
 
       <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "80ms" }}>
-        <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+        <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           <span><UiText>{"Class"}</UiText></span>
           <span><UiText>{"Students"}</UiText></span>
           <span><UiText>{"Total Due"}</UiText></span>
@@ -348,19 +348,19 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
           <span><UiText>{"Overdue"}</UiText></span>
           <span><UiText>{"Rate"}</UiText></span>
         </div>
-        <div className="divide-y divide-[#f3f4f9]">
+        <div className="divide-y divide-muted">
           {data.map((d) => (
             <div
               key={d.className}
-              className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 items-center hover:bg-[#fbf0fe]/20 transition-colors"
+              className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
             >
-              <p className="text-xs font-black text-[#1f1a23]">{d.className}</p>
+              <p className="text-xs font-bold text-ink-strong">{d.className}</p>
               <p className="text-xs font-bold text-ink-muted">{d.totalStudents}</p>
               <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
-              <p className="text-xs font-black text-emerald-600">{formatPKR(d.totalPaid, d.currency)}</p>
-              <p className="text-xs font-black text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
+              <p className="text-xs font-bold text-emerald-600">{formatPKR(d.totalPaid, d.currency)}</p>
+              <p className="text-xs font-bold text-rose-600">{formatPKR(d.totalOverdue, d.currency)}</p>
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       d.collectionRate >= 80
@@ -372,7 +372,7 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
                     style={{ width: `${d.collectionRate}%` }}
                   />
                 </div>
-                <span className="text-[9px] font-black text-ink-muted w-8 text-right">
+                <span className="text-2xs font-bold text-ink-muted w-8 text-right">
                   {d.collectionRate}%
                 </span>
               </div>
@@ -416,11 +416,11 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
               <div className="flex items-center justify-between mb-3">
-                <div className="h-3.5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-3 w-10 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-3.5 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-3 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer" />
               </div>
-              <div className="h-5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer mb-3" />
-              <div className="h-2 w-full rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+              <div className="h-5 w-24 rounded-full bg-border-subtle/50 skeleton-shimmer mb-3" />
+              <div className="h-2 w-full rounded-full bg-border-subtle/30 skeleton-shimmer" />
             </div>
           ))}
         </div>
@@ -456,21 +456,21 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
             style={{ animationDelay: `${i * 60}ms` }}
           >
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-black text-[#1f1a23]">
+              <p className="text-sm font-bold text-ink-strong">
                 {tr(paymentMethodLabel(m.method))}
               </p>
-              <span className="text-[9px] font-black uppercase text-ink-subtle px-2 py-1 rounded-lg bg-[#f3f4f9]">
+              <span className="text-2xs font-semibold uppercase text-ink-subtle px-2 py-1 rounded-lg bg-muted">
                 {m.count}<UiText>{"txns"}</UiText></span>
             </div>
-            <p className="text-xl font-black text-[#8127cf] mb-2">{formatPKR(m.total, m.currency)}</p>
+            <p className="text-xl font-bold text-primary mb-2">{formatPKR(m.total, m.currency)}</p>
             <div className="flex items-center gap-2">
-              <div className="flex-1 h-3 rounded-full bg-[#f3f4f9] overflow-hidden">
+              <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
                 <div
                   className={`h-full rounded-full ${methodColors[m.method] ?? "bg-gray-500"}`}
                   style={{ width: `${m.percentage}%` }}
                 />
               </div>
-              <span className="text-xs font-black text-ink-muted">{m.percentage}%</span>
+              <span className="text-xs font-bold text-ink-muted">{m.percentage}%</span>
             </div>
           </div>
         ))}

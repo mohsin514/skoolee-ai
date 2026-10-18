@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { requestPasswordReset, resetPassword, verifyToken } from "@/app/actions/auth/reset";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -315,14 +315,14 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <main lang={language} dir={directionFor(language)} className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
+    <main lang={language} dir={directionFor(language)} className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-brand-50 font-sans">
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
-      <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14">
+      <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 p-12 xl:p-14">
         <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
-          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
-          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-brand-400 opacity-70 blur-[90px]" />
+          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-brand-300 opacity-45 blur-[100px]" />
+          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-brand-50 opacity-[0.14] blur-[110px]" />
           <div
             className="absolute inset-0 opacity-[0.07]"
             style={{
@@ -331,42 +331,42 @@ export default function ForgotPasswordPage() {
               backgroundSize: "56px 56px",
             }}
           />
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-brand-50/12 to-transparent" />
         </div>
 
         <div className="relative z-10 flex items-center gap-2.5">
           <span className="h-8 w-1 rounded-full bg-white/70" />
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-white/80">
             Skoolee AI
           </p>
         </div>
 
         <div className="relative z-10 max-w-xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
+            <Sparkles className="h-3.5 w-3.5 text-brand-200" />
+            <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">
               {t.eyebrow}
             </span>
           </div>
 
-          <h2 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance">
+          <h2 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-white text-balance">
             {t.brandLine1}
             {t.brandLine2 ? <><br />{t.brandLine2}</> : null}
-            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-200 to-fuchsia-300 bg-clip-text text-transparent">
               {t.brandHighlight}
             </span>
           </h2>
 
-          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
+          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl">
             <div className="flex items-start gap-4">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
                 <ShieldCheck className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-[15px] font-semibold leading-relaxed text-white">
+                <p className="text-md font-semibold leading-relaxed text-white">
                   {t.brandBody}
                 </p>
-                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">
+                <p className="mt-2.5 text-xs font-bold text-brand-200">
                   {t.brandNote}
                 </p>
               </div>
@@ -374,7 +374,7 @@ export default function ForgotPasswordPage() {
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
+        <div className="relative z-10 flex items-center gap-6 text-2xs font-bold text-white/75">
           <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {t.encrypted}</span>
           <span className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5" /> {t.singleUse}</span>
         </div>
@@ -385,19 +385,19 @@ export default function ForgotPasswordPage() {
         <div className="w-full max-w-[30rem]">
           <div className="mb-9 flex flex-col items-center">
             <SkooleeLogo size="2.35rem" weight="heavy" />
-            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
+            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
           </div>
 
-          <div className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-6 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
+          <div className="rounded-[30px] border border-edge/30 bg-white p-6 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
             {!token ? (
               // ── REQUEST RESET ──
               !isSubmitted ? (
                 <>
                   <div className="mb-7 text-center">
-                    <h1 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                    <h1 className="text-[1.75rem] font-bold leading-tight tracking-[-0.035em] text-ink-strong">
                       {t.requestTitle}
                     </h1>
-                    <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
+                    <p className="mt-2 text-md font-semibold text-ink-muted">
                       {t.requestIntro}
                     </p>
                   </div>
@@ -428,11 +428,11 @@ export default function ForgotPasswordPage() {
                   <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                     <CheckCircle2 className="h-10 w-10" />
                   </div>
-                  <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">{t.inboxTitle}</h1>
+                  <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{t.inboxTitle}</h1>
                   <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
                     {t.inboxBody}
                   </p>
-                  <Link href="/login" className="text-sm font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
+                  <Link href="/login" className="text-sm font-bold text-primary transition-colors hover:text-brand-400">
                     {t.backToLogin}
                   </Link>
                 </div>
@@ -442,7 +442,7 @@ export default function ForgotPasswordPage() {
                 <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
                   <AlertCircle className="h-10 w-10" />
                 </div>
-                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">{t.expiredTitle}</h1>
+                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{t.expiredTitle}</h1>
                 <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
                   {t.expiredBody}
                 </p>
@@ -452,7 +452,7 @@ export default function ForgotPasswordPage() {
               </div>
             ) : verificationStatus === "error" ? (
               <div className="py-6 text-center">
-                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-black tracking-tight text-ink">{t.errorTitle}</h1>
+                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink">{t.errorTitle}</h1>
                 <p className="mb-6 text-sm font-semibold leading-6 text-ink-muted">{t.errorBody}</p>
                 <Button type="button" variant="outline" onClick={() => { setVerification(null); setVerificationAttempt(attempt => attempt + 1); }}>
                   {t.tryAgain}
@@ -467,10 +467,10 @@ export default function ForgotPasswordPage() {
               // ── RESET PASSWORD ──
               <>
                 <div className="mb-7 text-center">
-                  <h1 className="text-[1.85rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                  <h1 className="text-[1.85rem] font-extrabold leading-tight tracking-[-0.035em] text-ink-strong">
                     {t.resetTitle}
                   </h1>
-                  <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
+                  <p className="mt-2 text-md font-semibold text-ink-muted">
                     {t.resetIntro}
                   </p>
                 </div>
@@ -515,10 +515,10 @@ export default function ForgotPasswordPage() {
             )}
           </div>
 
-          <div className="mt-5 border-t border-[#cfc2d6]/20 pt-4 text-center">
+          <div className="mt-5 border-t border-edge/20 pt-4 text-center">
             <Link
               href="/login"
-              className="text-sm font-bold text-ink-muted transition-colors hover:text-[#8127cf]"
+              className="text-sm font-bold text-ink-muted transition-colors hover:text-primary"
             >
               {t.remembered}
             </Link>

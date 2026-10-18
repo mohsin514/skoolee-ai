@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { safeReturnPath } from "@/lib/auth/return-path";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -485,14 +485,14 @@ export default function LoginPage() {
   const PROOF = t.proof;
 
   return (
-    <main lang={language} dir={directionFor(language)} className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
+    <main lang={language} dir={directionFor(language)} className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-brand-50 font-sans">
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section
         ref={brandRef}
         onMouseLeave={resetBrandParallax}
         onMouseMove={handleBrandMouseMove}
-        className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14"
+        className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 p-12 xl:p-14"
       >
         {/* Animated mesh — kept strictly inside the brand purple family
             so the panel reads as Skoolee rather than generic dark SaaS.
@@ -503,19 +503,19 @@ export default function LoginPage() {
             className="sk-parallax absolute -top-1/4 -left-1/5 h-[72%] w-[72%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0)" }}
           >
-            <div className="sk-blob h-full w-full rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+            <div className="sk-blob h-full w-full rounded-full bg-brand-400 opacity-70 blur-[90px]" />
           </div>
           <div
             className="sk-parallax absolute top-1/4 -right-1/4 h-[68%] w-[68%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * -34px), calc(var(--my, 0) * -34px), 0)" }}
           >
-            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-brand-300 opacity-45 blur-[100px]" />
           </div>
           <div
             className="sk-parallax absolute -bottom-1/3 left-1/5 h-[62%] w-[62%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * 16px), calc(var(--my, 0) * 16px), 0)" }}
           >
-            <div className="sk-blob sk-blob-3 h-full w-full rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+            <div className="sk-blob sk-blob-3 h-full w-full rounded-full bg-brand-50 opacity-[0.14] blur-[110px]" />
           </div>
           <div
             className="absolute inset-0 opacity-[0.07]"
@@ -526,7 +526,7 @@ export default function LoginPage() {
             }}
           />
           {/* Softens the hard edge where the panel meets the form side. */}
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-brand-50/12 to-transparent" />
         </div>
 
         {/* Orbiting user avatars — "every role, always connected". Anchored
@@ -541,33 +541,33 @@ export default function LoginPage() {
 
         <div className="relative z-10 flex items-center gap-2.5">
           <span className="h-8 w-1 rounded-full bg-white/70" />
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-white/80">
             Skoolee AI
           </p>
         </div>
 
         <div className="relative z-10 max-w-xl">
           <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
+            <Sparkles className="h-3.5 w-3.5 text-brand-200" />
+            <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">
               {t.eyebrow}
             </span>
           </div>
 
           <h1
-            className="sk-rise mt-7 text-[2.9rem] xl:text-[3.4rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance"
+            className="sk-rise mt-7 text-[2.9rem] xl:text-[3.4rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-white text-balance"
             style={{ animationDelay: "80ms" }}
           >
             {t.titleLine1}
             <br />
             {t.titleLine2}
-            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">{t.titleHighlight}</span>
+            <span className="bg-gradient-to-r from-brand-200 to-fuchsia-300 bg-clip-text text-transparent">{t.titleHighlight}</span>
           </h1>
 
           {/* Sits on a mid-purple ground, so the card needs a darker scrim
               and near-opaque text to stay legible. */}
           <div
-            className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl"
+            className="sk-rise mt-9 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl"
             style={{ animationDelay: "160ms" }}
           >
             <div className="flex items-start gap-4">
@@ -576,13 +576,13 @@ export default function LoginPage() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-baseline gap-2.5">
-                  <span className="text-2xl font-black tracking-tight text-white">{PROOF.stat}</span>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-[#f0dcff]">{PROOF.unit}</span>
+                  <span className="text-2xl font-bold tracking-tight text-white">{PROOF.stat}</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-[#f0dcff]">{PROOF.unit}</span>
                 </div>
-                <p className="mt-2 text-[15px] font-semibold leading-relaxed text-white">
+                <p className="mt-2 text-md font-semibold leading-relaxed text-white">
                   {PROOF.quote}
                 </p>
-                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">{PROOF.caption}</p>
+                <p className="mt-2.5 text-xs font-bold text-brand-200">{PROOF.caption}</p>
               </div>
             </div>
           </div>
@@ -592,7 +592,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
+        <div className="relative z-10 flex items-center gap-6 text-2xs font-bold text-white/75">
           <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {t.encrypted}</span>
           <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> {t.humanReviewed}</span>
         </div>
@@ -608,20 +608,20 @@ export default function LoginPage() {
           {/* Brand mark sits above the form on every breakpoint. */}
           <div className="sk-rise mb-9 flex flex-col items-center">
             <SkooleeLogo size="2.35rem" weight="heavy" />
-            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
+            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
           </div>
 
           <div className="sk-rise mb-7 text-center" style={{ animationDelay: "70ms" }}>
-            <h2 ref={schoolHeadingRef} tabIndex={-1} className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+            <h2 ref={schoolHeadingRef} tabIndex={-1} className="text-[1.9rem] font-extrabold leading-tight tracking-[-0.035em] text-ink-strong">
               {choices ? t.chooseSchool : t.welcome}
             </h2>
-            <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
+            <p className="mt-2 text-md font-semibold text-ink-muted">
               {choices ? t.chooseSchoolBody : t.welcomeBody}
             </p>
           </div>
 
           <div
-            className="sk-rise rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
+            className="sk-rise rounded-[30px] border border-edge/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
             style={{ animationDelay: "140ms" }}
           >
             {formError && (
@@ -636,7 +636,7 @@ export default function LoginPage() {
                 <div className="min-w-0 space-y-2">
                   <p className="text-[13px] font-bold leading-snug text-status-error-text">{localize(formError)}</p>
                   {(resendableErrors.has(formError) || formError === en.resendNeedEmail) && (
-                    <Button variant="ghost" type="button" onClick={resendVerification} disabled={resendState === "sending"} className="text-[12px] font-black text-[#8127cf] underline underline-offset-2 disabled:opacity-60">{resendState === "sending" ? t.resending : t.resendLink}</Button>
+                    <Button variant="ghost" type="button" onClick={resendVerification} disabled={resendState === "sending"} className="text-xs font-bold text-primary underline underline-offset-2 disabled:opacity-60">{resendState === "sending" ? t.resending : t.resendLink}</Button>
                   )}
                 </div>
               </div>
@@ -675,30 +675,30 @@ export default function LoginPage() {
                           );
                         }
                         return (
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[15px] font-black text-white shadow-sm shadow-[#8127cf]/25">
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-md font-bold text-white shadow-sm shadow-primary/25">
                             {c.schoolName.trim().charAt(0).toUpperCase() || "S"}
                           </span>
                         );
                       })()}
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px] font-black text-[#1f1a23]">
+                        <span className="block truncate text-sm font-bold text-ink-strong">
                           {c.schoolName}
                         </span>
                         <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <span className="rounded-full bg-[#8127cf]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
                             {roleLabel(c.role, language)}
                           </span>
                           {(c.campusName || c.schoolCity) && (
-                            <span className="truncate text-[11px] font-bold text-ink-subtle">
+                            <span className="truncate text-2xs font-bold text-ink-subtle">
                               {c.campusName || c.schoolCity}
                             </span>
                           )}
                         </span>
                       </span>
                       {busy ? (
-                        <Loader2 className="h-4 w-4 shrink-0 motion-safe:animate-spin text-[#8127cf]" />
+                        <Loader2 className="h-4 w-4 shrink-0 motion-safe:animate-spin text-primary" />
                       ) : (
-                        <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-all rtl:-scale-x-100 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 group-hover:text-[#8127cf]" />
+                        <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-all rtl:-scale-x-100 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 group-hover:text-primary" />
                       )}
                     </Button>
                   );
@@ -718,7 +718,7 @@ export default function LoginPage() {
               <>
             <form onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="ms-1 text-[10px] font-black uppercase tracking-wider text-ink">
+                <Label htmlFor="email" className="ms-1 text-2xs font-semibold uppercase tracking-wider text-ink">
                   {t.email}
                 </Label>
                 <InputGroup surfaceClassName="bg-[#eff6ff]">
@@ -739,17 +739,17 @@ export default function LoginPage() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between px-1">
-                  <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-wider text-ink">
+                  <Label htmlFor="password" className="text-2xs font-semibold uppercase tracking-wider text-ink">
                     {t.password}
                   </Label>
                   <Link
                     href="/forgot-password"
-                    className="text-[10px] font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+                    className="text-2xs font-bold text-primary transition-colors hover:text-brand-400"
                   >
                     {t.forgot}
                   </Link>
                 </div>
-                <InputGroup surfaceClassName="bg-[#fdf2f8]">
+                <InputGroup surfaceClassName="bg-pink-50">
                   <Lock aria-hidden="true" data-field-affix="start" className="h-4 w-4" />
                   <Input
                     id="password"
@@ -796,8 +796,8 @@ export default function LoginPage() {
                     aria-hidden
                     className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                       remember
-                        ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
-                        : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
+                        ? "border-primary bg-gradient-to-br from-primary to-brand-400 shadow-sm shadow-primary/30"
+                        : "border-edge/70 bg-white group-hover:border-primary/50"
                     }`}
                   >
                     <Check
@@ -808,7 +808,7 @@ export default function LoginPage() {
                     />
                   </span>
                 </span>
-                <span className="text-[12px] font-bold text-ink-muted transition-colors group-hover:text-[#1f1a23]">
+                <span className="text-xs font-bold text-ink-muted transition-colors group-hover:text-ink-strong">
                   {t.remember}
                 </span>
               </label>
@@ -848,10 +848,10 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5">
-              <p className="text-center text-[12.5px] font-semibold leading-relaxed text-ink-muted">
+            <div className="mt-6 border-t border-edge/20 pt-5">
+              <p className="text-center text-xs font-semibold leading-relaxed text-ink-muted">
                 {t.noAccount}{" "}
-                <Link href="/register" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
+                <Link href="/register" className="font-bold text-primary transition-colors hover:text-brand-400">
                   {t.createAccount}
                 </Link>
               </p>
@@ -860,12 +860,12 @@ export default function LoginPage() {
             )}
           </div>
 
-          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle">
-            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">{t.privacy}</Link>
-            <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/security" className="transition-colors hover:text-[#8127cf]">{t.security}</Link>
-            <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">{t.aiGovernance}</Link>
+          <div className="mt-6 flex items-center justify-center gap-5 text-2xs font-bold text-ink-subtle">
+            <Link href="/privacy" className="transition-colors hover:text-primary">{t.privacy}</Link>
+            <span className="h-3 w-px bg-edge/50" />
+            <Link href="/security" className="transition-colors hover:text-primary">{t.security}</Link>
+            <span className="h-3 w-px bg-edge/50" />
+            <Link href="/ai-governance" className="transition-colors hover:text-primary">{t.aiGovernance}</Link>
           </div>
         </div>
       </section>

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Lock, Phone, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -81,7 +81,7 @@ export function PhoneCallLog() {
       : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-call-empty>{view !== "open" || direction || q ? ui("No calls match these filters.") : ui("No callbacks are waiting. Log a call when one comes in.")}</p>
       : <ul className="space-y-2" aria-label={ui("Phone calls")}>{rows.map(row => <li key={row.id} className="space-y-2 rounded-2xl border border-border p-3 text-sm" data-call={row.id}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${row.direction === "IN" ? "bg-blue-50 text-blue-700" : "bg-orange-50 text-orange-700"}`}>{row.direction === "IN" ? ui("Incoming") : ui("Outgoing")}</span>
+          <span className={`rounded-full px-2 py-0.5 text-2xs font-bold ${row.direction === "IN" ? "bg-blue-50 text-blue-700" : "bg-orange-50 text-orange-700"}`}>{row.direction === "IN" ? ui("Incoming") : ui("Outgoing")}</span>
           <p className="font-bold"><bdi>{row.name}</bdi> · <bdi dir="ltr" className="whitespace-nowrap">{row.phone}</bdi></p>
           <span className="text-xs text-ink-muted"><bdi>{dateTime(row.date)}</bdi></span>
         </div>
@@ -171,7 +171,7 @@ function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged 
     <div className="space-y-4" data-callback-dialog={callback.id}>
       {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-callback-error>{error}</p> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Original call")}>
-        <p className="text-xs font-black uppercase text-ink-subtle">{ui("Original call")} · <bdi>{dateTime(phoneCall.date)}</bdi></p>
+        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Original call")} · <bdi>{dateTime(phoneCall.date)}</bdi></p>
         <p className="font-bold"><bdi>{phoneCall.name}</bdi> · <bdi dir="ltr" className="whitespace-nowrap">{phoneCall.phone}</bdi>{phoneCall.purpose ? <> · <bdi>{phoneCall.purpose}</bdi></> : null}</p>
         {phoneCall.note ? <p className="whitespace-pre-wrap text-xs"><bdi>{phoneCall.note}</bdi></p> : phoneCall.noteWithheld ? <p className="text-xs text-ink-muted">{ui("Sensitive note withheld.")}</p> : null}
       </section>
@@ -203,7 +203,7 @@ function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged 
         </fieldset>
       </> : null}
       <section aria-label={ui("History")}>
-        <p className="mb-2 text-xs font-black uppercase text-ink-subtle">{ui("History")}</p>
+        <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
         {historyError ? <p role="alert" className="text-xs text-rose-700">{historyError}</p> : !history ? <p role="status" className="text-xs">{ui("Loading history…")}</p>
           : <ol className="space-y-1.5 text-xs" data-callback-history>{history.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
             <p className="font-bold">{eventLabel(ui, event.kind)} · <bdi>{dateTime(event.createdAt)}</bdi>{event.actorName ? <> · <bdi>{event.actorName}</bdi></> : null}</p>

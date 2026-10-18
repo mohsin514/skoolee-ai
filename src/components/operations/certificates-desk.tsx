@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -104,7 +104,7 @@ function DocumentsTab({ templates, canApprove }: { templates: Template[]; canApp
       : <ul className="space-y-2" aria-label={ui("Documents")}>{rows.map(row => <li key={row.id} className="space-y-2 rounded-2xl border border-border p-3 text-sm" data-issue={row.serial} data-issue-status={row.status}>
         <div className="flex flex-wrap items-center gap-2">
           <p className="min-w-0 flex-1 font-bold"><bdi dir="ltr">{row.serial}</bdi> · <bdi>{row.title}</bdi></p>
-          <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${row.status === "ISSUED" ? "bg-emerald-50 text-emerald-700" : row.status === "PENDING_APPROVAL" ? "bg-amber-50 text-amber-800" : "bg-muted"}`}>{statusLabel(ui, row.status)}</span>
+          <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${row.status === "ISSUED" ? "bg-emerald-50 text-emerald-700" : row.status === "PENDING_APPROVAL" ? "bg-amber-50 text-amber-800" : "bg-muted"}`}>{statusLabel(ui, row.status)}</span>
         </div>
         <p className="text-xs text-ink-muted"><bdi>{row.student.fullName}</bdi> · <bdi dir="ltr">{row.student.rollNo}</bdi> · {kindLabel(ui, row.templateVersion.kind)} · {ui("Template version {0}", [row.templateVersion.version])} · {languageLabel(ui, row.language)}</p>
         <p className="text-xs text-ink-muted">{row.requestedBy ? <>{ui("Requested by")} <bdi>{row.requestedBy}</bdi></> : null}{row.approvedBy && row.status !== "REJECTED" ? <> · {ui("Approved by")} <bdi>{row.approvedBy}</bdi></> : null}{row.issuedAt ? <> · <bdi>{dateTime(row.issuedAt)}</bdi></> : null}</p>
@@ -167,10 +167,10 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
         {student ? <p className="text-sm" data-chosen-student>{ui("Pupil")}: <bdi className="font-bold">{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi>{student.className ? <> · <bdi>{student.className}</bdi></> : null}</p> : null}
       </>}
       {preview ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Preview")} data-issue-preview>
-        <p className="text-xs font-black uppercase text-ink-subtle">{ui("Preview")} · {kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)} · {ui("Template version {0}", [preview.templateVersion])}</p>
+        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Preview")} · {kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)} · {ui("Template version {0}", [preview.templateVersion])}</p>
         <div dir={preview.language === "en" ? "ltr" : "rtl"} lang={preview.language} className="space-y-1 rounded-lg bg-white p-3 text-sm">
           <p className="font-bold">{preview.schoolName}</p>
-          <p className="text-base font-black">{preview.title}</p>
+          <p className="text-base font-bold">{preview.title}</p>
           <p className="whitespace-pre-wrap leading-relaxed">{preview.body}</p>
         </div>
         {preview.missing.length ? <p role="alert" className="text-xs font-bold text-rose-700" data-preview-missing>{ui("Missing from the pupil's record: {0}", [preview.missing.map(field => fieldLabel(ui, field)).join(", ")])}</p> : null}

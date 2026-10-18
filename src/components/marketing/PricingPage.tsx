@@ -121,20 +121,20 @@ export function PricingPage() {
   const formatLimit = (value: number) => value < 0 ? t.unlimited : number(value);
 
   return (
-    <main dir={direction} lang={language} className="min-h-screen bg-[#fff7fe] px-4 py-8 text-[#1f1a23] sm:px-8 sm:py-12">
+    <main dir={direction} lang={language} className="min-h-screen bg-brand-50 px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <Link href="/" className="text-lg font-black text-[#8127cf]">SkooleeAI</Link>
+          <Link href="/" className="text-lg font-bold text-primary">SkooleeAI</Link>
           <Link href="/login" className={buttonVariants({ variant: "ghost" })}>Log in</Link>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-[#8127cf]">{t.version} · {COMMERCIAL_CONTRACT.version}</p>
-            <h1 className="mt-3 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">{t.title}</h1>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">{t.version} · {COMMERCIAL_CONTRACT.version}</p>
+            <h1 className="mt-3 max-w-3xl text-3xl font-extrabold leading-tight sm:text-5xl">{t.title}</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#554c5b]">{t.description}</p>
           </div>
-          <div className="grid gap-3 rounded-2xl border border-[#e8dced] bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-1">
+          <div className="grid gap-3 rounded-2xl border border-border-subtle bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-1">
             <label className="grid gap-1.5 text-sm font-bold">
               {t.country}
               <Select value={country} onChange={(event) => setCountry(event.target.value as Country)}>
@@ -150,9 +150,9 @@ export function PricingPage() {
           </div>
         </div>
 
-        <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#e8dced] bg-white p-4">
+        <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border-subtle bg-white p-4">
           <p className="text-sm font-semibold">{t.currency}: <bdi>{regionalCurrency}</bdi> <span className="mx-2 text-[#9a8ea0]">·</span> {t.priceCurrency}: <bdi>{COMMERCIAL_CONTRACT.currency}</bdi></p>
-          <div className="inline-flex rounded-full border border-[#d7c5df] bg-[#fbf0fe] p-1" role="group" aria-label={`${t.monthly} / ${t.annual}`}>
+          <div className="inline-flex rounded-full border border-[#d7c5df] bg-brand-50 p-1" role="group" aria-label={`${t.monthly} / ${t.annual}`}>
             {(["monthly", "annual"] as const).map((value) => <Button key={value} type="button" variant={period === value ? "default" : "ghost"} aria-pressed={period === value} onClick={() => setPeriod(value)} className="rounded-full">{value === "monthly" ? t.monthly : t.annual}{value === "annual" && <span className="ms-2 text-xs">({t.save} {Math.round(ANNUAL_DISCOUNT * 100)}%)</span>}</Button>)}
           </div>
         </div>
@@ -166,9 +166,9 @@ export function PricingPage() {
             const annualTotal = plan.price === null ? null : Math.round(plan.price * (1 - ANNUAL_DISCOUNT) * 12);
             return (
               <article key={key} className="flex min-w-0 flex-col rounded-2xl border border-[#e3d4e9] bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-black text-[#8127cf]">{t.planNames[key]}</h2>
+                <h2 className="text-lg font-bold text-primary">{t.planNames[key]}</h2>
                 <div className="mt-4 min-h-16">
-                  {plan.isCustom ? <p className="text-xl font-black">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-black">{t.free}</p> : <><p className="text-3xl font-black"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-[#6a5b71]">/mo</span></p><p className="mt-1 text-xs text-[#6a5b71]">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}/yr` : t.billedMonthly}</p></>}
+                  {plan.isCustom ? <p className="text-xl font-bold">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-extrabold">{t.free}</p> : <><p className="text-3xl font-extrabold"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-ink-muted">/mo</span></p><p className="mt-1 text-xs text-ink-muted">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}/yr` : t.billedMonthly}</p></>}
                 </div>
                 <dl className="mt-4 space-y-3 border-y border-[#eee5f1] py-4 text-sm">
                   <div className="flex justify-between gap-3"><dt>{t.students}</dt><dd className="font-bold">{formatLimit(plan.maxStudents)}</dd></div>
@@ -186,7 +186,7 @@ export function PricingPage() {
         </section>
 
         <p className="mt-6 text-sm leading-6 text-[#63566a]">{t.example}</p>
-        <footer className="mt-4 border-t border-[#e8dced] pt-4 text-xs text-[#6a5b71]">{t.version}: <bdi>{COMMERCIAL_CONTRACT.version}</bdi></footer>
+        <footer className="mt-4 border-t border-border-subtle pt-4 text-xs text-ink-muted">{t.version}: <bdi>{COMMERCIAL_CONTRACT.version}</bdi></footer>
       </div>
     </main>
   );

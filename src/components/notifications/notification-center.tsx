@@ -71,23 +71,23 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
     <div role="tablist" aria-label={ui("Notification views")} className="flex gap-1 border-b border-border px-3 pt-2">
       {TABS.map(item => <Button variant="ghost" key={item.key} role="tab" type="button" aria-selected={tab === item.key} onClick={() => { setItems(null); setTab(item.key); }}
         className={cn("flex items-center gap-1 rounded-t-lg px-3 py-2 text-xs font-bold", tab === item.key ? "border-b-2 border-primary text-primary" : "text-ink-muted")} data-tab={item.key}>
-        {ui(item.label)}{badge(item.key) ? <span className="rounded-full bg-muted px-1.5 text-[10px]" data-tab-count={badge(item.key)}>{badge(item.key)}</span> : null}
+        {ui(item.label)}{badge(item.key) ? <span className="rounded-full bg-muted px-1.5 text-2xs" data-tab-count={badge(item.key)}>{badge(item.key)}</span> : null}
       </Button>)}
     </div>
-    {tab === "actions" && counts?.overdueActions ? <p className="mx-3 mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] font-bold text-rose-700" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</p> : null}
+    {tab === "actions" && counts?.overdueActions ? <p className="mx-3 mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-2xs font-bold text-rose-700" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</p> : null}
     <div className="max-h-[360px] space-y-1 overflow-y-auto p-2" aria-live="polite">
       {error ? <div role="alert" className="flex items-center justify-between gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
         : items === null ? <p role="status" className="py-8 text-center text-xs text-ink-muted">{ui("Loading…")}</p>
         : items.length === 0 ? <div className="py-10 text-center"><Bell className="mx-auto mb-2 h-7 w-7 text-ink-subtle" aria-hidden /><p className="text-sm font-bold text-ink-subtle">{tab === "actions" ? ui("No assigned actions need your attention.") : tab === "mentions" ? ui("No one has messaged you directly.") : ui("No notifications yet")}</p></div>
         : items.map(item => {
           const Icon = item.category === "ACTION" ? ClipboardList : item.category === "MENTION" ? AtSign : Bell;
-          return <article key={item.id} className={cn("rounded-xl p-2.5", !item.isRead && "bg-[#fbf0fe]/50")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead}>
+          return <article key={item.id} className={cn("rounded-xl p-2.5", !item.isRead && "bg-brand-50/50")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead}>
             <div className="flex items-start gap-2.5">
               <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", item.state === "unavailable" ? "bg-muted text-ink-subtle" : "bg-primary/10 text-primary")}><Icon className="h-4 w-4" aria-hidden /></span>
               <div className="min-w-0 flex-1">
-                <p className={cn("text-sm", !item.isRead ? "font-bold" : "font-semibold")}><bdi>{item.title}</bdi>{item.reminderCount > 0 ? <span className="ms-1 text-[10px] font-bold text-ink-muted">· {ui("{0} more", [item.reminderCount])}</span> : null}</p>
+                <p className={cn("text-sm", !item.isRead ? "font-bold" : "font-semibold")}><bdi>{item.title}</bdi>{item.reminderCount > 0 ? <span className="ms-1 text-2xs font-bold text-ink-muted">· {ui("{0} more", [item.reminderCount])}</span> : null}</p>
                 <p className="line-clamp-2 text-xs text-ink-muted"><bdi>{item.message}</bdi></p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-ink-subtle">
+                <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs font-semibold text-ink-subtle">
                   <span>{formatTime(item.createdAt)}</span>
                   {item.category === "ACTION" ? (
                     item.state === "resolved" ? <span className="inline-flex items-center gap-0.5 text-emerald-700" data-action-state="resolved"><CheckCircle2 className="h-3 w-3" aria-hidden />{item.resolution === "CANCELLED" ? ui("Withdrawn") : ui("Done")}</span>
@@ -95,11 +95,11 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
                   ) : null}
                   {item.category === "ACTION" && item.state === "open" && item.isRead ? <span data-opened-pending>{ui("Opened, but still awaiting your action.")}</span> : null}
                 </p>
-                {notice[item.id] ? <p role="status" className="mt-1 text-[11px] font-bold text-amber-800">{notice[item.id]}</p> : null}
+                {notice[item.id] ? <p role="status" className="mt-1 text-2xs font-bold text-amber-800">{notice[item.id]}</p> : null}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {item.state !== "unavailable" ? <Button size="sm" variant={item.category === "ACTION" ? "default" : "secondary"} onClick={() => void open(item)} aria-label={ui("Open {0}", [item.title])}>
                     {item.category === "MENTION" ? <><Reply className="h-3 w-3" aria-hidden />{ui("Reply")}</> : item.category === "ACTION" && item.state === "open" ? ui("Open task") : ui("Open")}
-                  </Button> : <span className="inline-flex items-center gap-1 text-[11px] font-bold text-ink-muted"><AlertTriangle className="h-3 w-3" aria-hidden />{ui("You no longer have access to this item.")}</span>}
+                  </Button> : <span className="inline-flex items-center gap-1 text-2xs font-bold text-ink-muted"><AlertTriangle className="h-3 w-3" aria-hidden />{ui("You no longer have access to this item.")}</span>}
                   {!item.isRead ? <Button size="sm" variant="ghost" onClick={() => void seen(item)} aria-label={ui("Mark {0} as seen", [item.title])}><Eye className="h-3 w-3" aria-hidden />{ui("Seen")}</Button> : null}
                 </div>
               </div>
@@ -109,7 +109,7 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
     </div>
     {tab !== "actions" && (counts?.unread ?? 0) > 0 ? <div className="border-t border-border px-4 py-2.5">
       <Button variant="secondary" size="sm" className="w-full" onClick={() => void markUpdatesRead()}>{tab === "mentions" ? ui("Mark mentions as seen") : ui("Mark all as seen")}</Button>
-      <p className="mt-1 text-center text-[10px] text-ink-subtle">{ui("Seen only clears the dot. Tasks stay open until they are done.")}</p>
+      <p className="mt-1 text-center text-2xs text-ink-subtle">{ui("Seen only clears the dot. Tasks stay open until they are done.")}</p>
     </div> : null}
   </div>;
 }

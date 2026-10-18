@@ -22,7 +22,7 @@ import {
   Undo2,
   Wallet,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState, StatCard } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame, ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
@@ -32,7 +32,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 
 const API = "/api";
 const inputClass = "w-full";
-const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
+const labelClass = "block mb-2 pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
 
 type AccountsTabKey = "chart" | "methods" | "banks" | "income" | "expense" | "profit";
 
@@ -51,7 +51,7 @@ export function AccountsTab({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
+      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
         {TABS.map((tab) => {
           const isActive = active === tab.key;
           return (
@@ -192,9 +192,9 @@ function ChartPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Chart of Accounts"}</UiText></p>
-          <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Bookkeeping heads used by the ledger"}</UiText></p>
-          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" and payroll to \"Salaries Expense\". Accounts with entries keep their type and cannot be deleted; deactivate them to stop new entries."}</UiText></p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Chart of Accounts"}</UiText></p>
+          <p className="text-sm font-bold text-ink-strong"><UiText>{"Bookkeeping heads used by the ledger"}</UiText></p>
+          <p className="text-2xs font-semibold text-ink-subtle mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" and payroll to \"Salaries Expense\". Accounts with entries keep their type and cannot be deleted; deactivate them to stop new entries."}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Account"}</UiText></BrandButton>
       </div>
@@ -212,20 +212,20 @@ function ChartPanel({ campusId }: { campusId?: string }) {
         <div className="space-y-3">
           {accounts.map((acc) => (
             <div key={acc.id} className="sk-panel p-5 flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Wallet className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-[#1f1a23]">
+                <p className="text-sm font-bold text-ink-strong">
                   {acc.name}
-                  {acc.isSystem ? <span className="ms-2 text-[9px] font-black uppercase text-ink-subtle"><UiText>{"System"}</UiText></span> : null}
-                  {acc.isActive === false ? <span className="ms-2 rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700" data-account-inactive><UiText>{"Inactive"}</UiText></span> : null}
+                  {acc.isSystem ? <span className="ms-2 text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"System"}</UiText></span> : null}
+                  {acc.isActive === false ? <span className="ms-2 rounded bg-amber-50 px-1.5 py-0.5 text-2xs font-semibold uppercase text-amber-700" data-account-inactive><UiText>{"Inactive"}</UiText></span> : null}
                 </p>
-                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {acc._count ? tr("{0} entries", [acc._count.entries]) : ""}
                 </p>
               </div>
-              <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${TYPE_COLORS[acc.type] || "bg-gray-50 text-gray-500"}`}>
+              <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg ${TYPE_COLORS[acc.type] || "bg-gray-50 text-gray-500"}`}>
                 {acc.type}
               </span>
               <Button variant="secondary" size="icon" type="button" onClick={() => openModal(acc)} className="flex items-center justify-center" aria-label={tr("Edit account")}>
@@ -380,8 +380,8 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Payment Methods"}</UiText></p>
-          <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Labels used on receipts and ledger entries"}</UiText></p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Payment Methods"}</UiText></p>
+          <p className="text-sm font-bold text-ink-strong"><UiText>{"Labels used on receipts and ledger entries"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Method"}</UiText></BrandButton>
       </div>
@@ -399,12 +399,12 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
         <div className="space-y-3">
           {methods.map((m) => (
             <div key={m.id} className="sk-panel p-5 flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <CreditCard className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-[#1f1a23]">{m.name}</p>
-                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{m.isActive ? tr("Active") : tr("Inactive")}</p>
+                <p className="text-sm font-bold text-ink-strong">{m.name}</p>
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">{m.isActive ? tr("Active") : tr("Inactive")}</p>
               </div>
               <Button aria-pressed={m.isActive} variant="choice"
                 type="button"
@@ -573,8 +573,8 @@ function BanksPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Bank Accounts"}</UiText></p>
-          <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Deposit accounts entries can be attributed to"}</UiText></p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Bank Accounts"}</UiText></p>
+          <p className="text-sm font-bold text-ink-strong"><UiText>{"Deposit accounts entries can be attributed to"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Bank Account"}</UiText></BrandButton>
       </div>
@@ -592,18 +592,18 @@ function BanksPanel({ campusId }: { campusId?: string }) {
         <div className="space-y-3">
           {banks.map((b) => (
             <div key={b.id} className="sk-panel p-5 flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Building2 className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-[#1f1a23]">{b.name}</p>
-                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-sm font-bold text-ink-strong">{b.name}</p>
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {[b.bankName, b.accountNumber].filter(Boolean).join(" · ") || "—"}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
-                <p className="text-sm font-black text-[#1f1a23]">{formatPKR(b.openingBalance, b.currency)}</p>
+                <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
+                <p className="text-sm font-bold text-ink-strong">{formatPKR(b.openingBalance, b.currency)}</p>
               </div>
               <Button aria-pressed={b.isActive} variant="choice"
                 type="button"
@@ -815,12 +815,12 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
     <div className="space-y-4" data-ledger-panel={kind}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}</p>
-          <p className="text-sm font-black text-[#1f1a23]" data-ledger-total={kindTotal} aria-live="polite">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}</p>
+          <p className="text-sm font-bold text-ink-strong" data-ledger-total={kindTotal} aria-live="polite">
             <span className={kind === "INCOME" ? "text-emerald-600" : "text-rose-600"}><bdi>{money(kindTotal, shownCurrency)}</bdi></span>{" "}
             {tr("total across {0} matching records", [totals?.count ?? 0])}
           </p>
-          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5" data-ledger-scope>
+          <p className="text-2xs font-semibold text-ink-subtle mt-0.5" data-ledger-scope>
             {tr("{0} only · {1} to {2} · corrections are negative rows that offset the entry they reverse.", [shownCurrency, from ? formatDate(from) : tr("first entry"), to ? formatDate(to) : tr("today")])}
           </p>
         </div>
@@ -831,7 +831,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       </div>
 
       <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-3 rounded-2xl border border-border p-3" data-ledger-filters>
-        <legend className="px-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">{tr("Filters")}</legend>
+        <legend className="px-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{tr("Filters")}</legend>
         <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => setCurrency(e.target.value))} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
         <label className="text-xs font-bold">{tr("From")}<SystemInput type="date" value={from} onChange={(e) => setFilter(() => setFrom(e.target.value))} className="w-full" /></label>
         <label className="text-xs font-bold">{tr("To")}<SystemInput type="date" value={to} onChange={(e) => setFilter(() => setTo(e.target.value))} className="w-full" /></label>
@@ -870,18 +870,18 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
                     {e.kind === "INCOME" ? <TrendingUp className="w-5 h-5" aria-hidden="true" /> : <TrendingDown className="w-5 h-5" aria-hidden="true" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-[#1f1a23] break-words"><bdi>{e.sourceName}</bdi></p>
-                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
+                    <p className="text-sm font-bold text-ink-strong break-words"><bdi>{e.sourceName}</bdi></p>
+                    <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                       <span className="rounded bg-muted px-1.5 py-0.5">{tr(SOURCE_LABEL[e.source])}</span>
                       {" · "}<bdi>{e.account.name}</bdi>{e.account.isActive === false ? ` (${tr("inactive")})` : ""}
                       {e.bankAccount ? <> · <bdi>{e.bankAccount.name}</bdi></> : null}
                       {" · "}{formatDate(e.date)}
                       {reference ? <> · <bdi>{reference}</bdi></> : null}
                     </p>
-                    {e.reversedBy ? <p className="text-[10px] font-bold text-amber-700 mt-0.5">{tr("Corrected on {0}; the original stays for audit.", [formatDate(e.reversedBy.date)])}</p> : null}
-                    {e.note ? <p className="text-[10px] font-semibold text-ink-subtle mt-0.5"><bdi>{e.note}</bdi></p> : null}
+                    {e.reversedBy ? <p className="text-2xs font-bold text-amber-700 mt-0.5">{tr("Corrected on {0}; the original stays for audit.", [formatDate(e.reversedBy.date)])}</p> : null}
+                    {e.note ? <p className="text-2xs font-semibold text-ink-subtle mt-0.5"><bdi>{e.note}</bdi></p> : null}
                   </div>
-                  <p className={`text-sm font-black ${e.amount < 0 ? "text-ink-muted" : e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(e.amount, e.currency)}</bdi></p>
+                  <p className={`text-sm font-bold ${e.amount < 0 ? "text-ink-muted" : e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(e.amount, e.currency)}</bdi></p>
                   {correctable && (
                     <Button variant="secondary" size="sm" type="button" onClick={() => { setReason(""); setCorrectionError(""); setCorrecting(e); }} aria-label={tr("Correct entry {0}", [e.sourceName])}>
                       <Undo2 className="w-4 h-4" aria-hidden="true" />{tr("Correct")}
@@ -1052,7 +1052,7 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
 
           {Object.keys(report.bySource).length > 0 ? (
             <table className="w-full text-xs" data-profit-sources>
-              <caption className="text-start text-[9px] font-black uppercase tracking-wider text-ink-subtle pb-2">{tr("By source")}</caption>
+              <caption className="text-start text-2xs font-semibold uppercase tracking-wider text-ink-subtle pb-2">{tr("By source")}</caption>
               <thead><tr className="text-start text-ink-subtle"><th scope="col" className="text-start py-1">{tr("Source")}</th><th scope="col" className="text-end">{tr("Income")}</th><th scope="col" className="text-end">{tr("Expense")}</th><th scope="col" className="text-end">{tr("Rows")}</th></tr></thead>
               <tbody>{Object.entries(report.bySource).map(([key, row]) => <tr key={key} className="border-t border-border"><th scope="row" className="text-start py-1.5 font-bold">{tr(SOURCE_LABEL[key as LedgerRow["source"]] ?? key)}</th><td className="text-end"><bdi>{money(row.income, report.currency)}</bdi></td><td className="text-end"><bdi>{money(row.expense, report.currency)}</bdi></td><td className="text-end">{row.count}</td></tr>)}</tbody>
             </table>
@@ -1066,10 +1066,10 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
                     {b.type === "INCOME" ? <TrendingUp className="w-5 h-5" aria-hidden="true" /> : <TrendingDown className="w-5 h-5" aria-hidden="true" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-[#1f1a23]"><bdi>{b.accountName}</bdi>{b.accountActive ? "" : ` (${tr("inactive")})`}</p>
-                    <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{tr("{0} entries", [b.entries])}</p>
+                    <p className="text-sm font-bold text-ink-strong"><bdi>{b.accountName}</bdi>{b.accountActive ? "" : ` (${tr("inactive")})`}</p>
+                    <p className="text-2xs font-bold text-ink-subtle mt-0.5">{tr("{0} entries", [b.entries])}</p>
                   </div>
-                  <p className={`text-sm font-black ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(b.amount, report.currency)}</bdi></p>
+                  <p className={`text-sm font-bold ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(b.amount, report.currency)}</bdi></p>
                 </div>
               ))}
             </div>
@@ -1091,12 +1091,12 @@ function SkeletonRows() {
         <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
           <div className="flex items-start justify-between mb-3">
             <div className="space-y-2">
-              <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-3 w-40 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-4 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-3 w-40 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             </div>
-            <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div className="h-8 w-8 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
           </div>
-          <div className="h-12 rounded-xl bg-[#f3f4f9]/50 skeleton-shimmer" />
+          <div className="h-12 rounded-xl bg-muted/50 skeleton-shimmer" />
         </div>
       ))}
     </div>

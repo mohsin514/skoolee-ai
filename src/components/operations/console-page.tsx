@@ -100,7 +100,7 @@ export function ConsolePage<T extends string>({
   const copy = (value: ReactNode) => (typeof value === "string" ? ui(value) : value);
   return (
     <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")} >
-      <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
+      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span aria-hidden className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", t.rail)} />
         <span
           aria-hidden
@@ -117,12 +117,12 @@ export function ConsolePage<T extends string>({
             </span>
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h1 className="break-words text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h1 className="break-words text-lg font-bold leading-tight tracking-tight text-ink-strong">
                   {copy(title)}
                 </h1>
                 <span
                   className={cn(
-                    "hidden shrink-0 truncate text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline",
+                    "hidden shrink-0 truncate text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline",
                     t.text,
                   )}
                 >
@@ -143,7 +143,7 @@ export function ConsolePage<T extends string>({
 
       <div
         className={cn(
-          "custom-scrollbar flex-1 overflow-y-auto bg-[#fbf0fe]/20 p-4 sm:p-5",
+          "custom-scrollbar flex-1 overflow-y-auto bg-brand-50/20 p-4 sm:p-5",
           contentClassName,
         )}
       >
@@ -172,10 +172,10 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { 
       aria-label={label}
       className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")}
     >
-      <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
+      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
           aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#8127cf] to-[#9c48ea] opacity-30"
+          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-primary to-brand-400 opacity-30"
         />
         <div className="relative flex items-center gap-3 px-4 py-3 sm:px-5">
           <SkeletonBlock className="h-9 w-9 shrink-0 rounded-xl" />
@@ -188,19 +188,19 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { 
 
       {/* The strip's shape is known before the session is: it is a static
           list, so drawing it here keeps the header from shifting. */}
-      <div className="flex items-center gap-1 border-b border-[#cfc2d6]/12 bg-white/70 px-3 py-1.5">
+      <div className="flex items-center gap-1 border-b border-edge/12 bg-white/70 px-3 py-1.5">
         {[...Array(6)].map((_, i) => (
           <SkeletonBlock key={i} className="h-8 w-24 shrink-0 rounded-lg" />
         ))}
       </div>
 
-      <div className="custom-scrollbar flex-1 overflow-y-auto bg-[#fbf0fe]/20 p-4 sm:p-5">
+      <div className="custom-scrollbar flex-1 overflow-y-auto bg-brand-50/20 p-4 sm:p-5">
         <div className="space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[...Array(cards)].map((_, i) => (
               <div
                 key={i}
-                className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
+                className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
               >
                 <SkeletonBlock className="mb-3 h-9 w-9 rounded-xl" />
                 <SkeletonBlock className="h-4 w-24" />
@@ -208,7 +208,7 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { 
               </div>
             ))}
           </div>
-          <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
             <div className="mb-3 flex items-center gap-2.5">
               <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
               <SkeletonBlock className="h-4 w-40" />
@@ -265,10 +265,10 @@ export function ConsoleQuickLink({
       >
         <Icon className="h-4 w-4" />
       </span>
-      <p className="text-sm font-black tracking-tight text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
+      <p className="text-sm font-bold tracking-tight text-ink-strong transition-colors group-hover:text-primary">
         {label}
       </p>
-      <p className="mt-1 text-[11px] font-semibold leading-snug text-ink-muted">{description}</p>
+      <p className="mt-1 text-2xs font-semibold leading-snug text-ink-muted">{description}</p>
     </Button>
   );
 }

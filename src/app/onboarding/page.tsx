@@ -40,7 +40,7 @@ import {
   type StepErrors,
 } from "@/lib/onboarding/setup-state";
 import { logout } from '@/app/actions/auth/logout';
-import { toast } from 'sonner';
+import { toast } from "@/components/ui/toast";
 import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from '@/config/boards';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -340,8 +340,8 @@ export default function OnboardingWizard() {
   // ── Loading / no-access / error states ──
   if (load.kind === "loading" || (load.kind === "ready" && (!view || !draft))) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#fff7fe] gap-4" role="status" aria-live="polite">
-        <Loader2 className="h-8 w-8 text-[#8127cf] animate-spin" aria-hidden="true" />
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-brand-50 gap-4" role="status" aria-live="polite">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" aria-hidden="true" />
         <p className="text-xs font-bold text-ink">{t.loading}</p>
       </div>
     );
@@ -349,10 +349,10 @@ export default function OnboardingWizard() {
   if (load.kind === "noAccess" || load.kind === "error") {
     const copy = onboardingCopy(typeof document !== "undefined" ? document.documentElement.lang : "en");
     return (
-      <main className="min-h-screen bg-[#fff7fe] flex items-center justify-center p-6">
+      <main className="min-h-screen bg-brand-50 flex items-center justify-center p-6">
         <div className="sk-panel max-w-md w-full p-8 space-y-4 text-center">
-          <Lock className="mx-auto h-8 w-8 text-[#8127cf]" aria-hidden="true" />
-          <h1 className="text-xl font-black text-ink">{load.kind === "noAccess" ? copy.noAccessTitle : copy.retry}</h1>
+          <Lock className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
+          <h1 className="text-xl font-bold text-ink">{load.kind === "noAccess" ? copy.noAccessTitle : copy.retry}</h1>
           <p className="text-sm text-ink-muted">{load.kind === "noAccess" ? copy.noAccessBody : copy.loadFailed}</p>
           <div className="flex flex-wrap justify-center gap-3">
             {load.kind === "error" && <Button onClick={() => void reload()}>{copy.retry}</Button>}
@@ -403,21 +403,21 @@ export default function OnboardingWizard() {
   };
 
   return (
-    <div lang={language} dir={rtl ? "rtl" : "ltr"} className="min-h-screen bg-[#fff7fe] flex font-sans text-[#1f1a23] selection:bg-[#8127cf]/30">
+    <div lang={language} dir={rtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 flex font-sans text-ink-strong selection:bg-primary/30">
 
       {/* ─── SIDEBAR (desktop) ─── */}
-      <aside className="w-72 bg-white/50 backdrop-blur-md border-e border-[#cfc2d6]/30 hidden lg:flex flex-col p-8 fixed h-full z-50 overflow-y-auto">
+      <aside className="w-72 bg-white/50 backdrop-blur-md border-e border-edge/30 hidden lg:flex flex-col p-8 fixed h-full z-50 overflow-y-auto">
         <div className="mb-8">
           <SkooleeLogo size="1.4rem" />
-          <p className="text-[10px] font-bold text-ink-muted uppercase tracking-normal leading-none mt-1">{t.wizard}</p>
+          <p className="text-2xs font-semibold text-ink-muted uppercase tracking-normal leading-none mt-1">{t.wizard}</p>
         </div>
         <div className="mb-8">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
-            <span className="text-[10px] font-black text-[#8127cf]">{Math.round(progress)}%</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
+            <span className="text-2xs font-bold text-primary">{Math.round(progress)}%</span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#cfc2d6]/25" aria-hidden="true">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500" style={{ width: `${progress}%` }} />
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-edge/25" aria-hidden="true">
+            <div className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
         <nav aria-label={t.wizard}>
@@ -444,15 +444,15 @@ export default function OnboardingWizard() {
         </Button>
       </aside>
 
-      <main className="flex-1 lg:ms-72 min-h-screen min-w-0 flex flex-col bg-[#fbf0fe]/50">
+      <main className="flex-1 lg:ms-72 min-h-screen min-w-0 flex flex-col bg-brand-50/50">
         {/* ─── MOBILE STEP BAR ─── */}
         <div className="lg:hidden px-4 pt-5 pb-2">
           <div className="flex items-center justify-between gap-3 mb-3">
             <SkooleeLogo size="1.2rem" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
           </div>
-          <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-[#cfc2d6]/25" aria-hidden="true">
-            <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500" style={{ width: `${progress}%` }} />
+          <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-edge/25" aria-hidden="true">
+            <div className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
           <nav aria-label={t.wizard}>
             <ol className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -474,14 +474,14 @@ export default function OnboardingWizard() {
           </nav>
         </div>
 
-        <header className="px-4 md:px-10 py-4 flex flex-wrap items-center justify-between gap-3 bg-white/50 backdrop-blur-md sticky top-0 z-40 border-b border-[#cfc2d6]/10">
+        <header className="px-4 md:px-10 py-4 flex flex-wrap items-center justify-between gap-3 bg-white/50 backdrop-blur-md sticky top-0 z-40 border-b border-edge/10">
           {/* Structure stays visible for the whole journey. */}
-          <div className="flex min-w-0 items-center gap-2 text-[11px] font-black text-[#8127cf]" data-testid="structure-summary">
+          <div className="flex min-w-0 items-center gap-2 text-2xs font-bold text-primary" data-testid="structure-summary">
             <School className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
             <span className="truncate">{t.types[type].short}{mode ? ` · ${t.modes[mode].short}` : ""}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-ink-muted" role="status" aria-live="polite">
+            <span className="text-2xs font-bold text-ink-muted" role="status" aria-live="polite">
               {saving ? t.saving : !dirty ? <><CheckCircle2 className="inline h-3 w-3 text-emerald-600" aria-hidden="true" /> {t.savedAt}</> : null}
             </span>
             <Button variant="outline" size="sm" onClick={() => void saveAndExit()} disabled={saving || activating}>{t.saveExit}</Button>
@@ -492,8 +492,8 @@ export default function OnboardingWizard() {
         <div className="p-4 md:p-10 flex-1 flex flex-col items-center">
           <div className="w-full max-w-4xl space-y-5">
             {v.actor.kind === "delegate" && (
-              <p role="note" className="rounded-2xl border border-[#cfc2d6]/40 bg-white p-4 text-sm font-semibold text-ink">
-                <ShieldCheck className="me-2 inline h-4 w-4 text-[#8127cf]" aria-hidden="true" />
+              <p role="note" className="rounded-2xl border border-edge/40 bg-white p-4 text-sm font-semibold text-ink">
+                <ShieldCheck className="me-2 inline h-4 w-4 text-primary" aria-hidden="true" />
                 {t.delegateBanner} {v.actor.canPurchase ? t.delegateBannerBuy : t.delegateBannerNoBuy}
               </p>
             )}
@@ -520,7 +520,7 @@ export default function OnboardingWizard() {
               <section className="sk-panel sk-rise p-5 md:p-10 space-y-8" aria-labelledby="step-heading">
                 <StepHeading refEl={headingRef} icon={Layers} title={t.structureTitle} intro={t.structureIntro} />
                 <fieldset className="space-y-3" id="field-adoptionMode" tabIndex={-1}>
-                  <legend className="mb-3 text-sm font-black text-ink">{t.modeQuestion}</legend>
+                  <legend className="mb-3 text-sm font-bold text-ink">{t.modeQuestion}</legend>
                   <div className="grid gap-3 md:grid-cols-2">
                     {(["EXAM_STUDIO", "FULL_OPERATIONS"] as const).map((option) => (
                       <ChoiceCard key={option} name="adoptionMode" checked={mode === option} onSelect={() => { setMode(option); setErrors({}); }}
@@ -529,7 +529,7 @@ export default function OnboardingWizard() {
                   </div>
                 </fieldset>
                 <fieldset className="space-y-3">
-                  <legend className="mb-3 text-sm font-black text-ink">{t.typeQuestion}</legend>
+                  <legend className="mb-3 text-sm font-bold text-ink">{t.typeQuestion}</legend>
                   <div className="grid gap-3 md:grid-cols-2">
                     {(["STANDALONE", "GROUP"] as const).map((option) => (
                       <ChoiceCard key={option} name="institutionType" checked={type === option} onSelect={() => setType(option)}
@@ -538,8 +538,8 @@ export default function OnboardingWizard() {
                   </div>
                 </fieldset>
                 {typeChanged && (
-                  <div role="status" className="rounded-2xl border border-[#cfc2d6]/50 bg-[#fbf0fe] p-4 text-sm text-ink space-y-1" data-testid="shape-preview">
-                    <p className="font-black">{fill(t.shapePreviewTitle, t.types[type].label)}</p>
+                  <div role="status" className="rounded-2xl border border-edge/50 bg-brand-50 p-4 text-sm text-ink space-y-1" data-testid="shape-preview">
+                    <p className="font-bold">{fill(t.shapePreviewTitle, t.types[type].label)}</p>
                     <p>{type === "STANDALONE" ? fill(t.shapeToStandalone, d.campuses.length) : t.shapeToGroup}</p>
                     <p>{fill(t.shapeCapacity, t.campusCount(limit))}</p>
                     <p>{t.shapeReopen}</p>
@@ -555,15 +555,15 @@ export default function OnboardingWizard() {
                 <StepHeading refEl={headingRef} icon={Building} title={isGroup ? t.identityTitleGroup : t.identityTitleSchool} intro={isGroup ? t.identityIntroGroup : t.identityIntroSchool} />
                 <div className="grid md:grid-cols-2 gap-8 mt-8">
                   <div className="space-y-5">
-                    <div className="bg-white rounded-[24px] border-2 border-dashed border-[#8127cf]/25 p-5 flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-[#fbf0fe] overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="bg-white rounded-[24px] border-2 border-dashed border-primary/25 p-5 flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl bg-brand-50 overflow-hidden flex items-center justify-center shrink-0">
                         {resolveMediaUrl(s.logoUrl)
                           ? <Image src={resolveMediaUrl(s.logoUrl)!} alt={t.logo} width={64} height={64} className="w-full h-full object-cover" unoptimized />
-                          : <ImageIcon className="w-7 h-7 text-[#8127cf]/40" aria-hidden="true" />}
+                          : <ImageIcon className="w-7 h-7 text-primary/40" aria-hidden="true" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-black text-ink-muted uppercase mb-1">{t.logo} <span className="font-semibold normal-case">({t.optional})</span></p>
-                        <p className="text-[11px] font-semibold text-ink-subtle mb-3">{t.logoHint}</p>
+                        <p className="text-2xs font-semibold text-ink-muted uppercase mb-1">{t.logo} <span className="font-semibold normal-case">({t.optional})</span></p>
+                        <p className="text-2xs font-semibold text-ink-subtle mb-3">{t.logoHint}</p>
                         <div className="flex flex-wrap items-center gap-2">
                           <label className={buttonVariants({ size: "sm", className: logoUploading ? "cursor-wait opacity-60" : "cursor-pointer" })}>
                             {logoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
@@ -586,10 +586,10 @@ export default function OnboardingWizard() {
                     </div>
                     <InputField field="website" label={t.website} value={s.website} onChange={(val) => setSchool({ website: val })} placeholder="www.school.edu.pk" icon={Globe} type="url" />
                     <InputField field="email" label={t.contactEmail} value={s.email} onChange={() => undefined} placeholder="" icon={Mail} type="email" readonly />
-                    <div className="bg-[#fbf0fe] p-5 rounded-[24px] border border-[#cfc2d6]/20">
+                    <div className="bg-brand-50 p-5 rounded-[24px] border border-edge/20">
                       <div className="flex items-center justify-between mb-4 gap-3">
-                        <Label htmlFor="field-regId" className="text-[11px] font-black text-[#8127cf] uppercase">{isGroup ? t.schoolId : t.campusId}</Label>
-                        <div className="bg-white rounded-lg p-1 flex gap-1 border border-[#cfc2d6]/10" role="group" aria-label={isGroup ? t.schoolId : t.campusId}>
+                        <Label htmlFor="field-regId" className="text-2xs font-semibold text-primary uppercase">{isGroup ? t.schoolId : t.campusId}</Label>
+                        <div className="bg-white rounded-lg p-1 flex gap-1 border border-edge/10" role="group" aria-label={isGroup ? t.schoolId : t.campusId}>
                           <Button size="sm" aria-pressed={isGroup ? s.autoId : s.primaryCampusAutoId} variant="choice" onClick={() => isGroup ? setSchool({ autoId: true, regId: generateId('SKL') }) : setSchool({ primaryCampusAutoId: true, primaryCampusRegId: generateId('BR') })}>{t.auto}</Button>
                           <Button size="sm" aria-pressed={isGroup ? !s.autoId : !s.primaryCampusAutoId} variant="choice" onClick={() => isGroup ? setSchool({ autoId: false }) : setSchool({ primaryCampusAutoId: false })}>{t.manual}</Button>
                         </div>
@@ -599,11 +599,11 @@ export default function OnboardingWizard() {
                         onChange={(e) => isGroup ? setSchool({ regId: e.target.value.toUpperCase() }) : setSchool({ primaryCampusRegId: e.target.value.toUpperCase() })}
                         readOnly={isGroup ? s.autoId : s.primaryCampusAutoId}
                         className="text-center" />
-                      <p id="regId-hint" className="text-[11px] text-ink-subtle mt-3 font-bold">{isGroup ? t.idHintGroup : t.idHintCampus}</p>
+                      <p id="regId-hint" className="text-2xs text-ink-subtle mt-3 font-bold">{isGroup ? t.idHintGroup : t.idHintCampus}</p>
                       {errors.regId && <p role="alert" className="text-sm text-destructive mt-1">{t.errors[errors.regId]}</p>}
                     </div>
                     {!isGroup && (
-                      <p className="flex items-start gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 p-4 text-[12px] font-bold text-emerald-900">
+                      <p className="flex items-start gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 p-4 text-xs font-bold text-emerald-900">
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" /> {t.primaryCampusNote}
                       </p>
                     )}
@@ -694,8 +694,8 @@ export default function OnboardingWizard() {
                 <div className="lg:col-span-2">
                   <div className="sk-panel sk-rise p-5 md:p-6 flex flex-col">
                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-50 gap-2">
-                      <h3 className="text-[11px] font-black uppercase flex items-center gap-2"><Users className="w-4 h-4 text-[#8127cf]" aria-hidden="true" /> {t.yourCampuses}</h3>
-                      <span className="text-[10px] font-black text-[#8127cf] bg-[#fbf0fe] px-3 py-1 rounded-full">{fill(t.added, d.campuses.length)}</span>
+                      <h3 className="text-2xs font-semibold uppercase flex items-center gap-2"><Users className="w-4 h-4 text-primary" aria-hidden="true" /> {t.yourCampuses}</h3>
+                      <span className="text-2xs font-bold text-primary bg-brand-50 px-3 py-1 rounded-full">{fill(t.added, d.campuses.length)}</span>
                     </div>
                     {overLimit && (
                       <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
@@ -707,11 +707,11 @@ export default function OnboardingWizard() {
                       {d.campuses.map((c, i) => {
                         const isDraft = limit >= 0 && i >= limit;
                         return (
-                          <li key={c.key} id={`campus-${c.key}`} tabIndex={-1} className={`p-4 rounded-[18px] border flex items-start justify-between gap-3 ${editingKey === c.key ? 'bg-[#8127cf]/10 border-[#8127cf]/30' : 'bg-[#fbf0fe]/50 border-transparent'} ${errors[`campus:${c.key}`] ? 'border-destructive' : ''}`}>
+                          <li key={c.key} id={`campus-${c.key}`} tabIndex={-1} className={`p-4 rounded-[18px] border flex items-start justify-between gap-3 ${editingKey === c.key ? 'bg-primary/10 border-primary/30' : 'bg-brand-50/50 border-transparent'} ${errors[`campus:${c.key}`] ? 'border-destructive' : ''}`}>
                             <div className="min-w-0">
-                              <p className="text-sm font-black text-ink leading-tight break-words">{c.name}</p>
-                              <p className="text-[11px] font-bold text-ink-subtle mt-1"><span>{c.city}</span> · <bdi dir="ltr">{c.regId}</bdi></p>
-                              <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
+                              <p className="text-sm font-bold text-ink leading-tight break-words">{c.name}</p>
+                              <p className="text-2xs font-bold text-ink-subtle mt-1"><span>{c.city}</span> · <bdi dir="ltr">{c.regId}</bdi></p>
+                              <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
                             </div>
                             <div className="flex shrink-0 gap-1">
                               <Button variant="secondary" size="icon" onClick={() => editCampus(c)} aria-label={`${t.editCampus}: ${c.name}`} disabled={editingKey === c.key}><Pencil className="w-4 h-4" /></Button>
@@ -724,7 +724,7 @@ export default function OnboardingWizard() {
                     {d.campuses.length === 0 && (
                       <div className="flex flex-col items-center justify-center text-center text-ink-subtle py-12">
                         <Building className="w-10 h-10 mb-2" aria-hidden="true" />
-                        <p className="text-xs font-black">{t.noCampuses}</p>
+                        <p className="text-xs font-bold">{t.noCampuses}</p>
                       </div>
                     )}
                   </div>
@@ -738,7 +738,7 @@ export default function OnboardingWizard() {
                 <StepHeading refEl={headingRef} icon={CalendarRange} title={t.academicTitle} intro={t.academicIntro} />
                 <div className="grid md:grid-cols-2 gap-8 mt-8">
                   <div className="space-y-5">
-                    <p className="flex items-center gap-2 text-[11px] font-black uppercase text-[#8127cf]"><Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> {t.currentSession}</p>
+                    <p className="flex items-center gap-2 text-2xs font-semibold uppercase text-primary"><Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> {t.currentSession}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <InputField field="academicYear" error={errors.academicYear && t.errors[errors.academicYear]} label={t.academicYear} value={s.academicYear} onChange={setAcademicYear} placeholder={String(thisYear)} icon={CalendarDays} inputMode="numeric" required />
                       <div className="space-y-1.5">
@@ -753,8 +753,8 @@ export default function OnboardingWizard() {
                         {errors.sessionLabel && <p role="alert" className="text-sm text-destructive">{t.errors[errors.sessionLabel]}</p>}
                       </div>
                     </div>
-                    <p className="flex items-start gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-[11px] font-bold text-ink-muted">
-                      <AlertCircle className="mt-0.5 w-3.5 h-3.5 shrink-0 text-[#8127cf]" aria-hidden="true" />
+                    <p className="flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-2xs font-bold text-ink-muted">
+                      <AlertCircle className="mt-0.5 w-3.5 h-3.5 shrink-0 text-primary" aria-hidden="true" />
                       {fill(t.sessionHint, sessionLabelFor(Number(s.academicYear) || thisYear), Number(s.academicYear) || thisYear)}
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -769,12 +769,12 @@ export default function OnboardingWizard() {
                           {TIMEZONES.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
                         </SystemSelect>
                       </InputGroup>
-                      <p id="timezone-hint" className="text-[11px] font-bold text-ink-subtle">{t.timezoneHint}</p>
+                      <p id="timezone-hint" className="text-2xs font-bold text-ink-subtle">{t.timezoneHint}</p>
                     </div>
                   </div>
                   <div className="space-y-5">
-                    <p className="flex items-center gap-2 text-[11px] font-black uppercase text-[#8127cf]"><CalendarRange className="w-3.5 h-3.5" aria-hidden="true" /> {t.workingWeek}</p>
-                    <p className="text-[12px] font-semibold text-ink-muted">{t.workingWeekHint}</p>
+                    <p className="flex items-center gap-2 text-2xs font-semibold uppercase text-primary"><CalendarRange className="w-3.5 h-3.5" aria-hidden="true" /> {t.workingWeek}</p>
+                    <p className="text-xs font-semibold text-ink-muted">{t.workingWeekHint}</p>
                     <div className="grid grid-cols-7 gap-1.5" id="field-weekends" tabIndex={-1}>
                       {WEEK_DAYS.map((day) => {
                         const off = s.weekends.includes(day);
@@ -782,17 +782,17 @@ export default function OnboardingWizard() {
                           <Button variant="choice" key={day} type="button" onClick={() => toggleWorkingDay(day)} aria-pressed={!off}
                             aria-label={`${weekdayName(day, language, "long")} — ${off ? t.dayClosed : t.dayWorking}`}
                             className="min-w-0 flex-col px-0.5 py-3">
-                            <span className="text-[10px] font-black">{weekdayName(day, language, "short")}</span>
-                            <span className={`h-1.5 w-1.5 rounded-full ${off ? "bg-[#cfc2d6]" : "bg-[#8127cf]"}`} aria-hidden="true" />
+                            <span className="text-2xs font-bold">{weekdayName(day, language, "short")}</span>
+                            <span className={`h-1.5 w-1.5 rounded-full ${off ? "bg-edge" : "bg-primary"}`} aria-hidden="true" />
                           </Button>
                         );
                       })}
                     </div>
-                    <div className="rounded-[24px] border border-[#cfc2d6]/20 bg-[#fbf0fe] p-5 space-y-2">
-                      <p className="text-[11px] font-black text-[#8127cf]">{t.workingDays(workingDays.length)}</p>
-                      <p className="text-[12px] font-bold text-ink">{t.open}: {workingDays.map((day) => weekdayName(day, language, "short")).join(listSeparator) || "—"}</p>
-                      <p className="text-[12px] font-bold text-ink-muted">{t.closed}: {offDays.map((day) => weekdayName(day, language, "long")).join(listSeparator) || t.noWeekend}</p>
-                      <p className="border-t border-[#cfc2d6]/20 pt-2 text-[11px] font-bold text-ink-subtle">{t.appliedTo}</p>
+                    <div className="rounded-[24px] border border-edge/20 bg-brand-50 p-5 space-y-2">
+                      <p className="text-2xs font-bold text-primary">{t.workingDays(workingDays.length)}</p>
+                      <p className="text-xs font-bold text-ink">{t.open}: {workingDays.map((day) => weekdayName(day, language, "short")).join(listSeparator) || "—"}</p>
+                      <p className="text-xs font-bold text-ink-muted">{t.closed}: {offDays.map((day) => weekdayName(day, language, "long")).join(listSeparator) || t.noWeekend}</p>
+                      <p className="border-t border-edge/20 pt-2 text-2xs font-bold text-ink-subtle">{t.appliedTo}</p>
                     </div>
                   </div>
                 </div>
@@ -807,13 +807,13 @@ export default function OnboardingWizard() {
                   <StepHeading refEl={headingRef} icon={ClipboardCheck} title={t.reviewTitle} intro={t.reviewIntro} />
                   {success && (
                     <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-                      <p className="font-black">{t.successTitle}</p>
+                      <p className="font-bold">{t.successTitle}</p>
                       <p className="text-sm">{fill(t.successBody, success.activated, success.drafts)} {t.openingWorkspace}</p>
                     </div>
                   )}
                   {failed && !success && (
                     <div role="alert" className="rounded-2xl border border-status-error-border bg-status-error-surface p-4 text-status-error-text space-y-2" data-testid="setup-failure">
-                      <p className="font-black">{t.failedTitle}</p>
+                      <p className="font-bold">{t.failedTitle}</p>
                       <p className="text-sm">{v.lastError}</p>
                       <p className="text-sm">{t.failedBody}</p>
                       {v.failedStep && v.failedStep !== "review" && flow.includes(v.failedStep as SetupStepId) && (
@@ -828,7 +828,7 @@ export default function OnboardingWizard() {
                     <SummaryItem icon={Building} label={t.activatedCapacity} value={fill(t.capacityValue, split.activate.length, limit < 0 ? "∞" : limit)} />
                   </div>
                   <div>
-                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-3">{t.identity}</h3>
+                    <h3 className="text-2xs font-semibold text-primary uppercase mb-3">{t.identity}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <SummaryItem icon={Building} label={isGroup ? t.groupName : t.schoolName} value={s.name} />
                       <SummaryItem icon={Hash} label={isGroup ? t.schoolId : t.campusId} value={isGroup ? s.regId : s.primaryCampusRegId} ltr />
@@ -837,7 +837,7 @@ export default function OnboardingWizard() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-3">{t.academicDefaults}</h3>
+                    <h3 className="text-2xs font-semibold text-primary uppercase mb-3">{t.academicDefaults}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <SummaryItem icon={CalendarRange} label={t.session} value={`${s.sessionLabel} (${s.academicYear})`} ltr />
                       <SummaryItem icon={Clock} label={t.timezone} value={s.timezone} ltr />
@@ -846,28 +846,28 @@ export default function OnboardingWizard() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-3">{t.campuses}</h3>
+                    <h3 className="text-2xs font-semibold text-primary uppercase mb-3">{t.campuses}</h3>
                     <ul className="grid gap-2 sm:grid-cols-2" data-testid="review-campuses">
                       {planned.map((c, i) => {
                         const isDraft = i >= split.activate.length;
                         return (
-                          <li key={c.key} className="flex items-start justify-between gap-3 rounded-xl bg-[#fbf0fe]/60 p-3">
+                          <li key={c.key} className="flex items-start justify-between gap-3 rounded-xl bg-brand-50/60 p-3">
                             <div className="min-w-0">
-                              <p className="text-sm font-black break-words">{isGroup ? c.name : t.primaryCampus}</p>
-                              <p className="text-[11px] font-bold text-ink-subtle">{c.city} · <bdi dir="ltr">{c.regId}</bdi></p>
+                              <p className="text-sm font-bold break-words">{isGroup ? c.name : t.primaryCampus}</p>
+                              <p className="text-2xs font-bold text-ink-subtle">{c.city} · <bdi dir="ltr">{c.regId}</bdi></p>
                             </div>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
                           </li>
                         );
                       })}
                     </ul>
                   </div>
-                  <div className="rounded-2xl border border-[#cfc2d6]/30 p-4">
-                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-2">{t.authoritative}</h3>
+                  <div className="rounded-2xl border border-edge/30 p-4">
+                    <h3 className="text-2xs font-semibold text-primary uppercase mb-2">{t.authoritative}</h3>
                     <p className="text-sm text-ink">{mode === "EXAM_STUDIO" ? t.authoritativeExam : t.authoritativeFull}</p>
                   </div>
                   <div>
-                    <h3 className="text-[11px] font-black text-[#8127cf] uppercase mb-2">{t.unresolved}</h3>
+                    <h3 className="text-2xs font-semibold text-primary uppercase mb-2">{t.unresolved}</h3>
                     <ul className="list-disc ps-5 text-sm text-ink-muted space-y-1" data-testid="optional-work">
                       {unresolvedOptionalWork(type, mode, d).map((key) => <li key={key}>{t.optionalWork[key]}</li>)}
                     </ul>
@@ -947,7 +947,7 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
 
   return (
     <section className="sk-panel p-5 md:p-6 space-y-3" aria-labelledby="handover-title" data-testid="handover-panel">
-      <h2 id="handover-title" className="flex items-center gap-2 text-sm font-black text-ink"><UserPlus className="h-4 w-4 text-[#8127cf]" aria-hidden="true" /> {t.handoverTitle}</h2>
+      <h2 id="handover-title" className="flex items-center gap-2 text-sm font-bold text-ink"><UserPlus className="h-4 w-4 text-primary" aria-hidden="true" /> {t.handoverTitle}</h2>
       {delegate ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-ink">
@@ -990,7 +990,7 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
             <DialogTitle>{t.tempPasswordTitle}</DialogTitle>
             <DialogDescription>{fill(t.tempPasswordBody, issued?.email ?? "")}</DialogDescription>
           </DialogHeader>
-          <p dir="ltr" className="rounded-xl bg-[#fbf0fe] p-3 text-center font-mono text-base font-bold select-all" data-testid="temporary-password">{issued?.password}</p>
+          <p dir="ltr" className="rounded-xl bg-brand-50 p-3 text-center font-mono text-base font-bold select-all" data-testid="temporary-password">{issued?.password}</p>
           <DialogFooter><Button onClick={() => setIssued(null)}>{t.done}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1014,11 +1014,11 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
 function StepHeading({ refEl, icon: Icon, title, intro }: { refEl: React.RefObject<HTMLHeadingElement | null>; icon: LucideIcon; title: string; intro: string }) {
   return (
     <div className="flex items-center gap-4">
-      <div className="w-12 h-12 md:w-14 md:h-14 bg-[#fbf0fe] rounded-2xl flex items-center justify-center text-[#8127cf] shrink-0">
+      <div className="w-12 h-12 md:w-14 md:h-14 bg-brand-50 rounded-2xl flex items-center justify-center text-primary shrink-0">
         <Icon className="w-6 h-6" aria-hidden="true" />
       </div>
       <div className="min-w-0">
-        <h1 id="step-heading" ref={refEl} tabIndex={-1} className="text-xl md:text-3xl font-black text-ink leading-tight outline-none">{title}</h1>
+        <h1 id="step-heading" ref={refEl} tabIndex={-1} className="text-xl md:text-3xl font-extrabold text-ink leading-tight outline-none">{title}</h1>
         <p className="text-ink-muted font-semibold text-sm mt-1">{intro}</p>
       </div>
     </div>
@@ -1039,11 +1039,11 @@ function StepActions({ t, onBack, onContinue, busy, disabled }: { t: OnboardingC
 function ChoiceCard({ name, checked, onSelect, title, desc }: { name: string; checked: boolean; onSelect: () => void; title: string; desc: string }) {
   const id = useId();
   return (
-    <label htmlFor={id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${checked ? "border-[#8127cf] bg-[#f6ecff]" : "border-[#e3d5f0] bg-white hover:border-[#cdb2e6]"}`}>
-      <input id={id} type="radio" name={name} checked={checked} onChange={onSelect} className="mt-1 h-4 w-4 accent-[#8127cf]" />
+    <label htmlFor={id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${checked ? "border-primary bg-[#f6ecff]" : "border-brand-200 bg-white hover:border-[#cdb2e6]"}`}>
+      <input id={id} type="radio" name={name} checked={checked} onChange={onSelect} className="mt-1 h-4 w-4 accent-primary" />
       <span className="min-w-0">
-        <span className="block text-sm font-black text-ink">{title}</span>
-        <span className="mt-1 block text-[12px] font-semibold text-ink-muted">{desc}</span>
+        <span className="block text-sm font-bold text-ink">{title}</span>
+        <span className="mt-1 block text-xs font-semibold text-ink-muted">{desc}</span>
       </span>
     </label>
   );
@@ -1054,12 +1054,12 @@ function StepNav({ t, icon: Icon, active, done, num, title, desc, disabled, onCl
 }) {
   return (
     <Button aria-current={active ? "step" : undefined} variant="choice" type="button" disabled={disabled} onClick={onClick} className="relative w-full justify-start gap-3 p-4 text-start">
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${active ? 'bg-[#8127cf] text-white' : done ? 'bg-emerald-600 text-white' : 'bg-[#f3f4f9] text-ink-subtle'}`} aria-hidden="true">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${active ? 'bg-primary text-white' : done ? 'bg-emerald-600 text-white' : 'bg-muted text-ink-subtle'}`} aria-hidden="true">
         {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
       </div>
       <div className="min-w-0">
-        <span className="block text-sm font-black text-ink leading-none mb-1 truncate">{num}. {title}</span>
-        <span className="block text-[11px] font-bold text-ink-muted truncate">{desc}</span>
+        <span className="block text-sm font-bold text-ink leading-none mb-1 truncate">{num}. {title}</span>
+        <span className="block text-2xs font-bold text-ink-muted truncate">{desc}</span>
         <span className="sr-only">({done ? t.stepState.done : active ? t.stepState.current : disabled ? t.stepState.locked : ""})</span>
       </div>
     </Button>
@@ -1095,13 +1095,13 @@ function InputField({ field, error, label, value, onChange, placeholder, icon: I
 
 function SummaryItem({ icon: Icon, label, value, ltr }: { icon: LucideIcon; label: string; value: string; ltr?: boolean }) {
   return (
-    <div className="flex items-center gap-3 p-3 md:p-4 bg-[#fbf0fe]/50 rounded-[20px] border border-white/50 min-w-0">
-      <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-[#8127cf] shrink-0">
+    <div className="flex items-center gap-3 p-3 md:p-4 bg-brand-50/50 rounded-[20px] border border-white/50 min-w-0">
+      <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-primary shrink-0">
         <Icon className="w-4 h-4" aria-hidden="true" />
       </div>
       <div className="min-w-0">
-        <p className="text-[10px] font-black text-ink-subtle uppercase mb-0.5">{label}</p>
-        <p className="text-sm font-black text-ink break-words">{ltr ? <bdi dir="ltr">{value || '—'}</bdi> : (value || '—')}</p>
+        <p className="text-2xs font-semibold text-ink-subtle uppercase mb-0.5">{label}</p>
+        <p className="text-sm font-bold text-ink break-words">{ltr ? <bdi dir="ltr">{value || '—'}</bdi> : (value || '—')}</p>
       </div>
     </div>
   );

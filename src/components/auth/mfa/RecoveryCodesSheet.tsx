@@ -72,14 +72,14 @@ export function RecoveryCodesSheet({ codes, schoolName, ack, onAck, t, disabled,
       <p id={guidanceId} className="text-sm font-semibold leading-relaxed">{t.save}</p>
     </div>
     <div data-print-recovery="" className="mt-5">
-      <p className="mb-3 hidden text-base font-black text-black print:block">
+      <p className="mb-3 hidden text-base font-bold text-black print:block">
         {t.fileHeading}{schoolName ? <> · {t.school}: <bdi>{schoolName}</bdi></> : null}
       </p>
       <ol aria-label={t.codesList} aria-describedby={guidanceId} className="grid grid-cols-1 gap-1.5">
         {codes.map((value, index) => (
-          <li key={value} className="flex min-w-0 items-center gap-3 rounded-xl border border-[#ece3f3] bg-[#fcfaff] px-3.5 py-2 print:border-[#999]">
-            <span aria-hidden="true" className="w-5 shrink-0 text-xs font-black tabular-nums text-ink-subtle">{index + 1}</span>
-            <bdi dir="ltr" className="min-w-0 font-mono text-sm font-bold tracking-wide text-[#1f1a23] [overflow-wrap:anywhere]">{value}</bdi>
+          <li key={value} className="flex min-w-0 items-center gap-3 rounded-xl border border-border-subtle bg-surface-subtle px-3.5 py-2 print:border-[#999]">
+            <span aria-hidden="true" className="w-5 shrink-0 text-xs font-bold tabular-nums text-ink-subtle">{index + 1}</span>
+            <bdi dir="ltr" className="min-w-0 font-mono text-sm font-bold tracking-wide text-ink-strong [overflow-wrap:anywhere]">{value}</bdi>
           </li>
         ))}
       </ol>
@@ -93,7 +93,7 @@ export function RecoveryCodesSheet({ codes, schoolName, ack, onAck, t, disabled,
     </div>
     <div className="mt-6 print:hidden">
       {alert}
-      <Label htmlFor={`${idPrefix}-ack`} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-[#ece3f3] bg-[#faf5ff] p-4 text-sm font-bold leading-snug text-[#1f1a23]">
+      <Label htmlFor={`${idPrefix}-ack`} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-2xl border border-border-subtle bg-brand-50 p-4 text-sm font-bold leading-snug text-ink-strong">
         <Checkbox id={`${idPrefix}-ack`} checked={ack} disabled={disabled} onChange={event => onAck(event.target.checked)} className="mt-0.5" />
         {t.ack}
       </Label>

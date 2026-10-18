@@ -161,8 +161,8 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
             />
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
-              <Receipt className="h-7 w-7 text-[#cfc2d6]" aria-hidden />
-              <p className="mt-2 px-2 text-[10px] font-bold leading-tight text-ink-subtle">No invoices raised yet</p>
+              <Receipt className="h-7 w-7 text-edge" aria-hidden />
+              <p className="mt-2 px-2 text-2xs font-bold leading-tight text-ink-subtle">No invoices raised yet</p>
             </div>
           )
         }
@@ -211,7 +211,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <p className="mt-3 text-[10px] font-bold text-ink-subtle">
+              <p className="mt-3 text-2xs font-bold text-ink-subtle">
                 The vertical rule marks the group average of {derived.averageRoll.toLocaleString()} students per campus.
               </p>
             </>
@@ -243,8 +243,8 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                     className="flex w-full items-center justify-between gap-3 text-left"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-black text-[#1f1a23]">{campus.name}</p>
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                      <p className="truncate text-xs font-bold text-ink-strong">{campus.name}</p>
+                      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                         {campus.city || "—"} · {campus.teachers} teachers
                       </p>
                     </div>
@@ -443,12 +443,12 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[880px] border-collapse text-left">
               <thead>
-                <tr className="border-b border-[#cfc2d6]/30">
+                <tr className="border-b border-edge/30">
                   {["Campus", "Students", "Classes", "Teachers", "Average", "Collected", "Reports", "Messages", "AI runs", ""].map((h, i) => (
                     <th
                       key={h || i}
                       scope="col"
-                      className={`px-3 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle ${i > 0 && i < 9 ? "text-right" : ""}`}
+                      className={`px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle ${i > 0 && i < 9 ? "text-right" : ""}`}
                     >
                       {h}
                     </th>
@@ -457,12 +457,12 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
               </thead>
               <tbody>
                 {derived.leaderboard.map((campus) => (
-                  <tr key={campus.id} className="border-b border-[#cfc2d6]/20 transition-colors hover:bg-[#fbf0fe]/40">
+                  <tr key={campus.id} className="border-b border-edge/20 transition-colors hover:bg-brand-50/40">
                     <td className="px-3 py-2.5">
-                      <p className="text-xs font-black text-[#1f1a23]">{campus.name}</p>
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{campus.city || "—"}</p>
+                      <p className="text-xs font-bold text-ink-strong">{campus.name}</p>
+                      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{campus.city || "—"}</p>
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-[#1f1a23] [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-strong [font-variant-numeric:tabular-nums]">
                       {campus.students.toLocaleString()}
                     </td>
                     <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
@@ -471,7 +471,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                     <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
                       {campus.teachers.toLocaleString()}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-black [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-right text-xs font-bold [font-variant-numeric:tabular-nums]">
                       {campus.average === null ? (
                         <span className="text-ink-faint">—</span>
                       ) : (
@@ -521,7 +521,7 @@ function CoverageChip({ label, filled }: { label: string; filled: boolean }) {
   const Icon = filled ? CheckCircle2 : AlertTriangle;
   return (
     <span
-      className="flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wider"
+      className="flex items-center gap-1 rounded-full px-2 py-1 text-2xs font-semibold uppercase tracking-wider"
       style={{
         background: filled ? `${STATUS.good}1f` : `${STATUS.warning}26`,
         color: filled ? "#0f7a55" : "#8a6100",

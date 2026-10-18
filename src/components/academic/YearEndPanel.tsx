@@ -16,7 +16,7 @@ import {
   PieChart,
   CalendarClock,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton } from "@/components/role-dashboard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { cn } from "@/lib/utils";
@@ -149,15 +149,15 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
   return (
     <div className="space-y-6">
       {/* ── Year Summary dashboard ── */}
-      <section className="sk-panel overflow-hidden border-[#cfc2d6]/15">
-        <div className="flex flex-col gap-4 p-6 bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] border-b border-[#cfc2d6]/10 sm:flex-row sm:items-center sm:justify-between">
+      <section className="sk-panel overflow-hidden border-edge/15">
+        <div className="flex flex-col gap-4 p-6 bg-gradient-to-r from-surface-subtle via-white to-brand-100 border-b border-edge/10 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-primary">
               <CalendarCheck className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black tracking-tight text-[#1d1b20]">Year-End Summary</h2>
-              <p className="text-[11px] font-semibold text-ink-muted">
+              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Year-End Summary</h2>
+              <p className="text-2xs font-semibold text-ink-muted">
                 Academic Year {activeYear}
                 {activeCycle ? ` · ${activeCycle.label}` : ""}
               </p>
@@ -174,15 +174,15 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
           {loading ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-24 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div key={i} className="h-24 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
               ))}
             </div>
           ) : (
             <>
               {/* Headline counts */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                <StatCard icon={<Users className="h-4 w-4" />} tone="bg-[#fbf0fe] text-[#8127cf]" label="Students" value={totals.totalStudents} />
-                <StatCard icon={<GraduationCap className="h-4 w-4" />} tone="bg-[#fbf0fe] text-[#8127cf]" label="Classes" value={totals.totalClasses} />
+                <StatCard icon={<Users className="h-4 w-4" />} tone="bg-brand-50 text-primary" label="Students" value={totals.totalStudents} />
+                <StatCard icon={<GraduationCap className="h-4 w-4" />} tone="bg-brand-50 text-primary" label="Classes" value={totals.totalClasses} />
                 <StatCard icon={<UserCheck className="h-4 w-4" />} tone="bg-emerald-50 text-emerald-600" label="Promoted" value={totals.promoted} />
                 <StatCard icon={<ArrowRight className="h-4 w-4" />} tone="bg-blue-50 text-blue-600" label="Transferred" value={totals.transferred} />
                 <StatCard icon={<TrendingUp className="h-4 w-4" />} tone="bg-amber-50 text-amber-600" label="Retained" value={totals.retained} />
@@ -191,10 +191,10 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
 
               {/* Average grades per class + attendance */}
               <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-                <div className="rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4 lg:col-span-2">
+                <div className="rounded-2xl border border-edge/15 bg-surface-subtle p-4 lg:col-span-2">
                   <div className="mb-3 flex items-center gap-2">
-                    <PieChart className="h-4 w-4 text-[#8127cf]" />
-                    <h4 className="text-sm font-black text-[#1d1b20]">Average Grades per Class</h4>
+                    <PieChart className="h-4 w-4 text-primary" />
+                    <h4 className="text-sm font-bold text-ink-strong">Average Grades per Class</h4>
                   </div>
                   {classAvgs.length === 0 ? (
                     <p className="py-6 text-center text-xs font-semibold text-ink-subtle">
@@ -204,14 +204,14 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                     <div className="space-y-2">
                       {classAvgs.map((c) => (
                         <div key={c.classId} className="sk-panel flex items-center gap-3 px-3 py-2">
-                          <span className="flex-1 truncate text-xs font-bold text-[#1d1b20]">{c.label}</span>
-                          <div className="h-2 w-28 overflow-hidden rounded-full bg-[#e8e0ec]/50">
+                          <span className="flex-1 truncate text-xs font-bold text-ink-strong">{c.label}</span>
+                          <div className="h-2 w-28 overflow-hidden rounded-full bg-border-subtle/50">
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#6a1fb0]"
+                              className="h-full rounded-full bg-gradient-to-r from-primary to-brand-700"
                               style={{ width: `${c.avg != null ? Math.min(100, Math.max(0, c.avg)) : 0}%` }}
                             />
                           </div>
-                          <span className={cn("w-12 text-right text-sm font-black", c.avg != null ? (c.avg >= 80 ? "text-emerald-600" : c.avg >= 50 ? "text-amber-600" : "text-rose-500") : "text-ink-subtle")}>
+                          <span className={cn("w-12 text-right text-sm font-bold", c.avg != null ? (c.avg >= 80 ? "text-emerald-600" : c.avg >= 50 ? "text-amber-600" : "text-rose-500") : "text-ink-subtle")}>
                             {c.avg != null ? `${Math.round(c.avg)}%` : "—"}
                           </span>
                         </div>
@@ -220,17 +220,17 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-dashed border-[#cfc2d6]/20 bg-[#faf7fc] p-4">
+                <div className="rounded-2xl border border-dashed border-edge/20 bg-surface-subtle p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <CalendarClock className="h-4 w-4 text-ink-subtle" />
-                    <h4 className="text-sm font-black text-[#1d1b20]">Attendance Summary</h4>
+                    <h4 className="text-sm font-bold text-ink-strong">Attendance Summary</h4>
                   </div>
-                  <p className="text-[11px] font-semibold leading-relaxed text-ink-muted">
+                  <p className="text-2xs font-semibold leading-relaxed text-ink-muted">
                     A campus-wide attendance roll-up for the year is coming soon. Per-class attendance is available from each class profile.
                   </p>
-                  <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 border border-[#cfc2d6]/10">
-                    <span className="h-2 w-2 rounded-full bg-[#d97706]" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#b45309]">Coming soon</span>
+                  <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 border border-edge/10">
+                    <span className="h-2 w-2 rounded-full bg-amber-600" />
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-amber-700">Coming soon</span>
                   </div>
                 </div>
               </div>
@@ -272,12 +272,12 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                 <div className="mb-4 flex items-start gap-3 rounded-2xl border border-rose-200/50 bg-rose-50 p-4">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
                   <p className="text-xs font-semibold leading-relaxed text-rose-700">
-                    Archiving ends the active cycle <span className="font-black">{activeCycle?.label}</span>. This marks the year as closed and cannot be undone from this panel.
+                    Archiving ends the active cycle <span className="font-bold">{activeCycle?.label}</span>. This marks the year as closed and cannot be undone from this panel.
                   </p>
                 </div>
                 <label className="block">
-                  <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                    Type <span className="font-black text-rose-600">{activeCycle?.label}</span> to confirm
+                  <span className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+                    Type <span className="font-bold text-rose-600">{activeCycle?.label}</span> to confirm
                   </span>
                   <SystemInput
                     value={archiveConfirm}
@@ -296,10 +296,10 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
 function StatCard({ icon, tone, label, value }: { icon: React.ReactNode; tone: string; label: string; value: number }) {
   return (
     <div className={cn("rounded-2xl px-4 py-3", tone)}>
-      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider opacity-70">
+      <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider opacity-70">
         {icon} {label}
       </div>
-      <p className="mt-1 text-2xl font-black">{value}</p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
     </div>
   );
 }

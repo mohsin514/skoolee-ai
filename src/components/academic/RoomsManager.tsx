@@ -18,7 +18,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
@@ -172,7 +172,7 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
   return (
     <div className="sk-rise space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="relative overflow-hidden rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#0f766e] via-[#115e59] to-[#134e4a] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(15,118,110,0.6)]">
+      <header className="relative overflow-hidden rounded-[28px] border border-edge/25 bg-gradient-to-br from-teal-700 via-[#115e59] to-[#134e4a] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(15,118,110,0.6)]">
         <span
           aria-hidden
           className="pointer-events-none absolute -right-16 -top-20 h-60 w-60 rounded-full bg-white/10 blur-3xl"
@@ -182,12 +182,12 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
             <DoorOpen className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-white/55">
               Run the year
             </p>
-            <h2 className="mt-0.5 text-2xl font-black tracking-tight">Rooms</h2>
+            <h2 className="mt-0.5 text-2xl font-bold tracking-tight">Rooms</h2>
             <p className="mt-1 text-xs font-semibold text-white/70">
-              {totals.rooms} rooms · <span className="font-black">{totals.exam} exam seats</span> ·{" "}
+              {totals.rooms} rooms · <span className="font-bold">{totals.exam} exam seats</span> ·{" "}
               {totals.teaching} teaching seats
             </p>
           </div>
@@ -195,7 +195,7 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
             variant="dark"
             icon={<Plus className="h-4 w-4" />}
             onClick={() => setEditing("new")}
-            className="bg-white text-[#0f766e] hover:bg-white/90"
+            className="bg-white text-teal-700 hover:bg-white/90"
           >
             Add room
           </BrandButton>
@@ -203,19 +203,19 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
       </header>
 
       {/* ── The capacity explainer ──────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-gradient-to-r from-[#f3eeff] to-[#faf7fc] px-4 py-3">
-        <ArmchairIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#8127cf]" />
-        <p className="min-w-0 flex-1 text-[11px] font-semibold leading-relaxed text-ink-muted">
-          <span className="font-black text-[#1f1a23]">
+      <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-edge/20 bg-gradient-to-r from-brand-100 to-surface-subtle px-4 py-3">
+        <ArmchairIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <p className="min-w-0 flex-1 text-2xs font-semibold leading-relaxed text-ink-muted">
+          <span className="font-bold text-ink-strong">
             Record the bench layout, not just a seat count.
           </span>{" "}
           Rows × benches × seats-per-bench gives the teaching capacity; the same benches at one
           candidate each give the exam capacity. A room of 5 rows × 3 benches × 2 seats holds{" "}
-          <span className="font-black">30</span> in a lesson and{" "}
-          <span className="font-black text-[#8127cf]">15</span> in an exam.
+          <span className="font-bold">30</span> in a lesson and{" "}
+          <span className="font-bold text-primary">15</span> in an exam.
         </p>
         {totals.unmeasured > 0 ? (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+          <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" />
             {totals.unmeasured} unmeasured
           </span>
@@ -238,7 +238,7 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-40 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div key={i} className="h-40 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
           ))}
         </div>
       ) : rooms.length === 0 ? (
@@ -253,7 +253,7 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
           }
         />
       ) : grouped.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-[#cfc2d6]/35 p-10 text-center text-xs font-bold text-ink-muted">
+        <p className="rounded-2xl border border-dashed border-edge/35 p-10 text-center text-xs font-bold text-ink-muted">
           No room matches “{query}”.
         </p>
       ) : (
@@ -343,16 +343,16 @@ function RoomCard({
     (room._count?.slots ?? 0) + (room._count?.examSchedules ?? 0) + (room._count?.examRooms ?? 0);
 
   return (
-    <div className="sk-panel group relative overflow-hidden p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_14px_32px_-20px_rgba(129,39,207,0.5)]">
+    <div className="sk-panel group relative overflow-hidden p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_14px_32px_-20px_rgba(129,39,207,0.5)]">
       <div className="flex items-start gap-2.5">
         <span
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
             room.unmeasured
               ? "bg-amber-50 text-amber-600"
               : room.isExamHall
-              ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white"
-              : "bg-[#f3eeff] text-[#8127cf]",
+              ? "bg-gradient-to-br from-primary to-brand-400 text-white"
+              : "bg-brand-100 text-primary",
           )}
         >
           {room.roomNumber.slice(0, 3).toUpperCase()}
@@ -360,14 +360,14 @@ function RoomCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-sm font-black text-[#1f1a23]">{room.roomNumber}</p>
+            <p className="truncate text-sm font-bold text-ink-strong">{room.roomNumber}</p>
             {room.isExamHall ? (
-              <span className="shrink-0 rounded bg-[#f3eeff] px-1 py-px text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
+              <span className="shrink-0 rounded bg-brand-100 px-1 py-px text-3xs font-semibold uppercase tracking-wider text-primary">
                 Hall
               </span>
             ) : null}
           </div>
-          <p className="truncate text-[10px] font-bold text-ink-subtle">
+          <p className="truncate text-2xs font-bold text-ink-subtle">
             {ROOM_TYPES.find((t) => t.value === room.roomType)?.label ?? room.roomType}
             {room.location ? ` · ${floorLabel(room.floor)}` : ""}
             {room.wing ? ` · ${room.wing}` : ""}
@@ -396,34 +396,34 @@ function RoomCard({
 
       {/* The two capacities, side by side — the whole point of the card. */}
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl bg-gradient-to-br from-[#faf5ff] to-white p-2 ring-1 ring-[#8127cf]/15">
-          <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+        <div className="rounded-xl bg-gradient-to-br from-brand-50 to-white p-2 ring-1 ring-primary/15">
+          <p className="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-primary">
             <ArmchairIcon className="h-2.5 w-2.5" />
             Exam
           </p>
-          <p className="text-lg font-black leading-none tabular-nums text-[#8127cf]">
+          <p className="text-lg font-bold leading-none tabular-nums text-primary">
             {room.unmeasured ? "—" : room.examCapacity}
           </p>
         </div>
-        <div className="rounded-xl bg-[#faf7fc] p-2">
-          <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+        <div className="rounded-xl bg-surface-subtle p-2">
+          <p className="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             <Users className="h-2.5 w-2.5" />
             Teaching
           </p>
-          <p className="text-lg font-black leading-none tabular-nums text-[#1f1a23]">
+          <p className="text-lg font-bold leading-none tabular-nums text-ink-strong">
             {room.unmeasured ? "—" : room.teachingCapacity}
           </p>
         </div>
       </div>
 
-      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-ink-subtle">
+      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs font-semibold text-ink-subtle">
         {room.hasLayout ? (
           <span className="flex items-center gap-1">
             <Layers className="h-2.5 w-2.5" />
             {room.rows} × {room.benchesPerRow} benches, {room.seatsPerBench} per bench
           </span>
         ) : room.unmeasured ? (
-          <span className="font-black text-amber-600">No size recorded</span>
+          <span className="font-bold text-amber-600">No size recorded</span>
         ) : (
           <span>{room.benches} benches (inferred)</span>
         )}
@@ -516,7 +516,7 @@ function RoomEditor({
       <div className="space-y-5">
         {/* ── Identity and location ─────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+          <p className="mb-2 pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             Where it is
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -583,7 +583,7 @@ function RoomEditor({
             </Field>
           </div>
 
-          <label className="mt-3 flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-3.5 py-2.5">
+          <label className="mt-3 flex cursor-pointer items-center gap-2.5 rounded-2xl border border-edge/25 bg-surface-subtle px-3.5 py-2.5">
             <SystemCheckbox
 
               checked={draft.isExamHall}
@@ -591,10 +591,10 @@ function RoomEditor({
               className=""
             />
             <span className="min-w-0">
-              <span className="block text-xs font-black text-[#1f1a23]">
+              <span className="block text-xs font-bold text-ink-strong">
                 Prefer this room for exams
               </span>
-              <span className="block text-[10px] font-semibold text-ink-muted">
+              <span className="block text-2xs font-semibold text-ink-muted">
                 The seating planner fills preferred rooms first, so a class lands in one hall
                 rather than three classrooms.
               </span>
@@ -604,7 +604,7 @@ function RoomEditor({
 
         {/* ── Layout ────────────────────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+          <p className="mb-2 pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             How the benches are laid out
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -669,28 +669,28 @@ function RoomEditor({
         </div>
 
         {/* ── Live preview ──────────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf5ff] to-white p-4">
+        <div className="rounded-2xl border border-edge/20 bg-gradient-to-br from-brand-50 to-white p-4">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 Teaching capacity
               </p>
-              <p className="text-2xl font-black leading-none tabular-nums text-[#1f1a23]">
+              <p className="text-2xl font-bold leading-none tabular-nums text-ink-strong">
                 {cap.unmeasured ? "—" : cap.teaching}
               </p>
             </div>
-            <span aria-hidden className="text-2xl font-black text-[#cfc2d6]">
+            <span aria-hidden className="text-2xl font-bold text-edge">
               →
             </span>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
                 Exam capacity
               </p>
-              <p className="text-2xl font-black leading-none tabular-nums text-[#8127cf]">
+              <p className="text-2xl font-bold leading-none tabular-nums text-primary">
                 {cap.unmeasured ? "—" : cap.exam}
               </p>
             </div>
-            <p className="min-w-0 flex-1 text-[11px] font-semibold leading-snug text-ink-muted">
+            <p className="min-w-0 flex-1 text-2xs font-semibold leading-snug text-ink-muted">
               {cap.unmeasured
                 ? "Record the layout, or a total seat count, before this room can hold an exam."
                 : cap.spacingLoss > 0
@@ -702,7 +702,7 @@ function RoomEditor({
           {/* A picture of the room, so a wrong number is obvious. */}
           {cap.hasLayout && draft.rows <= 12 && draft.benchesPerRow <= 14 ? (
             <div className="mt-3 space-y-1">
-              <p className="rounded-lg bg-[#f3f4f9] py-0.5 text-center text-[8px] font-black uppercase tracking-[0.2em] text-ink-subtle">
+              <p className="rounded-lg bg-muted py-0.5 text-center text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
                 Front
               </p>
               {Array.from({ length: draft.rows }).map((_, r) => (
@@ -720,8 +720,8 @@ function RoomEditor({
                           className={cn(
                             "h-3 w-3 rounded-sm transition-colors",
                             s < draft.examSeatsPerBench
-                              ? "bg-[#8127cf]"
-                              : "bg-[#cfc2d6]/45",
+                              ? "bg-primary"
+                              : "bg-edge/45",
                           )}
                         />
                       ))}
@@ -729,10 +729,10 @@ function RoomEditor({
                   ))}
                 </div>
               ))}
-              <p className="pt-1 text-center text-[9px] font-semibold text-ink-subtle">
-                <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-[#8127cf] align-middle" />
+              <p className="pt-1 text-center text-2xs font-semibold text-ink-subtle">
+                <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-primary align-middle" />
                 seated in an exam
-                <span className="ml-3 mr-1 inline-block h-2 w-2 rounded-sm bg-[#cfc2d6]/45 align-middle" />
+                <span className="ml-3 mr-1 inline-block h-2 w-2 rounded-sm bg-edge/45 align-middle" />
                 left empty for spacing
               </p>
             </div>

@@ -27,7 +27,7 @@ import {
   Trash2,
   UserCog,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -312,22 +312,22 @@ export function PositionDialog({
       dirty={dirty}
       onClose={onClose}
       avatar={
-        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink-muted">
+        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-muted text-sm font-bold text-ink-muted">
           {node.avatarUrl ? <AvatarImage src={node.avatarUrl} name={node.fullName} /> : initialsOf(node.fullName)}
         </span>
       }
       chips={
         <div className="flex flex-wrap items-center gap-1.5">
           {tone ? (
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black uppercase", tone.chip)}>{tone.label}</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold uppercase", tone.chip)}>{tone.label}</span>
           ) : null}
           {node.headOf.map((h) => (
-            <span key={h.id} className="rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[10px] font-black text-[#8127cf]">
+            <span key={h.id} className="rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-bold text-primary">
               {h.isActing ? "Acting head" : "Head"} · {h.name}
             </span>
           ))}
           {node.dueForReview ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">Due for review</span>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-bold text-amber-700">Due for review</span>
           ) : null}
         </div>
       }
@@ -351,7 +351,7 @@ export function PositionDialog({
         ) : undefined
       }
     >
-      <div className="mb-4 flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+      <div className="mb-4 flex gap-1 rounded-2xl bg-muted p-1">
         {([
           { key: "position" as const, label: "Position", icon: Network },
           { key: "history" as const, label: "Service record", icon: History },
@@ -371,7 +371,7 @@ export function PositionDialog({
       {tab === "position" ? (
         <div className="space-y-5">
           <section className="space-y-3">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Rank & unit</h4>
+            <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Rank & unit</h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Rank" hint={currentRank?.minYearsInRank ? `Usually held ${currentRank.minYearsInRank} year(s) before promotion` : undefined}>
                 <Select value={form.designationId} onChange={(e) => update("designationId", e.target.value)}>
@@ -420,14 +420,14 @@ export function PositionDialog({
             </div>
           </section>
 
-          <section className="space-y-3 rounded-2xl bg-[#f3f4f9]/60 p-4">
+          <section className="space-y-3 rounded-2xl bg-muted/60 p-4">
             <div className="flex items-center gap-2">
               <Building2 className="h-3.5 w-3.5 text-indigo-600" />
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Departments they belong to</h4>
+              <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Departments they belong to</h4>
             </div>
-            <p className="text-[11px] font-semibold text-ink-muted">
+            <p className="text-2xs font-semibold text-ink-muted">
               A school runs many departments and people cross them — a teacher covering Physics and Maths, a
-              professor sitting on admissions. Add as many as apply; the one marked <strong className="font-black">home</strong> is
+              professor sitting on admissions. Add as many as apply; the one marked <strong className="font-bold">home</strong> is
               the one the chart files them under.
             </p>
 
@@ -443,16 +443,16 @@ export function PositionDialog({
                       </span>
                     </span>
                     {m.role === "HEAD" ? (
-                      <span className="shrink-0 rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[9px] font-black text-[#8127cf]">
+                      <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-bold text-primary">
                         {m.isActing ? "ACTING HEAD" : "HEAD"}
                       </span>
                     ) : m.role !== "MEMBER" ? (
-                      <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-black text-indigo-600">
+                      <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-2xs font-bold text-indigo-600">
                         {DEPARTMENT_ROLE_LABELS[m.role].toUpperCase()}
                       </span>
                     ) : null}
                     {m.isPrimary ? (
-                      <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-600">HOME</span>
+                      <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-bold text-emerald-600">HOME</span>
                     ) : (
                       <Button variant="secondary" size="sm"
                         type="button"
@@ -481,7 +481,7 @@ export function PositionDialog({
                 ))}
               </ul>
             ) : (
-              <p className="rounded-xl bg-white px-3 py-2.5 text-[11px] font-semibold text-ink-muted">
+              <p className="rounded-xl bg-white px-3 py-2.5 text-2xs font-semibold text-ink-muted">
                 Not in any department yet.
               </p>
             )}
@@ -511,7 +511,7 @@ export function PositionDialog({
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Employment</h4>
+            <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Employment</h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Field label="Type">
                 <Select value={form.employmentType} onChange={(e) => update("employmentType", e.target.value)}>
@@ -534,7 +534,7 @@ export function PositionDialog({
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Record this change</h4>
+            <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Record this change</h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Effective from" hint="Backdate it to the date on the order.">
                 <Input type="date" value={form.effectiveFrom} onChange={(e) => update("effectiveFrom", e.target.value)} />
@@ -548,7 +548,7 @@ export function PositionDialog({
                 </Field>
               </div>
               <label className="flex cursor-pointer items-center gap-2 sm:col-span-2">
-                <SystemCheckbox  checked={form.isActing} onChange={(e) => update("isActing", e.target.checked)} className="h-4 w-4 accent-[#8127cf]" />
+                <SystemCheckbox  checked={form.isActing} onChange={(e) => update("isActing", e.target.checked)} className="h-4 w-4 accent-primary" />
                 <span className="text-xs font-bold text-ink">
                   Acting / officiating charge
                   <span className="ml-1 font-semibold text-ink-muted">— holding the post without the rank</span>
@@ -557,12 +557,12 @@ export function PositionDialog({
             </div>
           </section>
 
-          <section className="space-y-3 rounded-2xl bg-[#f3f4f9]/60 p-4">
+          <section className="space-y-3 rounded-2xl bg-muted/60 p-4">
             <div className="flex items-center gap-2">
               <Link2 className="h-3.5 w-3.5 text-cyan-600" />
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Secondary reporting lines</h4>
+              <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Secondary reporting lines</h4>
             </div>
-            <p className="text-[11px] font-semibold text-ink-muted">
+            <p className="text-2xs font-semibold text-ink-muted">
               For work that cuts across the chart — exam duty, a committee, a project. Drawn dashed, and they never change who this person answers to day to day.
             </p>
 
@@ -574,7 +574,7 @@ export function PositionDialog({
                       {line.manager.fullName}
                       {line.label ? <span className="font-semibold text-ink-muted"> · {line.label}</span> : null}
                     </span>
-                    <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[9px] font-black uppercase text-cyan-700">{line.kind}</span>
+                    <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-2xs font-semibold uppercase text-cyan-700">{line.kind}</span>
                     <Button variant="destructive" size="icon" type="button" onClick={() => removeLine(line.id)}  aria-label="Remove line">
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -646,12 +646,12 @@ function ServiceRecord({
 
       {chain.length > 0 ? (
         <section className="space-y-2">
-          <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Chain of command</h4>
+          <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Chain of command</h4>
           <ol className="flex flex-wrap items-center gap-1.5">
             {chain.map((person, index) => (
               <li key={person.id} className="flex items-center gap-1.5">
                 {index > 0 ? <span className="text-ink-muted">→</span> : null}
-                <span className="rounded-xl bg-[#f3f4f9] px-2.5 py-1.5 text-[11px] font-bold text-ink">
+                <span className="rounded-xl bg-muted px-2.5 py-1.5 text-2xs font-bold text-ink">
                   {person.fullName}
                   {person.designation ? <span className="font-semibold text-ink-muted"> · {person.designation}</span> : null}
                 </span>
@@ -662,39 +662,39 @@ function ServiceRecord({
       ) : null}
 
       <section className="space-y-2">
-        <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Every position held</h4>
+        <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Every position held</h4>
         {history.length === 0 ? (
-          <p className="rounded-2xl bg-[#f3f4f9]/60 px-4 py-6 text-center text-xs font-semibold text-ink-muted">
+          <p className="rounded-2xl bg-muted/60 px-4 py-6 text-center text-xs font-semibold text-ink-muted">
             Nothing recorded yet. The first change you save here starts the record.
           </p>
         ) : (
-          <ol className="relative space-y-3 border-l border-[#cfc2d6]/50 pl-5">
+          <ol className="relative space-y-3 border-l border-edge/50 pl-5">
             {history.map((entry) => (
               <li key={entry.id} className="relative">
-                <span className={cn("absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white", entry.effectiveTo ? "bg-[#cfc2d6]" : "bg-[#8127cf]")} />
-                <div className="rounded-2xl border border-[#cfc2d6]/30 bg-white p-3">
+                <span className={cn("absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white", entry.effectiveTo ? "bg-edge" : "bg-primary")} />
+                <div className="rounded-2xl border border-edge/30 bg-white p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-black text-ink">{CHANGE_KIND_LABELS[entry.changeKind] ?? entry.changeKind}</span>
-                    {entry.isActing ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-700">ACTING</span> : null}
-                    {!entry.effectiveTo ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-600">CURRENT</span> : null}
-                    <span className="ml-auto text-[10px] font-bold text-ink-muted">
+                    <span className="text-xs font-bold text-ink">{CHANGE_KIND_LABELS[entry.changeKind] ?? entry.changeKind}</span>
+                    {entry.isActing ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-bold text-amber-700">ACTING</span> : null}
+                    {!entry.effectiveTo ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-bold text-emerald-600">CURRENT</span> : null}
+                    <span className="ml-auto text-2xs font-bold text-ink-muted">
                       {new Date(entry.effectiveFrom).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                       {entry.effectiveTo ? ` → ${new Date(entry.effectiveTo).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] font-bold text-ink">
+                  <p className="mt-1 text-2xs font-bold text-ink">
                     {entry.designationName || "No rank"}
                     {entry.departmentName ? <span className="font-semibold text-ink-muted"> · {entry.departmentName}</span> : null}
                   </p>
                   {entry.reportsToName ? (
-                    <p className="text-[11px] font-semibold text-ink-muted">Reporting to {entry.reportsToName}</p>
+                    <p className="text-2xs font-semibold text-ink-muted">Reporting to {entry.reportsToName}</p>
                   ) : null}
                   {entry.orderRef ? (
-                    <p className="mt-1 text-[10px] font-bold text-ink-muted">Order {entry.orderRef}</p>
+                    <p className="mt-1 text-2xs font-bold text-ink-muted">Order {entry.orderRef}</p>
                   ) : null}
-                  {entry.notes ? <p className="mt-1 text-[11px] font-semibold text-ink-muted">{entry.notes}</p> : null}
+                  {entry.notes ? <p className="mt-1 text-2xs font-semibold text-ink-muted">{entry.notes}</p> : null}
                   {entry.approvedBy ? (
-                    <p className="mt-1 text-[10px] font-semibold text-ink-muted">Recorded by {entry.approvedBy.fullName}</p>
+                    <p className="mt-1 text-2xs font-semibold text-ink-muted">Recorded by {entry.approvedBy.fullName}</p>
                   ) : null}
                 </div>
               </li>
@@ -709,19 +709,19 @@ function ServiceRecord({
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-[11px] font-black text-ink">{label}</label>
+      <label className="block text-2xs font-bold text-ink">{label}</label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-2xs font-semibold text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
 
 function Stat({ icon: Icon, label, value }: { icon: typeof CalendarDays; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-[#f3f4f9]/60 px-4 py-3">
-      <Icon className="h-4 w-4 shrink-0 text-[#8127cf]" />
+    <div className="flex items-center gap-3 rounded-2xl bg-muted/60 px-4 py-3">
+      <Icon className="h-4 w-4 shrink-0 text-primary" />
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-wide text-ink-subtle">{label}</p>
+        <p className="text-2xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</p>
         <p className="truncate text-xs font-bold text-ink">{value}</p>
       </div>
     </div>

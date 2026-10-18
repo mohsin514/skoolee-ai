@@ -3,7 +3,7 @@
 import { Button as SystemButton } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import { BookMarked, ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { EmptyInline } from "@/components/shared-admin";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -149,8 +149,8 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
     <div className="sk-panel mt-4 p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <BookMarked className="h-4 w-4 text-[#8127cf]" />
-          <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+          <BookMarked className="h-4 w-4 text-primary" />
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             Syllabus · {syllabusTopics.length} topic{syllabusTopics.length !== 1 ? "s" : ""}
           </p>
         </div>
@@ -172,7 +172,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
               {syllabusTopics.length ? (
                 <div className="space-y-1.5">
                   {syllabusTopics.map((topic, index) => (
-                    <div key={topic.id} className="flex items-center gap-2 rounded-xl bg-[#fbf0fe]/60 px-3 py-2">
+                    <div key={topic.id} className="flex items-center gap-2 rounded-xl bg-brand-50/60 px-3 py-2">
                       <SystemButton variant="ghost"
                         type="button"
                         onClick={() => moveTopic(index, index > 0 ? -1 : 1)}
@@ -183,9 +183,9 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                         <ChevronDown className="h-3 w-3 rotate-180" />
                       </SystemButton>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-black text-[#1f1a23]">{topic.title}</p>
+                        <p className="truncate text-xs font-bold text-ink-strong">{topic.title}</p>
                         {topic.description ? (
-                          <p className="truncate text-[9px] font-bold text-ink-subtle">{topic.description}</p>
+                          <p className="truncate text-2xs font-bold text-ink-subtle">{topic.description}</p>
                         ) : null}
                       </div>
                       <SystemButton variant="ghost"
@@ -198,7 +198,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                             ? "bg-emerald-50 text-emerald-600"
                             : topic.status === "IN_PROGRESS"
                               ? "bg-amber-50 text-amber-600"
-                              : "bg-[#f3f4f9] text-[#64748b]"
+                              : "bg-muted text-[#64748b]"
                         )}
                         title="Cycle status: Not started → In progress → Completed"
                       >

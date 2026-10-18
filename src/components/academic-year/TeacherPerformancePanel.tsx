@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, MessageSquareText, Users } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,7 +79,7 @@ export function TeacherPerformancePanel({ self = false }: { self?: boolean } = {
     <div className="sk-panel space-y-3 p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="evidence-title" className="flex items-center gap-2 text-lg font-black"><Users className="size-5 text-primary" aria-hidden />{self ? ui("My teaching evidence") : ui("Teaching evidence")}</h2>
+          <h2 id="evidence-title" className="flex items-center gap-2 text-lg font-bold"><Users className="size-5 text-primary" aria-hidden />{self ? ui("My teaching evidence") : ui("Teaching evidence")}</h2>
           {data ? <p className="text-xs font-bold text-ink-muted" data-period>{ui("Period: {0} to {1}", [date(data.period.start), date(data.period.end)])} · {ui(PERIOD_SOURCE[data.period.source])}</p> : null}
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -97,7 +97,7 @@ export function TeacherPerformancePanel({ self = false }: { self?: boolean } = {
       : <ul className="space-y-3">{visible.map(row => <li key={row.teacherId} className="sk-panel space-y-3 p-4" data-teacher={row.teacherId}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h3 className="font-black"><bdi>{row.fullName}</bdi></h3>
+              <h3 className="font-bold"><bdi>{row.fullName}</bdi></h3>
               <p className="text-xs text-ink-muted">{row.subjects.length ? <>{ui("Teaches")}: <bdi>{row.subjects.join(", ")}</bdi></> : ui("No subjects assigned this year")}{row.ledClasses.length ? <> · {ui("Class teacher")}: <bdi>{row.ledClasses.join(", ")}</bdi></> : null}</p>
             </div>
             <Button size="sm" variant="secondary" aria-expanded={open === row.teacherId} onClick={() => void openNotes(row.teacherId)}><MessageSquareText className="size-4" aria-hidden />{ui("Support notes ({0})", [row.notes])}</Button>
@@ -106,8 +106,8 @@ export function TeacherPerformancePanel({ self = false }: { self?: boolean } = {
             <caption className="sr-only">{ui("Evidence for {0}", [row.fullName])}</caption>
             <thead><tr className="text-ink-subtle">{["Measure", "Value", "Source and coverage", "Latest record"].map(h => <th key={h} scope="col" className="px-2 py-1 text-start">{ui(h)}</th>)}</tr></thead>
             <tbody>{row.measures.map(m => <tr key={m.key} className="border-t border-border align-top" data-measure={m.key} data-available={m.value !== null}>
-              <th scope="row" className="px-2 py-1.5 text-start font-bold">{ui(MEASURE_LABEL[m.key] ?? m.key)}{m.shared ? <span className="ms-1 rounded bg-amber-100 px-1 text-[10px] font-bold text-amber-900">{ui("Shared")}</span> : null}</th>
-              <td className="px-2 py-1.5 font-black">{m.value === null ? <span className="font-bold text-ink-muted">{ui("Unavailable")}</span> : `${number(m.value)}%`}</td>
+              <th scope="row" className="px-2 py-1.5 text-start font-bold">{ui(MEASURE_LABEL[m.key] ?? m.key)}{m.shared ? <span className="ms-1 rounded bg-amber-100 px-1 text-2xs font-bold text-amber-900">{ui("Shared")}</span> : null}</th>
+              <td className="px-2 py-1.5 font-bold">{m.value === null ? <span className="font-bold text-ink-muted">{ui("Unavailable")}</span> : `${number(m.value)}%`}</td>
               <td className="px-2 py-1.5"><span>{ui(m.source)}</span>{m.coverage ? <span className="block text-ink-muted">{ui(m.coverage)}</span> : null}{m.unavailable ? <span className="block text-ink-muted">{ui(m.unavailable)}</span> : null}{m.caution ? <span className="block text-amber-900">{ui(m.caution)}</span> : null}</td>
               <td className="px-2 py-1.5">{m.freshness ? date(m.freshness) : "—"}</td>
             </tr>)}</tbody>

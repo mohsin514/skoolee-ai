@@ -11,7 +11,7 @@ import {
   Lock,
   ShieldCheck,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
 
@@ -39,7 +39,7 @@ interface ClosureData {
 
 const OWNER_STYLE: Record<ClosureStep["owner"], string> = {
   Teachers: "bg-amber-50 text-amber-700 border-amber-200",
-  Office: "bg-[#f3eeff] text-[#8127cf] border-[#8127cf]/20",
+  Office: "bg-brand-100 text-primary border-primary/20",
   Principal: "bg-teal-50 text-teal-700 border-teal-200",
 };
 
@@ -114,7 +114,7 @@ export function YearClosureChecklist({
   };
 
   if (loading && !data) {
-    return <div className="skeleton-shimmer h-64 w-full rounded-[28px] bg-[#e8e0ec]/50" />;
+    return <div className="skeleton-shimmer h-64 w-full rounded-[28px] bg-border-subtle/50" />;
   }
   if (!data || !data.openCycle) return null;
 
@@ -136,10 +136,10 @@ export function YearClosureChecklist({
             {data.canClose ? <ShieldCheck className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
           </span>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
               Closing {data.openCycle.label}
             </p>
-            <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">
+            <h3 className="text-lg font-bold tracking-tight text-ink-strong">
               {data.canClose
                 ? "Ready to close this year"
                 : isEmptyYear
@@ -159,8 +159,8 @@ export function YearClosureChecklist({
 
       {/* Checklist */}
       {isEmptyYear ? (
-        <div className="rounded-2xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-4 py-5 text-center">
-          <p className="text-sm font-bold text-[#1f1a23]">Nothing to close here</p>
+        <div className="rounded-2xl border border-edge/25 bg-surface-subtle px-4 py-5 text-center">
+          <p className="text-sm font-bold text-ink-strong">Nothing to close here</p>
           <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
             Once exams are created and results released for {data.openCycle.label}, this checklist
             will show what is left before the year can be closed.
@@ -180,28 +180,28 @@ export function YearClosureChecklist({
             key={s.id}
             className={cn(
               "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3",
-              s.done ? "border-emerald-200 bg-emerald-50/50" : "border-[#cfc2d6]/25 bg-white",
+              s.done ? "border-emerald-200 bg-emerald-50/50" : "border-edge/25 bg-white",
             )}
           >
             <div className="flex min-w-0 items-start gap-3">
               {s.done ? (
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
               ) : (
-                <Circle className="mt-0.5 h-5 w-5 shrink-0 text-[#cfc2d6]" />
+                <Circle className="mt-0.5 h-5 w-5 shrink-0 text-edge" />
               )}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-black text-[#1f1a23]">{s.label}</p>
+                  <p className="text-sm font-bold text-ink-strong">{s.label}</p>
                   <span
                     className={cn(
-                      "rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+                      "rounded-full border px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider",
                       OWNER_STYLE[s.owner],
                     )}
                   >
                     {s.owner}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">{s.detail}</p>
+                <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{s.detail}</p>
               </div>
             </div>
             {!s.done ? (
@@ -219,7 +219,7 @@ export function YearClosureChecklist({
       )}
 
       {/* Close action */}
-      <div className="mt-5 border-t border-[#cfc2d6]/12 pt-4">
+      <div className="mt-5 border-t border-edge/12 pt-4">
         {data.canClose ? (
           <Button variant="default"
             onClick={() => closeYear(false)}
@@ -249,7 +249,7 @@ export function YearClosureChecklist({
                   <p className="text-xs font-bold text-rose-800">
                     Close {data.openCycle.label} anyway?
                   </p>
-                  <p className="mt-1 text-[11px] font-semibold text-rose-700">
+                  <p className="mt-1 text-2xs font-semibold text-rose-700">
                     Marks will be locked and report cards frozen as they are. Anything unfinished
                     stays unfinished. This cannot be undone.
                   </p>

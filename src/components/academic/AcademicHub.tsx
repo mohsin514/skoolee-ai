@@ -191,7 +191,7 @@ function buildSteps(s: HubStatNumbers, cycleStatus: string): Step[] {
 }
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`skeleton-shimmer rounded-lg bg-[#e8e0ec]/50 ${className}`} />;
+  return <div className={`skeleton-shimmer rounded-lg bg-border-subtle/50 ${className}`} />;
 }
 
 export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNavigate?: (view: string) => void }) {
@@ -247,26 +247,26 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
   return (
     <div className="space-y-6">
       {/* ── Header: which year are we looking at ── */}
-      <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+      <div className="rounded-[28px] border border-edge/12 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/20">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
               <LayoutDashboard className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
                 Academic Year {stats?.academicYear}
               </p>
-              <h2 className="text-xl font-black tracking-tight text-[#1f1a23]">Academic Overview</h2>
+              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Academic Overview</h2>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/setup/readiness" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">School readiness</Link>
-            <Link href="/resources" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">Learning resources</Link>
-            <Link href="/curriculum" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">Objective map</Link>
-            <Link href="/accommodations" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">Access plans</Link>
-            <Link href="/exam-delivery" className="text-sm font-bold text-[#8127cf] underline-offset-4 hover:underline">Exam delivery</Link>
+            <Link href="/setup/readiness" className="text-sm font-bold text-primary underline-offset-4 hover:underline">School readiness</Link>
+            <Link href="/resources" className="text-sm font-bold text-primary underline-offset-4 hover:underline">Learning resources</Link>
+            <Link href="/curriculum" className="text-sm font-bold text-primary underline-offset-4 hover:underline">Objective map</Link>
+            <Link href="/accommodations" className="text-sm font-bold text-primary underline-offset-4 hover:underline">Access plans</Link>
+            <Link href="/exam-delivery" className="text-sm font-bold text-primary underline-offset-4 hover:underline">Exam delivery</Link>
             {stats && stats.availableYears.length > 1 ? (
               <SystemSelect
                 value={stats.academicYear}
@@ -280,7 +280,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                 ))}
               </SystemSelect>
             ) : null}
-            <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] shadow-sm">
+            <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-bold text-primary shadow-sm">
               {doneCount} of {steps.length} steps done
             </span>
           </div>
@@ -289,7 +289,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         {/* Progress bar across the whole year */}
         <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/70">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#10b981] transition-all duration-700"
+            className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all duration-700"
             style={{ width: `${steps.length ? (doneCount / steps.length) * 100 : 0}%` }}
           />
         </div>
@@ -316,10 +316,10 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                 <CheckCircle2 className="h-6 w-6 text-emerald-600" />
               </span>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wider text-emerald-600">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-600">
                   Year Complete
                 </p>
-                <h3 className="text-lg font-black text-[#1f1a23]">Everything is set up</h3>
+                <h3 className="text-lg font-bold text-ink-strong">Everything is set up</h3>
                 <p className="mt-0.5 text-xs font-semibold text-ink-muted">
                   Results are out. You can now move students into next year.
                 </p>
@@ -336,17 +336,17 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
           </div>
         </div>
       ) : currentStep ? (
-        <div className="rounded-[28px] border border-[#8127cf]/20 bg-gradient-to-br from-white to-[#faf7fc] p-6 shadow-[0_4px_16px_-4px_rgba(129,39,207,0.15)]">
+        <div className="rounded-[28px] border border-primary/20 bg-gradient-to-br from-white to-surface-subtle p-6 shadow-[0_4px_16px_-4px_rgba(129,39,207,0.15)]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
                 <currentStep.icon className="h-6 w-6" />
               </span>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
                   Next Step · {currentIndex + 1} of {steps.length}
                 </p>
-                <h3 className="text-lg font-black text-[#1f1a23]">{currentStep.label}</h3>
+                <h3 className="text-lg font-bold text-ink-strong">{currentStep.label}</h3>
                 <p className="mt-0.5 max-w-xl text-xs font-semibold text-ink">
                   {currentStep.reason}
                 </p>
@@ -365,7 +365,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
 
       {/* ── Step tracker ── */}
       <div className="sk-panel p-5 sm:p-6">
-        <h3 className="mb-4 text-sm font-black uppercase tracking-wider text-ink">
+        <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-ink">
           Your Year at a Glance
         </h3>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -388,26 +388,26 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                       s.done
                         ? "bg-emerald-100 text-emerald-600"
                         : isCurrent
-                          ? "bg-[#8127cf] text-white"
-                          : "bg-[#f3f4f9] text-ink-muted"
+                          ? "bg-primary text-white"
+                          : "bg-muted text-ink-muted"
                     }`}
                   >
                     {s.done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     Step {i + 1}
                   </span>
                 </div>
-                <p className="text-sm font-black text-[#1f1a23]">{s.label}</p>
-                <p className="text-[11px] font-semibold leading-snug text-ink-muted">{s.blurb}</p>
+                <p className="text-sm font-bold text-ink-strong">{s.label}</p>
+                <p className="text-2xs font-semibold leading-snug text-ink-muted">{s.blurb}</p>
                 {s.detail ? (
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    className={`rounded-full px-2 py-0.5 text-2xs font-bold ${
                       s.done
                         ? "bg-emerald-100 text-emerald-700"
                         : s.detailBlocking
                         ? "bg-amber-100 text-amber-700"
-                        : "bg-[#f3eeff] text-[#8127cf]"
+                        : "bg-brand-100 text-primary"
                     }`}
                   >
                     {s.detail}
@@ -421,20 +421,20 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         {/* Year-end sits outside the step list — it is not part of setup. */}
         <div
           className={`mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${
-            allDone ? "border-emerald-200 bg-emerald-50/50" : "border-dashed border-[#cfc2d6]/30 bg-[#faf7fc]"
+            allDone ? "border-emerald-200 bg-emerald-50/50" : "border-dashed border-edge/30 bg-surface-subtle"
           }`}
         >
           <div className="flex items-center gap-3">
             <span
               className={`flex h-8 w-8 items-center justify-center rounded-xl ${
-                allDone ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
+                allDone ? "bg-emerald-100 text-emerald-600" : "bg-muted text-ink-subtle"
               }`}
             >
               {allDone ? <GraduationCap className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
             </span>
             <div>
-              <p className="text-xs font-black text-[#1f1a23]">At the end of the year</p>
-              <p className="text-[11px] font-semibold text-ink-muted">
+              <p className="text-xs font-bold text-ink-strong">At the end of the year</p>
+              <p className="text-2xs font-semibold text-ink-muted">
                 {allDone
                   ? "Ready — move students into their next class."
                   : "Promoting students unlocks once results are released."}
@@ -468,7 +468,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         <div className="sk-panel p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-black uppercase tracking-wider text-ink">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-ink">
               Needs Your Attention
             </h3>
           </div>
@@ -503,8 +503,8 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         {/* ── Recent activity ── */}
         <div className="sk-panel p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#8127cf]" />
-            <h3 className="text-sm font-black uppercase tracking-wider text-ink">
+            <Clock className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-ink">
               Recent Activity
             </h3>
           </div>
@@ -519,25 +519,25 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
                   <div className="flex items-center gap-3">
                     <span
                       className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                        a.kind === "exam" ? "bg-amber-50 text-amber-600" : "bg-[#f3eeff] text-[#8127cf]"
+                        a.kind === "exam" ? "bg-amber-50 text-amber-600" : "bg-brand-100 text-primary"
                       }`}
                     >
                       {a.kind === "exam" ? <ListChecks className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
                     </span>
                     <div>
-                      <p className="text-sm font-bold text-[#1f1a23]">{a.title}</p>
-                      <p className="text-[11px] font-semibold text-ink-muted">
+                      <p className="text-sm font-bold text-ink-strong">{a.title}</p>
+                      <p className="text-2xs font-semibold text-ink-muted">
                         {[a.term, a.meta].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-[#cfc2d6]" />
+                  <ArrowRight className="h-4 w-4 text-edge" />
                 </Button>
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] py-8 text-center">
-              <CircleDashed className="h-8 w-8 text-[#cfc2d6]" />
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-edge/15 bg-surface-subtle py-8 text-center">
+              <CircleDashed className="h-8 w-8 text-edge" />
               <p className="mt-2 text-sm font-semibold text-ink-muted">No recent activity yet</p>
             </div>
           )}
@@ -564,7 +564,7 @@ function StatCard({
       <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${t.bg}`}>
         <Icon className={`h-5 w-5 ${t.text}`} />
       </div>
-      <p className="mt-3 text-3xl font-black tracking-tight text-[#1f1a23]">{value}</p>
+      <p className="mt-3 text-3xl font-extrabold tracking-tight text-ink-strong">{value}</p>
       <p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p>
     </div>
   );

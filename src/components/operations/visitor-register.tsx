@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Eye, LogIn, LogOut, PencilLine, ShieldAlert } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -134,7 +134,7 @@ export function VisitorRegister({ canManage = true }: { canManage?: boolean }) {
             <p className="text-xs text-ink-muted">{visit.toMeet ? <>{ui("Seeing {0}", [visit.toMeet])} · </> : null}<bdi>{visit.purpose ?? ""}</bdi>{visit.phone ? <> · <bdi>{visit.phone}</bdi></> : null}</p>
             <p className="text-xs text-ink-muted">{ui("Arrived {0}", [dateTime(visit.inTime)])}{visit.outTime ? ` · ${ui("Left {0}", [dateTime(visit.outTime)])}` : ""}{visit.refusedReason ? ` · ${visit.refusedReason}` : ""}</p>
           </div>
-          <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${visit.status === "ON_SITE" ? (visit.overdue ? "bg-amber-100 text-amber-900" : "bg-emerald-50 text-emerald-700") : visit.status === "REFUSED" ? "bg-rose-50 text-rose-700" : "bg-muted text-ink-muted"}`}>{visit.overdue ? ui("Overdue") : ui(STATUS_LABEL[visit.status])}</span>
+          <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${visit.status === "ON_SITE" ? (visit.overdue ? "bg-amber-100 text-amber-900" : "bg-emerald-50 text-emerald-700") : visit.status === "REFUSED" ? "bg-rose-50 text-rose-700" : "bg-muted text-ink-muted"}`}>{visit.overdue ? ui("Overdue") : ui(STATUS_LABEL[visit.status])}</span>
           {canManage && visit.status === "ON_SITE" ? <Button size="sm" onClick={() => setLeaving(visit)} aria-label={ui("Check out {0}", [visit.name])}><LogOut className="size-3.5" aria-hidden="true" />{ui("Check out")}</Button> : null}
           {canManage ? <Button size="sm" variant="ghost" onClick={() => setCorrecting(visit)} aria-label={ui("Correct visit of {0}", [visit.name])}><PencilLine className="size-3.5" aria-hidden="true" />{ui("Correct")}</Button> : null}
         </li>)}

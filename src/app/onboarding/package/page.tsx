@@ -132,7 +132,7 @@ function PackageChoice() {
   };
 
   return (
-    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-[#fff7fe] px-4 py-6 text-[#1f1a23] sm:px-8 sm:py-10">
+    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 px-4 py-6 text-ink-strong sm:px-8 sm:py-10">
       <div className="mx-auto max-w-7xl">
         <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className={buttonVariants({ variant: "link", className: "gap-2" })}>
           <ArrowLeft aria-hidden="true" className="h-4 w-4" />
@@ -140,9 +140,9 @@ function PackageChoice() {
         </Link>
 
         <header className="mt-5 max-w-3xl">
-          <p className="text-xs font-black uppercase tracking-wider text-[#8127cf]">{copy.setup}</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{copy.title}</h1>
-          <p className="mt-3 text-sm leading-6 text-[#615668]">{copy.intro}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{copy.setup}</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{copy.title}</h1>
+          <p className="mt-3 text-sm leading-6 text-ink-muted">{copy.intro}</p>
         </header>
 
         <section aria-label={copy.sizing} className="sk-panel mt-7 grid gap-4 p-4 sm:grid-cols-2 sm:p-6">
@@ -158,14 +158,14 @@ function PackageChoice() {
 
         {catalogue && (
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-[#615668]">
+            <p className="text-sm text-ink-muted">
               <span>{copy.catalogue}: </span>
               <bdi dir="ltr">{catalogue.commercialTermsVersion}</bdi>
               <span className="mx-2">·</span>
               <span>{copy.regionalCurrency}: </span>
               <bdi dir="ltr">{catalogue.regionalCurrency}</bdi>
             </p>
-            <div role="group" aria-label={copy.billingPeriod} className="inline-flex rounded-full border border-[#cfc2d6] bg-white p-1">
+            <div role="group" aria-label={copy.billingPeriod} className="inline-flex rounded-full border border-edge bg-white p-1">
               {(["monthly", "annual"] as const).map((choice) => (
                 <Button variant="choice" key={choice} type="button" aria-pressed={period === choice} onClick={() => setPeriod(choice)} >
                   {choice === "monthly" ? copy.monthly : copy.annual}
@@ -177,7 +177,7 @@ function PackageChoice() {
         )}
 
         {message && <p role="alert" className="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900">{message}</p>}
-        {!catalogue && !message && <p aria-live="polite" className="mt-8 flex items-center gap-2 text-sm text-[#615668]"><Loader2 className="h-4 w-4 animate-spin" />{language === "ar" ? "جارٍ تحميل الباقات المعتمدة…" : language === "ur" ? "منظور شدہ پیکیجز لوڈ ہو رہے ہیں…" : "Loading approved packages…"}</p>}
+        {!catalogue && !message && <p aria-live="polite" className="mt-8 flex items-center gap-2 text-sm text-ink-muted"><Loader2 className="h-4 w-4 animate-spin" />{language === "ar" ? "جارٍ تحميل الباقات المعتمدة…" : language === "ur" ? "منظور شدہ پیکیجز لوڈ ہو رہے ہیں…" : "Loading approved packages…"}</p>}
 
         {catalogue && <section aria-label={copy.availablePackages} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {order.map((type) => {
@@ -189,12 +189,12 @@ function PackageChoice() {
             const unavailablePaid = paidType && !regionalQuote && catalogue.paymentMethods.length === 0;
             return <article key={plan.type} className={`sk-panel flex min-h-[28rem] flex-col p-5 ${recommendedCurrent ? "border-primary" : ""}`}>
               <div className="flex items-start justify-between gap-2">
-                <h2 className="text-base font-black">{copy.planNames[plan.type] ?? plan.name}</h2>
-                {recommendedCurrent && <span className="rounded-full bg-[#f3e9fb] px-2.5 py-1 text-xs font-bold text-[#8127cf]">{copy.current}</span>}
+                <h2 className="text-base font-bold">{copy.planNames[plan.type] ?? plan.name}</h2>
+                {recommendedCurrent && <span className="rounded-full bg-[#f3e9fb] px-2.5 py-1 text-xs font-bold text-primary">{copy.current}</span>}
               </div>
-              <p className="mt-3 min-h-14 text-lg font-black" dir="ltr"><bdi>{priceText(plan)}</bdi></p>
-              {type === "FREE" && <p className="text-xs leading-5 text-[#615668]">{copy.freeDescription}</p>}
-              {type === "ENTERPRISE" && <p className="text-xs leading-5 text-[#615668]">{copy.customDescription}</p>}
+              <p className="mt-3 min-h-14 text-lg font-bold" dir="ltr"><bdi>{priceText(plan)}</bdi></p>
+              {type === "FREE" && <p className="text-xs leading-5 text-ink-muted">{copy.freeDescription}</p>}
+              {type === "ENTERPRISE" && <p className="text-xs leading-5 text-ink-muted">{copy.customDescription}</p>}
               <p className={`mt-4 flex items-center gap-2 rounded-xl p-3 text-xs font-bold ${fits ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
                 {fits ? <Check aria-hidden="true" className="h-4 w-4 shrink-0" /> : <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />}
                 {fits ? copy.fits : copy.exceeds}
@@ -205,8 +205,8 @@ function PackageChoice() {
                 <div className="flex justify-between gap-2"><dt>{copy.branches}</dt><dd className="font-bold" dir="ltr">{plan.maxCampuses < 0 ? copy.unlimited : plan.maxCampuses.toLocaleString()}</dd></div>
                 <div className="flex justify-between gap-2"><dt>{copy.aiCredits}</dt><dd className="font-bold" dir="ltr">{plan.aiCredits.toLocaleString()}</dd></div>
               </dl>
-              <ul className="mt-4 flex-1 space-y-1.5 text-xs leading-5 text-[#615668]">
-                {plan.features.map((feature) => <li key={feature} className="flex gap-2"><Check aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" /><span lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span></li>)}
+              <ul className="mt-4 flex-1 space-y-1.5 text-xs leading-5 text-ink-muted">
+                {plan.features.map((feature) => <li key={feature} className="flex gap-2"><Check aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /><span lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span></li>)}
               </ul>
               {type === "FREE" ? (
                 <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
@@ -225,13 +225,13 @@ function PackageChoice() {
                   {busy === type && <Loader2 className="h-4 w-4 animate-spin" />}{unavailablePaid ? copy.checkoutUnavailable : copy.choose}
                 </Button>
               )}
-              {unavailablePaid && <p className="mt-2 text-xs text-[#615668]">{copy.paidUnavailable}</p>}
-              {regionalQuote && <p className="mt-2 text-xs leading-5 text-[#615668]">{copy.regionalQuote}</p>}
+              {unavailablePaid && <p className="mt-2 text-xs text-ink-muted">{copy.paidUnavailable}</p>}
+              {regionalQuote && <p className="mt-2 text-xs leading-5 text-ink-muted">{copy.regionalQuote}</p>}
             </article>;
           })}
         </section>}
 
-        {catalogue && <p className="mt-5 rounded-xl border border-[#e6dce9] bg-white p-4 text-xs leading-5 text-[#615668]">
+        {catalogue && <p className="mt-5 rounded-xl border border-[#e6dce9] bg-white p-4 text-xs leading-5 text-ink-muted">
           {language === "en" ? catalogue.regionalPriceDisclosure : copy.priceDisclosure}
           <span className="mx-2">·</span>
           {copy.approvedTerms}: <bdi dir="ltr">{catalogue.catalogueVersion}</bdi>

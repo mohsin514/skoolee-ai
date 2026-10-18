@@ -49,7 +49,7 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
   if (!items) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <p className="text-sm text-slate-600" aria-busy="true">{t.loading}</p>}</div>;
   const current = items.find(item => `${item.id}:${item.studentId}` === selected);
   if (current) return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
-    {fromToday ? <Link href="/student" className="text-sm font-semibold text-[#8127cf] underline" data-back-today>{ui("Back to Today")}</Link> : null}
+    {fromToday ? <Link href="/student" className="text-sm font-semibold text-primary underline" data-back-today>{ui("Back to Today")}</Link> : null}
     <Button type="button" variant="link" className="px-0" onClick={() => { setSelected(null); setStatus(null); setReceipt(null); }}>{t.back}</Button>
     <Banner status={status} />
     <AssignmentView t={t} language={language} item={current} audience={audience} reload={load} setStatus={setStatus} receipt={receipt} setReceipt={setReceipt} />
@@ -174,7 +174,7 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
       <span className="font-semibold">{t.attach}</span>
       <label className="flex min-w-0 flex-wrap items-center gap-2">
         <input type="file" accept={accept} className="peer sr-only" aria-label={t.attach} aria-describedby="asg-upload-state" onChange={event => { const file = event.target.files?.[0]; if (file) void sendFile(file); event.target.value = ""; }} />
-        <span aria-hidden className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-[#d8cfe5] bg-white px-3 text-sm font-bold peer-focus-visible:ring-2 peer-focus-visible:ring-violet-500">{t.chooseFile}</span>
+        <span aria-hidden className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-field-border bg-white px-3 text-sm font-bold peer-focus-visible:ring-2 peer-focus-visible:ring-violet-500">{t.chooseFile}</span>
         <span className="min-w-0 text-sm text-slate-600 [overflow-wrap:anywhere]"><bdi>{upload.name ?? t.noFile}</bdi></span>
       </label>
       <p id="asg-upload-state" role="status" className="flex flex-wrap items-center gap-2">

@@ -117,7 +117,7 @@ function RoleShellContent({
 
   return (
     <ChatProvider>
-      <div data-role-shell className="min-h-dvh bg-background flex font-sans text-foreground selection:bg-[#8127cf]/30">
+      <div data-role-shell className="sk-app-canvas min-h-dvh flex font-sans text-foreground selection:bg-primary/25">
         <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:p-3"><UiText>Skip to content</UiText></a>
         {checkingAccess && <aside aria-hidden="true" className={cn("fixed inset-y-0 start-0 hidden flex-col gap-3 border-e border-border bg-card p-4 md:flex", collapsed ? "w-[72px]" : "w-64")}><SkeletonBar className="mb-4 h-11 w-full" />{Array.from({ length: navItems.length || 8 }, (_, i) => <SkeletonBar key={i} className="h-11 w-full" delay={i * 60} />)}</aside>}
         <div style={{ display: checkingAccess ? "none" : "contents" }}><RoleSidebar

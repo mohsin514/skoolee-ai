@@ -106,7 +106,7 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
   if (state === "error" || !profile) {
     return (
       <div role="alert" className={securityCardClass}>
-        <p className="text-sm font-bold text-[#1f1a23]">{t("Couldn't load your profile.")}</p>
+        <p className="text-sm font-bold text-ink-strong">{t("Couldn't load your profile.")}</p>
         <Button type="button" variant="outline" className="mt-4" onClick={() => { setState("loading"); setAttempt(value => value + 1); }}>
           <RotateCcw aria-hidden="true" />{t("Try again")}
         </Button>
@@ -118,11 +118,11 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
     <form className="space-y-4" noValidate onSubmit={event => { event.preventDefault(); void save(); }}>
       <section aria-labelledby="settings-photo-heading" className={securityCardClass}>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <div className="size-20 shrink-0 overflow-hidden rounded-3xl border-4 border-white bg-[#f3ecfa] shadow-[0_8px_24px_-12px_rgba(55,27,77,0.45)]">
+          <div className="size-20 shrink-0 overflow-hidden rounded-3xl border-4 border-white bg-brand-100 shadow-[0_8px_24px_-12px_rgba(55,27,77,0.45)]">
             <AvatarImage src={form.profileImageUrl || undefined} name={form.fullName || profile.fullName} initialsClassName="text-xl" className="size-full object-cover" />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 id="settings-photo-heading" className="text-base font-black tracking-tight text-[#1f1a23]">{t("Profile photo")}</h4>
+            <h4 id="settings-photo-heading" className="text-base font-bold tracking-tight text-ink-strong">{t("Profile photo")}</h4>
             <p className="mt-1 text-sm font-semibold text-ink-muted">{t("PNG or JPG, up to 1.5 MB.")}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={event => { pickImage(event.target.files?.[0]); event.target.value = ""; }} />
@@ -140,7 +140,7 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
       </section>
 
       <section aria-labelledby="settings-details-heading" className={securityCardClass}>
-        <h4 id="settings-details-heading" className="text-base font-black tracking-tight text-[#1f1a23]">{t("Personal details")}</h4>
+        <h4 id="settings-details-heading" className="text-base font-bold tracking-tight text-ink-strong">{t("Personal details")}</h4>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <FormField name="fullName" id="settings-full-name" label={t("Full name")} required error={nameError || undefined}>
             <Input id="settings-full-name" autoComplete="name" value={form.fullName} readOnly={saving}
@@ -181,9 +181,9 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
 
 function ReadOnly({ icon: Icon, label, value, ltr }: { icon: typeof Mail; label: string; value: string; ltr?: boolean }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-[#ece3f3] bg-[#fcfaff] px-4 py-3">
-      <dt className="flex items-center gap-1.5 text-xs font-bold text-ink-muted"><Icon aria-hidden="true" className="size-3.5 text-[#8127cf]" />{label}</dt>
-      <dd className="mt-1 text-sm font-bold text-[#1f1a23] [overflow-wrap:anywhere]">{ltr ? <bdi dir="ltr">{value}</bdi> : value}</dd>
+    <div className="min-w-0 rounded-2xl border border-border-subtle bg-surface-subtle px-4 py-3">
+      <dt className="flex items-center gap-1.5 text-xs font-bold text-ink-muted"><Icon aria-hidden="true" className="size-3.5 text-primary" />{label}</dt>
+      <dd className="mt-1 text-sm font-bold text-ink-strong [overflow-wrap:anywhere]">{ltr ? <bdi dir="ltr">{value}</bdi> : value}</dd>
     </div>
   );
 }

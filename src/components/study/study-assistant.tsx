@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -49,7 +49,7 @@ export function StudyAssistant() {
   if (data.blocked) return <section className="sk-panel space-y-2 p-5" data-study data-study-blocked><p className="text-sm font-bold">{ui("Help for this assessment is restricted until it ends.")}</p><Link className="text-sm underline" href={data.blocked.href}>{data.blocked.title ? <><bdi>{data.blocked.title}</bdi> — </> : null}{ui("Return to your exam")}</Link></section>;
 
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-study>
-    <header><h3 className="text-base font-black">{ui("Study with class resources")}</h3><p className="text-xs text-ink-muted">{ui("Answers use only your class's approved materials, with their sources. Do not enter private personal information.")}</p></header>
+    <header><h3 className="text-base font-bold">{ui("Study with class resources")}</h3><p className="text-xs text-ink-muted">{ui("Answers use only your class's approved materials, with their sources. Do not enter private personal information.")}</p></header>
     {!data.resources.length ? <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted" data-study-empty>{ui("Your teachers have not added study material yet.")} <Link className="underline" href="/student/resources">{ui("Open class resources")}</Link></p> : <>
       <FormField name="study-resource" label={ui("Material")}><Select className="w-full min-w-0" value={resourceId} onChange={e => setResourceId(e.target.value)}><option value="">{ui("All my approved class material")}</option>{data.resources.map(r => <option key={r.id} value={r.id}>{r.title} · v{r.version}</option>)}</Select></FormField>
       <FormField name="study-question" label={ui("Your question")}><Textarea rows={2} value={question} onChange={e => setQuestion(e.target.value)} maxLength={600} /></FormField>
@@ -59,7 +59,7 @@ export function StudyAssistant() {
     {latest ? <article className={cn("space-y-2 rounded-2xl border p-3", latest.outcome === "ANSWERED" ? "border-emerald-200" : "border-amber-300 bg-amber-50/40")} data-study-answer={latest.outcome} aria-live="polite">
       {latest.outcome === "ANSWERED" ? <>
         <p className="text-sm" dir="auto">{latest.answer.explanation}</p>
-        <div className="space-y-1" data-study-sources><p className="text-xs font-black uppercase text-ink-muted">{ui("Sources")}</p>{latest.sources.map(s => <div key={s.passageId} className="rounded-lg bg-[#f6f2f8] p-2 text-xs" data-study-source={s.passageId}>
+        <div className="space-y-1" data-study-sources><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Sources")}</p>{latest.sources.map(s => <div key={s.passageId} className="rounded-lg bg-surface-sunken p-2 text-xs" data-study-source={s.passageId}>
           <Button type="button" variant="link" size="sm" className="h-auto min-h-0 whitespace-normal p-0 text-start text-xs font-bold" aria-expanded={open === s.passageId} onClick={() => setOpen(open === s.passageId ? null : s.passageId)}><bdi>[{s.label}]</bdi> <span dir="auto">{s.title}</span> · v<bdi>{s.version}</bdi> · <span dir="auto">{s.section}</span></Button>
           {open === s.passageId && s.excerpt ? <p className="mt-1 whitespace-pre-wrap" dir="auto">{s.excerpt}</p> : null}
         </div>)}</div>
@@ -86,8 +86,8 @@ export function TeacherStudyDesk() {
   if (!desk) return null;
   const eligible = desk.resources.filter(r => r.eligible);
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-study-desk>
-    <header><h3 className="text-base font-black">{ui("Study help")}</h3><p className="text-xs text-ink-muted">{ui("The study assistant answers only from text you approve here, for the published version of each resource. Answer keys and staff material are never used.")}</p></header>
-    {desk.flagged.length ? <div className="space-y-2" data-study-flagged><p className="text-xs font-black uppercase text-ink-muted">{ui("Reports and help requests")}</p>{desk.flagged.map(f => <div key={f.id} className="rounded-xl border border-amber-300 bg-amber-50/40 p-3 text-sm" data-study-flag={f.id}>
+    <header><h3 className="text-base font-bold">{ui("Study help")}</h3><p className="text-xs text-ink-muted">{ui("The study assistant answers only from text you approve here, for the published version of each resource. Answer keys and staff material are never used.")}</p></header>
+    {desk.flagged.length ? <div className="space-y-2" data-study-flagged><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Reports and help requests")}</p>{desk.flagged.map(f => <div key={f.id} className="rounded-xl border border-amber-300 bg-amber-50/40 p-3 text-sm" data-study-flag={f.id}>
       <p className="text-xs text-ink-muted"><bdi>{f.learner}</bdi> · {f.helpRequestedAt ? ui("Asked for help") : ui("Reported an answer")}{f.reportReason ? <> · <span dir="auto">{f.reportReason}</span></> : null}</p>
       <p className="font-bold" dir="auto">{f.question}</p>{f.answer?.explanation ? <p className="text-xs" dir="auto">{f.answer.explanation}</p> : null}
       <div className="mt-1 flex justify-end"><Button size="sm" variant="outline" disabled={busy} onClick={() => void post({ action: "reviewed", turnId: f.id }, "Marked as reviewed.")} data-study-reviewed>{ui("Mark reviewed")}</Button></div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, CalendarDays, Camera, GraduationCap, Loader2, Mail, MapPin, Save, ShieldCheck, Sparkles, UserRound, type LucideIcon } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton } from "@/components/role-dashboard/BrandButton";
 import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
@@ -157,15 +157,15 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
   };
 
   return (
-    <div className={cn("rounded-[34px] border border-[#cfc2d6]/20 bg-white shadow-lg transition-all duration-300 hover:shadow-xl", compact ? "p-5" : "p-7", className)}>
+    <div className={cn("rounded-[34px] border border-edge/20 bg-white shadow-lg transition-all duration-300 hover:shadow-xl", compact ? "p-5" : "p-7", className)}>
       <div className={cn("grid gap-6", compact ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[260px_1fr]")}>
-        <div className="rounded-[30px] bg-gradient-to-br from-[#fbf0fe] via-[#fbf0fe]/70 to-white p-5">
+        <div className="rounded-[30px] bg-gradient-to-br from-brand-50 via-brand-50/70 to-white p-5">
           <div className="group relative mx-auto h-32 w-32 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
             <AvatarImage src={imageSrc} name={form.fullName || profile.fullName} initialsClassName="text-3xl" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#8127cf]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute inset-0 bg-gradient-to-t from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
             ) : null}
           </div>
@@ -193,8 +193,8 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
 
         <div className="space-y-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8127cf]">Account Profile</p>
-            <h3 className="mt-1 text-2xl font-bold tracking-tight text-[#1d1b20]">{form.fullName || "Your profile"}</h3>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Account Profile</p>
+            <h3 className="mt-1 text-2xl font-bold tracking-tight text-ink-strong">{form.fullName || "Your profile"}</h3>
           </div>
 
           <ProfileInput
@@ -238,28 +238,28 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
           {/* What the timetable builder matches on. Shown as chips so it reads
               as a list of subjects rather than a comma-jammed sentence. */}
           {(profile.teachesAllSubjects || (profile.subjectSpecialties?.length ?? 0) > 0) ? (
-            <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/55 px-4 py-3.5">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                <BookOpen className="h-3.5 w-3.5 text-[#8127cf]" />
+            <div className="rounded-2xl border border-edge/20 bg-brand-50/55 px-4 py-3.5">
+              <div className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+                <BookOpen className="h-3.5 w-3.5 text-primary" />
                 Teaching specialities
               </div>
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {profile.teachesAllSubjects ? (
-                  <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                  <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-2xs font-bold text-emerald-700">
                     All subjects
                   </span>
                 ) : (
                   profile.subjectSpecialties?.map((subject) => (
                     <span
                       key={subject}
-                      className="rounded-full bg-[#8127cf]/10 px-3 py-1 text-[11px] font-bold text-[#8127cf]"
+                      className="rounded-full bg-primary/10 px-3 py-1 text-2xs font-bold text-primary"
                     >
                       {subject}
                     </span>
                   ))
                 )}
               </div>
-              <p className="mt-2.5 text-[10px] font-semibold text-ink-subtle">
+              <p className="mt-2.5 text-2xs font-semibold text-ink-subtle">
                 Used when subjects and timetable slots are assigned to you.
               </p>
             </div>
@@ -300,7 +300,7 @@ function ProfileInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
+      <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
       <SystemInput
         value={value}
         placeholder={placeholder}
@@ -313,8 +313,8 @@ function ProfileInput({
 
 function ProfileChip({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]">
-      <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
+    <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted transition-all hover:bg-brand-50 hover:text-primary">
+      <Icon className="h-3.5 w-3.5 text-primary" />
       <span className="min-w-0 truncate">{label}</span>
     </div>
   );
@@ -322,12 +322,12 @@ function ProfileChip({ icon: Icon, label }: { icon: LucideIcon; label: string })
 
 function ReadonlyDetail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3 transition-all duration-300 hover:bg-[#fbf0fe] hover:shadow-md">
-      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-        <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
+    <div className="rounded-2xl bg-brand-50/55 px-4 py-3 transition-all duration-300 hover:bg-brand-50 hover:shadow-md">
+      <div className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+        <Icon className="h-3.5 w-3.5 text-primary" />
         {label}
       </div>
-      <p className="mt-1 truncate text-sm font-bold text-[#1d1b20]">{value}</p>
+      <p className="mt-1 truncate text-sm font-bold text-ink-strong">{value}</p>
     </div>
   );
 }

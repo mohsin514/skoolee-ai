@@ -79,11 +79,11 @@ export function PasswordField({ id, value, onChange, error, readOnly, inputRef, 
   return (
     <FormField name="password" id={id} required label={t.password} error={error}>
       <InputGroup>
-        <LockKeyhole aria-hidden="true" data-field-affix="start" className="size-4 text-[#8127cf]" />
+        <LockKeyhole aria-hidden="true" data-field-affix="start" className="size-4 text-primary" />
         <Input ref={inputRef} id={id} type={visible ? "text" : "password"} autoComplete="current-password" value={value}
           onChange={event => onChange(event.target.value)} readOnly={readOnly} spellCheck={false} />
         <FieldAction onClick={() => setVisible(shown => !shown)} aria-label={visible ? t.hidePassword : t.showPassword} aria-pressed={visible} aria-controls={id}
-          className="flex size-11 items-center justify-center rounded-xl text-ink-muted hover:text-[#8127cf]">
+          className="flex size-11 items-center justify-center rounded-xl text-ink-muted hover:text-primary">
           {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
         </FieldAction>
       </InputGroup>

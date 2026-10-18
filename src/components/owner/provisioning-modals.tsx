@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useId, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   Loader2, Check, Copy, RefreshCw, Building2, UserPlus, Sparkles,
   AlertCircle, ShieldCheck, KeyRound, ArrowRight, Eye, EyeOff, Users,
@@ -134,31 +134,31 @@ You will be asked to set your own password on first sign-in.`;
           <Check className="h-4 w-4 text-white" strokeWidth={3} />
         </div>
         <div>
-          <p className="text-[13px] font-black text-emerald-800">{data.heading}</p>
-          <p className="text-[11px] font-bold text-emerald-700/70">The account is active and ready to use.</p>
+          <p className="text-[13px] font-bold text-emerald-800">{data.heading}</p>
+          <p className="text-2xs font-bold text-emerald-700/70">The account is active and ready to use.</p>
         </div>
       </div>
 
-      <dl className="mb-5 space-y-2 rounded-2xl bg-[#f9f7fb] p-4">
+      <dl className="mb-5 space-y-2 rounded-2xl bg-surface-subtle p-4">
         {data.lines.map((l) => (
           <div key={l.label} className="flex items-baseline justify-between gap-4">
-            <dt className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">{l.label}</dt>
-            <dd className="truncate text-[13px] font-bold text-[#1f1a23]">{l.value}</dd>
+            <dt className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{l.label}</dt>
+            <dd className="truncate text-[13px] font-bold text-ink-strong">{l.value}</dd>
           </div>
         ))}
       </dl>
 
-      <div className="rounded-2xl border-2 border-dashed border-[#8127cf]/25 bg-[#fbf0fe] p-4">
+      <div className="rounded-2xl border-2 border-dashed border-primary/25 bg-brand-50 p-4">
         <div className="mb-3 flex items-center gap-2">
-          <KeyRound className="h-3.5 w-3.5 text-[#8127cf]" />
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+          <KeyRound className="h-3.5 w-3.5 text-primary" />
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
             Shown once — copy it now
           </p>
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-bold text-[#1f1a23]">
+            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-bold text-ink-strong">
               {data.email}
             </code>
             <Button variant="outline" size="icon"
@@ -171,7 +171,7 @@ You will be asked to set your own password on first sign-in.`;
           </div>
 
           <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-black tracking-wide text-[#1f1a23]">
+            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-bold tracking-wide text-ink-strong">
               {reveal ? data.password : "•".repeat(data.password.length)}
             </code>
             <Button variant="outline" size="icon"
@@ -200,8 +200,8 @@ You will be asked to set your own password on first sign-in.`;
         </Button>
       </div>
 
-      <p className="mt-4 flex items-start gap-2 px-1 text-[11px] font-semibold leading-relaxed text-ink-muted">
-        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
+      <p className="mt-4 flex items-start gap-2 px-1 text-2xs font-semibold leading-relaxed text-ink-muted">
+        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         This password is not stored anywhere in readable form and cannot be shown again.
         The user must replace it the first time they sign in.
       </p>
@@ -291,7 +291,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
         {error && <ErrorBanner message={error} />}
 
         <section className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">1 · Institution</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">1 · Institution</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="School / group name" required>
               <SystemInput className={inputCls} value={form.schoolName} autoFocus
@@ -313,7 +313,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
         </section>
 
         <section className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">2 · First campus</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">2 · First campus</p>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Campus name" hint="auto">
               <SystemInput className={inputCls} value={form.campusName}
@@ -332,7 +332,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
         </section>
 
         <section className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">3 · Owner account</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">3 · Owner account</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Full name" required>
               <SystemInput className={inputCls} value={form.ownerName}
@@ -354,13 +354,13 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
               </Button>
             </div>
           </Field>
-          <p className="rounded-xl bg-[#f9f7fb] px-3 py-2 text-[11px] font-bold text-ink-muted">
-            Role is <span className="text-[#8127cf]">SUPER_ADMIN</span> — full control of this school across every campus.
+          <p className="rounded-xl bg-surface-subtle px-3 py-2 text-2xs font-bold text-ink-muted">
+            Role is <span className="text-primary">SUPER_ADMIN</span> — full control of this school across every campus.
           </p>
         </section>
 
         <section className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">4 · Plan</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">4 · Plan</p>
           <div className="grid gap-2.5 sm:grid-cols-4">
             {PLAN_ORDER.map((p) => {
               const def = PLANS[p];
@@ -369,16 +369,16 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
                 <Button aria-pressed={on} variant="choice" key={p} type="button" onClick={() => set("plan", p)}
                   className="block text-left">
                   <div className="flex items-center justify-between">
-                    <span className={`text-[13px] font-black ${on ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{def.name}</span>
-                    {on && <Check className="h-3.5 w-3.5 text-[#8127cf]" strokeWidth={3} />}
+                    <span className={`text-[13px] font-bold ${on ? "text-primary" : "text-ink-strong"}`}>{def.name}</span>
+                    {on && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={3} />}
                   </div>
-                  <p className="mt-0.5 text-[10px] font-bold text-ink-subtle">{def.priceLabel}</p>
+                  <p className="mt-0.5 text-2xs font-bold text-ink-subtle">{def.priceLabel}</p>
                 </Button>
               );
             })}
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-[#f9f7fb] p-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-surface-subtle p-4 sm:grid-cols-4">
             {[
               { icon: GraduationCap, label: "Students", v: planDef.maxStudents },
               { icon: Users, label: "Teachers", v: planDef.maxTeachers },
@@ -388,9 +388,9 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
               <div key={label}>
                 <div className="flex items-center gap-1.5 text-ink-subtle">
                   <I className="h-3 w-3" />
-                  <span className="text-[9px] font-black uppercase tracking-wider">{label}</span>
+                  <span className="text-2xs font-semibold uppercase tracking-wider">{label}</span>
                 </div>
-                <p className="mt-1 text-lg font-black tabular-nums text-[#1f1a23]">
+                <p className="mt-1 text-lg font-bold tabular-nums text-ink-strong">
                   {v < 0 ? "∞" : v.toLocaleString()}
                 </p>
               </div>
@@ -410,8 +410,8 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
         </section>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-[#cfc2d6]/15 p-5">
-        <p className="text-[11px] font-bold text-ink-subtle">
+      <div className="flex items-center justify-between gap-3 border-t border-edge/15 p-5">
+        <p className="text-2xs font-bold text-ink-subtle">
           {valid ? "Ready to provision" : "Fill the required fields"}
         </p>
         <div className="flex gap-2.5">
@@ -535,10 +535,10 @@ export function AddUserModal({
                 <Button aria-pressed={on} variant="choice" key={r.value} type="button" onClick={() => set("role", r.value)}
                   className="block text-left">
                   <div className="flex items-center justify-between">
-                    <span className={`text-[12.5px] font-black ${on ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{r.label}</span>
-                    {on && <Check className="h-3.5 w-3.5 text-[#8127cf]" strokeWidth={3} />}
+                    <span className={`text-xs font-bold ${on ? "text-primary" : "text-ink-strong"}`}>{r.label}</span>
+                    {on && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={3} />}
                   </div>
-                  <p className="mt-0.5 text-[10px] font-bold leading-snug text-ink-subtle">{r.hint}</p>
+                  <p className="mt-0.5 text-2xs font-bold leading-snug text-ink-subtle">{r.hint}</p>
                 </Button>
               );
             })}
@@ -562,7 +562,7 @@ export function AddUserModal({
         )}
 
         {!needsCampus && (
-          <p className="rounded-xl bg-[#f9f7fb] px-3 py-2.5 text-[11px] font-bold text-ink-muted">
+          <p className="rounded-xl bg-surface-subtle px-3 py-2.5 text-2xs font-bold text-ink-muted">
             A Super Admin spans every campus in the school, so no campus is assigned.
           </p>
         )}
@@ -596,15 +596,15 @@ export function AddUserModal({
         </Field>
 
         {form.role === "TEACHER" && (
-          <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[11px] font-bold leading-snug text-amber-700">
+          <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-2xs font-bold leading-snug text-amber-700">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Teacher accounts consume a seat. If the school is at its plan limit the request will be rejected.
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-[#cfc2d6]/15 p-5">
-        <p className="text-[11px] font-bold text-ink-subtle">
+      <div className="flex items-center justify-between gap-3 border-t border-edge/15 p-5">
+        <p className="text-2xs font-bold text-ink-subtle">
           {valid ? "Ready to create" : "Fill the required fields"}
         </p>
         <div className="flex gap-2.5">

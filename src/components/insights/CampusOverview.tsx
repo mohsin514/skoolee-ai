@@ -205,8 +205,8 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
             />
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
-              <CalendarCheck className="h-7 w-7 text-[#cfc2d6]" aria-hidden />
-              <p className="mt-2 px-2 text-[10px] font-bold leading-tight text-ink-subtle">Attendance not marked today</p>
+              <CalendarCheck className="h-7 w-7 text-edge" aria-hidden />
+              <p className="mt-2 px-2 text-2xs font-bold leading-tight text-ink-subtle">Attendance not marked today</p>
             </div>
           )
         }
@@ -273,7 +273,7 @@ export function CampusOverview({ data, onNavigate, onAddStudent, onAddClass }: C
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <p className="mt-3 text-[10px] font-bold text-ink-subtle">
+              <p className="mt-3 text-2xs font-bold text-ink-subtle">
                 The vertical rule marks the campus average of {derived.averageClassSize} students per class.
               </p>
             </>

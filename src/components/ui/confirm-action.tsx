@@ -103,7 +103,7 @@ export function ConfirmAction({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="h-12 cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-12 cursor-pointer rounded-2xl border border-edge/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {cancelLabel ?? copy.cancel}
           </button>
@@ -125,7 +125,7 @@ export function ConfirmAction({
     >
       <p id={descriptionId} className="text-sm font-semibold leading-relaxed text-ink">{description}</p>
       {detail ? (
-        <div className="mt-4 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] px-4 py-3 text-xs font-semibold text-ink">
+        <div className="mt-4 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3 text-xs font-semibold text-ink">
           {detail}
         </div>
       ) : null}

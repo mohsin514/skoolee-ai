@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Clock } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentEmptyState, ParentTimetableSkeleton } from "@/components/parent/parent-components";
@@ -109,51 +109,51 @@ export default function ParentTimetablePage() {
                 const c = colorMap.get(name);
                 return (
                   <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg} px-2 py-1`}>
-                    <span className={`text-[8px] font-black ${c?.text}`}>{name}</span>
+                    <span className={`text-3xs font-bold ${c?.text}`}>{name}</span>
                   </span>
                 );
               })}
             </div>
             <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "80ms" }}>
               <div className="min-w-[700px]">
-                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
+                <div className="grid border-b border-muted" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-2">
                     <Clock className="w-3 h-3 text-ink-subtle" />
                   </div>
                   {visibleDays.map((d) => (
-                    <div key={d.num} className="flex items-center justify-center py-2 border-l border-[#f3f4f9]">
-                      <span className="text-[8px] font-black uppercase text-ink-subtle">{d.short}</span>
+                    <div key={d.num} className="flex items-center justify-center py-2 border-l border-muted">
+                      <span className="text-3xs font-semibold uppercase text-ink-subtle">{d.short}</span>
                     </div>
                   ))}
                 </div>
                 {periods.map((p: any) => {
                   const isSpecial = p.type !== "CLASS";
                   return (
-                    <div key={p.num} className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? "bg-[#f3f4f9]/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
-                      <div className="flex flex-col items-center justify-center p-1 border-r border-[#f3f4f9]">
-                        <span className="text-[8px] font-black text-[#8127cf]">P{p.num}</span>
-                        <span className="text-[6px] font-bold text-ink-subtle">{p.start}</span>
+                    <div key={p.num} className={`grid border-b border-muted last:border-b-0 ${isSpecial ? "bg-muted/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
+                      <div className="flex flex-col items-center justify-center p-1 border-r border-muted">
+                        <span className="text-3xs font-bold text-primary">P{p.num}</span>
+                        <span className="text-3xs font-bold text-ink-subtle">{p.start}</span>
                       </div>
                       {visibleDays.map((d) => {
                         const slot = getSlot(d.num, p.num);
                         if (!slot || slot.slotType !== "CLASS") {
                           const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType === "ASSEMBLY" ? "Assembly" : slot?.slotType || "";
                           return (
-                            <div key={d.num} className="border-l border-[#f3f4f9] flex items-center justify-center p-0.5">
-                              <span className="text-[7px] font-bold text-ink-subtle">{label}</span>
+                            <div key={d.num} className="border-l border-muted flex items-center justify-center p-0.5">
+                              <span className="text-3xs font-bold text-ink-subtle">{label}</span>
                             </div>
                           );
                         }
                         const c = slot.subject ? colorMap.get(slot.subject.name) : null;
                         return (
-                          <div key={d.num} className="border-l border-[#f3f4f9] p-0.5">
+                          <div key={d.num} className="border-l border-muted p-0.5">
                             {slot.subject ? (
                               <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1`}>
-                                <p className={`text-[8px] font-black ${c?.text} leading-tight`}>{slot.subject.name}</p>
-                                {slot.teacher && <p className="text-[6px] font-semibold text-ink-subtle mt-0.5">{slot.teacher.fullName}</p>}
+                                <p className={`text-3xs font-bold ${c?.text} leading-tight`}>{slot.subject.name}</p>
+                                {slot.teacher && <p className="text-3xs font-semibold text-ink-subtle mt-0.5">{slot.teacher.fullName}</p>}
                               </div>
                             ) : (
-                              <div className="h-full flex items-center justify-center"><span className="text-[7px] text-ink-subtle">—</span></div>
+                              <div className="h-full flex items-center justify-center"><span className="text-3xs text-ink-subtle">—</span></div>
                             )}
                           </div>
                         );

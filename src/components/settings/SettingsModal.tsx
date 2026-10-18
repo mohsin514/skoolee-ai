@@ -91,13 +91,13 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
 
   return (
     <div lang={language} dir={dir} data-settings-root className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-start gap-3.5 border-b border-[#efe7f5] bg-gradient-to-b from-[#fcf9fe] to-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-7 sm:pt-6">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-[0_10px_22px_-12px_rgba(106,31,176,0.8)]">
+      <header className="flex shrink-0 items-start gap-3.5 border-b border-brand-100 bg-gradient-to-b from-[#fcf9fe] to-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-7 sm:pt-6">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-[0_10px_22px_-12px_rgba(106,31,176,0.8)]">
           <Settings aria-hidden="true" className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8127cf]">{t("Your account")}</p>
-          <h2 id={titleId} className="text-xl font-black leading-tight tracking-tight text-[#1f1a23] sm:text-2xl">{t("Settings")}</h2>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{t("Your account")}</p>
+          <h2 id={titleId} className="text-xl font-bold leading-tight tracking-tight text-ink-strong sm:text-2xl">{t("Settings")}</h2>
         </div>
         <Button type="button" variant="ghost" size="icon" onClick={requestClose} disabled={!dismissible} aria-label={t("Close settings")} className="-me-2 shrink-0 text-ink-muted">
           <X aria-hidden="true" className="size-5" />
@@ -106,7 +106,7 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <div role="tablist" aria-label={t("Settings sections")} onKeyDown={onTabKey}
-          className="grid shrink-0 grid-cols-3 gap-1.5 border-b border-[#efe7f5] bg-[#fcfaff] p-2.5 md:flex md:w-60 md:flex-col md:gap-1 md:border-b-0 md:border-e md:p-4">
+          className="grid shrink-0 grid-cols-3 gap-1.5 border-b border-brand-100 bg-surface-subtle p-2.5 md:flex md:w-60 md:flex-col md:gap-1 md:border-b-0 md:border-e md:p-4">
           {SETTINGS_SECTIONS.map(key => {
             const Icon = ICONS[key];
             const selected = key === section;
@@ -117,10 +117,10 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
                 onClick={() => select(key)}
                 className={cn(
                   "h-auto min-h-14 w-full min-w-0 flex-col gap-1 px-1.5 py-2 text-center text-xs leading-tight md:min-h-12 md:flex-row md:justify-start md:gap-3 md:px-3 md:text-start md:text-sm",
-                  selected ? "bg-white text-[#7020b9] shadow-[0_1px_2px_rgba(31,26,35,0.06),0_6px_16px_-10px_rgba(106,31,176,0.45)] ring-1 ring-[#e3d5f0]" : "text-ink-muted",
+                  selected ? "bg-white text-brand-700 shadow-[0_1px_2px_rgba(31,26,35,0.06),0_6px_16px_-10px_rgba(106,31,176,0.45)] ring-1 ring-brand-200" : "text-ink-muted",
                 )}>
                 <span aria-hidden="true" className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg md:size-8",
-                  selected ? "bg-[#8127cf] text-white" : "bg-white text-ink-muted ring-1 ring-[#ece3f3]")}>
+                  selected ? "bg-primary text-white" : "bg-white text-ink-muted ring-1 ring-border-subtle")}>
                   <Icon className="size-4" />
                 </span>
                 <span className="min-w-0 [overflow-wrap:anywhere]">{labels[key].title}</span>
@@ -129,12 +129,12 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
           })}
         </div>
 
-        <div className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-[#fdfcfe]">
+        <div className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-surface-subtle">
           {SETTINGS_SECTIONS.map(key => visited.has(key) ? (
             <section key={key} role="tabpanel" id={`settings-panel-${key}`} aria-labelledby={`settings-tab-${key}`} hidden={key !== section}
               className="mx-auto w-full max-w-2xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-6 sm:px-7 sm:pt-7">
               <div className="mb-5">
-                <h3 className="text-lg font-black tracking-tight text-[#1f1a23] sm:text-xl">{labels[key].title}</h3>
+                <h3 className="text-lg font-bold tracking-tight text-ink-strong sm:text-xl">{labels[key].title}</h3>
                 <p className="mt-1 text-sm font-semibold leading-relaxed text-ink-muted">{labels[key].description}</p>
               </div>
               {key === "profile" && <ProfileSettingsSection onSaved={onProfileSaved} onDirtyChange={onProfileDirty} />}
@@ -154,7 +154,7 @@ function LanguageSection() {
   return (
     <div className="space-y-4">
       <section aria-labelledby="settings-language-heading" className={securityCardClass}>
-        <h4 id="settings-language-heading" className="mb-4 text-base font-black tracking-tight text-[#1f1a23]">{t("Display language")}</h4>
+        <h4 id="settings-language-heading" className="mb-4 text-base font-bold tracking-tight text-ink-strong">{t("Display language")}</h4>
         <PersonalLanguageSetting id="settings-language" />
       </section>
 
@@ -162,14 +162,14 @@ function LanguageSection() {
       <section className={cn(securityCardClass, "p-0 sm:p-0")}>
         <Button type="button" variant="ghost" aria-expanded={schoolOpen} aria-controls="settings-school-locale" onClick={() => setSchoolOpen(open => !open)}
           className="h-auto min-h-16 w-full justify-start gap-3.5 rounded-3xl px-5 py-4 text-start sm:px-6">
-          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#f3ecfa] text-[#8127cf]"><Globe2 className="size-5" /></span>
+          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-primary"><Globe2 className="size-5" /></span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black text-[#1f1a23]">{t("School language and region")}</span>
+            <span className="block text-sm font-bold text-ink-strong">{t("School language and region")}</span>
             <span className="mt-0.5 block text-xs font-semibold leading-relaxed text-ink-muted">{t("Set by your school for everyone. Administrators can schedule changes.")}</span>
           </span>
           <ChevronDown aria-hidden="true" className={cn("size-4 shrink-0 text-ink-muted motion-safe:transition-transform", schoolOpen && "rotate-180")} />
         </Button>
-        {schoolOpen ? <div id="settings-school-locale" className="border-t border-[#efe7f5] p-3 sm:p-4"><LocaleSettingsPanel /></div> : null}
+        {schoolOpen ? <div id="settings-school-locale" className="border-t border-brand-100 p-3 sm:p-4"><LocaleSettingsPanel /></div> : null}
       </section>
     </div>
   );

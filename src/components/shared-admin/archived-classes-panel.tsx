@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Archive, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Button } from "@/components/ui/button";
 import { useUiText } from "@/components/locale/LocaleProvider";
@@ -39,7 +39,7 @@ export function ArchivedClassesPanel({ version, onRestored }: { version?: number
     } catch (failure) { setError(failure instanceof Error ? failure.message : ui("Class could not be restored")); } finally { setBusy(false); }
   };
   return <section className="sk-panel sk-rise space-y-4 p-6" data-archived-classes>
-    <div className="flex items-center gap-2"><Archive className="size-5 text-primary" aria-hidden="true" /><h2 className="text-lg font-black">{ui("Archived classes")}</h2></div>
+    <div className="flex items-center gap-2"><Archive className="size-5 text-primary" aria-hidden="true" /><h2 className="text-lg font-bold">{ui("Archived classes")}</h2></div>
     <p className="text-sm text-ink-muted">{ui("Archived classes keep their attendance, marks, fees and timetable history for their year. Restore one that was archived by mistake.")}</p>
     {loading ? <p role="status" className="text-sm text-ink-muted">{ui("Loading archived classes…")}</p>
       : failed ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">{ui("Archived classes could not be loaded.")}<Button variant="outline" onClick={() => void load()}>{ui("Try again")}</Button></div>

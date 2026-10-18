@@ -94,7 +94,7 @@ export function ParentPage({
   const t = toneOf(tone);
   return (
     <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-none flex-col overflow-visible md:min-h-0 md:flex-1 md:overflow-hidden")} >
-      <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
+      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
           aria-hidden
           className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", t.rail)}
@@ -107,7 +107,7 @@ export function ParentPage({
         <div className="relative flex flex-wrap items-center justify-between gap-x-[12px] gap-y-[8px] px-[12px] py-[12px] sm:px-5">
           <div className="flex min-w-0 items-center gap-[12px]">
             {avatar ? (
-              <span className="h-[40px] w-[40px] shrink-0 overflow-hidden rounded-xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-[0_4px_12px_-2px_rgba(129,39,207,0.3)]">
+              <span className="h-[40px] w-[40px] shrink-0 overflow-hidden rounded-xl border-2 border-brand-50 bg-brand-50 shadow-[0_4px_12px_-2px_rgba(129,39,207,0.3)]">
                 {avatar}
               </span>
             ) : (
@@ -118,10 +118,10 @@ export function ParentPage({
             )}
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h1 className="[overflow-wrap:anywhere] text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h1 className="[overflow-wrap:anywhere] text-lg font-bold leading-tight tracking-tight text-ink-strong">
                   {title}
                 </h1>
-                <span className={cn("hidden shrink-0 truncate text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
+                <span className={cn("hidden shrink-0 truncate text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline", t.text)}>
                   {eyebrow}
                 </span>
               </div>
@@ -141,7 +141,7 @@ export function ParentPage({
 
       <div
         className={cn(
-          "custom-scrollbar flex-none overflow-visible bg-[#fbf0fe]/20 p-[12px] sm:p-5 md:min-h-0 md:flex-1 md:overflow-y-auto",
+          "custom-scrollbar flex-none overflow-visible bg-brand-50/20 p-[12px] sm:p-5 md:min-h-0 md:flex-1 md:overflow-y-auto",
           contentClassName,
         )}
       >

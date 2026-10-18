@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,7 @@ export function FamilyPickups({ studentId }: { studentId: string }) {
   if (!data) return null;
   const status = (s: string) => ({ ACTIVE: ui("Ready to use"), USED: ui("Used"), REVOKED: ui("Withdrawn"), EXPIRED: ui("Expired") } as Record<string, string>)[s] ?? s;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-pickup>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-black">{ui("Pickup authorizations")}</h3><p className="text-xs text-ink-muted">{ui("Name who will collect your child and when. The school checks their identity before release. Times are in the school's timezone: {0}.", [data.timezone])}</p></div><Button size="sm" onClick={() => setOpen(true)} data-pickup-new>{ui("Authorize a pickup")}</Button></header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold">{ui("Pickup authorizations")}</h3><p className="text-xs text-ink-muted">{ui("Name who will collect your child and when. The school checks their identity before release. Times are in the school's timezone: {0}.", [data.timezone])}</p></div><Button size="sm" onClick={() => setOpen(true)} data-pickup-new>{ui("Authorize a pickup")}</Button></header>
     {data.items.length ? <ul className="space-y-2">{data.items.map(i => <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" data-pickup-item={i.id} data-pickup-status={i.status}>
       <span><bdi>{i.recipientName}</bdi> · <span dir="auto">{i.recipientRelation}</span> · {methodLabel(ui, i.idMethod)} · <bdi>{dateTime(i.validFrom)}</bdi>–<bdi>{dateTime(i.validUntil)}</bdi> · {status(i.status)}{i.releasedAt ? <> · {ui("Collected {0}", [dateTime(i.releasedAt)])}</> : null}</span>
       {i.status === "ACTIVE" ? <span className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => setCode(await call("/api/pickup", "POST", { action: "code", id: i.id })), "A new code is ready. The previous code no longer works.")} data-pickup-show>{ui("Show code")}</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/pickup", "POST", { action: "revoke", id: i.id }), "Withdrawn. This code can no longer be used.")} data-pickup-revoke>{ui("Withdraw")}</Button></span> : null}
@@ -96,7 +96,7 @@ export function PickupGate() {
   if (error && !queue) return <section className="sk-panel p-5" data-pickup-gate><p className="text-sm font-bold text-rose-700">{error}</p></section>;
   const decided = check && ["RELEASED", "BLOCKED", "ESCALATED"].includes(check.status);
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-pickup-gate>
-    <header><h2 className="text-lg font-black">{ui("Pickup desk")}</h2><p className="text-xs text-ink-muted">{ui("Scan a pickup code or type it. A valid code still needs the recipient's identity checked before release.")}</p></header>
+    <header><h2 className="text-lg font-bold">{ui("Pickup desk")}</h2><p className="text-xs text-ink-muted">{ui("Scan a pickup code or type it. A valid code still needs the recipient's identity checked before release.")}</p></header>
     <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
       <FormField name="pg-code" label={ui("Pickup code")}><Input value={code} onChange={e => setCode(e.target.value)} dir="ltr" autoComplete="off" /></FormField>
       <FormField name="pg-gate" label={ui("Gate")}><Input value={gate} onChange={e => setGate(e.target.value)} maxLength={40} /></FormField>
@@ -106,10 +106,10 @@ export function PickupGate() {
     {error ? <p className="rounded-lg bg-rose-50 p-2 text-sm font-bold text-rose-800" role="alert" data-pg-error>{error}</p> : null}
 
     {check ? <div className={cn("space-y-3 rounded-2xl border-2 p-4", check.status === "RELEASED" ? "border-emerald-400 bg-emerald-50/50" : check.status === "OPEN" ? "border-amber-300 bg-amber-50/40" : "border-rose-300 bg-rose-50/40")} data-pg-check={check.checkId} data-pg-status={check.status} aria-live="polite">
-      <p className="text-sm font-black" data-pg-state>{check.status === "RELEASED" ? ui("Release recorded to the verified recipient; this code is now used.") : check.status === "OPEN" ? ui("Code valid · identity still needs checking") : check.status === "ESCALATED" ? ui("Sent to the pickup lead. Keep the student supervised.") : blockText(ui, check.blockReason)}</p>
+      <p className="text-sm font-bold" data-pg-state>{check.status === "RELEASED" ? ui("Release recorded to the verified recipient; this code is now used.") : check.status === "OPEN" ? ui("Code valid · identity still needs checking") : check.status === "ESCALATED" ? ui("Sent to the pickup lead. Keep the student supervised.") : blockText(ui, check.blockReason)}</p>
       <div className="grid gap-2 sm:grid-cols-2 text-sm">
-        <div><p className="text-xs font-bold uppercase text-ink-muted">{ui("Student")}</p><p className="font-bold"><bdi>{check.student.name}</bdi></p><p className="text-xs"><bdi>{check.student.className}</bdi></p></div>
-        {check.recipient ? <div><p className="text-xs font-bold uppercase text-ink-muted">{ui("Recipient")}</p><p className="font-bold"><bdi>{check.recipient.name}</bdi> · <span dir="auto">{check.recipient.relation}</span></p><p className="text-xs">{ui("Check identity by: {0}", [methodLabel(ui, check.recipient.idMethod)])}{check.recipient.idLast4 ? <> · {ui("ID ends with")} <bdi>{check.recipient.idLast4}</bdi></> : null}</p><p className="text-xs">{ui("Authorized by {0} · valid until {1}", [check.recipient.authorizedBy, dateTime(check.recipient.validUntil)])}</p></div> : null}
+        <div><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Student")}</p><p className="font-bold"><bdi>{check.student.name}</bdi></p><p className="text-xs"><bdi>{check.student.className}</bdi></p></div>
+        {check.recipient ? <div><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Recipient")}</p><p className="font-bold"><bdi>{check.recipient.name}</bdi> · <span dir="auto">{check.recipient.relation}</span></p><p className="text-xs">{ui("Check identity by: {0}", [methodLabel(ui, check.recipient.idMethod)])}{check.recipient.idLast4 ? <> · {ui("ID ends with")} <bdi>{check.recipient.idLast4}</bdi></> : null}</p><p className="text-xs">{ui("Authorized by {0} · valid until {1}", [check.recipient.authorizedBy, dateTime(check.recipient.validUntil)])}</p></div> : null}
       </div>
       {check.restriction ? <p className="rounded-lg bg-rose-100 p-2 text-sm font-bold text-rose-900" data-pg-restriction>{ui("Restriction on file")}: <span dir="auto">{check.restriction.instruction}</span></p> : null}
       {check.exceptionStatus === "APPROVED" ? <p className="text-xs font-bold text-emerald-800">{ui("The pickup lead approved an exception. Identity must still be checked.")}</p> : null}
@@ -120,7 +120,7 @@ export function PickupGate() {
       </div> : check.status !== "RELEASED" && check.status !== "ESCALATED" ? <div className="space-y-2"><FormField name="pg-note" label={ui("Note for the pickup lead")}><Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} /></FormField><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { setCheck(null); setCode(""); }}>{ui("Rescan current code")}</Button><Button disabled={busy} onClick={async () => { const d = await post({ action: "escalate", checkId: check.checkId, note }); if (d) setCheck({ ...check, status: "ESCALATED", exceptionStatus: "REQUESTED" }); }} data-pg-escalate>{ui("Contact pickup lead")}</Button></div></div> : null}
     </div> : <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted">{ui("Scan a pickup code or look up an authorized pickup request.")}</p>}
 
-    {queue?.checks.length ? <div className="space-y-1" data-pg-queue><p className="text-xs font-black uppercase text-ink-muted">{ui("Today's checks")}</p>{queue.checks.map(c => <div key={c.checkId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs" data-pg-row={c.checkId} data-pg-row-status={c.status}>
+    {queue?.checks.length ? <div className="space-y-1" data-pg-queue><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Today's checks")}</p>{queue.checks.map(c => <div key={c.checkId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs" data-pg-row={c.checkId} data-pg-row-status={c.status}>
       <span><bdi>{c.createdAt ? dateTime(c.createdAt) : ""}</bdi> · <bdi>{c.student.name}</bdi> · <span dir="auto">{c.gate}</span> · {c.status === "RELEASED" ? ui("Released") : c.status === "ESCALATED" ? ui("With the pickup lead") : c.status === "OPEN" ? ui("Identity not yet checked") : blockText(ui, c.blockReason)}</span>
       {queue.lead && c.exceptionStatus === "REQUESTED" ? <LeadDecision checkId={c.checkId} onDone={() => void loadQueue()} /> : null}
     </div>)}</div> : null}
@@ -145,7 +145,7 @@ function Restrictions() {
   const open = useCallback(async (id: string) => { setStudent(id); setHist(await call(`/api/pickup/restrictions?studentId=${encodeURIComponent(id)}`)); }, []);
   const kindLabel = (k: string) => ({ CUSTODY_ORDER: ui("Custody order"), DO_NOT_RELEASE: ui("Do not release"), LEAD_APPROVAL: ui("Pickup lead approval needed") } as Record<string, string>)[k] ?? k;
   return <div className="space-y-2 rounded-xl border p-3" data-pg-restrictions>
-    <p className="text-xs font-black uppercase text-ink-muted">{ui("Restrictions and pickup history")}</p>
+    <p className="text-xs font-semibold uppercase text-ink-muted">{ui("Restrictions and pickup history")}</p>
     <FormField name="pg-find" label={ui("Find a student")}><Input value={q} onChange={e => setQ(e.target.value)} /></FormField>
     {found.length ? <ul className="text-sm">{found.map(s => <li key={s.id}><Button variant="link" size="sm" className="h-auto min-h-0 p-0" onClick={() => void open(s.id)}><bdi>{s.fullName}</bdi>{s.rollNo ? ` · ${s.rollNo}` : ""}</Button></li>)}</ul> : null}
     {student && hist ? <div className="space-y-2">

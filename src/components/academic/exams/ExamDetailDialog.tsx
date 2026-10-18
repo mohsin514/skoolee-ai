@@ -16,7 +16,7 @@ import {
   Save,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -106,7 +106,7 @@ export function ExamDetailDialog({
       bodyClassName="p-0"
       headerActions={
         sequence && sequence.length > 1 && onNavigate ? (
-          <div className="flex items-center gap-1 rounded-2xl bg-[#f6f2fa] px-1.5 py-1">
+          <div className="flex items-center gap-1 rounded-2xl bg-surface-sunken px-1.5 py-1">
             <Button variant="outline" size="icon"
               type="button"
               disabled={!prev || dirty}
@@ -117,7 +117,7 @@ export function ExamDetailDialog({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="px-1 text-[10px] font-black tabular-nums text-ink-muted">
+            <span className="px-1 text-2xs font-bold tabular-nums text-ink-muted">
               {index + 1}/{sequence.length}
             </span>
             <Button variant="outline" size="icon"
@@ -136,7 +136,7 @@ export function ExamDetailDialog({
     >
       {/* Tabs */}
       {tabs.length > 1 ? (
-        <div className="sticky top-0 z-10 flex items-center gap-1 border-b border-[#cfc2d6]/15 bg-white/95 px-5 py-2 backdrop-blur-xl">
+        <div className="sticky top-0 z-10 flex items-center gap-1 border-b border-edge/15 bg-white/95 px-5 py-2 backdrop-blur-xl">
           {tabs.map((t) => {
             const Icon = t.icon;
             const active = tab === t.key;
@@ -156,7 +156,7 @@ export function ExamDetailDialog({
                 {active ? (
                   <span
                     aria-hidden
-                    className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-gradient-to-r from-[#8127cf] to-[#b06bea]"
+                    className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-gradient-to-r from-primary to-brand-300"
                   />
                 ) : null}
               </Button>
@@ -385,9 +385,9 @@ function MarksEntry({
   if (loading) {
     return (
       <div className="space-y-3">
-        <div className="h-12 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-12 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="h-11 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div key={i} className="h-11 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
         ))}
       </div>
     );
@@ -395,9 +395,9 @@ function MarksEntry({
 
   if (students.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-[#cfc2d6]/35 p-14 text-center">
-        <Users className="mx-auto mb-3 h-10 w-10 text-[#8127cf]/25" />
-        <p className="text-sm font-black text-[#1f1a23]">No students in this class</p>
+      <div className="rounded-3xl border border-dashed border-edge/35 p-14 text-center">
+        <Users className="mx-auto mb-3 h-10 w-10 text-primary/25" />
+        <p className="text-sm font-bold text-ink-strong">No students in this class</p>
         <p className="mt-1 text-xs font-semibold text-ink-muted">
           Add students to the class and their rows appear here.
         </p>
@@ -407,9 +407,9 @@ function MarksEntry({
 
   if (subjects.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-[#cfc2d6]/35 p-14 text-center">
-        <PenLine className="mx-auto mb-3 h-10 w-10 text-[#8127cf]/25" />
-        <p className="text-sm font-black text-[#1f1a23]">No subjects to mark</p>
+      <div className="rounded-3xl border border-dashed border-edge/35 p-14 text-center">
+        <PenLine className="mx-auto mb-3 h-10 w-10 text-primary/25" />
+        <p className="text-sm font-bold text-ink-strong">No subjects to mark</p>
         <p className="mt-1 text-xs font-semibold text-ink-muted">
           This class has no subjects, or none are assigned to you.
         </p>
@@ -452,13 +452,13 @@ function MarksEntry({
                 ) : null}
                 <span
                   className={cn(
-                    "whitespace-nowrap text-xs font-black",
-                    active ? "text-[#8127cf]" : "text-[#1f1a23]",
+                    "whitespace-nowrap text-xs font-bold",
+                    active ? "text-primary" : "text-ink-strong",
                   )}
                 >
                   {s.name}
                 </span>
-                <span className="text-[10px] font-bold tabular-nums text-ink-subtle">
+                <span className="text-2xs font-bold tabular-nums text-ink-subtle">
                   {s.done}/{s.total}
                 </span>
               </span>
@@ -475,30 +475,30 @@ function MarksEntry({
 
       {/* ── Live stats for the chosen subject ───────────────────────────── */}
       {subject ? (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-[#cfc2d6]/20 bg-gradient-to-r from-[#faf7fc] to-white px-4 py-2.5">
-          <span className="flex items-center gap-1.5 text-[11px] font-black text-[#8127cf]">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-edge/20 bg-gradient-to-r from-surface-subtle to-white px-4 py-2.5">
+          <span className="flex items-center gap-1.5 text-2xs font-bold text-primary">
             <BarChart3 className="h-3.5 w-3.5" />
             {subject.name} · out of {subject.totalMarks}
           </span>
-          <span className="text-[11px] font-bold text-ink-muted">
-            Entered <span className="tabular-nums text-[#1f1a23]">{stats.entered}/{stats.total}</span>
+          <span className="text-2xs font-bold text-ink-muted">
+            Entered <span className="tabular-nums text-ink-strong">{stats.entered}/{stats.total}</span>
           </span>
-          <span className="text-[11px] font-bold text-ink-muted">
-            Average <span className="tabular-nums text-[#1f1a23]">{stats.average}</span>
+          <span className="text-2xs font-bold text-ink-muted">
+            Average <span className="tabular-nums text-ink-strong">{stats.average}</span>
           </span>
-          <span className="text-[11px] font-bold text-ink-muted">
+          <span className="text-2xs font-bold text-ink-muted">
             Passing <span className="tabular-nums text-emerald-600">{stats.passing}</span>
           </span>
-          <span className="text-[11px] font-bold text-ink-muted">
-            Top <span className="tabular-nums text-[#1f1a23]">{stats.top}</span>
+          <span className="text-2xs font-bold text-ink-muted">
+            Top <span className="tabular-nums text-ink-strong">{stats.top}</span>
           </span>
           <div className="ml-auto flex items-center gap-2">
             {pendingCount > 0 ? (
-              <span className="rounded-lg bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700">
+              <span className="rounded-lg bg-amber-50 px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-700">
                 {pendingCount} unsaved
               </span>
             ) : (
-              <span className="flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-600">
+              <span className="flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
                 <Check className="h-3 w-3" />
                 All saved
               </span>
@@ -518,14 +518,14 @@ function MarksEntry({
       {/* ── The column ──────────────────────────────────────────────────── */}
       {subject ? (
         <div className="sk-panel overflow-hidden">
-          <div className="grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 border-b border-[#cfc2d6]/15 bg-[#faf7fc] px-2 sm:px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-muted">
+          <div className="grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 border-b border-edge/15 bg-surface-subtle px-2 sm:px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
             <span>Roll</span>
             <span>Student</span>
             <span className="text-center">Marks / {subject.totalMarks}</span>
             <span className="text-center">%</span>
             <span className="text-center">Result</span>
           </div>
-          <ul className="max-h-[24rem] divide-y divide-[#cfc2d6]/10 overflow-y-auto custom-scrollbar">
+          <ul className="max-h-[24rem] divide-y divide-edge/10 overflow-y-auto custom-scrollbar">
             {students.map((student, i) => {
               const value = valueFor(student.id);
               const key = `${student.id}:${subjectId}`;
@@ -542,13 +542,13 @@ function MarksEntry({
                   key={student.id}
                   className={cn(
                     "grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 px-2 py-1.5 transition-colors sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 sm:px-4",
-                    unsaved ? "bg-amber-50/40" : "hover:bg-[#faf7fc]",
+                    unsaved ? "bg-amber-50/40" : "hover:bg-surface-subtle",
                   )}
                 >
-                  <span className="text-[11px] font-bold tabular-nums text-ink-subtle">
+                  <span className="text-2xs font-bold tabular-nums text-ink-subtle">
                     {student.rollNo}
                   </span>
-                  <span className="truncate text-[13px] font-bold text-[#1f1a23]">
+                  <span className="truncate text-[13px] font-bold text-ink-strong">
                     {student.fullName}
                   </span>
                   <div className="flex items-center justify-center gap-1">
@@ -612,7 +612,7 @@ function MarksEntry({
                   </div>
                   <span
                     className={cn(
-                      "text-center text-xs font-black tabular-nums",
+                      "text-center text-xs font-bold tabular-nums",
                       pct === null
                         ? "text-ink-subtle"
                         : pass
@@ -624,19 +624,19 @@ function MarksEntry({
                   </span>
                   <span className="text-center">
                     {absent ? (
-                      <span className="rounded-md bg-[#f3f4f9] px-1.5 py-0.5 text-[9px] font-black uppercase text-ink-subtle">
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-2xs font-semibold uppercase text-ink-subtle">
                         <UiText>Absent</UiText>
                       </span>
                     ) : exempt ? (
-                      <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-sky-700">
+                      <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-2xs font-semibold uppercase text-sky-700">
                         <UiText>Exempt</UiText>
                       </span>
                     ) : pct === null ? (
-                      <span className="text-[10px] font-bold text-ink-subtle">—</span>
+                      <span className="text-2xs font-bold text-ink-subtle">—</span>
                     ) : (
                       <span
                         className={cn(
-                          "rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase",
+                          "rounded-md px-1.5 py-0.5 text-2xs font-semibold uppercase",
                           pass ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600",
                         )}
                       >
@@ -648,8 +648,8 @@ function MarksEntry({
               );
             })}
           </ul>
-          <p className="border-t border-[#cfc2d6]/10 bg-[#faf7fc] px-4 py-2 text-[10px] font-semibold text-ink-subtle">
-            Press <kbd className="rounded bg-white px-1 font-black">Enter</kbd> to move to the next
+          <p className="border-t border-edge/10 bg-surface-subtle px-4 py-2 text-2xs font-semibold text-ink-subtle">
+            Press <kbd className="rounded bg-white px-1 font-bold">Enter</kbd> to move to the next
             pupil. Nothing is written until you press Save, so a mistyped mark can just be
             corrected.
           </p>

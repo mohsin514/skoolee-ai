@@ -126,7 +126,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
         <div className="flex items-center justify-between gap-3">
           <p
             className={cn(
-              "text-[11px] font-bold",
+              "text-2xs font-bold",
               error ? "text-rose-600" : "text-ink-muted"
             )}
             role={error ? "alert" : "status"}
@@ -162,16 +162,16 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                   return (
                     <div
                       key={toggle.key}
-                      className="flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-[#fbf0fe]/50"
+                      className="flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-brand-50/50"
                     >
                       <div className="min-w-0 flex-1">
                         <label
                           htmlFor={`chat-setting-${toggle.key}`}
-                          className="block cursor-pointer text-xs font-black text-[#1f1a23]"
+                          className="block cursor-pointer text-xs font-bold text-ink-strong"
                         >
                           {toggle.label(ui)}
                         </label>
-                        <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-ink-muted">
+                        <p className="mt-0.5 text-2xs font-semibold leading-relaxed text-ink-muted">
                           {toggle.help(ui)}
                         </p>
                       </div>
@@ -197,7 +197,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                 })}
 
                 {settings.quietHoursEnabled && (
-                  <div className="flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/60 px-3 py-3">
+                  <div className="flex items-center gap-3 rounded-2xl bg-brand-50/60 px-3 py-3">
                     <TimeField
                       id="quiet-start"
                       label={ui("Quiet from")}
@@ -232,7 +232,7 @@ function TimeField({
 }) {
   return (
     <div className="flex-1">
-      <label htmlFor={id} className="block text-[10px] font-black uppercase tracking-wide text-ink-faint">
+      <label htmlFor={id} className="block text-2xs font-semibold uppercase tracking-wide text-ink-faint">
         {label}
       </label>
       <SystemInput

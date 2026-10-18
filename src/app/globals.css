@@ -57,6 +57,38 @@
   --brand-1: #8127cf;
   --brand-2: #9c48ea;
   --font-geist-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  /* ─── Brand scale ──────────────────────────────────────────
+     Anchored on the hex values screens used to hand-type (#8127cf alone
+     appeared 1,147 times), so moving a screen onto the scale changes the
+     token it reads, not the colour it paints. 600 is the brand. */
+  --brand-50: #fbf0fe;
+  --brand-100: #f3eafa;
+  --brand-200: #e9d5ff;
+  --brand-300: #b876f0;
+  --brand-400: #9c48ea;
+  --brand-500: #8c36d5;
+  --brand-600: #8127cf;
+  --brand-700: #6a1fb0;
+  --brand-800: #4f1487;
+  --brand-900: #3d0f6b;
+  --brand-950: #26073f;
+  /* Heading ink, the lilac hairline and the secondary berry accent were the
+     next most repeated literals (#1f1a23, #cfc2d6, #b10e6b). */
+  --ink-strong: #1f1a23;
+  --edge: #cfc2d6;
+  --berry: #b10e6b;
+  --surface-sunken: #f6f2fa;
+  /* Info, success and brand notices; error and warning live with the field
+     tokens below. Every tone keeps text at ≥ 7:1 on its own surface. */
+  --status-info-surface: #eff5ff;
+  --status-info-border: #c3d6fb;
+  --status-info-text: #1e3a8a;
+  --status-success-surface: #ecfdf5;
+  --status-success-border: #a7f3d0;
+  --status-success-text: #065f46;
+  --status-brand-surface: #faf5ff;
+  --status-brand-border: #e4cdf8;
+  --status-brand-text: #5b1a99;
 }
 
 .dark {
@@ -139,11 +171,64 @@
   --color-warning: hsl(var(--warning));
   --color-brand: var(--brand-1);
   --color-brand-2: var(--brand-2);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+  --color-ink-strong: var(--ink-strong);
+  --color-edge: var(--edge);
+  --color-berry: var(--berry);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-status-info-surface: var(--status-info-surface);
+  --color-status-info-border: var(--status-info-border);
+  --color-status-info-text: var(--status-info-text);
+  --color-status-success-surface: var(--status-success-surface);
+  --color-status-success-border: var(--status-success-border);
+  --color-status-success-text: var(--status-success-text);
+  --color-status-brand-surface: var(--status-brand-surface);
+  --color-status-brand-border: var(--status-brand-border);
+  --color-status-brand-text: var(--status-brand-text);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-  --font-sans: var(--font-plus-jakarta-sans);
+  /* Arabic and Urdu glyphs are absent from Plus Jakarta Sans, so they fall
+     through to Noto Sans Arabic instead of whatever the OS happens to ship
+     (Geeza Pro on macOS, Segoe UI on Windows, Roboto on Android). */
+  --font-sans: var(--font-plus-jakarta-sans), var(--font-noto-arabic), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
+
+  /* ─── Type scale ───────────────────────────────────────────
+     Screens had drifted to 7–11px literals (1,700+ of them). The floor is
+     now 10px for counters and chart ticks only, 11px for eyebrows and meta. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.5rem;
+  --tracking-eyebrow: 0.06em;
+
+  /* ─── Elevation ───────────────────────────────────────────
+     Tinted with the brand's own plum instead of neutral black, so a shadow
+     reads as depth on the lilac canvas rather than as grey dirt. Replaces the
+     Tailwind defaults, which keeps every existing shadow-sm…2xl consistent. */
+  --shadow-2xs: 0 1px 0 rgb(31 26 35 / 0.04);
+  --shadow-xs: 0 1px 2px rgb(31 26 35 / 0.06);
+  --shadow-sm: 0 1px 2px rgb(31 26 35 / 0.05), 0 2px 6px -2px rgb(80 42 118 / 0.12);
+  --shadow: 0 1px 3px rgb(31 26 35 / 0.06), 0 6px 16px -8px rgb(80 42 118 / 0.18);
+  --shadow-md: 0 2px 4px rgb(40 23 60 / 0.04), 0 12px 28px -14px rgb(80 42 118 / 0.26);
+  --shadow-lg: 0 4px 10px -4px rgb(31 26 35 / 0.08), 0 22px 48px -22px rgb(80 42 118 / 0.34);
+  --shadow-xl: 0 8px 20px -8px rgb(31 26 35 / 0.10), 0 32px 72px -28px rgb(80 42 118 / 0.40);
+  --shadow-2xl: 0 40px 96px -32px rgb(31 26 35 / 0.38);
+  --shadow-brand: 0 10px 30px -12px rgb(129 39 207 / 0.55);
+  --shadow-glow: 0 0 0 1px rgb(129 39 207 / 0.10), 0 10px 36px -10px rgb(129 39 207 / 0.38);
 }
 
 /* ─── Base Styles ────────────────────────────────────────── */
@@ -157,10 +242,41 @@
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+/* ─── Typography rhythm ───────────────────────────────────────
+   Headings tighten slightly and balance their lines; running copy avoids
+   one-word orphans. Unlayered rules lose to any caller utility, so a screen
+   that sets its own tracking or wrapping keeps it. */
+@layer base {
+  h1, h2, h3 { text-wrap: balance; }
+  h1 { letter-spacing: -0.02em; }
+  h2, h3 { letter-spacing: -0.01em; }
+  p, li, dd { text-wrap: pretty; }
+  /* Figures in tables, stats and money line up column to column. */
+  table, [data-numeric], time { font-variant-numeric: tabular-nums; }
+}
+
+/* Letter-spacing pulls Arabic and Urdu letters apart and breaks their
+   joins, and uppercase means nothing in either script. Unlayered so it
+   overrides every tracking utility, including arbitrary ones. */
+:lang(ar) [class*="tracking-"],
+:lang(ur) [class*="tracking-"],
+[class*="tracking-"]:lang(ar),
+[class*="tracking-"]:lang(ur) {
+  letter-spacing: normal;
+}
+:lang(ar) h1, :lang(ar) h2, :lang(ar) h3,
+:lang(ur) h1, :lang(ur) h2, :lang(ur) h3 {
+  letter-spacing: normal;
+}
+/* Naskh descenders need room that leading-none / leading-tight do not give. */
+:lang(ar) .leading-none, :lang(ur) .leading-none { line-height: 1.25; }
+:lang(ar) .leading-tight, :lang(ur) .leading-tight { line-height: 1.45; }
 
 button:not(:disabled),
 a[href],
@@ -549,70 +665,106 @@ button:disabled,
   animation: shimmer 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-.skoolee-dashboard-main {
-  background: hsl(var(--background));
-}
-
 /* Legacy routes consume the same table, surface and radius recipes as role routes.
    Do not override utility classes under the dashboard shell. */
 
 /* ─── Skoolee Premium Toasts ───────────────────────────── */
 
-.skoolee-toast {
-  --normal-bg: rgba(255, 255, 255, 0.96);
-  --normal-border: rgba(207, 194, 214, 0.4);
-  --normal-text: #1f1a23;
+/* One white card for every tone. The tone lives in a tinted icon chip and a
+   thin accent rail on the leading edge, so a stack of mixed toasts reads as
+   one family rather than a traffic light. Status is always also in words. */
+[data-sonner-toast].skoolee-toast {
+  --normal-bg: rgb(255 255 255 / 0.97);
+  --normal-border: rgb(207 194 214 / 0.55);
+  --normal-text: var(--ink-strong);
+  --sk-toast-accent: var(--brand-600);
+  --sk-toast-chip: var(--brand-50);
 
-  font-family: var(--font-plus-jakarta-sans), system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 700;
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
   letter-spacing: 0;
-  box-shadow: var(--shadow-toast) !important;
-  /* Sonner's more specific rich-color rules own status borders and fills. */
-  border: 1px solid var(--normal-border);
-  backdrop-filter: blur(14px) !important;
-  padding: 18px 20px !important;
-  border-radius: var(--radius-panel) !important;
+  color: var(--ink-strong) !important;
+  background: var(--normal-bg) !important;
+  border: 1px solid var(--normal-border) !important;
+  box-shadow: var(--shadow-toast), 0 0 0 1px rgb(255 255 255 / 0.6) inset !important;
+  backdrop-filter: saturate(1.4) blur(16px) !important;
+  padding: 14px 16px !important;
+  padding-inline-start: 18px !important;
+  gap: 12px !important;
+  border-radius: 20px !important;
 }
 
-.skoolee-toast [data-icon] {
+[data-sonner-toast].skoolee-toast::before {
+  content: "";
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-start: 0;
+  width: 3px;
+  border-start-end-radius: 3px;
+  border-end-end-radius: 3px;
+  background: var(--sk-toast-accent);
+}
+
+[data-sonner-toast].skoolee-toast[data-type="success"] { --sk-toast-accent: #059669; --sk-toast-chip: #ecfdf5; }
+[data-sonner-toast].skoolee-toast[data-type="error"]   { --sk-toast-accent: #dc2626; --sk-toast-chip: #fef2f2; }
+[data-sonner-toast].skoolee-toast[data-type="warning"] { --sk-toast-accent: #d97706; --sk-toast-chip: #fffbeb; }
+[data-sonner-toast].skoolee-toast[data-type="info"]    { --sk-toast-accent: #2563eb; --sk-toast-chip: #eff5ff; }
+[data-sonner-toast].skoolee-toast[data-type="loading"] { --sk-toast-accent: var(--brand-400); }
+
+[data-sonner-toast].skoolee-toast [data-icon] {
   /* Sonner already supplies direction-aware icon spacing. */
-  transform: scale(1.1);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--sk-toast-chip);
+  color: var(--sk-toast-accent) !important;
+}
+[data-sonner-toast].skoolee-toast [data-icon] svg { width: 17px; height: 17px; }
+
+[data-sonner-toast].skoolee-toast [data-title] {
+  color: var(--ink-strong) !important;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
 }
 
-.skoolee-toast [data-title] {
-  font-weight: 900;
-  letter-spacing: 0;
-  margin-bottom: 2px;
-}
-
-.skoolee-toast [data-description] {
-  color: var(--ink-muted);
-  font-weight: 650;
+[data-sonner-toast].skoolee-toast [data-description] {
+  margin-top: 2px;
+  color: var(--ink-muted) !important;
+  font-weight: 500;
+  line-height: 1.45;
   opacity: 1;
 }
 
-.skoolee-toast [data-close-button] {
-  border-color: rgb(207 194 214 / 0.45) !important;
+[data-sonner-toast].skoolee-toast [data-close-button] {
+  border-color: rgb(207 194 214 / 0.6) !important;
   background: white !important;
-  color: var(--brand-1) !important;
+  color: var(--ink-muted) !important;
+  box-shadow: var(--shadow-xs);
 }
+[data-sonner-toast].skoolee-toast [data-close-button]:hover { color: var(--brand-600) !important; }
 
-.skoolee-toast [data-button] {
-  border-radius: 14px !important;
-  background: var(--brand-1) !important;
+[data-sonner-toast].skoolee-toast [data-button] {
+  height: 30px !important;
+  padding-inline: 12px !important;
+  border-radius: 10px !important;
+  background: var(--brand-600) !important;
   color: white !important;
-  font-weight: 900 !important;
+  font-weight: 700 !important;
+  font-size: 0.8125rem !important;
 }
-
-[data-sonner-toaster][data-sonner-theme='light'] .skoolee-toast {
-  --success-bg: #ecfdf5;
-  --success-border: #10b981;
-  --success-text: #065f46;
-
-  --error-bg: #fef2f2;
-  --error-border: #ef4444;
-  --error-text: #991b1b;
+[data-sonner-toast].skoolee-toast [data-cancel] {
+  height: 30px !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
 }
 
 /* F61 shared interaction tokens. Use words with every status color. */
@@ -1056,3 +1208,180 @@ button:disabled,
 @media (prefers-reduced-motion: reduce) {
   .chat-launcher-ring { animation: none; opacity: 0; }
 }
+
+/* ═══ Skoolee surfaces & atmosphere ═══════════════════════════════════════
+   Shared background effects. Screens opt in by class; none of these carry
+   meaning, so every one is pointer-transparent, decorative and switched off
+   for forced-colours and print. */
+
+/* The application canvas: three very low-alpha light sources (violet top
+   start, berry top end, indigo bottom) and a dot grid that fades out below
+   the header. Painted on a fixed pseudo-element so phones (where
+   background-attachment: fixed is ignored) still get a still backdrop. */
+.sk-app-canvas {
+  position: relative;
+  isolation: isolate;
+  background-color: hsl(var(--background));
+}
+.sk-app-canvas::before,
+.sk-app-canvas::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.sk-app-canvas::before {
+  background:
+    radial-gradient(56rem 32rem at 0% -8%, rgb(129 39 207 / 0.085), transparent 62%),
+    radial-gradient(44rem 28rem at 100% -4%, rgb(177 14 107 / 0.055), transparent 60%),
+    radial-gradient(60rem 36rem at 55% 115%, rgb(79 70 229 / 0.05), transparent 62%);
+}
+.sk-app-canvas::after {
+  background-image: radial-gradient(rgb(129 39 207 / 0.11) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 22rem);
+  mask-image: linear-gradient(to bottom, black, transparent 22rem);
+}
+
+@layer components {
+  /* Frosted chrome for sticky headers and floating bars. */
+  .sk-glass {
+    background: rgb(255 255 255 / 0.74);
+    -webkit-backdrop-filter: saturate(1.6) blur(18px);
+    backdrop-filter: saturate(1.6) blur(18px);
+    border: 1px solid rgb(255 255 255 / 0.7);
+    box-shadow: 0 1px 0 rgb(207 194 214 / 0.45), var(--shadow-sm);
+  }
+
+  /* A hairline gradient border for featured cards (plan, AI, highlights).
+     The fill stays a solid surface so text contrast never depends on it. */
+  .sk-gradient-border {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(var(--sk-gradient-fill, #fff), var(--sk-gradient-fill, #fff)) padding-box,
+      linear-gradient(135deg, rgb(129 39 207 / 0.55), rgb(177 14 107 / 0.30) 45%, rgb(79 70 229 / 0.35)) border-box;
+  }
+
+  /* Hero and empty-state wash: a soft lilac glow with a fine grid. */
+  .sk-hero-wash {
+    background:
+      radial-gradient(120% 90% at 0% 0%, rgb(129 39 207 / 0.10), transparent 55%),
+      radial-gradient(90% 80% at 100% 0%, rgb(177 14 107 / 0.07), transparent 55%),
+      linear-gradient(180deg, #fff, var(--surface-subtle));
+  }
+
+  .sk-grid-pattern {
+    background-image:
+      linear-gradient(rgb(129 39 207 / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(129 39 207 / 0.06) 1px, transparent 1px);
+    background-size: 28px 28px;
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+
+  /* Deep brand panel (auth aside, upgrade prompts, AI hero). Text on it must
+     be white; it never hosts muted ink. */
+  .sk-brand-surface {
+    color: #fff;
+    background:
+      radial-gradient(80% 60% at 100% 0%, rgb(217 70 164 / 0.38), transparent 60%),
+      radial-gradient(70% 70% at 0% 100%, rgb(79 70 229 / 0.40), transparent 60%),
+      linear-gradient(140deg, #6d22b8 0%, #551392 55%, #3d0f6b 100%);
+  }
+
+  /* Interactive surface: lifts 2px and picks up a violet bloom. */
+  .sk-hover-lift {
+    transition: transform var(--duration-control) var(--ease-standard), box-shadow var(--duration-control) var(--ease-standard), border-color var(--duration-control) var(--ease-standard);
+  }
+  @media (hover: hover) {
+    .sk-hover-lift:hover {
+      transform: translateY(-2px);
+      border-color: rgb(129 39 207 / 0.28);
+      box-shadow: 0 10px 28px -8px rgb(31 26 35 / 0.14), 0 22px 50px -18px rgb(129 39 207 / 0.32);
+    }
+  }
+
+  /* Gradient ink for a single brand word in a heading. Falls back to solid
+     brand when background-clip:text is unavailable. */
+  .sk-text-gradient {
+    color: var(--brand-600);
+    background: linear-gradient(100deg, #7a22c9 0%, #a43ad6 45%, #c0267f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Small uppercase label above a heading or value. */
+  .sk-eyebrow {
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    font-weight: 600;
+    letter-spacing: var(--tracking-eyebrow);
+    text-transform: uppercase;
+    color: var(--ink-subtle);
+  }
+  :lang(ar) .sk-eyebrow, :lang(ur) .sk-eyebrow { letter-spacing: normal; font-size: 0.75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-hover-lift, .sk-hover-lift:hover { transform: none; }
+}
+
+@media (forced-colors: active) {
+  .sk-app-canvas::before, .sk-app-canvas::after { display: none; }
+  .sk-text-gradient { -webkit-text-fill-color: currentColor; background: none; }
+}
+
+@media print {
+  .sk-app-canvas::before, .sk-app-canvas::after { display: none; }
+}
+
+/* ─── Tooltip ────────────────────────────────────────────────
+   Rendered in the top layer (popover="manual") where supported, so it sits
+   above modals, sticky headers and the chat dock without a z-index race;
+   the fixed z-index is only the fallback for WebViews without popover. */
+.sk-tooltip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  z-index: 2000;
+  max-width: min(18rem, calc(100vw - 16px));
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: #1f1a23;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: 0 8px 24px -6px rgb(31 26 35 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.06) inset;
+  pointer-events: auto;
+  animation: sk-tooltip-in 140ms var(--ease-enter) both;
+}
+.sk-tooltip:popover-open { display: block; }
+.sk-tooltip[data-side="bottom"] { animation-name: sk-tooltip-in-bottom; }
+@keyframes sk-tooltip-in { from { opacity: 0; transform: translateY(3px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes sk-tooltip-in-bottom { from { opacity: 0; transform: translateY(-3px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sk-tooltip { animation: none; } }
+@media (forced-colors: active) { .sk-tooltip { border: 1px solid CanvasText; } }
+
+/* Switch: the native checkbox is transparent, so its painted track carries
+   the shared focus indicator. */
+.sk-switch-input:focus-visible + .sk-switch-track {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: 2px;
+}
+@media (forced-colors: active) {
+  .sk-switch-input { opacity: 1; appearance: auto; }
+}
+
+/* Field messages arrive with a short settle so a new error is noticed
+   without the layout jumping. */
+@keyframes sk-field-message-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+.sk-field-message { animation: sk-field-message-in 160ms var(--ease-enter) both; }
+@media (prefers-reduced-motion: reduce) { .sk-field-message { animation: none; } }

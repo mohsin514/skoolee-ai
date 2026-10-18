@@ -26,7 +26,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 import { ConflictPanel } from "./ConflictPanel";
 import { RoomView } from "./RoomView";
@@ -152,7 +152,7 @@ const SUBJECT_COLORS: SubjectColor[] = [
 ];
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  BREAK: { bg: "bg-[#f3f4f9]", text: "text-ink-muted", label: "Break" },
+  BREAK: { bg: "bg-muted", text: "text-ink-muted", label: "Break" },
   PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/60", label: "Prayer / Namaz" },
   ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/60", label: "Assembly" },
   ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
@@ -187,39 +187,39 @@ const defaultPeriods = [
 function FullSkeleton({ periods, visibleDays }: { periods: GridPeriod[]; visibleDays: GridDay[] }) {
   return (
     <div className="flex flex-col gap-6 min-h-[100vh]">
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 w-fit animate-skeleton-in">
-        <div className="h-9 w-32 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
-        <div className="h-9 w-24 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 w-fit animate-skeleton-in">
+        <div className="h-9 w-32 rounded-xl bg-border-subtle/50 skeleton-shimmer" />
+        <div className="h-9 w-24 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
       </div>
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto animate-skeleton-in" style={{ animationDelay: "80ms" }}>
+      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto animate-skeleton-in" style={{ animationDelay: "80ms" }}>
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-9 w-20 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div key={i} className="h-9 w-20 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_300px] gap-4 flex-1">
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "120ms" }}>
+        <div className="rounded-[28px] border border-edge/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "120ms" }}>
           <div className="space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-12 rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
+              <div key={i} className="h-12 rounded-xl bg-border-subtle/30 skeleton-shimmer" />
             ))}
           </div>
         </div>
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "160ms" }}>
+        <div className="rounded-[28px] border border-edge/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "160ms" }}>
           <div className="space-y-3">
             {periods.map((_, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="h-10 w-16 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-10 w-16 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
                 {Array.from({ length: visibleDays.length }).map((_, j) => (
-                  <div key={j} className="h-10 flex-1 rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
+                  <div key={j} className="h-10 flex-1 rounded-xl bg-border-subtle/30 skeleton-shimmer" />
                 ))}
               </div>
             ))}
           </div>
         </div>
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "200ms" }}>
+        <div className="rounded-[28px] border border-edge/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "200ms" }}>
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-12 rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
+              <div key={i} className="h-12 rounded-xl bg-border-subtle/30 skeleton-shimmer" />
             ))}
           </div>
         </div>
@@ -232,10 +232,10 @@ function FullSkeleton({ periods, visibleDays }: { periods: GridPeriod[]; visible
 function EmptyStateCard({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
   return (
     <div className="sk-rise flex flex-col items-center justify-center py-20 text-center">
-      <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
-        <Icon className="w-8 h-8 text-[#8127cf]/30" />
+      <div className="h-16 w-16 rounded-[28px] bg-brand-50 flex items-center justify-center mb-5">
+        <Icon className="w-8 h-8 text-primary/30" />
       </div>
-      <h3 className="text-lg font-black text-[#1f1a23]">{title}</h3>
+      <h3 className="text-lg font-bold text-ink-strong">{title}</h3>
       <p className="mt-2 text-sm font-semibold text-ink-muted max-w-sm">{description}</p>
     </div>
   );
@@ -293,15 +293,15 @@ function PeriodConfigModal({
             the only thing that scrolls now. */}
         <div className="space-y-3 pr-1">
           {localPeriods.map((p, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-3">
-              <span className="w-6 text-center text-[10px] font-black text-[#8127cf]">P{p.period}</span>
+            <div key={i} className="flex items-center gap-2 rounded-2xl bg-muted p-3">
+              <span className="w-6 text-center text-2xs font-bold text-primary">P{p.period}</span>
               <SystemInput
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
                 className="w-28 px-3 py-2"
               />
-              <span className="text-[10px] font-bold text-ink-subtle">to</span>
+              <span className="text-2xs font-bold text-ink-subtle">to</span>
               <SystemInput
                 type="time"
                 value={p.end}
@@ -449,8 +449,8 @@ function SlotEditorModal({
 
         <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
-            <div className="flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+            <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
+            <div className="flex gap-1 rounded-2xl bg-muted p-1">
               {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
                 <Button aria-pressed={slotType === type} variant="choice" size="sm"
                   key={type}
@@ -467,7 +467,7 @@ function SlotEditorModal({
           {slotType === "CLASS" && (
             <>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
+                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
                 <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
@@ -481,7 +481,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">
+                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">
                   Teacher {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
                 </label>
                 <SystemSelect
@@ -495,12 +495,12 @@ function SlotEditorModal({
                   ))}
                 </SystemSelect>
                 {!loadingAvail && freeTeachers.length === 0 && (
-                  <p className="mt-1 text-[10px] font-semibold text-amber-600">No free teachers for this slot.</p>
+                  <p className="mt-1 text-2xs font-semibold text-amber-600">No free teachers for this slot.</p>
                 )}
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">
+                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">
                   Room (Optional) {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
                 </label>
                 <SystemSelect
@@ -516,7 +516,7 @@ function SlotEditorModal({
                   ))}
                 </SystemSelect>
                 {!loadingAvail && freeRooms.length === 0 && (
-                  <p className="mt-1 text-[10px] font-semibold text-amber-600">No free rooms for this slot.</p>
+                  <p className="mt-1 text-2xs font-semibold text-amber-600">No free rooms for this slot.</p>
                 )}
               </div>
             </>
@@ -977,7 +977,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       <ConfirmAction open={confirmDeleteTimetable} title={ui("Delete this timetable?")} description={ui("Its lessons are removed from this class's weekly schedule. Attendance and marks already recorded are not affected. A timetable with substitute history cannot be deleted.")} confirmLabel={ui("Delete timetable")} tone="danger" busy={deletingTimetable} onCancel={() => setConfirmDeleteTimetable(false)} onConfirm={() => void deleteTimetable()} />
       {addingPeriod && activeTimetable && <AddPeriodDialog key={activeTimetable.id} timetableId={activeTimetable.id} slots={activeTimetable.slots} definitions={periodDefs} weekendDays={weekendDays} onClose={() => setAddingPeriod(false)} onAdded={slot => { setTimetables(previous => previous.map(timetable => timetable.id === activeTimetable.id ? { ...timetable, slots: [...timetable.slots.filter(existing => existing.id !== slot.id), slot] } : timetable)); toast.success(addCopy.saved); }} />}
       {/* Toolbar: class picker, view tabs, publish */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] p-2 shadow-sm border border-[#cfc2d6]/10">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-surface-subtle via-white to-brand-100 p-2 shadow-sm border border-edge/10">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <InputGroup surfaceClassName="bg-white" className="min-w-[240px] flex-1 sm:max-w-sm">
             <SystemSelect
@@ -1002,13 +1002,13 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 );
               })}
             </SystemSelect>
-            <GraduationCap data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8127cf]/50 pointer-events-none" />
+            <GraduationCap data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/50 pointer-events-none" />
 
           </InputGroup>
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-2xl bg-muted p-1">
             <Button aria-pressed={viewMode === "class"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("class")}
@@ -1088,10 +1088,10 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
 
           {selectedClassId && !activeTimetable && (
             <div className="sk-rise flex flex-col items-center justify-center py-16" style={{ animationDelay: "120ms" }}>
-              <div className="h-20 w-20 rounded-[32px] bg-gradient-to-br from-[#8127cf]/10 to-[#fbf0fe] flex items-center justify-center mb-6">
-                <Calendar className="w-10 h-10 text-[#8127cf]/40" />
+              <div className="h-20 w-20 rounded-[32px] bg-gradient-to-br from-primary/10 to-brand-50 flex items-center justify-center mb-6">
+                <Calendar className="w-10 h-10 text-primary/40" />
               </div>
-              <h3 className="text-lg font-black text-[#1f1a23] mb-2">No Timetable Yet</h3>
+              <h3 className="text-lg font-bold text-ink-strong mb-2">No Timetable Yet</h3>
               <p className="text-sm text-ink-muted mb-8 max-w-sm text-center">
                 Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
               </p>
@@ -1122,7 +1122,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               {/* Action bar */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${
+                  <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider ${
                     activeTimetable.status === "PUBLISHED" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                   }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${activeTimetable.status === "PUBLISHED" ? "bg-emerald-500" : "bg-amber-400"}`} />
@@ -1130,7 +1130,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   </div>
                   <PublicationStatus timetableId={activeTimetable.id} refreshKey={`${activeTimetable.draftRevision}:${activeTimetable.status}:${activeTimetable.publishedAt ?? ""}`} />
                   {pendingChanges.size > 0 && (
-                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 rounded-lg px-2 py-1">
+                    <span className="text-2xs font-bold text-amber-600 bg-amber-50 rounded-lg px-2 py-1">
                       {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? "s" : ""}
                     </span>
                   )}
@@ -1139,7 +1139,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   {/* How much room each cell gets. Three settings, because a
                       timetable is read at arm's length on a projector and at
                       30cm while it is being built. */}
-                  <div className="flex items-center gap-0.5 rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] p-0.5">
+                  <div className="flex items-center gap-0.5 rounded-xl border border-edge/25 bg-surface-subtle p-0.5">
                     {(["compact", "comfortable", "roomy"] as const).map((d) => (
                       <Button variant="choice" size="sm"
                         key={d}
@@ -1228,7 +1228,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   rows and pushed the grid below the fold, so it caps its own
                   height and can be put away entirely. */}
               {showLegend ? (
-                <div className="max-h-24 overflow-y-auto rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-2.5 custom-scrollbar">
+                <div className="max-h-24 overflow-y-auto rounded-2xl border border-edge/15 bg-surface-subtle p-2.5 custom-scrollbar">
                   <div className="flex flex-wrap gap-2">
                     {subjects.map((s) => {
                       const c = subjectColorMap.get(s.id);
@@ -1239,9 +1239,9 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                           className={`flex max-w-[220px] items-center gap-1.5 rounded-xl ${c?.bg || "bg-gray-100"} px-3 py-1.5`}
                         >
                           <span className={`h-2 w-2 shrink-0 rounded-full ${c?.dot || "bg-gray-400"}`} />
-                          <span className={`truncate text-[10px] font-black ${c?.text || "text-gray-600"}`}>{s.name}</span>
+                          <span className={`truncate text-2xs font-bold ${c?.text || "text-gray-600"}`}>{s.name}</span>
                           {s.teacher && (
-                            <span className="ml-1 truncate text-[9px] font-semibold text-ink-subtle">
+                            <span className="ml-1 truncate text-2xs font-semibold text-ink-subtle">
                               {s.teacher.fullName}
                             </span>
                           )}
@@ -1464,9 +1464,9 @@ function CollapsedPane({
       className="hidden flex-col items-center gap-3 lg:flex lg:sticky lg:top-4 lg:max-h-[78vh]"
     >
       <Chevron className="h-4 w-4 text-ink-subtle" />
-      <Icon className="h-4 w-4 text-[#8127cf]" />
+      <Icon className="h-4 w-4 text-primary" />
       <span
-        className="text-[10px] font-black uppercase tracking-wider text-ink-muted"
+        className="text-2xs font-semibold uppercase tracking-wider text-ink-muted"
         style={{ writingMode: "vertical-rl" }}
       >
         {label}

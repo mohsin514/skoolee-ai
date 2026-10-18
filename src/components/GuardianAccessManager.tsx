@@ -170,7 +170,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
   return <div className="space-y-5">
     <section className="sk-panel p-4 sm:p-5">
       <label className="block space-y-2">
-        <span className="text-sm font-semibold text-[#1d1b20]">{t.child}</span>
+        <span className="text-sm font-semibold text-ink-strong">{t.child}</span>
         <Select value={studentId} onChange={(event) => { setStudentId(event.target.value); setPreview(null); setEditingId(null); setForm(emptyForm()); }} className="w-full px-3">
           <option value="">{t.choose}</option>
           {students.map((item) => <option key={item.id} value={item.id}>{item.fullName} · {item.rollNo} · {item.campus.name}</option>)}
@@ -182,7 +182,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
     {studentId ? <>
       <section className="space-y-3" aria-labelledby="guardian-list-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="guardian-list-title" className="text-lg font-bold text-[#1d1b20]">{t.current}</h2>
+          <h2 id="guardian-list-title" className="text-lg font-bold text-ink-strong">{t.current}</h2>
           <Button variant="default" type="button" onClick={beginNew} className="min-h-11">{t.add}</Button>
         </div>
         {loading ? <p role="status" className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-ink-muted">{t.loading}</p> : null}
@@ -191,7 +191,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
           {relationships.filter((item) => item.status !== "DRAFT").map((relation) => <article key={relation.id} className="sk-panel min-w-0 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="truncate font-bold text-[#1d1b20]">{relation.fullName}</h3>
+                <h3 className="truncate font-bold text-ink-strong">{relation.fullName}</h3>
                 <p dir="ltr" className="mt-1 truncate text-sm text-ink-muted">{relation.email}</p>
                 <p className="mt-1 text-xs text-ink-muted">{t.relationships[relation.relationship as keyof typeof t.relationships] || relation.relationship}</p>
               </div>
@@ -210,7 +210,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
             <details className="mt-4 border-t border-slate-100 pt-3">
               <summary className="cursor-pointer text-sm font-semibold text-[#5e277f]">{t.history}</summary>
               <ol className="mt-3 space-y-2 text-xs text-ink-muted">
-                {relation.events.length ? relation.events.map((event) => <li key={event.id} className="border-s border-slate-200 ps-3"><span className="font-semibold text-[#1d1b20]">{event.action}</span> · {event.reason}<br /><span dir="ltr">{new Date(event.createdAt).toLocaleString(locale)}</span> · {event.actorName}</li>) : <li>{t.none}</li>}
+                {relation.events.length ? relation.events.map((event) => <li key={event.id} className="border-s border-slate-200 ps-3"><span className="font-semibold text-ink-strong">{event.action}</span> · {event.reason}<br /><span dir="ltr">{new Date(event.createdAt).toLocaleString(locale)}</span> · {event.actorName}</li>) : <li>{t.none}</li>}
               </ol>
             </details>
           </article>)}
@@ -218,7 +218,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
       </section>
 
       <section id="guardian-editor" className="sk-panel min-w-0 scroll-mt-4 p-[12px] sm:p-5">
-        <h2 className="text-lg font-bold text-[#1d1b20]">{editingId ? t.edit : t.add}</h2>
+        <h2 className="text-lg font-bold text-ink-strong">{editingId ? t.edit : t.add}</h2>
         <form onSubmit={(event) => void requestPreview(event)} className="mt-4 min-w-0 space-y-5 [&_:is(input,select,textarea)]:scroll-mb-40">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="block min-w-0 space-y-1.5"><span className="text-sm font-semibold">{t.name}</span><Input required minLength={2} maxLength={120} readOnly={Boolean(editingId)} value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} className="w-full min-w-0 px-3" /></label>
@@ -230,13 +230,13 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
           </div>
 
           <fieldset className="min-w-0 space-y-3">
-            <legend className="text-base font-bold text-[#1d1b20]">{t.review}</legend>
+            <legend className="text-base font-bold text-ink-strong">{t.review}</legend>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {simplePermissions.map(([key, label]) => <label key={key} className="flex min-h-12 min-w-0 items-center gap-[10px] rounded-xl border border-slate-200 p-[10px] text-sm sm:gap-3 sm:p-3"><Checkbox checked={form.permissions[key]} onChange={(event) => updatePermission(key, event.target.checked)}  /><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t[label]}</span></label>)}
             </div>
           </fieldset>
           <fieldset className="min-w-0 space-y-3">
-            <legend className="text-base font-bold text-[#1d1b20]">{t.consentTitle}</legend>
+            <legend className="text-base font-bold text-ink-strong">{t.consentTitle}</legend>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {consentPermissions.map(([key, label]) => <label key={key} className="flex min-h-12 min-w-0 items-center gap-[10px] rounded-xl border border-slate-200 p-[10px] text-sm sm:gap-3 sm:p-3"><Checkbox checked={form.permissions.consents[key]} onChange={(event) => updatePermission(`consents.${key}`, event.target.checked)}  /><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t[label]}</span></label>)}
             </div>
@@ -251,7 +251,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
 
       {preview ? <ModalSurface onClose={() => setPreview(null)} returnFocusRef={reviewButtonRef} labelledBy="guardian-preview-title" describedBy="guardian-preview-help" size="sm" disableBackdropClose dismissible={!busy}>
         <div className="min-h-0 overflow-y-auto p-5" dir={locale === "ar" || locale === "ur" ? "rtl" : "ltr"}>
-          <h2 id="guardian-preview-title" className="text-xl font-bold text-[#1d1b20]">{t.previewTitle}</h2>
+          <h2 id="guardian-preview-title" className="text-xl font-bold text-ink-strong">{t.previewTitle}</h2>
           <p id="guardian-preview-help" className="mt-2 text-sm text-ink-muted">{t.previewHelp}</p>
           {error ? <TaskFeedback kind="error" title={error} /> : null}
           <p className="mt-3 text-sm font-semibold">{selected?.fullName} · {preview.guardianName}</p>
@@ -269,7 +269,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
       </ModalSurface> : null}
 
       {reviewQueue.length ? <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
-        <h2 className="text-lg font-bold text-[#1d1b20]">{t.reviews}</h2>
+        <h2 className="text-lg font-bold text-ink-strong">{t.reviews}</h2>
         <p className="text-sm text-amber-950">{t.contactOnly}</p>
         <ul className="space-y-2">{reviewQueue.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-3">
           <span className="min-w-0"><strong className="block truncate text-sm">{item.contactName || item.legacyRelationship || "—"}</strong><span dir="ltr" className="block truncate text-xs text-ink-muted">{item.email || item.phone || "—"}</span></span>

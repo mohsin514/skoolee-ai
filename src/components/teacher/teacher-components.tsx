@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   AlertCircle, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, GraduationCap, History, Languages, Loader2, Loader, LogOut, Mail, MessageCircle, Phone, RefreshCw, Save, School, Send, Star, Trash2, Users, X, Zap,
 } from "lucide-react";
@@ -56,9 +56,9 @@ export function formatDate(value?: string | Date | null) {
 
 export function statusTone(status?: string) {
   if (["ACTIVE", "MARKS_ENTRY", "PUBLISHED", "SENT", "APPROVED", "PRESENT"].includes(status || "")) return "bg-emerald-50 text-emerald-600";
-  if (["LOCKED", "PRINCIPAL_REVIEWED", "REVIEWED", "LEAVE"].includes(status || "")) return "bg-[#fbf0fe] text-[#8127cf]";
+  if (["LOCKED", "PRINCIPAL_REVIEWED", "REVIEWED", "LEAVE"].includes(status || "")) return "bg-brand-50 text-primary";
   if (["ABSENT", "FAILED", "BLOCKED"].includes(status || "")) return "bg-rose-50 text-rose-600";
-  return "bg-[#f3f4f9] text-ink";
+  return "bg-muted text-ink";
 }
 
 /* ── Reusable UI components ── */
@@ -66,10 +66,10 @@ export function statusTone(status?: string) {
 export function PanelTitle({ icon: Icon, title }: { icon: any; title: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-primary">
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-lg font-bold tracking-tight text-[#1d1b20]">{title}</h3>
+      <h3 className="text-lg font-bold tracking-tight text-ink-strong">{title}</h3>
     </div>
   );
 }
@@ -78,11 +78,11 @@ export function StudentMini({ student }: { student: any }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
-        <AvatarImage src={student.profileImageUrl} name={student.fullName} alt={student.fullName} initialsClassName="text-[10px]" />
+        <AvatarImage src={student.profileImageUrl} name={student.fullName} alt={student.fullName} initialsClassName="text-2xs" />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-black text-[#1f1a23]">{student.fullName}</p>
-        <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+        <p className="truncate text-sm font-bold text-ink-strong">{student.fullName}</p>
+        <p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           {student.rollNo || "No roll"} {student.class ? `- ${classLabel(student.class)}` : ""}
         </p>
       </div>
@@ -92,23 +92,23 @@ export function StudentMini({ student }: { student: any }) {
 
 export function MiniMetric({ label, value, active, danger }: { label: string; value: any; active?: boolean; danger?: boolean }) {
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/70 px-3.5 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
-      <p className={`mt-0.5 truncate text-lg font-bold ${danger ? "text-rose-600" : active ? "text-[#8127cf]" : "text-[#1d1b20]"}`}>{value}</p>
+    <div className="rounded-2xl bg-brand-50/70 px-3.5 py-3">
+      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
+      <p className={`mt-0.5 truncate text-lg font-bold ${danger ? "text-rose-600" : active ? "text-primary" : "text-ink-strong"}`}>{value}</p>
     </div>
   );
 }
 
 export function StatusPill({ status }: { status?: string }) {
   return (
-    <span className={`inline-flex shrink-0 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${statusTone(status)}`}>
+    <span className={`inline-flex shrink-0 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider ${statusTone(status)}`}>
       {formatStatus(status)}
     </span>
   );
 }
 
 export function EmptyInline({ text }: { text: string }) {
-  return <p className="rounded-2xl bg-[#fbf0fe]/60 border border-[#8127cf]/10 p-4 text-sm font-semibold text-ink-muted">{text}</p>;
+  return <p className="rounded-2xl bg-brand-50/60 border border-primary/10 p-4 text-sm font-semibold text-ink-muted">{text}</p>;
 }
 
 export function TeacherErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
@@ -118,8 +118,8 @@ export function TeacherErrorState({ error, onRetry }: { error?: string | null; o
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
           <AlertCircle className="h-8 w-8" />
         </div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
-        <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your workspace</h2>
+        <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Something went wrong</p>
+        <h2 className="mt-2 text-2xl font-bold text-ink-strong tracking-tight">Couldn&apos;t load your workspace</h2>
         <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
           {error || "We couldn't load your teacher workspace. This may be a permission or connectivity issue."}
         </p>
@@ -148,7 +148,7 @@ export function ModalSkeleton({ fieldRows = 4 }: { fieldRows?: number }) {
           </div>
         ))}
       </div>
-      <div className="rounded-2xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-4">
+      <div className="rounded-2xl bg-brand-50/40 border border-edge/10 p-4">
         <SkeletonBlock className="h-4 w-40 rounded-full" />
       </div>
       <div className="flex gap-4 pt-2">
@@ -193,8 +193,8 @@ export function ModalFrame({ title, eyebrow, children, onClose, wide = false, fo
 export function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/70 px-4 py-3 transition-colors hover:bg-white">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
-      <span className="min-w-0 truncate text-right text-sm font-bold text-[#1d1b20]">{value}</span>
+      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
+      <span className="min-w-0 truncate text-right text-sm font-bold text-ink-strong">{value}</span>
     </div>
   );
 }
@@ -237,7 +237,7 @@ export function ModalActions({ busy, busyLabel, actionLabel, onClose, onSave, bl
   return (
     <div className="space-y-2.5">
       {blocked ? (
-        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2 text-[12px] font-semibold text-amber-800">
+        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-800">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           {blockedReason}
         </p>
@@ -357,7 +357,7 @@ export function CreateAssessmentModal({ open, classHubs, examForm, creatingExam,
           </FormSelect>
           {/* This list is empty until a class is picked. Left unexplained it
               reads as "this class has no subjects". */}
-          <p className="mt-1.5 pl-2 text-[11px] font-semibold text-ink-subtle">
+          <p className="mt-1.5 pl-2 text-2xs font-semibold text-ink-subtle">
             {!examForm.classId
               ? "Pick a class first to choose one of its subjects."
               : subjects.length === 0
@@ -459,7 +459,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
       ) : selectedGradeClassId ? (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Exam Type Weights</p>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Exam Type Weights</p>
             <Button variant="default" size="sm" type="button" onClick={evenSplit}
               title="Split 100% evenly across the four exam types"
               className="inline-flex justify-start items-center gap-1.5">
@@ -480,12 +480,12 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
             weightsOk ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/70",
           )}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider",
+              <span className={cn("inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider",
                 weightsOk ? "text-emerald-700" : "text-amber-800")}>
                 {weightsOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
                 Total {weightTotal}%
               </span>
-              <span className={cn("text-[11px] font-semibold", weightsOk ? "text-emerald-700" : "text-amber-800")}>
+              <span className={cn("text-2xs font-semibold", weightsOk ? "text-emerald-700" : "text-amber-800")}>
                 {weightsOk
                   ? "Ready to save"
                   : weightTotal > 100
@@ -497,7 +497,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
               {WEIGHTS.map(([key], i) => {
                 const v = Number(gradeConfig[key]) || 0;
                 if (!v) return null;
-                const shades = ["bg-[#8127cf]", "bg-[#9c48ea]", "bg-[#b876f0]", "bg-[#d2aef7]"];
+                const shades = ["bg-primary", "bg-brand-400", "bg-brand-300", "bg-[#d2aef7]"];
                 return (
                   <span key={key} className={cn("h-full transition-all duration-300", shades[i])}
                     style={{ width: `${Math.min(v, 100)}%` }} />
@@ -506,9 +506,9 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
             </div>
           </div>
 
-          <div className="border-t border-[#cfc2d6]/10 pt-5">
-            <p className="mb-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Grade Thresholds</p>
-            <p className="mb-3 text-[11px] font-semibold text-ink-subtle">
+          <div className="border-t border-edge/10 pt-5">
+            <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Grade Thresholds</p>
+            <p className="mb-3 text-2xs font-semibold text-ink-subtle">
               The lowest percentage that still earns each grade. Each one must sit below the grade above it.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -609,31 +609,31 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
               did. Three numbers above it do. */}
           {summary ? (
             <div className="mb-4 grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe]/60 px-4 py-3 text-center">
-                <p className="text-2xl font-black tabular-nums text-[#8127cf]">{summary.average}%</p>
-                <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Class average</p>
+              <div className="rounded-2xl border border-primary/10 bg-brand-50/60 px-4 py-3 text-center">
+                <p className="text-2xl font-bold tabular-nums text-primary">{summary.average}%</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Class average</p>
               </div>
               <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/70 px-4 py-3 text-center">
-                <p className="text-2xl font-black tabular-nums text-emerald-700">{summary.passed}</p>
-                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700/80">Passing</p>
+                <p className="text-2xl font-bold tabular-nums text-emerald-700">{summary.passed}</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-700/80">Passing</p>
               </div>
               <div className={cn(
                 "rounded-2xl border px-4 py-3 text-center",
-                summary.failed > 0 ? "border-rose-200/60 bg-rose-50/70" : "border-[#cfc2d6]/25 bg-white",
+                summary.failed > 0 ? "border-rose-200/60 bg-rose-50/70" : "border-edge/25 bg-white",
               )}>
-                <p className={cn("text-2xl font-black tabular-nums", summary.failed > 0 ? "text-rose-700" : "text-ink-subtle")}>
+                <p className={cn("text-2xl font-bold tabular-nums", summary.failed > 0 ? "text-rose-700" : "text-ink-subtle")}>
                   {summary.failed}
                 </p>
-                <p className={cn("text-[10px] font-black uppercase tracking-wider", summary.failed > 0 ? "text-rose-700/80" : "text-ink-subtle")}>
+                <p className={cn("text-2xs font-semibold uppercase tracking-wider", summary.failed > 0 ? "text-rose-700/80" : "text-ink-subtle")}>
                   Below pass
                 </p>
               </div>
             </div>
           ) : null}
-          <div className="overflow-x-auto rounded-2xl border border-[#f3f4f9]">
+          <div className="overflow-x-auto rounded-2xl border border-muted">
             <table className="w-full min-w-[600px] text-left">
               <thead>
-                <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                <tr className="bg-brand-50/40 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                   <th className="px-5 py-4">Rank</th>
                   <th className="px-5 py-4">Student</th>
                   <th className="px-4 py-4 text-center">Roll No</th>
@@ -642,7 +642,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                   <th className="px-4 py-4 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f3f4f9]">
+              <tbody className="divide-y divide-muted">
                 {weightedGradeResult.map((grade: any, i: number) => {
                   return (
                     /* Was a bare <tr onClick>: no role, no tab stop, no Enter.
@@ -651,7 +651,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                     <tr key={grade.studentId} tabIndex={0} role="link"
                       aria-label={`Open the report card for ${grade.studentName}`}
                       title={`Open ${grade.studentName}'s report card`}
-                      className="cursor-pointer transition-colors hover:bg-[#fbf0fe]/30 focus-inset"
+                      className="cursor-pointer transition-colors hover:bg-brand-50/30 focus-inset"
                       onClick={() => router.push(`/teacher/reports?studentId=${grade.studentId}&classId=${selectedGradeClassId}`)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
@@ -660,12 +660,12 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                         }
                       }}>
                       <td className="px-5 py-4"><span className="text-sm font-bold text-ink-muted">#{grade.rank || i + 1}</span></td>
-                      <td className="px-5 py-4"><p className="text-sm font-bold text-[#1d1b20]">{grade.studentName}</p></td>
+                      <td className="px-5 py-4"><p className="text-sm font-bold text-ink-strong">{grade.studentName}</p></td>
                       <td className="px-4 py-4 text-center text-sm font-semibold text-ink-muted">{grade.rollNo || "—"}</td>
-                      <td className="px-4 py-4 text-center"><span className="text-lg font-bold text-[#8127cf]">{grade.overallPercentage}%</span></td>
-                      <td className="px-4 py-4 text-center"><span className="rounded-full bg-white border border-[#cfc2d6]/10 px-3 py-1 text-[11px] font-bold text-[#1d1b20]">{grade.overallGrade}</span></td>
+                      <td className="px-4 py-4 text-center"><span className="text-lg font-bold text-primary">{grade.overallPercentage}%</span></td>
+                      <td className="px-4 py-4 text-center"><span className="rounded-full bg-white border border-edge/10 px-3 py-1 text-2xs font-bold text-ink-strong">{grade.overallGrade}</span></td>
                       <td className="px-4 py-4 text-center">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${grade.passed ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider ${grade.passed ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${grade.passed ? "bg-emerald-500" : "bg-rose-500"}`} />
                           {grade.passed ? "PASS" : "FAIL"}
                         </span>
@@ -716,14 +716,14 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
           <div className="flex flex-wrap gap-2">
             {phone ? (
               <a href={`tel:${phone}`} title={`Call ${student.guardianName || "guardian"}`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97]">
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-white active:scale-[0.97]">
                 <Phone className="h-3.5 w-3.5" /> Call guardian
               </a>
             ) : null}
             {whatsapp ? (
               <a href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`} target="_blank" rel="noopener noreferrer"
                 title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#8127cf]/10 bg-[#fbf0fe] px-4 text-xs font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97]">
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-white active:scale-[0.97]">
                 <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
               </a>
             ) : null}
@@ -743,24 +743,24 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
         </div>
       }
     >
-      <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
+      <div className="mb-6 flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-brand-50/80 to-white p-5 sm:flex-row sm:items-center border border-primary/10">
         <div className="h-28 w-28 shrink-0 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">
           <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-3xl" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Student Record</p>
-          <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-[#1d1b20]">{student.fullName}</h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Student Record</p>
+          <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-ink-strong">{student.fullName}</h3>
           <p className="mt-2 text-sm font-semibold text-ink-muted">
             {student.rollNo || "No roll number"} &mdash; {classLabel(student.class)}
           </p>
           {student.todayAttendance !== undefined ? (
             <p className="mt-2">
               <span className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
                 student.todayAttendance === "PRESENT" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                   : student.todayAttendance === "ABSENT" ? "border-rose-200 bg-rose-50 text-rose-700"
                   : student.todayAttendance === "LEAVE" ? "border-amber-200 bg-amber-50 text-amber-700"
-                  : "border-[#cfc2d6]/30 bg-white text-ink-subtle",
+                  : "border-edge/30 bg-white text-ink-subtle",
               )}>
                 {student.todayAttendance === "PRESENT" ? "In today"
                   : student.todayAttendance === "ABSENT" ? "Absent today"
@@ -777,7 +777,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
         <MiniMetric label="Latest" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} />
       </div>
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
+        <div className="rounded-3xl bg-brand-50/40 border border-edge/10 p-5 transition-colors hover:bg-brand-50/60">
           <PanelTitle icon={Users} title="Guardian" />
           <div className="mt-4 space-y-2">
             <DetailRow label="Name" value={student.guardianName || "N/A"} />
@@ -785,7 +785,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
             <DetailRow label="Email" value={student.guardianEmail || "N/A"} />
           </div>
         </div>
-        <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
+        <div className="rounded-3xl bg-brand-50/40 border border-edge/10 p-5 transition-colors hover:bg-brand-50/60">
           <PanelTitle icon={FileText} title="Latest Report Card" />
           {report ? (
             <div className="mt-4 space-y-2">
@@ -799,7 +799,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
           )}
         </div>
       </div>
-      <div className="mt-6 rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
+      <div className="mt-6 rounded-3xl bg-brand-50/40 border border-edge/10 p-5 transition-colors hover:bg-brand-50/60">
         <PanelTitle icon={Star} title="Recent Marks" />
         {latestMarks.length > 0 ? (
           <div className="mt-4 space-y-2">
@@ -809,7 +809,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
           </div>
         ) : (<div className="mt-4"><EmptyInline text="No marks recorded for this student yet." /></div>)}
       </div>
-      <div className="mt-6 rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
+      <div className="mt-6 rounded-3xl bg-brand-50/40 border border-edge/10 p-5 transition-colors hover:bg-brand-50/60">
         <PanelTitle icon={CalendarCheck} title="Recent Attendance" />
         {(student.attendance || []).slice(0, 5).length > 0 ? (
           <div className="mt-4 space-y-2">
@@ -966,7 +966,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           {remarksDirty && onSaveRemarks ? (
-            <span className="mr-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-amber-800">
+            <span className="mr-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-800">
               <AlertCircle className="h-3.5 w-3.5" /> Unsaved remarks
             </span>
           ) : null}
@@ -982,7 +982,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
           </BrandButton>
           {viewReport.isSent ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" /> Already Sent
             </span>
           ) : (
@@ -999,36 +999,36 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
     >
       <div ref={printRef} id="report-card-print" className="space-y-6">
         {viewReport.campus ? (
-          <div className="flex items-center gap-3 rounded-[30px] border border-[#8127cf]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
+          <div className="flex items-center gap-3 rounded-[30px] border border-primary/10 bg-gradient-to-br from-brand-50/80 to-white p-4">
             {campusLogo ? (
-              <img src={campusLogo} alt="Campus logo" className="h-14 w-14 shrink-0 rounded-2xl object-cover border border-[#cfc2d6]/25" />
+              <img src={campusLogo} alt="Campus logo" className="h-14 w-14 shrink-0 rounded-2xl object-cover border border-edge/25" />
             ) : null}
             <div className="min-w-0">
-              <p className="text-sm font-black text-[#1d1b20]">{viewReport.campus.school?.name || viewReport.campus.name}</p>
-              <p className="truncate text-[11px] font-semibold text-ink-muted">{campusContactLine}</p>
+              <p className="text-sm font-bold text-ink-strong">{viewReport.campus.school?.name || viewReport.campus.name}</p>
+              <p className="truncate text-2xs font-semibold text-ink-muted">{campusContactLine}</p>
             </div>
           </div>
         ) : null}
-        <div className="flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-[#fbf0fe]/80 to-white p-5 sm:flex-row sm:items-center border border-[#8127cf]/10">
+        <div className="flex flex-col gap-5 rounded-[30px] bg-gradient-to-br from-brand-50/80 to-white p-5 sm:flex-row sm:items-center border border-primary/10">
           <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[28px] border-4 border-white bg-white shadow-xl">
             <AvatarImage src={avatar} name={viewReport.student?.fullName} initialsClassName="text-2xl" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>
-            <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-[#1d1b20]">{viewReport.student?.fullName || "Student"}</h3>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>
+            <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-ink-strong">{viewReport.student?.fullName || "Student"}</h3>
             <p className="mt-2 text-sm font-semibold text-ink-muted">
               {viewReport.student?.rollNo ? `Roll No: ${viewReport.student.rollNo}` : ""} &middot; {classLabel(viewReport.student?.class)}
             </p>
-            <p className="mt-1 text-[11px] font-medium text-ink-muted">Generated {formatDate(viewReport.generatedAt)}</p>
+            <p className="mt-1 text-2xs font-medium text-ink-muted">Generated {formatDate(viewReport.generatedAt)}</p>
           </div>
           <div className="flex items-center gap-5 shrink-0">
             <div className="text-center">
-              <p className="text-4xl font-bold text-[#8127cf]">{Math.round(viewReport.percentage || 0)}%</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Percentage</p>
+              <p className="text-4xl font-bold text-primary">{Math.round(viewReport.percentage || 0)}%</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Percentage</p>
             </div>
             <div className="text-center">
-              <p className="text-4xl font-bold text-[#1d1b20]">{viewReport.grade || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Grade</p>
+              <p className="text-4xl font-bold text-ink-strong">{viewReport.grade || "\u2014"}</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Grade</p>
             </div>
           </div>
         </div>
@@ -1042,32 +1042,32 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           <MiniMetric label="Delivery" value={formatStatus(viewReport.deliveryStatus)} />
         </div>
 
-        <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
+        <div className="rounded-3xl bg-brand-50/40 border border-edge/10 p-5 transition-colors hover:bg-brand-50/60">
           <PanelTitle icon={BarChart3} title="Final Result" />
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="sk-panel p-4 text-center transition-colors">
-              <p className="text-2xl font-bold text-[#1d1b20]">{viewReport.totalMarks || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Total Marks</p>
+              <p className="text-2xl font-bold text-ink-strong">{viewReport.totalMarks || "\u2014"}</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Total Marks</p>
             </div>
             <div className="sk-panel p-4 text-center transition-colors">
-              <p className="text-2xl font-bold text-[#8127cf]">{viewReport.obtainedMarks || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Obtained</p>
+              <p className="text-2xl font-bold text-primary">{viewReport.obtainedMarks || "\u2014"}</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Obtained</p>
             </div>
             <div className="sk-panel p-4 text-center transition-colors">
-              <p className="text-2xl font-bold text-[#8127cf]">{Math.round(viewReport.percentage || 0)}%</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Percentage</p>
+              <p className="text-2xl font-bold text-primary">{Math.round(viewReport.percentage || 0)}%</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Percentage</p>
             </div>
             <div className="sk-panel p-4 text-center transition-colors">
-              <p className={`text-2xl font-bold ${viewReport.passed !== false ? "text-[#1d1b20]" : "text-rose-600"}`}>{viewReport.grade || "\u2014"}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Grade</p>
+              <p className={`text-2xl font-bold ${viewReport.passed !== false ? "text-ink-strong" : "text-rose-600"}`}>{viewReport.grade || "\u2014"}</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Grade</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
+        <div className="rounded-3xl bg-brand-50/40 border border-edge/10 p-5 transition-colors hover:bg-brand-50/60">
           <PanelTitle icon={BarChart3} title="Marks Distribution" />
           {viewReport.weightConfig ? (
-            <p className="mt-3 text-[11px] font-semibold text-ink-muted">
+            <p className="mt-3 text-2xs font-semibold text-ink-muted">
               Weights &mdash; Quiz {viewReport.weightConfig.quizWeight}% &middot; Class Test {viewReport.weightConfig.classTestWeight}% &middot; Mid Term {viewReport.weightConfig.midTermWeight}% &middot; Final {viewReport.weightConfig.finalWeight}%
             </p>
           ) : null}
@@ -1093,13 +1093,13 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
               {viewReport.subjectDistribution.map((subject: any) => (
                 <div key={subject.subjectId}>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-[#1d1b20]">{subject.subjectName || "Subject"}</p>
+                    <p className="text-sm font-bold text-ink-strong">{subject.subjectName || "Subject"}</p>
                   </div>
                   {subject.exams?.length ? (
-                    <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10 bg-white">
+                    <div className="overflow-x-auto rounded-2xl border border-edge/10 bg-white">
                       <table className="w-full min-w-[520px] text-left">
                         <thead>
-                          <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                          <tr className="bg-brand-50/40 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                             <th className="px-4 py-2.5">Exam</th>
                             <th className="px-4 py-2.5 text-center">Weight</th>
                             <th className="px-4 py-2.5 text-center">Marks</th>
@@ -1107,14 +1107,14 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                             <th className="px-4 py-2.5 text-center">Contribution</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#f3f4f9]">
+                        <tbody className="divide-y divide-muted">
                           {subject.exams.map((exam: any) => (
-                            <tr key={exam.examId} className="hover:bg-[#fbf0fe]/20 transition-colors">
-                              <td className="px-4 py-2.5 text-sm font-semibold text-[#1d1b20]">{exam.examTitle}</td>
-                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#8127cf]">{exam.weight}%</td>
-                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#1d1b20]">{exam.obtainedMarks}/{exam.totalMarks}</td>
-                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#1d1b20]">{exam.percentage}%</td>
-                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-[#8127cf]">{Math.round((exam.contribution || 0) * 10) / 10}</td>
+                            <tr key={exam.examId} className="hover:bg-brand-50/20 transition-colors">
+                              <td className="px-4 py-2.5 text-sm font-semibold text-ink-strong">{exam.examTitle}</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-primary">{exam.weight}%</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-strong">{exam.obtainedMarks}/{exam.totalMarks}</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-ink-strong">{exam.percentage}%</td>
+                              <td className="px-4 py-2.5 text-center text-sm font-semibold text-primary">{Math.round((exam.contribution || 0) * 10) / 10}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1126,12 +1126,12 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             </div>
           ) : (<div className="mt-4"><EmptyInline text="Exam breakdown not available." /></div>)}
           {viewReport.overall ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3">
-              <p className="text-sm font-bold text-[#1d1b20]">Overall Weighted Result</p>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white border border-edge/10 px-4 py-3">
+              <p className="text-sm font-bold text-ink-strong">Overall Weighted Result</p>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-[#fbf0fe] px-3 py-1 text-[11px] font-bold text-[#8127cf]">{viewReport.overall.overallPercentage}%</span>
-                <span className="rounded-full bg-white border border-[#cfc2d6]/10 px-3 py-1 text-[11px] font-bold text-[#1d1b20]">{viewReport.overall.overallGrade}</span>
-                <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase ${viewReport.overall.passed ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                <span className="rounded-full bg-brand-50 px-3 py-1 text-2xs font-bold text-primary">{viewReport.overall.overallPercentage}%</span>
+                <span className="rounded-full bg-white border border-edge/10 px-3 py-1 text-2xs font-bold text-ink-strong">{viewReport.overall.overallGrade}</span>
+                <span className={`rounded-full px-3 py-1 text-2xs font-semibold uppercase ${viewReport.overall.passed ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                   {viewReport.overall.passed ? "Pass" : "Fail"}
                 </span>
               </div>
@@ -1141,20 +1141,20 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           )}
         </div>
 
-        <div className="rounded-3xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-5 transition-colors hover:bg-[#fbf0fe]/60">
+        <div className="rounded-3xl bg-brand-50/40 border border-edge/10 p-5 transition-colors hover:bg-brand-50/60">
           <PanelTitle icon={FileText} title="Remarks" />
           {onSaveRemarks ? (
             <div className="mt-4 space-y-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">English</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">English</p>
                 <Textarea value={remarks.en} onChange={(e) => handleRemarksEnChange(e.target.value)} rows={3} className="mt-1.5" placeholder="Write remarks for this student..." />
               </div>
               <div>
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Urdu</p>
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Urdu</p>
                   <div className="flex items-center gap-1.5">
                     {translatingUr ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#8127cf]">
+                      <span className="inline-flex items-center gap-1 text-2xs font-semibold text-primary">
                         <Loader2 className="h-3 w-3 animate-spin" /> Translating...
                       </span>
                     ) : null}
@@ -1169,7 +1169,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                   <UrduInput value={remarks.ur} onChange={handleRemarksUrChange} textarea placeholder="اردو میں نوٹس لکھیں..." />
                 </div>
                 {!remarks.ur && remarks.en ? (
-                  <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-ink-subtle">
+                  <p className="mt-1.5 flex items-center gap-1 text-2xs font-medium text-ink-subtle">
                     <RefreshCw className="h-3 w-3" /> Urdu auto-translates from the English remark as you type.
                   </p>
                 ) : null}
@@ -1184,15 +1184,15 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           ) : viewReport.remarksEn || viewReport.remarksUr ? (
             <div className="mt-4 space-y-3">
               {viewReport.remarksEn ? (
-                <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3 transition-colors hover:border-[#8127cf]/20">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">English</p>
-                  <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{viewReport.remarksEn}</p>
+                <div className="rounded-2xl bg-white border border-edge/10 px-4 py-3 transition-colors hover:border-primary/20">
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">English</p>
+                  <p className="mt-1 text-sm font-semibold text-ink-strong">{viewReport.remarksEn}</p>
                 </div>
               ) : null}
               {viewReport.remarksUr ? (
-                <div className="rounded-2xl bg-white border border-[#cfc2d6]/10 px-4 py-3 transition-colors hover:border-[#8127cf]/20" dir="rtl">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Urdu</p>
-                  <p className="mt-1 text-sm font-semibold text-[#1d1b20]">{viewReport.remarksUr}</p>
+                <div className="rounded-2xl bg-white border border-edge/10 px-4 py-3 transition-colors hover:border-primary/20" dir="rtl">
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Urdu</p>
+                  <p className="mt-1 text-sm font-semibold text-ink-strong">{viewReport.remarksUr}</p>
                 </div>
               ) : null}
             </div>
@@ -1249,10 +1249,10 @@ function SkeletonFrame({ children }: { children: ReactNode }) {
       aria-label="Loading the teacher console"
       className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
     >
-      <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
+      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
           aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#8127cf] to-[#9c48ea] opacity-30"
+          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-primary to-brand-400 opacity-30"
         />
         <div className="relative flex items-center gap-3 px-4 py-3 sm:px-5">
           <SkeletonBlock className="h-9 w-9 shrink-0 rounded-xl" />
@@ -1263,7 +1263,7 @@ function SkeletonFrame({ children }: { children: ReactNode }) {
         </div>
       </header>
       <TeacherSubnav />
-      <div className="custom-scrollbar flex-1 overflow-y-auto bg-[#fbf0fe]/20 p-4 sm:p-5">{children}</div>
+      <div className="custom-scrollbar flex-1 overflow-y-auto bg-brand-50/20 p-4 sm:p-5">{children}</div>
     </section>
   );
 }
@@ -1271,7 +1271,7 @@ function SkeletonFrame({ children }: { children: ReactNode }) {
 /** Matches the compact stat tile the teacher pages actually render. */
 function StatCardSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
+    <div className="rounded-[18px] border border-edge/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -1297,7 +1297,7 @@ export function DashboardSkeleton() {
         {/* Charts row */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-white rounded-[32px] p-6 border border-[#cfc2d6]/10 shadow-sm">
+            <div key={i} className="bg-white rounded-[32px] p-6 border border-edge/10 shadow-sm">
               <div className="flex justify-between mb-5">
                 <div>
                   <SkeletonBlock className="h-3 w-24 mb-1" />
@@ -1346,7 +1346,7 @@ export function DashboardSkeleton() {
           <SkeletonBlock className="h-4 w-28 mb-4" />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-[28px] bg-white p-5 border border-[#cfc2d6]/10 shadow-sm">
+              <div key={i} className="rounded-[28px] bg-white p-5 border border-edge/10 shadow-sm">
                 <div className="flex justify-between mb-4">
                   <SkeletonBlock className="h-12 w-12 rounded-2xl" />
                   <SkeletonBlock className="h-4 w-4" />
@@ -1385,11 +1385,11 @@ export function MarksSkeleton() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-[#fbf0fe]/40 px-3 py-2 flex items-center gap-2">
+                <div className="rounded-xl bg-brand-50/40 px-3 py-2 flex items-center gap-2">
                   <SkeletonBlock className="h-3 w-12" />
                   <SkeletonBlock className="h-5 w-6" />
                 </div>
-                <div className="rounded-xl bg-[#fbf0fe]/40 px-3 py-2 flex items-center gap-2">
+                <div className="rounded-xl bg-brand-50/40 px-3 py-2 flex items-center gap-2">
                   <SkeletonBlock className="h-3 w-12" />
                   <SkeletonBlock className="h-5 w-6" />
                 </div>
@@ -1398,8 +1398,8 @@ export function MarksSkeleton() {
           ))}
         </div>
         {/* Marks table card */}
-        <div className="rounded-[26px] bg-white border border-[#cfc2d6]/10 shadow-sm overflow-hidden">
-          <div className="bg-[#fbf0fe]/30 px-5 py-4 border-b border-[#cfc2d6]/10">
+        <div className="rounded-[26px] bg-white border border-edge/10 shadow-sm overflow-hidden">
+          <div className="bg-brand-50/30 px-5 py-4 border-b border-edge/10">
             <div className="flex gap-8">
               <SkeletonBlock className="h-3 w-24" />
               <SkeletonBlock className="h-3 w-14" />
@@ -1408,7 +1408,7 @@ export function MarksSkeleton() {
             </div>
           </div>
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-[#cfc2d6]/8 last:border-b-0">
+            <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-edge/8 last:border-b-0">
               <div className="flex items-center gap-3 flex-1">
                 <SkeletonBlock className="h-10 w-10 rounded-xl shrink-0" />
                 <div>
@@ -1475,7 +1475,7 @@ export function AttendanceSkeleton() {
           <SkeletonBlock className="h-8 w-24 rounded-xl" />
         </div>
         {/* Students list card */}
-        <div className="rounded-[26px] bg-white border border-[#cfc2d6]/10 shadow-sm overflow-hidden divide-y divide-[#cfc2d6]/10">
+        <div className="rounded-[26px] bg-white border border-edge/10 shadow-sm overflow-hidden divide-y divide-edge/10">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="flex items-center justify-between px-5 py-4">
               <div className="flex items-center gap-3">
@@ -1500,7 +1500,7 @@ export function AttendanceSkeleton() {
         {/* Attendance history card */}
         <div className="space-y-3">
           <SkeletonBlock className="h-4 w-32" />
-          <div className="rounded-[26px] bg-white border border-[#cfc2d6]/10 shadow-sm overflow-hidden divide-y divide-[#cfc2d6]/10">
+          <div className="rounded-[26px] bg-white border border-edge/10 shadow-sm overflow-hidden divide-y divide-edge/10">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-3">
@@ -1597,7 +1597,7 @@ export function AISkeleton() {
         </div>
         <div className="flex flex-col lg:flex-row gap-8">
           <div className="flex-1 min-w-0 space-y-6">
-            <div className="bg-white p-6 rounded-[32px] border border-[#cfc2d6]/10 shadow-sm">
+            <div className="bg-white p-6 rounded-[32px] border border-edge/10 shadow-sm">
               <div className="flex items-start gap-4 mb-6">
                 <SkeletonBlock className="h-12 w-12 rounded-2xl shrink-0" />
                 <div>
@@ -1607,7 +1607,7 @@ export function AISkeleton() {
               </div>
               <div className="space-y-4">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/20 p-4">
+                  <div key={i} className="rounded-2xl border border-edge/10 bg-brand-50/20 p-4">
                     <div className="flex items-center gap-3 mb-2">
                       <SkeletonBlock className="h-4 w-4 rounded" />
                       <SkeletonBlock className="h-4 w-28" />
@@ -1619,7 +1619,7 @@ export function AISkeleton() {
             </div>
           </div>
           <div className="space-y-6 w-full lg:w-[360px] shrink-0">
-            <div className="bg-[#1f1a23] p-6 rounded-[32px]">
+            <div className="bg-ink-strong p-6 rounded-[32px]">
               <SkeletonBlock className="h-3 w-28 mb-3 opacity-15" />
               <SkeletonBlock className="h-10 w-24 mb-1 opacity-15" />
               <SkeletonBlock className="h-3 w-48 mb-6 opacity-15" />
@@ -1632,14 +1632,14 @@ export function AISkeleton() {
                 ))}
               </div>
             </div>
-            <div className="bg-white p-6 rounded-[32px] border border-[#cfc2d6]/10 shadow-sm">
+            <div className="bg-white p-6 rounded-[32px] border border-edge/10 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <SkeletonBlock className="h-4 w-4 rounded" />
                 <SkeletonBlock className="h-4 w-32" />
               </div>
               <div className="space-y-4">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="p-4 rounded-2xl bg-[#fbf0fe]/40 border border-[#8127cf]/10">
+                  <div key={i} className="p-4 rounded-2xl bg-brand-50/40 border border-primary/10">
                     <SkeletonBlock className="h-3 w-24 mb-2" />
                     <SkeletonBlock className="h-3 w-full mb-1" />
                     <SkeletonBlock className="h-3 w-3/4" />
@@ -1667,7 +1667,7 @@ export function StudentsSkeleton() {
         {/* Student cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+            <div key={i} className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
               <div className="flex items-start gap-4 mb-4">
                 <SkeletonBlock className="h-14 w-14 rounded-2xl shrink-0" />
                 <div className="flex-1 min-w-0 space-y-2">
@@ -1694,7 +1694,7 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
   return (
     <SkeletonFrame>
       <div className="space-y-3">
-        <div className="rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5">
+        <div className="rounded-[24px] bg-gradient-to-r from-primary/5 to-brand-50/50 border border-primary/10 p-5">
           <div className="flex items-center gap-2 mb-3">
             <SkeletonBlock className="h-7 w-7 rounded-lg" />
             <SkeletonBlock className="h-4 w-36" />
@@ -1706,8 +1706,8 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
           </div>
         </div>
 
-        <div className="rounded-[26px] overflow-hidden border border-[#cfc2d6]/10 bg-white shadow-sm flex-1 flex flex-col">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-[#cfc2d6]/10">
+        <div className="rounded-[26px] overflow-hidden border border-edge/10 bg-white shadow-sm flex-1 flex flex-col">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-edge/10">
             <SkeletonBlock className="h-6 w-6 rounded-lg" />
             <SkeletonBlock className="h-4 w-44" />
           </div>
@@ -1716,23 +1716,23 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
               <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
             ))}
           </div>
-          <div className="overflow-hidden border-t border-[#f3f4f9] flex-1">
-            <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `70px repeat(${dayCount}, 1fr)` }}>
+          <div className="overflow-hidden border-t border-muted flex-1">
+            <div className="grid border-b border-muted" style={{ gridTemplateColumns: `70px repeat(${dayCount}, 1fr)` }}>
               <div className="p-2" />
               {[...Array(dayCount)].map((_, i) => (
-                <div key={i} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
+                <div key={i} className="flex items-center justify-center py-2.5 border-l border-muted">
                   <SkeletonBlock className="h-3 w-10 rounded-md" />
                 </div>
               ))}
             </div>
             {[...Array(6)].map((_, p) => (
-              <div key={p} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `70px repeat(${dayCount}, 1fr)` }}>
-                <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
+              <div key={p} className="grid border-b border-muted last:border-b-0" style={{ gridTemplateColumns: `70px repeat(${dayCount}, 1fr)` }}>
+                <div className="flex flex-col items-center justify-center p-1.5 border-r border-muted">
                   <SkeletonBlock className="h-3 w-6 rounded-md" />
                   <SkeletonBlock className="h-2 w-8 rounded-md mt-1" />
                 </div>
                 {[...Array(dayCount)].map((_, d) => (
-                  <div key={d} className="border-l border-[#f3f4f9] p-1.5">
+                  <div key={d} className="border-l border-muted p-1.5">
                     <SkeletonBlock className="h-12 w-full rounded-lg" />
                   </div>
                 ))}
@@ -1774,7 +1774,7 @@ export function TeacherRouteSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className={`rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
+              className={`rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />

@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
@@ -367,8 +367,8 @@ function LegacyReportCardsPanel({
   if (loading) {
     return (
       <div className="space-y-3">
-        <div className="h-56 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-40 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-56 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
+        <div className="h-40 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
       </div>
     );
   }
@@ -392,8 +392,8 @@ function LegacyReportCardsPanel({
                   step.state === "done"
                     ? "border-emerald-200/70 bg-emerald-50/50"
                     : step.state === "ready"
-                    ? "border-[#8127cf]/30 bg-[#faf5ff]"
-                    : "border-[#cfc2d6]/25 bg-[#faf7fc]",
+                    ? "border-primary/30 bg-brand-50"
+                    : "border-edge/25 bg-surface-subtle",
                 )}
               >
                 <span
@@ -402,7 +402,7 @@ function LegacyReportCardsPanel({
                     step.state === "done"
                       ? "bg-emerald-500"
                       : step.state === "ready"
-                      ? "bg-[#8127cf]"
+                      ? "bg-primary"
                       : "bg-[#d9d2de] text-[#6f6579]",
                   )}
                 >
@@ -414,16 +414,16 @@ function LegacyReportCardsPanel({
                 </span>
 
                 <div className="min-w-[12rem] flex-1">
-                  <p className="text-[13px] font-black tracking-tight text-[#1f1a23]">
+                  <p className="text-[13px] font-bold tracking-tight text-ink-strong">
                     <span className="mr-1.5 text-ink-subtle tabular-nums">{i + 1}.</span>
                     {step.label}
                   </p>
-                  <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-muted">
+                  <p className="mt-0.5 text-2xs font-semibold leading-snug text-ink-muted">
                     {step.blurb}
                   </p>
                   <p
                     className={cn(
-                      "mt-1 flex items-center gap-1 text-[11px] font-bold leading-snug",
+                      "mt-1 flex items-center gap-1 text-2xs font-bold leading-snug",
                       step.state === "blocked" ? "text-amber-700" : "text-ink-subtle",
                     )}
                   >
@@ -435,7 +435,7 @@ function LegacyReportCardsPanel({
                 </div>
 
                 {step.state === "done" ? (
-                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700"><UiText>{"Done"}</UiText></span>
+                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-700"><UiText>{"Done"}</UiText></span>
                 ) : (
                   <Button variant="default"
                     type="button"
@@ -516,12 +516,12 @@ function LegacyReportCardsPanel({
         ) : (
 
             <Table containerClassName="max-h-[22rem] custom-scrollbar" className="w-full text-start">
-              <TableHeader className="sticky top-0 z-10 bg-[#faf7fc]">
-                <TableRow className="border-b border-[#cfc2d6]/20">
+              <TableHeader className="sticky top-0 z-10 bg-surface-subtle">
+                <TableRow className="border-b border-edge/20">
                   {["Pupil", "%", "Grade", "Remark for the report card", "Status", ""].map((h) => (
                     <TableHead
                       key={h}
-                      className="px-4 py-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle"
+                      className="px-4 py-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle"
                     >
                       {h}
                     </TableHead>
@@ -532,21 +532,21 @@ function LegacyReportCardsPanel({
                 {cards.map((c) => (
                   <TableRow
                     key={c.id}
-                    className="border-b border-[#cfc2d6]/10 transition-colors last:border-0 hover:bg-[#faf5ff]"
+                    className="border-b border-edge/10 transition-colors last:border-0 hover:bg-brand-50"
                   >
                     <TableCell className="px-4 py-2.5">
-                      <p className="text-[13px] font-bold text-[#1f1a23]">
+                      <p className="text-[13px] font-bold text-ink-strong">
                         {c.student?.fullName ?? "—"}
                       </p>
-                      <p className="text-[10px] font-semibold text-ink-subtle">
+                      <p className="text-2xs font-semibold text-ink-subtle">
                         {c.student?.rollNo ?? "—"}
                         {c.rank != null ? tr(" · rank {0}", [c.rank]) : ""}
                       </p>
                     </TableCell>
-                    <TableCell className="px-4 py-2.5 text-[13px] font-black tabular-nums text-[#8127cf]">
+                    <TableCell className="px-4 py-2.5 text-[13px] font-bold tabular-nums text-primary">
                       {c.percentage != null ? `${Math.round(c.percentage)}%` : "—"}
                     </TableCell>
-                    <TableCell className="px-4 py-2.5 text-[12px] font-black text-[#1f1a23]">
+                    <TableCell className="px-4 py-2.5 text-xs font-bold text-ink-strong">
                       {c.grade ?? "—"}
                     </TableCell>
                     <TableCell className="px-2 py-2 min-w-[16rem]">
@@ -567,7 +567,7 @@ function LegacyReportCardsPanel({
                     </TableCell>
                     <TableCell className="px-4 py-2.5">
                       {c.remarksApproved ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
                           <CheckCircle2 className="h-3 w-3" />
                           {c.isSent ? tr("Sent") : tr("Approved")}
                         </span>
@@ -595,7 +595,7 @@ function LegacyReportCardsPanel({
                         target="_blank"
                         rel="noopener noreferrer"
                         title={tr("Open this report card as a PDF")}
-                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
+                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-edge/30 px-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted transition-colors hover:border-primary/40 hover:text-primary"
                       >
                         <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a>
                     </TableCell>

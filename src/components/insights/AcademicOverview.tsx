@@ -211,8 +211,8 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
             />
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
-              <CalendarCheck className="h-7 w-7 text-[#cfc2d6]" aria-hidden />
-              <p className="mt-2 px-2 text-[10px] font-bold leading-tight text-ink-subtle">
+              <CalendarCheck className="h-7 w-7 text-edge" aria-hidden />
+              <p className="mt-2 px-2 text-2xs font-bold leading-tight text-ink-subtle">
                 Attendance not marked today
               </p>
             </div>
@@ -484,7 +484,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                   <Scatter {...NO_ENTRY_ANIMATION} name="Classes" data={derived.correlation} fill={SERIES[0]} fillOpacity={0.85} stroke={INK.surface} strokeWidth={2} />
                 </ScatterChart>
               </ResponsiveContainer>
-              <p className="mt-3 text-[10px] font-bold leading-relaxed text-ink-subtle">
+              <p className="mt-3 text-2xs font-bold leading-relaxed text-ink-subtle">
                 Reference lines mark the 40% pass mark and 85% attendance. Classes in the lower-left quadrant are the
                 ones where both levers need attention.
               </p>
@@ -569,19 +569,19 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
             {derived.atRisk.map((s, i) => (
               <li
                 key={`${s.roll}-${i}`}
-                className="sk-rise flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/50 via-white to-white px-4 py-3"
+                className="sk-rise flex items-center justify-between gap-3 rounded-2xl border border-edge/25 bg-gradient-to-br from-brand-50/50 via-white to-white px-4 py-3"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-black text-[#1f1a23]">{s.name}</p>
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                  <p className="truncate text-xs font-bold text-ink-strong">{s.name}</p>
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     {s.className} · Roll {s.roll ?? "—"}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   {s.percentage !== null ? (
                     <span
-                      className="rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wider"
+                      className="rounded-full px-2 py-1 text-2xs font-semibold uppercase tracking-wider"
                       style={{
                         background: s.percentage < 40 ? `${STATUS.critical}1f` : `${STATUS.good}1f`,
                         color: s.percentage < 40 ? "#a81231" : "#0f7a55",
@@ -592,7 +592,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                   ) : null}
                   {s.attendance !== null ? (
                     <span
-                      className="rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wider"
+                      className="rounded-full px-2 py-1 text-2xs font-semibold uppercase tracking-wider"
                       style={{
                         background: s.attendance < 75 ? `${STATUS.warning}26` : `${STATUS.good}1f`,
                         color: s.attendance < 75 ? "#8a6100" : "#0f7a55",

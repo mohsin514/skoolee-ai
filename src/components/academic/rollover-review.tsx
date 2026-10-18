@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, GraduationCap, History, Scale } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -93,7 +93,7 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
     <div className="sk-panel space-y-4 p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 id="rollover-title" className="flex items-center gap-2 text-lg font-black"><GraduationCap className="size-5 text-primary" aria-hidden />{ui("Year-end promotion review")}</h3>
+          <h3 id="rollover-title" className="flex items-center gap-2 text-lg font-bold"><GraduationCap className="size-5 text-primary" aria-hidden />{ui("Year-end promotion review")}</h3>
           <p className="text-xs font-bold text-ink-muted">{ui("Confirm each learner's next enrollment. Missing evidence is never treated as a pass or a fail.")}</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
@@ -105,7 +105,7 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
       </div>
 
       <div aria-labelledby="readiness-title" className="rounded-2xl border border-border p-3">
-        <h4 id="readiness-title" className="text-sm font-black">{ui("Year-close readiness")}</h4>
+        <h4 id="readiness-title" className="text-sm font-bold">{ui("Year-close readiness")}</h4>
         <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">{view.readiness.steps.map(step => <li key={step.id} className="flex items-start gap-2 text-xs" data-readiness={step.id} data-done={step.done}>
           {step.done ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden /> : <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-700" aria-hidden />}
           <span><span className="font-bold">{ui(step.label)}</span> — {ui(step.detail)}</span></li>)}</ul>
@@ -113,7 +113,7 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
 
       {!plan ? <p className="rounded-xl bg-muted p-3 text-sm" data-rollover-empty>{view.eligible ? ui("{0} learners are eligible. Prepare a plan to review each one.", [view.eligible]) : ui("No eligible learners in this source year. Check the year and enrollment filters.")}</p>
         : <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-muted/60 p-3 text-sm" role="status" data-plan-bar>
-          <span className="font-black">{ui("Plan version {0}", [plan.version])}</span>
+          <span className="font-bold">{ui("Plan version {0}", [plan.version])}</span>
           <span className="font-bold" data-plan-state>{ui(STATUS_LABEL[plan.status] ?? plan.status)}</span>
           {plan.approvedVersion && !plan.approvalCurrent ? <span className="text-amber-800">{ui("Version {0} was approved; changes since then need a new approval.", [plan.approvedVersion])}</span> : null}
           <span className="text-ink-muted">{view.needsDecision ? ui("{0} learners need a decision before this plan can be approved.", [view.needsDecision]) : view.withIssues ? ui("{0} learners still have problems to resolve.", [view.withIssues]) : ui("Every learner has a decision.")}</span>
@@ -123,7 +123,7 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
 
     {plan ? <>
       <div className="sk-panel space-y-3 p-5" aria-labelledby="destinations-title">
-        <h4 id="destinations-title" className="text-sm font-black">{ui("Destinations")}</h4>
+        <h4 id="destinations-title" className="text-sm font-bold">{ui("Destinations")}</h4>
         <ul className="space-y-2">{view.sourceClasses.map(source => <li key={source.id} className="grid items-end gap-2 rounded-xl border border-border p-3 sm:grid-cols-3" data-source-class={source.id}>
           <p className="text-sm font-bold"><bdi>{source.label}</bdi> <span className="block text-xs font-normal text-ink-muted">{ui("Source year")} {view.sourceYear}</span></p>
           {(["promote", "retain"] as const).map(kind => <FormField key={kind} name={`map-${kind}-${source.id}`} label={ui(MAP_LABEL[kind])}>
@@ -144,7 +144,7 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
 
       <div className="sk-panel space-y-3 p-5" aria-labelledby="learners-title">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h4 id="learners-title" className="text-sm font-black">{ui("Learners ({0})", [learners.length])}</h4>
+          <h4 id="learners-title" className="text-sm font-bold">{ui("Learners ({0})", [learners.length])}</h4>
           <FormField name="rollover-filter" label={ui("Show")}><Select value={filter} onChange={event => { setFilter(event.target.value); setSelected(new Set()); }}>
             <option value="attention">{ui("Needs attention")}</option><option value="all">{ui("All learners")}</option><option value="applied">{ui("Applied or corrected")}</option>
             {view.sourceClasses.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -183,7 +183,7 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="sk-panel space-y-3 p-5" aria-labelledby="approve-title">
-        <h4 id="approve-title" className="text-sm font-black">{ui("Approve and run")}</h4>
+        <h4 id="approve-title" className="text-sm font-bold">{ui("Approve and run")}</h4>
         <div className="flex flex-wrap items-end gap-3">
           <Button disabled={!plan.canApprove || !!busy} onClick={() => void post("approve", { action: "approve", planId: plan.id, version: plan.version }, ui("Version {0} approved.", [plan.version]))}>{ui("Approve version {0}", [plan.version])}</Button>
           <FormField name="rollover-batch-size" label={ui("Learners per batch")}><Input type="number" min={1} max={200} className="w-28" value={batchSize} onChange={event => setBatchSize(event.target.value)} /></FormField>
@@ -193,17 +193,17 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
       </div>
 
       {recon ? <div className="sk-panel space-y-3 p-5" aria-labelledby="recon-title" data-reconciliation data-clean={recon.clean}>
-        <h4 id="recon-title" className="flex items-center gap-2 text-sm font-black"><Scale className="size-4 text-primary" aria-hidden />{ui("Rollover reconciliation")}</h4>
+        <h4 id="recon-title" className="flex items-center gap-2 text-sm font-bold"><Scale className="size-4 text-primary" aria-hidden />{ui("Rollover reconciliation")}</h4>
         <p className={`text-sm font-bold ${recon.clean ? "text-emerald-800" : "text-amber-900"}`} data-accounted>{recon.accounted === recon.learners ? (recon.clean ? ui("All {0} learners are accounted for.", [recon.learners]) : ui("All {0} learners are accounted for. Review the remaining exceptions.", [recon.learners])) : ui("{0} of {1} learners are accounted for so far.", [recon.accounted, recon.learners])}</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div><h5 className="text-xs font-black">{ui("Outstanding balances by currency")}</h5>
+          <div><h5 className="text-xs font-bold">{ui("Outstanding balances by currency")}</h5>
             <ul className="mt-1 space-y-0.5 text-xs" data-balances>{[...new Set([...recon.baseline.balances, ...recon.now.balances].map(b => b.currency))].map(currency => { const before = recon.baseline.balances.find(b => b.currency === currency)?.minor ?? 0, after = recon.now.balances.find(b => b.currency === currency)?.minor ?? 0; return <li key={currency} data-currency={currency}>{ui("{0}: {1} at approval, {2} now", [currency, money(before, currency), money(after, currency)])}{before !== after ? ` — ${ui("the difference comes from invoices issued or payments recorded since approval; rollover never creates or edits invoices")}` : ""}</li>; })}{!recon.baseline.balances.length && !recon.now.balances.length ? <li>{ui("No outstanding balances.")}</li> : null}</ul></div>
-          <div><h5 className="text-xs font-black">{ui("Previous-year records")}</h5>
+          <div><h5 className="text-xs font-bold">{ui("Previous-year records")}</h5>
             {(() => { const b = recon.baseline.history, n = recon.now.history, same = b.attendance === n.attendance && b.reports === n.reports && b.invoices === n.invoices; return <p className="mt-1 text-xs" data-history-same={same}>{ui("{0} attendance, {1} report and {2} invoice records stay attached to the source enrollments.", [n.attendance, n.reports, n.invoices])} {same ? ui("Unchanged since approval.") : ui("Changed since approval; check for late entries.")}</p>; })()}</div>
         </div>
       </div> : null}
 
-      {view.events?.length ? <details className="sk-panel p-5"><summary className="flex cursor-pointer items-center gap-2 text-sm font-black"><History className="size-4" aria-hidden />{ui("Plan history")}</summary>
+      {view.events?.length ? <details className="sk-panel p-5"><summary className="flex cursor-pointer items-center gap-2 text-sm font-bold"><History className="size-4" aria-hidden />{ui("Plan history")}</summary>
         <ol className="mt-2 space-y-1 text-xs" data-events>{view.events.map(e => <li key={e.id}>{dateTime(e.at)} · {ui("Version {0}", [e.version])} · {ui(EVENT_LABEL[e.kind] ?? e.kind)}{e.detail && "approvalWithdrawn" in e.detail ? ` — ${ui("approval withdrawn")}` : ""}</li>)}</ol></details> : null}
     </> : null}
   </section>;

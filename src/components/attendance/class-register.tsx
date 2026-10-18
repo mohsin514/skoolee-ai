@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -87,13 +87,13 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
     {loading && !data ? <p className="text-sm text-ink-muted">{ui("Loading register…")}</p> : null}
     {data ? <>
       <div className="flex flex-wrap gap-2 text-xs font-bold" data-register-counts>
-        {["UNMARKED", ...STATUSES].map(key => <span key={key} className={cn("rounded-full border px-3 py-1", key === "UNMARKED" && counts.UNMARKED ? "border-amber-300 bg-amber-50 text-amber-800" : "border-[#cfc2d6]/30")} data-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></span>)}
+        {["UNMARKED", ...STATUSES].map(key => <span key={key} className={cn("rounded-full border px-3 py-1", key === "UNMARKED" && counts.UNMARKED ? "border-amber-300 bg-amber-50 text-amber-800" : "border-edge/30")} data-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></span>)}
       </div>
-      {entries.length === 0 ? <p className="text-sm text-ink-muted">{ui("No pupils were enrolled in this class on that day.")}</p> : <ul className="divide-y divide-[#cfc2d6]/20" data-register-rows>
+      {entries.length === 0 ? <p className="text-sm text-ink-muted">{ui("No pupils were enrolled in this class on that day.")}</p> : <ul className="divide-y divide-edge/20" data-register-rows>
         {entries.map(entry => { const d = drafts[entry.studentId] ?? { status: null, arrivalTime: "", departureTime: "" }; return <li key={entry.studentId} className="flex flex-wrap items-center gap-3 py-2" data-register-row={entry.studentId} data-status={d.status ?? "UNMARKED"}>
           <div className="min-w-[180px] flex-1"><p className="text-sm font-bold"><bdi>{entry.name}</bdi></p><p className="text-xs text-ink-muted">{ui("Roll {0}", [entry.rollNo])}{entry.movedSince ? <> · {ui("Moved to another class since")}</> : null}{entry.openExplanation ? <> · {ui("Explanation waiting")}</> : null}</p></div>
           <div role="radiogroup" aria-label={ui("Attendance for {0}", [entry.name])} className="flex flex-wrap gap-1">
-            {STATUSES.map(status => <Button variant="ghost" key={status} type="button" role="radio" aria-checked={d.status === status} onClick={() => setDraft(entry.studentId, { status })} className={cn("rounded-lg border border-[#cfc2d6]/40 px-2 py-1 text-xs font-bold", tone[status])} data-mark={status}>{statusLabel(ui, status)}</Button>)}
+            {STATUSES.map(status => <Button variant="ghost" key={status} type="button" role="radio" aria-checked={d.status === status} onClick={() => setDraft(entry.studentId, { status })} className={cn("rounded-lg border border-edge/40 px-2 py-1 text-xs font-bold", tone[status])} data-mark={status}>{statusLabel(ui, status)}</Button>)}
           </div>
           {d.status === "LATE" || d.status === "PARTIAL" ? <div className="flex gap-2">
             <FormField name={`arrive-${entry.studentId}`} label={ui("Arrived")}><Input type="time" value={d.arrivalTime} onChange={event => setDraft(entry.studentId, { arrivalTime: event.target.value })} className="w-28" /></FormField>
@@ -170,11 +170,11 @@ export function AttendanceExceptions() {
     } catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The decision was not saved.")); } finally { setBusy(false); }
   };
   return <div className="sk-panel space-y-4 p-5" data-attendance-exceptions>
-    <h3 className="text-base font-black">{ui("Attendance exceptions")}</h3>
+    <h3 className="text-base font-bold">{ui("Attendance exceptions")}</h3>
     {error ? <p role="alert" className="text-sm font-bold text-rose-700">{error}</p> : null}
     {data ? <>
       <section data-queue-explanations><h4 className="text-sm font-bold">{ui("Explanations to decide ({0})", [String(data.explanations.length)])}</h4>
-        {data.explanations.length ? <ul className="divide-y divide-[#cfc2d6]/20">{data.explanations.map(row => <li key={row.id} className="space-y-1 py-2" data-explanation={row.id} data-explanation-status={row.status}>
+        {data.explanations.length ? <ul className="divide-y divide-edge/20">{data.explanations.map(row => <li key={row.id} className="space-y-1 py-2" data-explanation={row.id} data-explanation-status={row.status}>
           <p className="text-sm"><bdi>{row.studentName}</bdi> · <bdi>{row.className}</bdi> · <bdi>{formatDate(row.date)}</bdi> · {statusLabel(ui, row.currentStatus)}</p>
           <p className="text-sm text-ink-muted">{ui("Family says: {0}", [row.reason])}</p>
           <p className="text-xs">{ui("Asks to record: {0}", [statusLabel(ui, row.proposedStatus)])}{row.arrivalTime ? <> · <bdi>{row.arrivalTime}</bdi></> : null}{row.status === "CLARIFICATION" ? <> · {ui("Waiting for the family to clarify")}</> : null}</p>
@@ -222,8 +222,8 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
   };
   if (!rows || !rows.length) return null;
   return <div className="sk-panel space-y-3 p-5" data-guardian-absences>
-    <h3 className="text-base font-black">{ui("Absences and late arrivals")}</h3>
-    <ul className="divide-y divide-[#cfc2d6]/20">{rows.map(row => { const canExplain = !row.closed && (!row.explanation || row.explanation.status === "CLARIFICATION" || row.explanation.status === "REJECTED"); return <li key={row.attendanceId} className="flex flex-wrap items-center gap-2 py-2" data-guardian-absence={row.attendanceId}>
+    <h3 className="text-base font-bold">{ui("Absences and late arrivals")}</h3>
+    <ul className="divide-y divide-edge/20">{rows.map(row => { const canExplain = !row.closed && (!row.explanation || row.explanation.status === "CLARIFICATION" || row.explanation.status === "REJECTED"); return <li key={row.attendanceId} className="flex flex-wrap items-center gap-2 py-2" data-guardian-absence={row.attendanceId}>
       <span className="flex-1 text-sm"><bdi>{formatDate(row.date)}</bdi> · {statusLabel(ui, row.status)}{row.arrivalTime ? <> · <bdi>{row.arrivalTime}</bdi></> : null}</span>
       {row.explanation ? <span className="text-xs font-bold" data-explanation-state={row.explanation.status}>{explanationLabel(row.explanation.status)}{row.explanation.reviewNote ? <>: {row.explanation.reviewNote}</> : null}</span> : null}
       {canExplain ? <Button size="sm" variant="outline" onClick={() => setOpen(row)} data-explain>{ui("Explain")}</Button> : null}
@@ -265,7 +265,7 @@ export function AttendanceRulePanel() {
     } catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The rule was not published.")); } finally { setBusy(false); }
   };
   return <div className="sk-panel space-y-3 p-5" data-attendance-rule data-rule-version={rule.version}>
-    <h3 className="text-base font-black">{ui("How attendance is counted")}</h3>
+    <h3 className="text-base font-bold">{ui("How attendance is counted")}</h3>
     <p className="text-xs text-ink-muted">{rule.version ? ui("Version {0} is in force. Present always counts as attended; absent always counts against.", [String(rule.version)]) : ui("The default rule is in force. Present always counts as attended; absent always counts against.")}</p>
     <ul className="space-y-2">{RULE_STATUSES.map(status => <li key={status} className="flex flex-wrap items-center gap-2 text-sm" data-rule-status={status}>
       <span className="w-32 font-bold">{statusLabel(ui, status)}</span>

@@ -83,9 +83,9 @@ export function Composer({
 
   if (!canPost) {
     return (
-      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-[#cfc2d6]/25 bg-gradient-to-b from-[#fbf0fe]/60 to-white/80 px-4 py-4 backdrop-blur-xl">
+      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-edge/25 bg-gradient-to-b from-brand-50/60 to-white/80 px-4 py-4 backdrop-blur-xl">
         <Lock className="h-3.5 w-3.5 text-ink-faint" aria-hidden />
-        <p className="text-[11px] font-bold text-ink-muted">{lockedReason}</p>
+        <p className="text-2xs font-bold text-ink-muted">{lockedReason}</p>
       </div>
     );
   }
@@ -187,20 +187,20 @@ export function Composer({
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#fbf0fe] to-white px-3 py-2 ring-1 ring-[#8127cf]/15">
+            <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-brand-50 to-white px-3 py-2 ring-1 ring-primary/15">
               <span
-                className="h-8 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-[#8127cf] to-[#b10e6b]"
+                className="h-8 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-primary to-berry"
                 aria-hidden
               />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black text-[#8127cf]">
+                <p className="text-2xs font-bold text-primary">
                   {editing
                     ? ui("Editing your message")
                     : replyTo?.sender?.fullName
                       ? fill(ui("Replying to {0}"), [replyTo.sender.fullName])
                       : ui("Replying to a message")}
                 </p>
-                <p className="truncate text-[11px] font-semibold text-ink-muted">
+                <p className="truncate text-2xs font-semibold text-ink-muted">
                   {(editing ?? replyTo)?.body}
                 </p>
               </div>
@@ -237,12 +237,12 @@ export function Composer({
                 key={`${f.file.name}-${i}`}
                 data-upload-state={f.error ? "failed" : f.uploaded ? "ready" : "uploading"}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[10px] font-bold ring-1",
+                  "flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-2xs font-bold ring-1",
                   f.error
                     ? "bg-rose-50 text-rose-600 ring-rose-200"
                     : f.uploaded
-                      ? "bg-[#fbf0fe] text-[#8127cf] ring-[#8127cf]/20"
-                      : "bg-[#f4ecf8] text-ink-muted ring-[#cfc2d6]/30"
+                      ? "bg-brand-50 text-primary ring-primary/20"
+                      : "bg-[#f4ecf8] text-ink-muted ring-edge/30"
                 )}
               >
                 {f.error ? null : f.uploaded ? (
@@ -281,7 +281,7 @@ export function Composer({
       </AnimatePresence>
 
       {canMarkUrgent && !editing && (
-        <label className="mb-1.5 flex w-fit items-center gap-1.5 text-[11px] font-bold text-ink-muted">
+        <label className="mb-1.5 flex w-fit items-center gap-1.5 text-2xs font-bold text-ink-muted">
           <Checkbox checked={urgent} onChange={(event) => setUrgent(event.target.checked)} data-urgent-toggle />
           {ui("Urgent: notify even during quiet hours")}
         </label>
@@ -365,7 +365,7 @@ export function Composer({
       {remaining < 200 && (
         <p
           className={cn(
-            "mt-1 pe-1 text-end text-[10px] font-bold",
+            "mt-1 pe-1 text-end text-2xs font-bold",
             remaining < 40 ? "text-rose-500" : "text-ink-faint"
           )}
         >

@@ -122,7 +122,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[55] bg-[#1f1a23]/25 backdrop-blur-[3px] md:hidden"
+              className="fixed inset-0 z-[55] bg-ink-strong/25 backdrop-blur-[3px] md:hidden"
               aria-hidden
               onClick={() => setIsOpen(false)}
             />

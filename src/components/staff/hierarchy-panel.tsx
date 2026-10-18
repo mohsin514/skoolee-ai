@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, Layers, Loader2, Network, RefreshCw, TriangleAlert, Users, CalendarClock } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
 import { OrgChart } from "./org-chart";
@@ -136,7 +136,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
 
       {/* ── Tabs ─────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-1 gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+        <div className="flex flex-1 gap-1 rounded-2xl bg-muted p-1">
           {TABS.map((t) => (
             <Button aria-pressed={tab === t.key} variant="choice" size="sm"
               key={t.key}
@@ -168,7 +168,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
         needsLadder ? (
           <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/50 px-6 py-12 text-center">
             <Layers className="mx-auto h-8 w-8 text-amber-600" />
-            <p className="mt-3 text-sm font-black text-ink">Define your ranks first</p>
+            <p className="mt-3 text-sm font-bold text-ink">Define your ranks first</p>
             <p className="mx-auto mt-1 max-w-lg text-xs font-semibold text-ink-muted">
               The chart draws who is senior to whom, and it reads that from your rank ladder. Pick the preset for
               your kind of institution — school, college, university or training institute — and adjust it from
@@ -232,21 +232,21 @@ function Stat({
     <div
       className={cn(
         "flex items-center gap-3 rounded-2xl border bg-white px-3.5 py-3",
-        tone === "amber" ? "border-amber-200 bg-amber-50/40" : "border-[#cfc2d6]/40"
+        tone === "amber" ? "border-amber-200 bg-amber-50/40" : "border-edge/40"
       )}
     >
       <span
         className={cn(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-          tone === "amber" ? "bg-amber-100 text-amber-600" : "bg-[#fbf0fe] text-[#8127cf]"
+          tone === "amber" ? "bg-amber-100 text-amber-600" : "bg-brand-50 text-primary"
         )}
       >
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0">
-        <span className="block text-lg font-black leading-none tabular-nums text-ink">{value}</span>
-        <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-wide text-ink-subtle">{label}</span>
-        {hint ? <span className="block truncate text-[10px] font-semibold text-ink-muted">{hint}</span> : null}
+        <span className="block text-lg font-bold leading-none tabular-nums text-ink">{value}</span>
+        <span className="mt-0.5 block truncate text-2xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</span>
+        {hint ? <span className="block truncate text-2xs font-semibold text-ink-muted">{hint}</span> : null}
       </span>
     </div>
   );

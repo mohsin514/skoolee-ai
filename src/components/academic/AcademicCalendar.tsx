@@ -13,7 +13,7 @@ import {
   BookOpen,
   PartyPopper,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -331,16 +331,16 @@ export function AcademicCalendar({
     (layers.deadlines && day.deadlines.length > 0);
 
   return (
-    <div className="sk-panel border-[#cfc2d6]/15 overflow-hidden">
+    <div className="sk-panel border-edge/15 overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-[12px] p-[12px] sm:p-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] border-b border-[#cfc2d6]/10">
+      <div className="flex flex-col gap-[12px] p-[12px] sm:p-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between bg-gradient-to-r from-surface-subtle via-white to-brand-100 border-b border-edge/10">
         <div className="flex min-w-0 items-center gap-[10px]">
-          <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+          <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
             <CalendarDays className="h-[20px] w-[20px]" />
           </div>
           <div className="min-w-0 [overflow-wrap:anywhere]">
-            <h3 className="text-lg font-black tracking-tight text-[#1d1b20]"><UiText>{"Academic Calendar"}</UiText></h3>
-            <p className="text-[11px] font-semibold text-ink-muted">
+            <h3 className="text-lg font-bold tracking-tight text-ink-strong"><UiText>{"Academic Calendar"}</UiText></h3>
+            <p className="text-2xs font-semibold text-ink-muted">
               {calendarView === "month" ? new Intl.DateTimeFormat(localeTag(locale), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(viewYear, viewMonth, 1))) : `${viewYear}`}
               {upcoming.length > 0 ? tr(" · {0} still to come", [upcoming.length]) : tr(" · nothing else scheduled")}
             </p>
@@ -381,7 +381,7 @@ export function AcademicCalendar({
               <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y - 1)} aria-label={tr("Previous year")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-[11px] font-black uppercase tracking-wider text-ink-muted">{viewYear}</span>
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{viewYear}</span>
               <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y + 1)} aria-label={tr("Next year")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -391,7 +391,7 @@ export function AcademicCalendar({
       </div>
 
       {/* Layer toggles */}
-      <div className="flex flex-wrap items-center gap-[8px] px-[12px] py-[12px] sm:px-5 border-b border-[#cfc2d6]/10">
+      <div className="flex flex-wrap items-center gap-[8px] px-[12px] py-[12px] sm:px-5 border-b border-edge/10">
         <LayerChip label={tr("Exams")} color="#8127cf" active={layers.exams} onClick={() => setLayers((l) => ({ ...l, exams: !l.exams }))} />
         <LayerChip label={tr("Holidays")} color="#0d9488" active={layers.holidays} onClick={() => setLayers((l) => ({ ...l, holidays: !l.holidays }))} />
         <LayerChip label={tr("Terms")} color="#d97706" active={layers.terms} onClick={() => setLayers((l) => ({ ...l, terms: !l.terms }))} />
@@ -402,13 +402,13 @@ export function AcademicCalendar({
         <div className="space-y-3 p-5 animate-skeleton-in">
           <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="h-7 rounded-lg bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div key={i} className="h-7 rounded-lg bg-border-subtle/40 skeleton-shimmer" />
             ))}
           </div>
           {Array.from({ length: 5 }).map((_, r) => (
             <div key={r} className="grid grid-cols-7 gap-1.5">
               {Array.from({ length: 7 }).map((_, c) => (
-                <div key={c} className="h-16 rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" style={{ animationDelay: `${(r * 7 + c) * 18}ms` }} />
+                <div key={c} className="h-16 rounded-xl bg-border-subtle/30 skeleton-shimmer" style={{ animationDelay: `${(r * 7 + c) * 18}ms` }} />
               ))}
             </div>
           ))}
@@ -419,7 +419,7 @@ export function AcademicCalendar({
         <div role="region" tabIndex={0} aria-label={tr("Month calendar. Scroll horizontally to see all days.")} className="overflow-x-auto p-[12px] sm:p-5">
           <div className="grid min-w-[22rem] grid-cols-7 gap-[6px]">
             {Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(localeTag(locale), { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2027, 0, 3 + ((feed?.weekStartsOn ?? 1) + i) % 7)))).map((d) => (
-              <div key={d} className="pb-1 text-center text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+              <div key={d} className="pb-1 text-center text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 {d}
               </div>
             ))}
@@ -446,13 +446,13 @@ export function AcademicCalendar({
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={cn("text-xs font-bold", holidayBg ? "text-[#0f766e]" : weekendBg ? "text-ink-subtle" : "text-[#1d1b20]")}>
+                    <span className={cn("text-xs font-bold", holidayBg ? "text-teal-700" : weekendBg ? "text-ink-subtle" : "text-ink-strong")}>
                       {cell.dayNum}
                     </span>
                     {canEdit && (
                       <span
                         aria-hidden="true"
-                        className="flex h-4 w-4 items-center justify-center rounded-full bg-[#8127cf] text-white opacity-60"
+                        className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-white opacity-60"
                       >
                         <Plus className="h-3 w-3" />
                       </span>
@@ -595,8 +595,8 @@ function DayPopover({
             <li key={i} className="flex items-start gap-2">
               <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: ev.color }} />
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: ev.color }}>{ev.kind}</p>
-                <p className="text-xs font-semibold text-[#1d1b20]">{ev.text}</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider" style={{ color: ev.color }}>{ev.kind}</p>
+                <p className="text-xs font-semibold text-ink-strong">{ev.text}</p>
               </div>
             </li>
           ))}
@@ -604,14 +604,14 @@ function DayPopover({
       )}
 
       {canEdit && (
-        <div className="mt-3 space-y-3 border-t border-[#cfc2d6]/10 pt-3">
+        <div className="mt-3 space-y-3 border-t border-edge/10 pt-3">
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"From"}</UiText></span>
+              <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-muted"><UiText>{"From"}</UiText></span>
               <SystemInput type="date" aria-label={tr("From")} readOnly={saving} value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-ink-muted"><UiText>{"To"}</UiText></span>
+              <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-muted"><UiText>{"To"}</UiText></span>
               {/* The picker itself now refuses a date before the start. */}
               <SystemInput type="date" aria-label={tr("To")} aria-invalid={datesReversed} readOnly={saving} value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
                 className={`w-full ${""} `} />
@@ -627,7 +627,7 @@ function DayPopover({
             className="w-full"
           />
           {blockedReason ? (
-            <p className="text-[10px] font-semibold text-amber-700">{blockedReason}</p>
+            <p className="text-2xs font-semibold text-amber-700">{blockedReason}</p>
           ) : null}
           <div className="flex gap-2">
             <Button variant="default"
@@ -700,13 +700,13 @@ function AgendaList({
         <div className="shrink-0 text-start sm:w-20">
           <p
             className={cn(
-              "text-sm font-black leading-tight",
-              isToday ? "text-[#8127cf]" : "text-[#1d1b20]",
+              "text-sm font-bold leading-tight",
+              isToday ? "text-primary" : "text-ink-strong",
             )}
           >
             {d.toLocaleDateString(localeTag(locale), { timeZone: "UTC", day: "numeric", month: "short" })}
           </p>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             {isToday
               ? tr("Today")
               : days === 1
@@ -725,8 +725,8 @@ function AgendaList({
                 style={{ backgroundColor: item.color }}
               />
               <span className="min-w-0">
-                <span className="block text-sm font-bold text-[#1d1b20] [overflow-wrap:anywhere]">{item.title}</span>
-                <span className="block text-[11px] font-semibold text-ink-muted [overflow-wrap:anywhere]">
+                <span className="block text-sm font-bold text-ink-strong [overflow-wrap:anywhere]">{item.title}</span>
+                <span className="block text-2xs font-semibold text-ink-muted [overflow-wrap:anywhere]">
                   {item.detail}
                 </span>
               </span>
@@ -740,14 +740,14 @@ function AgendaList({
   return (
     <div className="max-h-[560px] overflow-y-auto custom-scrollbar">
       {future.length > 0 ? (
-        <ul className="divide-y divide-[#cfc2d6]/10">{future.map((g) => renderDay(g, false))}</ul>
+        <ul className="divide-y divide-edge/10">{future.map((g) => renderDay(g, false))}</ul>
       ) : (
         <p className="px-5 py-6 text-center text-sm font-semibold text-ink-muted"><UiText>{"Nothing else is scheduled this year."}</UiText></p>
       )}
       {past.length > 0 ? (
         <>
-          <p className="border-y border-[#cfc2d6]/10 bg-[#faf7fc] px-5 py-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"Already happened"}</UiText></p>
-          <ul className="divide-y divide-[#cfc2d6]/10">{past.map((g) => renderDay(g, true))}</ul>
+          <p className="border-y border-edge/10 bg-surface-subtle px-5 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Already happened"}</UiText></p>
+          <ul className="divide-y divide-edge/10">{past.map((g) => renderDay(g, true))}</ul>
         </>
       ) : null}
     </div>

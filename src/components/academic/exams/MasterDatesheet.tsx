@@ -16,7 +16,7 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -239,7 +239,7 @@ export function MasterDatesheet({
     return (
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-16 rounded-[20px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div key={i} className="h-16 rounded-[20px] bg-border-subtle/40 skeleton-shimmer" />
         ))}
       </div>
     );
@@ -270,14 +270,14 @@ export function MasterDatesheet({
   return (
     <div className="space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[20px] border border-[#cfc2d6]/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+      <div className="flex flex-wrap items-center gap-3 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
             Date sheet
           </p>
-          <p className="text-sm font-black text-[#1f1a23]">
+          <p className="text-sm font-bold text-ink-strong">
             {totals.placed} of {totals.expected} papers placed
-            <span className="ml-2 text-[11px] font-bold text-ink-subtle">
+            <span className="ml-2 text-2xs font-bold text-ink-subtle">
               {totals.subjects} subject{totals.subjects === 1 ? "" : "s"} · {data.rows.length}{" "}
               class{data.rows.length === 1 ? "" : "es"}
             </span>
@@ -286,12 +286,12 @@ export function MasterDatesheet({
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {blocking > 0 ? (
-            <span className="flex items-center gap-1.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-600">
+            <span className="flex items-center gap-1.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-rose-600">
               <AlertTriangle className="h-3.5 w-3.5" />
               {blocking} to fix
             </span>
           ) : totals.placed === totals.expected ? (
-            <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
+            <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
               <Check className="h-3.5 w-3.5" />
               Complete
             </span>
@@ -336,7 +336,7 @@ export function MasterDatesheet({
           icon={Layers}
           bodyClassName="p-0"
         >
-          <ul className="divide-y divide-[#cfc2d6]/12">
+          <ul className="divide-y divide-edge/12">
             {subjects.map((subject) => {
               const period = data.periods.find((p) => p.id === subject.periodDefinitionId);
               const complete = subject.placed === subject.classCount;
@@ -344,30 +344,30 @@ export function MasterDatesheet({
               return (
                 <li
                   key={subject.name}
-                  className="group flex flex-wrap items-center gap-3 px-5 py-3 transition-colors hover:bg-[#faf7fc]"
+                  className="group flex flex-wrap items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-subtle"
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[10px] font-black transition-colors",
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-2xs font-bold transition-colors",
                       complete
                         ? "bg-emerald-50 text-emerald-600"
                         : subject.placed > 0
                         ? "bg-amber-50 text-amber-600"
-                        : "bg-[#f3f4f9] text-ink-subtle",
+                        : "bg-muted text-ink-subtle",
                     )}
                   >
                     {subject.placed}/{subject.classCount}
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black text-[#1f1a23]">{subject.name}</p>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-bold text-ink-subtle">
+                    <p className="truncate text-sm font-bold text-ink-strong">{subject.name}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs font-bold text-ink-subtle">
                       {subject.date ? (
                         <>
                           <span
                             className={cn(
                               "flex items-center gap-1",
-                              weekendHit ? "text-rose-600" : "text-[#8127cf]",
+                              weekendHit ? "text-rose-600" : "text-primary",
                             )}
                           >
                             <CalendarDays className="h-3 w-3" />
@@ -433,14 +433,14 @@ export function MasterDatesheet({
           bodyClassName="p-4"
         >
           {calendar.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-[#cfc2d6]/30 p-8 text-center text-xs font-bold text-ink-muted">
+            <p className="rounded-2xl border border-dashed border-edge/30 p-8 text-center text-xs font-bold text-ink-muted">
               Nothing placed yet. Set a date on a paper and it appears here.
             </p>
           ) : (
             <ol className="relative space-y-2.5 pl-5">
               <span
                 aria-hidden
-                className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-[#8127cf]/40 via-[#cfc2d6]/40 to-transparent"
+                className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-primary/40 via-edge/40 to-transparent"
               />
               {calendar.map(({ date, entries }) => {
                 const weekend = data.weekends.includes(isoDow(date));
@@ -450,7 +450,7 @@ export function MasterDatesheet({
                       aria-hidden
                       className={cn(
                         "absolute -left-5 top-3 h-[9px] w-[9px] rounded-full ring-4 ring-white",
-                        weekend ? "bg-rose-500" : "bg-[#8127cf]",
+                        weekend ? "bg-rose-500" : "bg-primary",
                       )}
                     />
                     <div
@@ -458,18 +458,18 @@ export function MasterDatesheet({
                         "rounded-2xl border p-3 transition-colors",
                         weekend
                           ? "border-rose-200/70 bg-rose-50/40"
-                          : "border-[#cfc2d6]/20 bg-[#faf7fc]",
+                          : "border-edge/20 bg-surface-subtle",
                       )}
                     >
                       <p
                         className={cn(
-                          "flex items-center gap-1.5 text-[11px] font-black",
-                          weekend ? "text-rose-600" : "text-[#8127cf]",
+                          "flex items-center gap-1.5 text-2xs font-bold",
+                          weekend ? "text-rose-600" : "text-primary",
                         )}
                       >
                         {prettyDate(date)}
                         {weekend ? (
-                          <span className="flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
+                          <span className="flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-2xs uppercase tracking-wider">
                             <CalendarX className="h-2.5 w-2.5" />
                             Weekend
                           </span>
@@ -481,13 +481,13 @@ export function MasterDatesheet({
                             key={e.subject}
                             className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5"
                           >
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#f3eeff] text-[9px] font-black text-[#8127cf]">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-2xs font-bold text-primary">
                               P{e.period?.periodNumber ?? "—"}
                             </span>
-                            <span className="min-w-0 flex-1 truncate text-[11px] font-black text-[#1f1a23]">
+                            <span className="min-w-0 flex-1 truncate text-2xs font-bold text-ink-strong">
                               {e.subject}
                             </span>
-                            <span className="shrink-0 text-[9px] font-bold text-ink-subtle">
+                            <span className="shrink-0 text-2xs font-bold text-ink-subtle">
                               {e.period ? `${e.period.startTime}–${e.period.endTime}` : "No time"} ·{" "}
                               {e.classes} class{e.classes === 1 ? "" : "es"}
                             </span>
@@ -718,23 +718,23 @@ function PlacePaperModal({
         </div>
 
         {checking ? (
-          <div className="flex items-center gap-2 rounded-2xl bg-[#faf7fc] px-4 py-3 text-xs font-bold text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin text-[#8127cf]" />
+          <div className="flex items-center gap-2 rounded-2xl bg-surface-subtle px-4 py-3 text-xs font-bold text-ink-muted">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
             Checking that slot against every class…
           </div>
         ) : preview ? (
           <>
             <ConflictPanel conflicts={preview.conflicts} />
             {preview.wouldPlace.length > 0 ? (
-              <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-3.5">
-                <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+              <div className="rounded-2xl border border-edge/20 bg-surface-subtle p-3.5">
+                <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   Will be placed for
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {preview.wouldPlace.map((c) => (
                     <span
                       key={c}
-                      className="rounded-lg bg-white px-2 py-1 text-[11px] font-black text-[#8127cf] shadow-sm"
+                      className="rounded-lg bg-white px-2 py-1 text-2xs font-bold text-primary shadow-sm"
                     >
                       {c}
                     </span>

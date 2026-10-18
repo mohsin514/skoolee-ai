@@ -173,12 +173,12 @@ export function FrontDeskOverview({
         ]}
         aside={
           <div className="flex w-[148px] flex-col items-center justify-center gap-3 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-primary">
               {summary.stillInside > 0 ? <Users className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
             </span>
             <div>
-              <p className="text-3xl font-black leading-none tracking-tight text-[#1f1a23]">{summary.stillInside}</p>
-              <p className="mt-1.5 text-[9px] font-black uppercase leading-tight tracking-wider text-ink-subtle">
+              <p className="text-3xl font-extrabold leading-none tracking-tight text-ink-strong">{summary.stillInside}</p>
+              <p className="mt-1.5 text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-subtle">
                 {summary.stillInside === 1 ? "Visitor in the building" : "Visitors in the building"}
               </p>
             </div>

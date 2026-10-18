@@ -45,7 +45,7 @@ export function StudioIntroProbe({ suppressed }: { suppressed: boolean }) {
           action.current?.focus();
         }}
       />
-      <h1 data-probe="title" className="text-heading font-black text-ink">
+      <h1 data-probe="title" className="text-heading font-bold text-ink">
         Exam Studio
       </h1>
       <p data-probe="workspace" data-workspace-state={workspace} className="mt-4 text-sm text-ink-muted">

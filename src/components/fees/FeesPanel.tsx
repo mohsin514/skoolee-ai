@@ -35,7 +35,7 @@ export function FeesPanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
+      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.key;

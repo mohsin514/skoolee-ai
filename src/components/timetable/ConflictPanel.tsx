@@ -11,7 +11,7 @@ import {
   UserX,
   Wand2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import type { GridDay, SlotChange, StudioSlot, SubjectOption, TimetableData } from "./TimetableStudio";
 import { Button } from "@/components/ui/button";
 
@@ -130,9 +130,9 @@ function ResolutionSection({
   const warning = report?.validation?.counts?.warning ?? 0;
 
   return (
-    <div className="rounded-xl border border-[#cfc2d6]/15 bg-white p-3">
+    <div className="rounded-xl border border-edge/15 bg-white p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+        <p className="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-primary">
           <Wand2 className="h-3 w-3" />
           Fix conflicts
         </p>
@@ -148,24 +148,24 @@ function ResolutionSection({
       </div>
 
       {error ? (
-        <p className="mt-1.5 text-[10px] font-bold text-rose-500">{error}</p>
+        <p className="mt-1.5 text-2xs font-bold text-rose-500">{error}</p>
       ) : loading && !report ? (
-        <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">Checking the saved board…</p>
+        <p className="mt-1.5 text-2xs font-semibold text-ink-subtle">Checking the saved board…</p>
       ) : critical === 0 && warning === 0 ? (
-        <p className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+        <p className="mt-1.5 flex items-center gap-1 text-2xs font-bold text-emerald-600">
           <CheckCircle2 className="h-3 w-3" />
           The saved board has no conflicts.
         </p>
       ) : (
         <>
-          <p className="mt-1.5 text-[10px] font-bold text-ink-muted">
+          <p className="mt-1.5 text-2xs font-bold text-ink-muted">
             {critical} blocking · {warning} advisory on the saved board
           </p>
           <ul className="mt-2 space-y-1.5">
             {(report?.suggestions ?? []).map((s) => (
               <li
                 key={s.id}
-                className="rounded-lg border border-[#cfc2d6]/20 bg-[#faf7fc] p-2"
+                className="rounded-lg border border-edge/20 bg-surface-subtle p-2"
               >
                 <div className="flex items-start gap-1.5">
                   <AlertTriangle
@@ -173,7 +173,7 @@ function ResolutionSection({
                       s.severity === "CRITICAL" ? "text-rose-500" : "text-amber-500"
                     }`}
                   />
-                  <p className="text-[10px] font-semibold leading-relaxed text-ink">
+                  <p className="text-2xs font-semibold leading-relaxed text-ink">
                     {s.description}
                   </p>
                 </div>
@@ -194,7 +194,7 @@ function ResolutionSection({
             ))}
           </ul>
           {(report?.unresolvable?.length ?? 0) > 0 && (
-            <p className="mt-2 text-[9px] font-bold text-ink-subtle">
+            <p className="mt-2 text-2xs font-bold text-ink-subtle">
               {report!.unresolvable.length} conflict
               {report!.unresolvable.length === 1 ? "" : "s"} need a manual decision — no free
               teacher, room or period was available to propose.
@@ -298,28 +298,28 @@ export function ConflictPanel({
   return (
     <div className="sk-panel flex h-full flex-col gap-4 p-4">
       <div>
-        <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">Conflict Panel</p>
-        <h3 className="text-sm font-black text-[#1f1a23] mt-1">Live intelligence</h3>
+        <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Conflict Panel</p>
+        <h3 className="text-sm font-bold text-ink-strong mt-1">Live intelligence</h3>
       </div>
 
       {/* Double-bookings */}
-      <div className="rounded-xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-3">
+      <div className="rounded-xl border border-edge/15 bg-surface-subtle p-3">
         <div className="flex items-center gap-1.5">
           {clashes.size === 0 ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-[#047857]" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
           ) : (
-            <AlertTriangle className="h-3.5 w-3.5 text-[#be123c]" />
+            <AlertTriangle className="h-3.5 w-3.5 text-rose-700" />
           )}
-          <span className="text-[9px] font-black uppercase tracking-wider text-ink-muted">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
             Teacher double-bookings
           </span>
         </div>
         {clashes.size === 0 ? (
-          <p className="mt-1.5 text-[10px] font-semibold text-[#047857]">None detected — assignments are conflict-free.</p>
+          <p className="mt-1.5 text-2xs font-semibold text-emerald-700">None detected — assignments are conflict-free.</p>
         ) : (
           <ul className="mt-1.5 space-y-1">
             {[...clashes.values()].map((c, i) => (
-              <li key={i} className="text-[10px] font-bold text-[#be123c]">
+              <li key={i} className="text-2xs font-bold text-rose-700">
                 {c.teacher}: {c.classes.join(" & ")}
               </li>
             ))}
@@ -329,18 +329,18 @@ export function ConflictPanel({
 
       {/* Subject coverage */}
       <div>
-        <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Subject coverage</p>
+        <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Subject coverage</p>
         <div className="space-y-1.5">
           {subjects.length === 0 && (
-            <p className="text-[10px] font-semibold text-ink-subtle">No subjects to track.</p>
+            <p className="text-2xs font-semibold text-ink-subtle">No subjects to track.</p>
           )}
           {subjects.map((s) => {
             const placed = placedBySubject.get(s.id) || 0;
             const short = placed < targetDays;
             return (
               <div key={s.id} className="flex items-center justify-between gap-2">
-                <span className="truncate text-[10px] font-bold text-[#1f1a23]">{s.name}</span>
-                <span className={`text-[9px] font-black ${short ? "text-amber-600" : "text-emerald-600"}`}>
+                <span className="truncate text-2xs font-bold text-ink-strong">{s.name}</span>
+                <span className={`text-2xs font-bold ${short ? "text-amber-600" : "text-emerald-600"}`}>
                   {placed}/{targetDays}
                 </span>
               </div>
@@ -348,7 +348,7 @@ export function ConflictPanel({
           })}
         </div>
         {subjectWarnings.length > 0 && (
-          <p className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-amber-600">
+          <p className="mt-1.5 flex items-center gap-1 text-2xs font-bold text-amber-600">
             <AlertTriangle className="h-3 w-3" />
             {subjectWarnings.length} subject{subjectWarnings.length > 1 ? "s" : ""} below the weekly target.
           </p>
@@ -357,14 +357,14 @@ export function ConflictPanel({
 
       {/* Teacher workload per day */}
       <div>
-        <p className="mb-1.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Teacher workload / day</p>
+        <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Teacher workload / day</p>
         {workload.size === 0 ? (
-          <p className="text-[10px] font-semibold text-ink-subtle">No teachers assigned yet.</p>
+          <p className="text-2xs font-semibold text-ink-subtle">No teachers assigned yet.</p>
         ) : (
           <div className="space-y-2.5">
             {[...workload.entries()].map(([tid, dayMap]) => (
               <div key={tid}>
-                <p className="mb-1 text-[10px] font-bold text-[#1f1a23]">{teacherNames.get(tid)}</p>
+                <p className="mb-1 text-2xs font-bold text-ink-strong">{teacherNames.get(tid)}</p>
                 <div className="flex items-end gap-1">
                   {visibleDays.map((day) => {
                     const count = dayMap.get(day.num) || 0;
@@ -372,11 +372,11 @@ export function ConflictPanel({
                     return (
                       <div key={day.num} className="flex flex-1 flex-col items-center gap-0.5">
                         <div
-                          className={`w-full rounded-t-md ${count > 2 ? "bg-amber-400" : "bg-[#8127cf]/70"}`}
+                          className={`w-full rounded-t-md ${count > 2 ? "bg-amber-400" : "bg-primary/70"}`}
                           style={{ height: `${Math.max(h, count > 0 ? 4 : 2)}px` }}
                           title={`${day.short}: ${count} period(s)`}
                         />
-                        <span className="text-[7px] font-bold text-ink-subtle">{day.short}</span>
+                        <span className="text-3xs font-bold text-ink-subtle">{day.short}</span>
                       </div>
                     );
                   })}
@@ -395,20 +395,20 @@ export function ConflictPanel({
       />
 
       {/* Drafting hints, computed from what is on screen right now */}
-      <div className="mt-auto rounded-xl bg-gradient-to-br from-[#8127cf]/5 to-[#fbf0fe] p-3">
-        <p className="mb-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+      <div className="mt-auto rounded-xl bg-gradient-to-br from-primary/5 to-brand-50 p-3">
+        <p className="mb-1.5 flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-primary">
           <Lightbulb className="h-3 w-3" />Drafting hints
         </p>
         <ul className="space-y-1">
           {suggestions.map((sug, i) => (
-            <li key={i} className="flex items-start gap-1 text-[10px] font-semibold text-ink">
-              <Info className="mt-0.5 h-2.5 w-2.5 shrink-0 text-[#8127cf]/60" />
+            <li key={i} className="flex items-start gap-1 text-2xs font-semibold text-ink">
+              <Info className="mt-0.5 h-2.5 w-2.5 shrink-0 text-primary/60" />
               {sug}
             </li>
           ))}
         </ul>
         {clashes.size === 0 && (
-          <p className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-ink-subtle">
+          <p className="mt-1.5 flex items-center gap-1 text-2xs font-bold text-ink-subtle">
             <UserX className="h-2.5 w-2.5" />Prevention is on: dropdowns only offer free teachers & rooms.
           </p>
         )}

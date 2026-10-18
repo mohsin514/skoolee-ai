@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BedDouble, History, MoveRight, Settings2, UserPlus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -66,8 +66,8 @@ export function DormitoryAllocations({ canManage = true }: { canManage?: boolean
           const residents = (data?.stays ?? []).filter(stay => stay.roomId === room.id && (stay.state === "CURRENT" || stay.state === "UPCOMING"));
           return <li key={room.id} className="space-y-2 rounded-2xl border border-border p-4" data-dorm-room={room.number} data-room-status={room.status} data-room-occupied={room.occupied}>
             <div className="flex items-start justify-between gap-2">
-              <div><p className="flex items-center gap-1.5 text-sm font-black"><BedDouble className="size-4 text-primary" aria-hidden="true" /><bdi>{room.number}</bdi></p><p className="text-xs text-ink-muted"><bdi>{room.roomType}</bdi></p></div>
-              <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${room.status !== "AVAILABLE" ? "bg-amber-50 text-amber-800" : room.available === 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+              <div><p className="flex items-center gap-1.5 text-sm font-bold"><BedDouble className="size-4 text-primary" aria-hidden="true" /><bdi>{room.number}</bdi></p><p className="text-xs text-ink-muted"><bdi>{room.roomType}</bdi></p></div>
+              <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${room.status !== "AVAILABLE" ? "bg-amber-50 text-amber-800" : room.available === 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
                 {room.status !== "AVAILABLE" ? ui("Out of service") : room.available === 0 ? ui("Full") : ui("{0} free", [room.available])}
               </span>
             </div>

@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import type { EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { ScopeBadge } from "./ScopeBadge";
@@ -122,10 +122,10 @@ export function RoleHeader({
     const Icon = resolveNotifIcon(iconName);
 
     playNotificationBell();
-    toast(iconName ? <Icon className="h-4 w-4 text-[#8127cf]" /> : undefined, {
+    toast(iconName ? <Icon className="h-4 w-4 text-primary" /> : undefined, {
       description: (
         <div className="min-w-0">
-          <p className="text-sm font-bold text-[#1d1b20]">{newest.title}</p>
+          <p className="text-sm font-bold text-ink-strong">{newest.title}</p>
           {newest.message && (
             <p className="mt-0.5 text-xs font-medium text-ink line-clamp-2">{newest.message}</p>
           )}
@@ -205,9 +205,9 @@ export function RoleHeader({
 
   return (
     <>
-      <header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
+      <header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white/40 backdrop-blur-xl border border-edge/25 rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
         <div className="hidden min-[400px]:flex items-center gap-4">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-brand-400 flex items-center justify-center shadow-md shadow-primary/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
           </div>
           {/* Both lines come from the *viewer's* clock and timezone, which the
@@ -217,8 +217,8 @@ export function RoleHeader({
               error on every dashboard load. The client value is the correct
               one; suppress the diff rather than degrade to a server guess. */}
           <div className="hidden sm:block">
-            <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{t(greeting)}, <bdi>{displayName}</bdi></p>
-            <p suppressHydrationWarning className="text-[9px] font-semibold text-ink-muted leading-tight mt-px">{today}</p>
+            <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-ink-strong leading-tight">{t(greeting)}, <bdi>{displayName}</bdi></p>
+            <p suppressHydrationWarning className="text-2xs font-semibold text-ink-muted leading-tight mt-px">{today}</p>
           </div>
         </div>
 
@@ -239,16 +239,16 @@ export function RoleHeader({
           >
             <Bell className="w-[18px] h-[18px]" />
             {unreadCount > 0 && (
-              <span className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
+              <span className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-white ring-2 ring-white shadow-md shadow-primary/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
             )}
           </Button>
 
           {notifOpen && (
-            <div className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#cfc2d6]/10">
-                <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight"><UiText>{"Notifications"}</UiText></h3>
+            <div className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-edge/10">
+                <h3 className="text-sm font-bold text-ink-strong tracking-tight"><UiText>{"Notifications"}</UiText></h3>
                 {unreadCount > 0 && (
-                  <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount}{" "}<UiText>{"new"}</UiText></span>
+                  <span className="text-2xs font-semibold text-primary bg-brand-50 px-2.5 py-1 rounded-full">{unreadCount}{" "}<UiText>{"new"}</UiText></span>
                 )}
               </div>
               <NotificationCenter formatTime={(iso) => relativeTime(iso, language, timezone)} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
@@ -274,34 +274,34 @@ export function RoleHeader({
             aria-label={t("Account menu")}
             className={cn(
               "flex min-h-[44px] min-w-[44px] justify-start items-center gap-0 px-[6px] py-[6px] sm:min-h-11 sm:gap-2.5 sm:px-4 hover:-translate-y-0.5",
-              menuOpen && "border-[#8127cf]/30 bg-white shadow-lg"
+              menuOpen && "border-primary/30 bg-white shadow-lg"
             )}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
-            <div className={cn("h-[28px] w-[28px] sm:h-8 sm:w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-              <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
+            <div className={cn("h-[28px] w-[28px] sm:h-8 sm:w-8 bg-gradient-to-br from-brand-50 to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-primary/25" : "ring-1 ring-primary/10")}>
+              <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
             </div>
             <div className="hidden sm:block text-start">
-              <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
+              <p className="max-w-28 truncate text-xs font-semibold text-ink-strong leading-none">{displayName}</p>
             </div>
-            <ChevronDown className={cn("hidden sm:block h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
+            <ChevronDown className={cn("hidden sm:block h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-primary")} />
           </Button>
 
           {menuOpen && (
             <div
               role="menu"
-              className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
+              className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
             >
-              <div className="border-b border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
+              <div className="border-b border-edge/10 bg-gradient-to-br from-brand-50/80 to-white p-4">
                 <div className="flex items-center gap-3">
-                  <div className={cn("flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-                    <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
+                  <div className={cn("flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md", menuOpen ? "ring-2 ring-primary/25" : "ring-1 ring-primary/10")}>
+                    <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
-                    <p className="truncate text-[11px] font-semibold text-ink-muted">{t(displayRole)}</p>
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-[9px] font-semibold text-[#8127cf] border border-[#8127cf]/10">
+                    <p className="truncate text-xs font-bold text-ink-strong">{displayName}</p>
+                    <p className="truncate text-2xs font-semibold text-ink-muted">{t(displayRole)}</p>
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-2xs font-semibold text-primary border border-primary/10">
                       <UserRound className="h-3 w-3" /><UiText>{"Active account"}</UiText></div>
                   </div>
                 </div>

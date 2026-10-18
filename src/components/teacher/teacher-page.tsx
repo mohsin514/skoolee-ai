@@ -108,7 +108,7 @@ export function TeacherPage({
   const t = toneOf(tone);
   return (
     <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex min-h-0 flex-1 flex-col overflow-y-auto")} >
-      <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
+      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
           aria-hidden
           className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", t.rail)}
@@ -126,10 +126,10 @@ export function TeacherPage({
             </span>
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h1 className="break-words text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h1 className="break-words text-lg font-bold leading-tight tracking-tight text-ink-strong">
                   {title}
                 </h1>
-                <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
+                <span className={cn("hidden shrink-0 text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline", t.text)}>
                   {eyebrow}
                 </span>
               </div>
@@ -149,7 +149,7 @@ export function TeacherPage({
 
       <div
         className={cn(
-          "min-w-0 flex-none bg-[#fbf0fe]/20 p-4 sm:p-5",
+          "min-w-0 flex-none bg-brand-50/20 p-4 sm:p-5",
           contentClassName,
         )}
       >

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Scale } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -74,7 +74,7 @@ export function InvoiceAdjustmentsPanel({ invoice, onChanged }: { invoice: { id:
     } catch (failure) { toast.error(failure instanceof Error ? failure.message : ui("The adjustment could not be requested.")); } finally { setBusy(false); }
   };
   return <section className="space-y-3 rounded-2xl border border-border p-4" data-adjustments-panel>
-    <h4 className="flex items-center gap-2 text-sm font-black"><Scale className="size-4 text-primary" aria-hidden="true" />{ui("Refunds, credits and waivers")}</h4>
+    <h4 className="flex items-center gap-2 text-sm font-bold"><Scale className="size-4 text-primary" aria-hidden="true" />{ui("Refunds, credits and waivers")}</h4>
     {rows.length > 0 && <ul className="space-y-2">{rows.map(row => <AdjustmentRow key={row.id} row={row} onChanged={() => { void load(); onChanged?.(); }} />)}</ul>}
     <div className="grid gap-3 sm:grid-cols-2">
       <FormField name="adjustment-kind" label={ui("Adjustment type")}><Select value={kind} onChange={event => setKind(event.target.value as Adjustment["kind"])}>{(["CREDIT_NOTE", "WAIVER", "REFUND"] as const).map(option => <option key={option} value={option}>{ui(KIND_LABEL[option])}</option>)}</Select></FormField>
@@ -100,7 +100,7 @@ export function AdjustmentsQueue({ version = 0 }: { version?: number }) {
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load, version]);
   if (!rows.length) return null;
   return <section className="sk-panel space-y-3 p-5" data-adjustments-queue>
-    <h3 className="flex items-center gap-2 text-sm font-black"><Scale className="size-4 text-primary" aria-hidden="true" />{ui("Adjustments needing a decision or disbursement")}</h3>
+    <h3 className="flex items-center gap-2 text-sm font-bold"><Scale className="size-4 text-primary" aria-hidden="true" />{ui("Adjustments needing a decision or disbursement")}</h3>
     <ul className="space-y-2">{rows.map(row => <AdjustmentRow key={row.id} row={row} onChanged={() => void load()} />)}</ul>
   </section>;
 }

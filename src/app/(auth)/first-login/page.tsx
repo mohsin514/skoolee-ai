@@ -4,7 +4,7 @@ import { FieldAction, InputGroup } from "@/components/ui/input-group";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FieldError, FormField } from "@/components/ui/form-field";
@@ -25,10 +25,10 @@ const RULES: ((v: string) => boolean)[] = [
 ];
 
 const STRENGTH = [
-  { bar: "w-0", tone: "bg-[#cfc2d6]", text: "text-ink-subtle" },
+  { bar: "w-0", tone: "bg-edge", text: "text-ink-subtle" },
   { bar: "w-1/4", tone: "bg-rose-400", text: "text-rose-500" },
   { bar: "w-2/4", tone: "bg-amber-400", text: "text-amber-600" },
-  { bar: "w-3/4", tone: "bg-[#9c48ea]", text: "text-[#8127cf]" },
+  { bar: "w-3/4", tone: "bg-brand-400", text: "text-primary" },
   { bar: "w-full", tone: "bg-emerald-500", text: "text-emerald-600" },
 ];
 
@@ -171,20 +171,20 @@ export default function FirstLoginPage() {
   };
 
   return (
-    <main lang={language} dir={directionFor(language)} className="min-h-screen w-full flex items-center justify-center bg-[#fbf0fe] p-4 sm:p-5 font-sans">
+    <main lang={language} dir={directionFor(language)} className="min-h-screen w-full flex items-center justify-center bg-brand-50 p-4 sm:p-5 font-sans">
       <div className="w-full max-w-lg">
         <div className="flex flex-col items-center mb-7">
           <SkooleeLogo size="2.2rem" weight="heavy" className="mb-3" />
-          <div className="h-0.5 w-10 bg-gradient-to-r from-[#8127cf] to-[#9c48ea] rounded-full" />
+          <div className="h-0.5 w-10 bg-gradient-to-r from-primary to-brand-400 rounded-full" />
         </div>
 
-        <div className="bg-white rounded-[32px] p-6 sm:p-8 shadow-[0_32px_64px_rgba(31,26,35,0.06)] border border-[#cfc2d6]/15">
+        <div className="bg-white rounded-[32px] p-6 sm:p-8 shadow-[0_32px_64px_rgba(31,26,35,0.06)] border border-edge/15">
           <div className="flex flex-col items-start gap-4 mb-7 sm:flex-row">
-            <div className="h-12 w-12 shrink-0 rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-lg shadow-[#8127cf]/25">
+            <div className="h-12 w-12 shrink-0 rounded-2xl bg-gradient-to-br from-primary to-brand-400 flex items-center justify-center shadow-lg shadow-primary/25">
               <KeyRound aria-hidden="true" className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-[#1f1a23] tracking-tight">{t.title}</h1>
+              <h1 className="text-xl font-bold text-ink-strong tracking-tight">{t.title}</h1>
               <p className="text-sm font-semibold text-ink-muted mt-1 leading-relaxed">
                 {t.intro}
               </p>
@@ -261,7 +261,7 @@ export default function FirstLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-[11px] font-bold text-ink-subtle mt-5">
+        <p className="text-center text-2xs font-bold text-ink-subtle mt-5">
           {t.never}
         </p>
       </div>

@@ -32,7 +32,7 @@ export function AuthenticatorSetup({ secret, uri, t, onCopy, copied = false, idP
 
   return <>
     <div className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
-      <div className="mx-auto rounded-[26px] bg-gradient-to-br from-[#8127cf] via-[#9c48ea] to-[#f0abfc] p-[3px] shadow-[0_18px_40px_-20px_rgba(129,39,207,0.6)]">
+      <div className="mx-auto rounded-[26px] bg-gradient-to-br from-primary via-brand-400 to-fuchsia-300 p-[3px] shadow-[0_18px_40px_-20px_rgba(129,39,207,0.6)]">
         {/* Fixed pixel size: a scannable QR must not grow with the text size. */}
         <div className="flex size-[176px] items-center justify-center rounded-[23px] bg-white p-2.5">
           {qr.uri === uri && qr.url ? <img src={qr.url} alt={t.qrAlt} width={160} height={160} className="size-full [image-rendering:pixelated]" />
@@ -41,16 +41,16 @@ export function AuthenticatorSetup({ secret, uri, t, onCopy, copied = false, idP
         </div>
       </div>
       <div className="min-w-0 text-center sm:text-start">
-        <h2 className="flex items-center justify-center gap-2 text-base font-black text-[#1f1a23] sm:justify-start"><span aria-hidden="true" className="flex size-6 items-center justify-center rounded-full bg-[#8127cf] text-xs text-white">1</span>{t.scanTitle}</h2>
+        <h2 className="flex items-center justify-center gap-2 text-base font-bold text-ink-strong sm:justify-start"><span aria-hidden="true" className="flex size-6 items-center justify-center rounded-full bg-primary text-xs text-white">1</span>{t.scanTitle}</h2>
         <p className="mt-1.5 text-sm font-semibold leading-relaxed text-ink-muted">{t.apps}</p>
       </div>
     </div>
 
-    <div className="mt-5 rounded-2xl border border-dashed border-[#d8cfe5] bg-[#fcfaff] p-4">
-      <p className="text-xs font-black uppercase tracking-wider text-ink-muted">{t.manualTitle}</p>
+    <div className="mt-5 rounded-2xl border border-dashed border-field-border bg-surface-subtle p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{t.manualTitle}</p>
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3">
         <bdi dir="ltr" className="min-w-0 flex-1">
-          <code id={`${idPrefix}-secret`} className="block font-mono text-[15px] font-bold tracking-[0.12em] text-[#1f1a23] [overflow-wrap:anywhere] select-all">{keyGroups}</code>
+          <code id={`${idPrefix}-secret`} className="block font-mono text-md font-bold tracking-[0.12em] text-ink-strong [overflow-wrap:anywhere] select-all">{keyGroups}</code>
         </bdi>
         <Button type="button" variant="outline" size="sm" onClick={onCopy}>
           {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}

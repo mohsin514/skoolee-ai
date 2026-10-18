@@ -26,7 +26,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -209,7 +209,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-black text-ink">Rank ladder</h3>
+          <h3 className="text-sm font-bold text-ink">Rank ladder</h3>
           <p className="mt-0.5 max-w-2xl text-xs font-semibold text-ink-muted">
             Every rank your institution uses, most senior first. Nothing here is fixed — rename what you like,
             reorder by changing the seniority number, and retire what you no longer use.
@@ -226,9 +226,9 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
       </div>
 
       {designations.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#cfc2d6]/60 bg-[#fafaff] px-6 py-12 text-center">
+        <div className="rounded-2xl border border-dashed border-edge/60 bg-surface-subtle px-6 py-12 text-center">
           <Layers className="mx-auto h-8 w-8 text-ink-muted" />
-          <p className="mt-3 text-sm font-black text-ink">No ranks defined yet</p>
+          <p className="mt-3 text-sm font-bold text-ink">No ranks defined yet</p>
           <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
             Ranks are what make the chart mean something — who is senior to whom, who can head a department, and
             what a promotion moves someone into. Start from a preset for your kind of institution, or build the
@@ -250,7 +250,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
             if (ranks.length === 0) return null;
             return (
               <section key={track} className="space-y-2">
-                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+                <h4 className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
                   {tone.label}
                   <span className="font-bold normal-case tracking-normal">({ranks.length})</span>
@@ -263,31 +263,31 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                         key={d.id}
                         className={cn(
                           "flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border bg-white px-3.5 py-3",
-                          d.isActive ? "border-[#cfc2d6]/40" : "border-dashed border-[#cfc2d6]/60 opacity-60"
+                          d.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
                         )}
                         style={{ borderLeftWidth: 4, borderLeftColor: tone.hex }}
                       >
-                        <span className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-[10px] font-black tabular-nums text-ink-muted" title="Seniority — lower is more senior">
+                        <span className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-2xs font-bold tabular-nums text-ink-muted" title="Seniority — lower is more senior">
                           {d.level}
                         </span>
 
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs font-black text-ink">{d.name}</span>
-                            {d.shortName ? <span className="text-[10px] font-bold text-ink-muted">({d.shortName})</span> : null}
+                            <span className="text-xs font-bold text-ink">{d.name}</span>
+                            {d.shortName ? <span className="text-2xs font-bold text-ink-muted">({d.shortName})</span> : null}
                             {d.isInstitutionHead ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[9px] font-black text-[#8127cf]">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-bold text-primary">
                                 <Crown className="h-2.5 w-2.5" /> HEAD OF INSTITUTION
                               </span>
                             ) : null}
                             {d.canHeadDepartment ? (
-                              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-black text-indigo-600">CAN HEAD A UNIT</span>
+                              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-2xs font-bold text-indigo-600">CAN HEAD A UNIT</span>
                             ) : null}
                             {!d.isActive ? (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-500">RETIRED</span>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs font-bold text-slate-500">RETIRED</span>
                             ) : null}
                           </span>
-                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[10px] font-semibold text-ink-muted">
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-2xs font-semibold text-ink-muted">
                             {promotesTo ? (
                               <span className="inline-flex items-center gap-1">
                                 <ArrowUp className="h-3 w-3" /> promotes to {promotesTo.name}
@@ -375,23 +375,23 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                   onClick={() => applyPreset(preset.type)}
                   className={cn(
                     "flex justify-start w-full items-start gap-3 text-left",
-                    institutionType === preset.type ? "border-[#8127cf] bg-[#fbf0fe]/40" : "border-[#cfc2d6]/40"
+                    institutionType === preset.type ? "border-primary bg-brand-50/40" : "border-edge/40"
                   )}
                 >
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                     {applying === preset.type ? <Loader2 className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="text-sm font-black text-ink">{preset.label}</span>
+                      <span className="text-sm font-bold text-ink">{preset.label}</span>
                       {institutionType === preset.type ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#8127cf] px-2 py-0.5 text-[9px] font-black text-white">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-2xs font-bold text-white">
                           <Check className="h-2.5 w-2.5" /> CURRENT
                         </span>
                       ) : null}
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-ink-muted">{preset.blurb}</span>
-                    <span className="mt-1.5 block text-[10px] font-black uppercase tracking-wide text-ink-subtle">
+                    <span className="mt-1.5 block text-2xs font-semibold uppercase tracking-wide text-ink-subtle">
                       {preset.rankCount} ranks · {preset.departmentCount} units
                     </span>
                   </span>
@@ -458,7 +458,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
               <Textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </LabelledField>
 
-            <div className="space-y-2 rounded-2xl bg-[#f3f4f9]/60 p-3.5">
+            <div className="space-y-2 rounded-2xl bg-muted/60 p-3.5">
               <Toggle
                 checked={draft.canHeadDepartment}
                 onChange={(v) => setDraft({ ...draft, canHeadDepartment: v })}
@@ -492,12 +492,12 @@ function LabelledField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-[11px] font-black text-ink">
+      <label className="block text-2xs font-bold text-ink">
         {label}
         {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-2xs font-semibold text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -515,10 +515,10 @@ function Toggle({
 }) {
   return (
     <label className="flex cursor-pointer items-start gap-2.5">
-      <SystemCheckbox  checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[#8127cf]" />
+      <SystemCheckbox  checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
       <span className="min-w-0">
-        <span className="block text-xs font-black text-ink">{label}</span>
-        <span className="block text-[10px] font-semibold text-ink-muted">{hint}</span>
+        <span className="block text-xs font-bold text-ink">{label}</span>
+        <span className="block text-2xs font-semibold text-ink-muted">{hint}</span>
       </span>
     </label>
   );

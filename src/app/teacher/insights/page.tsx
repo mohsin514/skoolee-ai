@@ -98,12 +98,12 @@ export default function TeacherInsightsPage() {
           <div className="sk-panel sk-rise p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                   <CalendarCheck className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Attendance Breakdown</h3>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Daily overview</p>
+                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Attendance Breakdown</h3>
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Daily overview</p>
                 </div>
               </div>
             </div>
@@ -130,15 +130,15 @@ export default function TeacherInsightsPage() {
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
+                        <span className="text-2xs font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
                       </div>
-                      <span className="text-xs font-bold text-[#1d1b20]">{item.value}</span>
+                      <span className="text-xs font-bold text-ink-strong">{item.value}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[140px] rounded-2xl bg-[#fbf0fe]/40">
+              <div className="flex items-center justify-center h-[140px] rounded-2xl bg-brand-50/40">
                 <p className="text-xs font-bold text-ink-subtle">No attendance data yet</p>
               </div>
             )}
@@ -148,15 +148,15 @@ export default function TeacherInsightsPage() {
           <div className="sk-panel sk-rise p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                   <BarChart3 className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Marks Progress</h3>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Entry status</p>
+                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Marks Progress</h3>
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Entry status</p>
                 </div>
               </div>
-              <div className={`px-3 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${completionRate >= 80 ? "bg-emerald-50 text-emerald-600" : completionRate >= 50 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
+              <div className={`px-3 py-1.5 rounded-full text-2xs font-semibold uppercase tracking-wider ${completionRate >= 80 ? "bg-emerald-50 text-emerald-600" : completionRate >= 50 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
                 {completionRate}% Complete
               </div>
             </div>
@@ -171,7 +171,7 @@ export default function TeacherInsightsPage() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[160px] rounded-2xl bg-[#fbf0fe]/40">
+              <div className="flex items-center justify-center h-[160px] rounded-2xl bg-brand-50/40">
                 <p className="text-xs font-bold text-ink-subtle">No exam data yet</p>
               </div>
             )}
@@ -185,8 +185,8 @@ export default function TeacherInsightsPage() {
                   <TrendingUp className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Quick Insights</h3>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">Snapshot</p>
+                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Quick Insights</h3>
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Snapshot</p>
                 </div>
               </div>
             </div>
@@ -194,7 +194,7 @@ export default function TeacherInsightsPage() {
               {[
                 {
                   label: "Marks Completion", value: `${completionRate}%`, sub: `${marksProgressData.reduce((s: number, d: any) => s + d.Entered, 0)} of ${marksProgressData.reduce((s: number, d: any) => s + d.total, 0)} entries`,
-                  progress: completionRate, color: "bg-[#8127cf]",
+                  progress: completionRate, color: "bg-primary",
                 },
                 {
                   label: "Attendance Rate", value: attendanceStats.total ? `${Math.round(attendanceStats.present / Math.max(attendanceStats.total, 1) * 100)}%` : "—",
@@ -211,12 +211,12 @@ export default function TeacherInsightsPage() {
               ].map((item) => (
                 <div key={item.label}>
                   <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">{item.label}</span>
-                    <span className="text-sm font-black tabular-nums text-[#1d1b20]">{item.value}</span>
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{item.label}</span>
+                    <span className="text-sm font-bold tabular-nums text-ink-strong">{item.value}</span>
                   </div>
                   {typeof item.progress === "number" ? (
                     <div
-                      className="h-2 overflow-hidden rounded-full bg-[#f3f4f9]"
+                      className="h-2 overflow-hidden rounded-full bg-muted"
                       role="progressbar"
                       aria-valuenow={item.progress}
                       aria-valuemin={0}
@@ -230,7 +230,7 @@ export default function TeacherInsightsPage() {
                     </div>
                   ) : null}
                   {item.sub ? (
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{item.sub}</p>
+                    <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{item.sub}</p>
                   ) : null}
                 </div>
               ))}
@@ -241,19 +241,19 @@ export default function TeacherInsightsPage() {
         {/* ── Class by class ── */}
         {classBreakdown.length > 0 ? (
           <div className="sk-panel sk-rise overflow-hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-[#cfc2d6]/12 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 border-b border-edge/12 px-4 py-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                   <GraduationCap className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Class by class</h3>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Class by class</h3>
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     Sorted by what needs you first
                   </p>
                 </div>
               </div>
-              <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+              <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 {classBreakdown.length} class{classBreakdown.length === 1 ? "" : "es"}
               </span>
             </div>
@@ -261,7 +261,7 @@ export default function TeacherInsightsPage() {
 
               <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
                 <TableHeader>
-                  <TableRow className="bg-[#fbf0fe]/40 text-ink-muted">
+                  <TableRow className="bg-brand-50/40 text-ink-muted">
                     <TableHead className="px-4 py-3">Class</TableHead>
                     <TableHead className="px-3 py-3 text-center">Students</TableHead>
                     <TableHead className="px-3 py-3 text-center">In today</TableHead>
@@ -271,43 +271,43 @@ export default function TeacherInsightsPage() {
                     <TableHead className="px-4 py-3" />
                   </TableRow>
                 </TableHeader>
-                <TableBody className="divide-y divide-[#f3f4f9]">
+                <TableBody className="divide-y divide-muted">
                   {classBreakdown.map((cls) => (
                     <TableRow key={cls.id} >
                       <TableCell className="px-4 py-3">
-                        <p className="text-sm font-black text-[#1d1b20]">{cls.label}</p>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                        <p className="text-sm font-bold text-ink-strong">{cls.label}</p>
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                           {cls.role} · {cls.subjects} subject{cls.subjects === 1 ? "" : "s"}
                         </p>
                       </TableCell>
-                      <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-[#1d1b20]">
+                      <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-ink-strong">
                         {cls.students}
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center">
                         {cls.attendanceRate === null ? (
-                          <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                          <span className="text-2xs font-semibold text-ink-subtle">—</span>
                         ) : (
                           <span className={cn(
                             "inline-flex flex-col items-center leading-tight",
                             cls.unmarked > 0 ? "text-amber-700" : "text-emerald-700",
                           )}>
-                            <span className="text-sm font-black tabular-nums">{cls.present}/{cls.students}</span>
-                            <span className="text-[10px] font-bold tabular-nums opacity-75">
+                            <span className="text-sm font-bold tabular-nums">{cls.present}/{cls.students}</span>
+                            <span className="text-2xs font-bold tabular-nums opacity-75">
                               {cls.unmarked > 0 ? `${cls.unmarked} unmarked` : `${cls.attendanceRate}%`}
                             </span>
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-[#1d1b20]">
+                      <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-ink-strong">
                         {cls.exams}
                       </TableCell>
                       <TableCell className="px-3 py-3">
                         {cls.completion === null ? (
-                          <span className="text-[11px] font-semibold text-ink-subtle">No assessments yet</span>
+                          <span className="text-2xs font-semibold text-ink-subtle">No assessments yet</span>
                         ) : (
                           <div className="flex items-center gap-2">
                             <div
-                              className="h-2 w-full min-w-[80px] overflow-hidden rounded-full bg-[#f3f4f9]"
+                              className="h-2 w-full min-w-[80px] overflow-hidden rounded-full bg-muted"
                               role="progressbar"
                               aria-valuenow={cls.completion}
                               aria-valuemin={0}
@@ -322,7 +322,7 @@ export default function TeacherInsightsPage() {
                                 style={{ width: `${cls.completion}%` }}
                               />
                             </div>
-                            <span className="shrink-0 text-[11px] font-black tabular-nums text-ink-muted">
+                            <span className="shrink-0 text-2xs font-bold tabular-nums text-ink-muted">
                               {cls.completion}%
                             </span>
                           </div>
@@ -330,12 +330,12 @@ export default function TeacherInsightsPage() {
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center">
                         {cls.missing > 0 ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-black tabular-nums text-rose-700">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-2xs font-bold tabular-nums text-rose-700">
                             <AlertCircle className="h-3 w-3" />
                             {cls.missing}
                           </span>
                         ) : (
-                          <span className="text-[11px] font-bold text-emerald-600">All in</span>
+                          <span className="text-2xs font-bold text-emerald-600">All in</span>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-end">

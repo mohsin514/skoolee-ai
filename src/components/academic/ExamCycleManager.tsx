@@ -29,7 +29,7 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
@@ -962,14 +962,14 @@ export function ExamCycleManager({
             </span>
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
+                <h2 className="truncate text-lg font-bold leading-tight tracking-tight text-ink-strong">
                   {isTeacher ? "My Tests & Quizzes" : "Exams & Results"}
                 </h2>
-                <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", examTone.text)}>
+                <span className={cn("hidden shrink-0 text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline", examTone.text)}>
                   {isTeacher ? "My Classroom" : "Academics"}
                 </span>
               </div>
-              <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">
+              <p className="truncate text-2xs font-semibold leading-tight text-ink-muted">
                 {filtered.length} exam{filtered.length === 1 ? "" : "s"} shown
                 {flagged.size > 0 ? ` · ${flagged.size} need your attention` : ""}
                 {overallProgress !== null ? ` · ${overallProgress}% of marks entered` : ""}
@@ -1040,9 +1040,9 @@ export function ExamCycleManager({
       </div>
 
       {/* ── Toolbar ── */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
-        <InputGroup surfaceClassName="bg-[#faf7fc]" className="relative min-w-[190px] flex-1">
-          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
+      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-edge/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+        <InputGroup surfaceClassName="bg-surface-subtle" className="relative min-w-[190px] flex-1">
+          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
           <SystemInput
             ref={searchRef}
             value={query}
@@ -1082,7 +1082,7 @@ export function ExamCycleManager({
           <TriangleAlert className="h-3.5 w-3.5" />
           Needs attention
           {flagged.size > 0 ? (
-            <span className="rounded-full bg-amber-500 px-1.5 text-[9px] text-white">
+            <span className="rounded-full bg-amber-500 px-1.5 text-2xs text-white">
               {flagged.size}
             </span>
           ) : null}
@@ -1146,7 +1146,7 @@ export function ExamCycleManager({
             </Button>
           ) : null}
 
-          <div className="flex items-center gap-0.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
+          <div className="flex items-center gap-0.5 rounded-2xl border border-edge/20 bg-surface-subtle p-1">
             <ViewTab
               active={prefs.view === "board"}
               icon={Columns3}
@@ -1304,7 +1304,7 @@ export function ExamCycleManager({
       )}
 
       {prefs.view === "board" && !loading && filtered.length > 0 ? (
-        <p className="flex items-center gap-1.5 px-1 text-[10px] font-semibold text-ink-subtle">
+        <p className="flex items-center gap-1.5 px-1 text-2xs font-semibold text-ink-subtle">
           <Info className="h-3 w-3" />
           Drag a card to move it along the pipeline, or focus one and press ← / →. Tick cards to
           act on a batch from the bar at the top.
@@ -1426,13 +1426,13 @@ function BoardLane({
       >
         <ChevronRight className="h-4 w-4 text-ink-subtle" />
         <span
-          className="rounded-full px-2 py-0.5 text-[9px] font-black"
+          className="rounded-full px-2 py-0.5 text-2xs font-bold"
           style={{ backgroundColor: `${column.accent}1a`, color: column.accent }}
         >
           {exams.length}
         </span>
         <span
-          className="text-[10px] font-black uppercase tracking-wider text-ink-muted"
+          className="text-2xs font-semibold uppercase tracking-wider text-ink-muted"
           style={{ writingMode: "vertical-rl" }}
         >
           {column.title}
@@ -1445,12 +1445,12 @@ function BoardLane({
     <section
       aria-label={column.title}
       className={cn(
-        "flex w-[320px] shrink-0 flex-col rounded-3xl border bg-gradient-to-b from-white to-[#faf7fc] p-4 shadow-sm transition-all",
+        "flex w-[320px] shrink-0 flex-col rounded-3xl border bg-gradient-to-b from-white to-surface-subtle p-4 shadow-sm transition-all",
         dropZone
           ? dropZone.ok
-            ? "border-[#8127cf]/60 ring-4 ring-[#8127cf]/10"
+            ? "border-primary/60 ring-4 ring-primary/10"
             : "border-rose-300 ring-4 ring-rose-100"
-          : "border-[#cfc2d6]/10",
+          : "border-edge/10",
       )}
       onDragOver={(e) => {
         if (!dragging) return;
@@ -1467,11 +1467,11 @@ function BoardLane({
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: column.accent }} />
-          <h3 className="text-sm font-black text-[#1d1b20]">{column.title}</h3>
+          <h3 className="text-sm font-bold text-ink-strong">{column.title}</h3>
         </div>
         <div className="flex items-center gap-1">
           <span
-            className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider"
+            className="rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider"
             style={{ backgroundColor: `${column.accent}1a`, color: column.accent }}
           >
             {exams.length}
@@ -1486,13 +1486,13 @@ function BoardLane({
           </Button>
         </div>
       </div>
-      <p className="mb-3 text-[10px] font-semibold text-ink-subtle">{column.hint}</p>
+      <p className="mb-3 text-2xs font-semibold text-ink-subtle">{column.hint}</p>
 
       {dropZone ? (
         <div
           className={cn(
-            "mb-3 flex items-start gap-1.5 rounded-2xl px-3 py-2 text-[11px] font-bold",
-            dropZone.ok ? "bg-[#fbf0fe] text-[#8127cf]" : "bg-rose-50 text-rose-600",
+            "mb-3 flex items-start gap-1.5 rounded-2xl px-3 py-2 text-2xs font-bold",
+            dropZone.ok ? "bg-brand-50 text-primary" : "bg-rose-50 text-rose-600",
           )}
         >
           {dropZone.ok ? (
@@ -1553,10 +1553,10 @@ function BoardLane({
         {exams.length === 0 ? (
           <div
             className={cn(
-              "rounded-2xl border border-dashed py-10 text-center text-[11px] font-semibold transition-colors",
+              "rounded-2xl border border-dashed py-10 text-center text-2xs font-semibold transition-colors",
               dropZone?.ok
-                ? "border-[#8127cf]/40 bg-[#fbf0fe]/40 text-[#8127cf]"
-                : "border-[#cfc2d6]/20 text-ink-subtle",
+                ? "border-primary/40 bg-brand-50/40 text-primary"
+                : "border-edge/20 text-ink-subtle",
             )}
           >
             {dragging ? "Drop here" : "Empty"}
@@ -1610,12 +1610,12 @@ function StageTile({
         )}
         style={{ backgroundColor: accent }}
       />
-      <span className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
+      <span className="text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-[22px]">
         {count}
       </span>
       {/* Wrapping beats truncating: "On the Dateshee…" and "Awaiting Appr…"
           are not names anyone can act on. */}
-      <span className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+      <span className="min-w-0 flex-1 text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-muted">
         {label}
       </span>
     </Button>
@@ -1699,12 +1699,12 @@ function BulkBar({
   busy: boolean;
 }) {
   return (
-    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-[#8127cf]/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
-      <span className="rounded-full bg-[#8127cf] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white">
+    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-primary/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
+      <span className="rounded-full bg-primary px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-white">
         {total} selected
       </span>
       {groups.length === 0 ? (
-        <span className="text-[11px] font-semibold text-ink-muted">
+        <span className="text-2xs font-semibold text-ink-muted">
           Nothing left to do on these — they are already finished.
         </span>
       ) : (
@@ -1739,10 +1739,10 @@ function BoardSkeleton({ count }: { count: number }) {
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="sk-panel p-4">
-          <div className="skeleton-shimmer mb-4 h-3 w-24 rounded-full bg-[#e8e0ec]/50" />
+          <div className="skeleton-shimmer mb-4 h-3 w-24 rounded-full bg-border-subtle/50" />
           <div className="space-y-3">
             {Array.from({ length: 2 }).map((_, j) => (
-              <div key={j} className="skeleton-shimmer h-24 rounded-2xl bg-[#e8e0ec]/40" />
+              <div key={j} className="skeleton-shimmer h-24 rounded-2xl bg-border-subtle/40" />
             ))}
           </div>
         </div>
@@ -1817,9 +1817,9 @@ function ConfirmMoveModal({
             </p>
           ) : null}
 
-          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-2xl bg-[#faf7fc] p-3 custom-scrollbar">
+          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-2xl bg-surface-subtle p-3 custom-scrollbar">
             {plan.eligible.map(({ exam }) => (
-              <li key={exam.id} className="flex items-center gap-2 text-xs font-bold text-[#1d1b20]">
+              <li key={exam.id} className="flex items-center gap-2 text-xs font-bold text-ink-strong">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                 <span className="truncate">
                   {exam.title} · {classLabel(exam.class)}
@@ -1830,10 +1830,10 @@ function ConfirmMoveModal({
 
           {plan.blocked.length > 0 ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-              <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-amber-700">
                 {plan.blocked.length} will stay where {plan.blocked.length === 1 ? "it is" : "they are"}
               </p>
-              <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-amber-800">
+              <p className="mt-0.5 text-2xs font-semibold leading-relaxed text-amber-800">
                 {plan.blocked[0].reason}
               </p>
             </div>
@@ -1897,7 +1897,7 @@ function RejectMarksModal({
         </div>
       }
     >
-        <p className="mb-4 text-[11px] font-semibold leading-relaxed text-ink-muted">
+        <p className="mb-4 text-2xs font-semibold leading-relaxed text-ink-muted">
           {single
             ? `${single.title}${single.class ? ` · ${classLabel(single.class)}` : ""}.`
             : `${exams.length} exams.`}{" "}
@@ -1907,9 +1907,9 @@ function RejectMarksModal({
         </p>
 
         {exams.length > 1 ? (
-          <ul className="mb-4 max-h-28 space-y-1 overflow-y-auto rounded-2xl bg-[#faf7fc] p-3 custom-scrollbar">
+          <ul className="mb-4 max-h-28 space-y-1 overflow-y-auto rounded-2xl bg-surface-subtle p-3 custom-scrollbar">
             {exams.map((e) => (
-              <li key={e.id} className="truncate text-[11px] font-bold text-[#1d1b20]">
+              <li key={e.id} className="truncate text-2xs font-bold text-ink-strong">
                 {e.title} · {classLabel(e.class)}
               </li>
             ))}
@@ -1917,7 +1917,7 @@ function RejectMarksModal({
         ) : null}
 
         <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
+          <span className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-ink-muted">
             Reason for the teacher
           </span>
           <SystemTextarea
@@ -1934,7 +1934,7 @@ function RejectMarksModal({
             with nothing on screen saying so — the admin was left clicking a
             dead button. */}
         <p className={cn(
-          "mt-1.5 text-[11px] font-semibold",
+          "mt-1.5 text-2xs font-semibold",
           tooShort ? "text-amber-700" : "text-ink-subtle",
         )}>
           {tooShort
@@ -2076,7 +2076,7 @@ function CreateExamModal({
       footer={
         <div>
           {blockedReason && !loadingClasses ? (
-            <p className="mb-2.5 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+            <p className="mb-2.5 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               {blockedReason}
             </p>
@@ -2105,8 +2105,8 @@ function CreateExamModal({
         <div className="space-y-4">
           {loadingClasses ? (
             <div className="space-y-3">
-              <div className="skeleton-shimmer h-40 w-full rounded-2xl bg-[#e8e0ec]/40" />
-              <p className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+              <div className="skeleton-shimmer h-40 w-full rounded-2xl bg-border-subtle/40" />
+              <p className="text-center text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 Loading classes…
               </p>
             </div>
@@ -2179,7 +2179,7 @@ function CreateExamModal({
                   ))}
                 </SystemSelect>
                 {role === "TEACHER" ? (
-                  <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">
+                  <p className="mt-1.5 text-2xs font-semibold text-ink-subtle">
                     Mid-term and final exams are set up by the school office.
                   </p>
                 ) : null}
@@ -2195,7 +2195,7 @@ function CreateExamModal({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
+      <span className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-ink-muted">
         {label}
       </span>
       {children}

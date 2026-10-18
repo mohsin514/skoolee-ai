@@ -2,7 +2,7 @@
 
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Pause, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACADEMIC_CYCLE_CHANGED } from "@/lib/cycleEvents";
@@ -81,13 +81,13 @@ export function CycleBadge() {
     };
   }, [tr]);
 
-  if (loading) return <div className="h-7 w-32 animate-pulse rounded-xl bg-[#cfc2d6]/20" />;
+  if (loading) return <div className="h-7 w-32 animate-pulse rounded-xl bg-edge/20" />;
 
   if (!cycle) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-rose-200/50 bg-rose-50 px-3 py-1.5">
         <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-        <span className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">{tr("No Cycle")}</span>
+        <span className="text-2xs font-semibold text-rose-600 uppercase tracking-wide">{tr("No Cycle")}</span>
       </div>
     );
   }
@@ -99,7 +99,7 @@ export function CycleBadge() {
     <div className={cn("flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-all", config.bg)}>
       <span className={cn("flex h-2 w-2 rounded-full", config.dot, cycle.status === "ACTIVE" && "animate-pulse")} />
       <Icon className={cn("h-3.5 w-3.5", config.text)} />
-      <span className={cn("text-[10px] font-semibold uppercase tracking-wide", config.text)}>
+      <span className={cn("text-2xs font-semibold uppercase tracking-wide", config.text)}>
         {cycle.label} &middot; {tr(config.label)}
       </span>
     </div>

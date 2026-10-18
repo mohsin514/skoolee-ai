@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlarmClock, CheckCheck, History, ListChecks, RefreshCw, UserPlus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -65,7 +65,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
   return <section className="sk-panel space-y-4 p-5" data-action-queue aria-labelledby="action-queue-title">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="action-queue-title" className="flex items-center gap-2 text-base font-black"><ListChecks className="size-5 text-primary" aria-hidden />{ui("Action queue")}</h2>
+        <h2 id="action-queue-title" className="flex items-center gap-2 text-base font-bold"><ListChecks className="size-5 text-primary" aria-hidden />{ui("Action queue")}</h2>
         <p className="text-xs text-ink-muted" aria-live="polite">{queue ? ui("Sources checked {0}", [dateTime(queue.checkedAt)]) : ui("Checking sources…")}{live ? ` · ${ui("Live: re-checks every 2 minutes")}` : ""}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -108,7 +108,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
           <div className="min-w-0 flex-1 space-y-0.5">
             <p className="text-sm font-bold"><bdi>{ui(item.title)}</bdi></p>
             <p className="text-xs text-ink-muted"><bdi>{ui(item.trigger)}</bdi></p>
-            <p className="flex flex-wrap gap-x-2 text-[11px] font-semibold text-ink-subtle">
+            <p className="flex flex-wrap gap-x-2 text-2xs font-semibold text-ink-subtle">
               <span className={`rounded px-1 ${item.overdue ? "bg-rose-100 text-rose-800" : "bg-muted"}`} data-reason>{ui(item.reason)}</span>
               <span>{ui(TYPE_LABEL[item.type])}</span>
               <span>{item.assignee ? ui("Assigned to {0}", [item.assignee.name]) : item.sourceOwner ? ui("Owner: {0}", [item.sourceOwner.name]) : ui("No owner yet")}</span>

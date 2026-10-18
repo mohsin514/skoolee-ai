@@ -4,7 +4,7 @@ import { useCountLabel } from "@/components/locale/use-count-label";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   AlertCircle, ArrowRight, BookOpen, CalendarCheck, CheckCircle2,
   ClipboardList, GraduationCap, Loader2, UserCheck, Users,
@@ -129,11 +129,11 @@ export default function TeacherDashboardHub() {
           {/* Checking in was a full-width card of its own for one button. It is
               a two-second daily action, so it belongs in the header. */}
           {selfAttendanceStatus === "loading" ? (
-            <span className="skeleton-shimmer h-10 w-32 rounded-xl bg-[#e8e0ec]/50" />
+            <span className="skeleton-shimmer h-10 w-32 rounded-xl bg-border-subtle/50" />
           ) : selfAttendanceStatus === "marked" ? (
             <span
               title={selfAttendanceTime ? `Checked in at ${selfAttendanceTime}` : "Checked in today"}
-              className="flex h-10 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-black uppercase tracking-wider text-emerald-700"
+              className="flex h-10 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-2xs font-semibold uppercase tracking-wider text-emerald-700"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               Checked in
@@ -264,8 +264,8 @@ function AlertRow({
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-black leading-tight">{title}</span>
-        <span className="block truncate text-[11px] font-semibold opacity-70">{detail}</span>
+        <span className="block text-sm font-bold leading-tight">{title}</span>
+        <span className="block truncate text-2xs font-semibold opacity-70">{detail}</span>
       </span>
       <ArrowRight className="h-4 w-4 shrink-0 opacity-50 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
     </Button>

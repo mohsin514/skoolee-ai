@@ -163,10 +163,10 @@ export function WorkspaceHeader({
                 context, not a heading, and a whole line for one word was the
                 single biggest waste of height on every screen. */}
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <h2 className="min-w-0 break-words text-lg font-black leading-tight tracking-tight text-[#1f1a23]">
+              <h2 className="min-w-0 break-words text-lg font-bold leading-tight tracking-tight text-ink-strong">
                 {title}
               </h2>
-              <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
+              <span className={cn("hidden shrink-0 text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline", t.text)}>
                 {eyebrow}
               </span>
             </div>
@@ -198,12 +198,12 @@ export interface StatTileSpec {
 }
 
 const TILE_TONES = {
-  violet: { chip: "bg-[#f3eeff] text-[#8127cf]", ring: "rgba(129,39,207,0.9)", bar: "bg-[#8127cf]" },
+  violet: { chip: "bg-brand-100 text-primary", ring: "rgba(129,39,207,0.9)", bar: "bg-primary" },
   teal: { chip: "bg-teal-50 text-teal-600", ring: "rgba(13,148,136,0.9)", bar: "bg-teal-500" },
   amber: { chip: "bg-amber-50 text-amber-600", ring: "rgba(245,158,11,0.9)", bar: "bg-amber-500" },
   emerald: { chip: "bg-emerald-50 text-emerald-600", ring: "rgba(16,185,129,0.9)", bar: "bg-emerald-500" },
   rose: { chip: "bg-rose-50 text-rose-600", ring: "rgba(225,29,72,0.9)", bar: "bg-rose-500" },
-  slate: { chip: "bg-[#f3f4f9] text-ink-muted", ring: "rgba(107,114,128,0.9)", bar: "bg-[#9aa1ae]" },
+  slate: { chip: "bg-muted text-ink-muted", ring: "rgba(107,114,128,0.9)", bar: "bg-[#9aa1ae]" },
 } as const;
 
 /**
@@ -240,9 +240,9 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
               "group relative flex items-center gap-3 overflow-hidden rounded-[18px] border bg-white px-3.5 py-2.5 text-left transition-all duration-200",
               t.active
                 ? "border-transparent"
-                : "border-[#cfc2d6]/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]",
+                : "border-edge/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]",
               interactive &&
-                "cursor-pointer hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]",
+                "cursor-pointer hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]",
             )}
             style={t.active ? { boxShadow: `0 0 0 1.5px ${tone.ring}, 0 10px 24px -14px ${tone.ring}` } : undefined}
           >
@@ -254,14 +254,14 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
               </span>
             ) : null}
             <span className="min-w-0 flex-1">
-              <span className="block text-xl font-black leading-none tracking-tight tabular-nums text-[#1f1a23] sm:text-[22px]">
+              <span className="block text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-[22px]">
                 {t.value}
               </span>
-              <span className="mt-1 line-clamp-2 break-words text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+              <span className="mt-1 line-clamp-2 break-words text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-muted">
                 {t.label}
               </span>
               {t.hint ? (
-                <span className="mt-0.5 line-clamp-2 break-words text-[10px] font-semibold leading-tight text-ink-subtle">
+                <span className="mt-0.5 line-clamp-2 break-words text-2xs font-semibold leading-tight text-ink-subtle">
                   {t.hint}
                 </span>
               ) : null}
@@ -332,8 +332,8 @@ export function SearchField({
   }, [autoFocusKey]);
 
   return (
-    <InputGroup surfaceClassName="bg-[#faf7fc]" className={cn("relative min-w-[190px] flex-1", className)}>
-      <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
+    <InputGroup surfaceClassName="bg-surface-subtle" className={cn("relative min-w-[190px] flex-1", className)}>
+      <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
       <SystemInput
         ref={ref}
         value={value}
@@ -405,7 +405,7 @@ export function ToolbarToggle({
   const tones = {
     amber: { on: "border-amber-300 bg-amber-50 text-amber-700", badge: "bg-amber-500" },
     rose: { on: "border-rose-300 bg-rose-50 text-rose-700", badge: "bg-rose-500" },
-    violet: { on: "border-[#8127cf]/40 bg-[#fbf0fe] text-[#8127cf]", badge: "bg-[#8127cf]" },
+    violet: { on: "border-primary/40 bg-brand-50 text-primary", badge: "bg-primary" },
   } as const;
   return (
     <Button variant="outline"
@@ -413,16 +413,16 @@ export function ToolbarToggle({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-[11px] font-black uppercase tracking-wider transition-all",
+        "flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-2xs font-semibold uppercase tracking-wider transition-all",
         active
           ? tones[tone].on
-          : "border-[#cfc2d6]/20 bg-white text-ink-muted hover:border-[#8127cf]/30 hover:text-[#8127cf]",
+          : "border-edge/20 bg-white text-ink-muted hover:border-primary/30 hover:text-primary",
       )}
     >
       <Icon className="h-3.5 w-3.5" />
       {label}
       {count ? (
-        <span className={cn("rounded-full px-1.5 text-[9px] text-white", tones[tone].badge)}>{count}</span>
+        <span className={cn("rounded-full px-1.5 text-2xs text-white", tones[tone].badge)}>{count}</span>
       ) : null}
     </Button>
   );
@@ -438,7 +438,7 @@ export function ViewSwitch({
   options: { value: WorkspaceView; label: string; icon: LucideIcon }[];
 }) {
   return (
-    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
+    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-edge/20 bg-surface-subtle p-1">
       {options.map((o) => (
         <Button variant="outline"
           key={o.value}
@@ -447,10 +447,10 @@ export function ViewSwitch({
           aria-pressed={value === o.value}
           title={o.label}
           className={cn(
-            "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-black uppercase tracking-wider transition-all",
+            "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-2xs font-semibold uppercase tracking-wider transition-all",
             value === o.value
-              ? "bg-white text-[#8127cf] shadow-[0_1px_3px_rgba(31,26,35,0.12)]"
-              : "text-ink-muted hover:text-[#8127cf]",
+              ? "bg-white text-primary shadow-[0_1px_3px_rgba(31,26,35,0.12)]"
+              : "text-ink-muted hover:text-primary",
           )}
         >
           <o.icon className="h-3.5 w-3.5" />
@@ -507,12 +507,12 @@ export function SelectionBar({
 }) {
   if (total === 0) return null;
   return (
-    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-[#8127cf]/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
-      <span className="rounded-full bg-[#8127cf] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white">
+    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-primary/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
+      <span className="rounded-full bg-primary px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-white">
         {total} selected
       </span>
       {actions.length === 0 ? (
-        <span className="text-[11px] font-semibold text-ink-muted">
+        <span className="text-2xs font-semibold text-ink-muted">
           {note || "Nothing can be done to this selection right now."}
         </span>
       ) : (
@@ -523,17 +523,17 @@ export function SelectionBar({
             disabled={busy || a.disabled}
             onClick={a.onRun}
             className={cn(
-              "flex cursor-pointer items-center gap-1.5 rounded-2xl px-3.5 py-2 text-[11px] font-black uppercase tracking-wider transition-all hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50",
+              "flex cursor-pointer items-center gap-1.5 rounded-2xl px-3.5 py-2 text-2xs font-semibold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50",
               a.accent
                 ? "text-white"
-                : "border border-[#cfc2d6]/30 bg-white text-ink-muted hover:text-[#8127cf]",
+                : "border border-edge/30 bg-white text-ink-muted hover:text-primary",
             )}
             style={a.accent ? { backgroundColor: a.accent } : undefined}
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : a.icon ? <a.icon className="h-3.5 w-3.5" /> : null}
             {a.label}
             {a.count !== undefined ? (
-              <span className={cn("rounded-full px-1.5", a.accent ? "bg-white/25" : "bg-[#f3f4f9]")}>
+              <span className={cn("rounded-full px-1.5", a.accent ? "bg-white/25" : "bg-muted")}>
                 {a.count}
               </span>
             ) : null}
@@ -655,7 +655,7 @@ export function DataTable<T>({
       <table className="sk-data-table" style={{ minWidth }}>
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead>
-          <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
+          <tr className="border-b border-edge/10 bg-brand-50/30">
             {selectable ? (
               <th scope="col" className={cn("w-10", pad)}>
                 <SystemCheckbox
@@ -665,7 +665,7 @@ export function DataTable<T>({
                   disabled={!onToggleAll || rows.length === 0}
                   onChange={onToggleAll}
                   aria-label={selectAllLabel ?? copy.all}
-                  className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                  className="h-4 w-4 cursor-pointer accent-primary"
                 />
               </th>
             ) : null}
@@ -691,12 +691,12 @@ export function DataTable<T>({
                     {c.label}
                     {sort?.key === c.key ? (
                       sort.dir === "asc" ? (
-                        <ArrowUpWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowUpWideNarrow className="h-3 w-3 text-primary" />
                       ) : (
-                        <ArrowDownWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowDownWideNarrow className="h-3 w-3 text-primary" />
                       )
                     ) : (
-                      <ArrowUpDown className="h-3 w-3 text-[#cfc2d6]" />
+                      <ArrowUpDown className="h-3 w-3 text-edge" />
                     )}
                   </SystemButton>
                 ) : (
@@ -729,7 +729,7 @@ export function DataTable<T>({
                       checked={Boolean(isSelected)}
                       onChange={() => onToggleSelect?.(id)}
                       aria-label={`${isSelected ? copy.deselect : copy.select} ${rowLabel}`}
-                      className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                      className="h-4 w-4 cursor-pointer accent-primary"
                     />
                   </td>
                 ) : null}
@@ -807,12 +807,12 @@ export function Pagination({
 }) {
   if (total === 0) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#f3f4f9] pt-5">
-      <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-muted pt-5">
+      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
         Showing {firstShown}–{lastShown} of {total}
       </p>
       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+        <label className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           Per page
           <SystemSelect
             value={perPage}
@@ -837,7 +837,7 @@ export function Pagination({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="min-w-[64px] text-center text-[10px] font-black uppercase tracking-wider text-ink-muted">
+            <span className="min-w-[64px] text-center text-2xs font-semibold uppercase tracking-wider text-ink-muted">
               {page} / {totalPages}
             </span>
             <Button variant="outline"
@@ -931,13 +931,13 @@ export function ModalPager({
   const base =
     tone === "dark"
       ? "text-white/80 hover:bg-white/20"
-      : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]";
+      : "text-ink-muted hover:bg-brand-50 hover:text-primary";
 
   return (
     <div
       className={cn(
         "flex items-center gap-1 rounded-2xl px-1.5 py-1",
-        tone === "dark" ? "bg-white/12" : "bg-[#f3f4f9]",
+        tone === "dark" ? "bg-white/12" : "bg-muted",
       )}
     >
       <Button variant="outline"
@@ -955,7 +955,7 @@ export function ModalPager({
       </Button>
       <span
         className={cn(
-          "px-1 text-[10px] font-black tabular-nums",
+          "px-1 text-2xs font-bold tabular-nums",
           tone === "dark" ? "text-white/80" : "text-ink-muted",
         )}
       >

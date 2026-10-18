@@ -5,7 +5,7 @@ import {
   Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock, Loader2,
   Pause, Play, Plus, XCircle,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
@@ -119,26 +119,26 @@ export function CycleManagementPanel({
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-6 animate-skeleton-in">
+        <div className="rounded-[28px] border border-edge/10 bg-white p-6 animate-skeleton-in">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-14 w-14 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
             <div className="flex-1 space-y-2">
-              <div className="h-3 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-5 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-3 w-52 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-3 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-5 w-40 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-3 w-52 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             </div>
           </div>
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between rounded-[20px] border border-[#cfc2d6]/15 bg-white p-4 animate-skeleton-in" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
+          <div key={i} className="flex items-center justify-between rounded-[20px] border border-edge/15 bg-white p-4 animate-skeleton-in" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
             <div className="flex items-center gap-4">
-              <div className="h-10 w-10 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="h-10 w-10 rounded-xl bg-border-subtle/50 skeleton-shimmer" />
               <div className="space-y-2">
-                <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-3 w-44 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-4 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-3 w-44 rounded-full bg-border-subtle/40 skeleton-shimmer" />
               </div>
             </div>
-            <div className="h-7 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div className="h-7 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
           </div>
         ))}
       </div>
@@ -156,8 +156,8 @@ export function CycleManagementPanel({
                 <Activity className="h-7 w-7" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600/70">Current Active Cycle</p>
-                <h3 className="text-xl font-black text-[#1d1b20] tracking-tight">{activeCycle.label}</h3>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-600/70">Current Active Cycle</p>
+                <h3 className="text-xl font-bold text-ink-strong tracking-tight">{activeCycle.label}</h3>
                 <p className="text-xs font-semibold text-ink-muted mt-0.5">
                   Academic Year {activeCycle.academicYear}
                   {activeCycle.startDate && ` · Started ${new Date(activeCycle.startDate).toLocaleDateString()}`}
@@ -200,8 +200,8 @@ export function CycleManagementPanel({
               <AlertTriangle className="h-7 w-7" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70">No Active Cycle</p>
-              <h3 className="text-lg font-black text-[#1d1b20] tracking-tight">Teachers cannot operate without an active cycle</h3>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-rose-500/70">No Active Cycle</p>
+              <h3 className="text-lg font-bold text-ink-strong tracking-tight">Teachers cannot operate without an active cycle</h3>
               <p className="text-xs font-semibold text-ink-muted mt-0.5">
                 Create and activate a cycle to allow attendance, marks entry, and reports.
               </p>
@@ -212,17 +212,17 @@ export function CycleManagementPanel({
 
       {/* Create new cycle */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-[#1d1b20]">All Cycles</h3>
+        <h3 className="text-sm font-bold text-ink-strong">All Cycles</h3>
         <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
           New Cycle
         </BrandButton>
       </div>
 
       {showCreate && (
-        <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/20 bg-white p-5 shadow-sm space-y-4" style={{ animationDelay: "240ms" }}>
+        <div className="sk-rise rounded-[24px] border border-edge/20 bg-white p-5 shadow-sm space-y-4" style={{ animationDelay: "240ms" }}>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Cycle Label</label>
+              <label className="mb-1.5 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Cycle Label</label>
               <SystemInput
                 type="text"
                 value={newLabel}
@@ -232,7 +232,7 @@ export function CycleManagementPanel({
               />
             </div>
             <div>
-              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Academic Year</label>
+              <label className="mb-1.5 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Academic Year</label>
               <SystemInput
                 type="number"
                 value={newYear}
@@ -275,7 +275,7 @@ export function CycleManagementPanel({
                 key={cycle.id}
                 className={cn(
                   "sk-rise flex items-center justify-between rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-200",
-                  isActive ? "border-emerald-200/40 ring-1 ring-emerald-100" : "border-[#cfc2d6]/15 hover:border-[#8127cf]/15 hover:shadow-md"
+                  isActive ? "border-emerald-200/40 ring-1 ring-emerald-100" : "border-edge/15 hover:border-primary/15 hover:shadow-md"
                 )}
                 style={{ animationDelay: `${i * 60}ms` }}
               >
@@ -284,8 +284,8 @@ export function CycleManagementPanel({
                     <Icon className={cn("h-5 w-5", config.color)} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-[#1d1b20]">{cycle.label}</p>
-                    <p className="text-[10px] font-semibold text-ink-muted">
+                    <p className="text-sm font-bold text-ink-strong">{cycle.label}</p>
+                    <p className="text-2xs font-semibold text-ink-muted">
                       Year {cycle.academicYear}
                       {cycle.startDate && ` · Started ${new Date(cycle.startDate).toLocaleDateString()}`}
                       {cycle.endDate && ` · Ended ${new Date(cycle.endDate).toLocaleDateString()}`}
@@ -294,7 +294,7 @@ export function CycleManagementPanel({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide", config.bg, config.color)}>
+                  <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-2xs font-semibold uppercase tracking-wide", config.bg, config.color)}>
                     <Icon className="h-3 w-3" />
                     {config.label}
                   </span>

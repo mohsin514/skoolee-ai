@@ -285,11 +285,11 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
           ))}
         </SystemSelect>
 
-        <div className="flex items-center gap-1 rounded-xl border border-[#cfc2d6]/40 bg-white p-1">
+        <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-white p-1">
           <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))}  aria-label="Zoom out">
             <Minus className="h-3.5 w-3.5" />
           </Button>
-          <span className="w-10 text-center text-[10px] font-black tabular-nums text-ink-muted">{Math.round(scale * 100)}%</span>
+          <span className="w-10 text-center text-2xs font-bold tabular-nums text-ink-muted">{Math.round(scale * 100)}%</span>
           <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))}  aria-label="Zoom in">
             <Plus className="h-3.5 w-3.5" />
           </Button>
@@ -299,7 +299,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-black uppercase tracking-wide text-ink-subtle">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs font-semibold uppercase tracking-wide text-ink-subtle">
         {Object.entries(TRACK_TONES).map(([key, tone]) => (
           <span key={key} className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
@@ -307,14 +307,14 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
           </span>
         ))}
         <label className="flex cursor-pointer items-center gap-1.5 normal-case">
-          <SystemCheckbox  checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-[#8127cf]" />
-          <span className="font-black uppercase tracking-wide">Show secondary lines</span>
+          <SystemCheckbox  checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-primary" />
+          <span className="font-semibold uppercase tracking-wide">Show secondary lines</span>
         </label>
-        {query ? <span className="normal-case text-[#8127cf]">{matches.size} match{matches.size === 1 ? "" : "es"}</span> : null}
+        {query ? <span className="normal-case text-primary">{matches.size} match{matches.size === 1 ? "" : "es"}</span> : null}
       </div>
 
       {unplaced > 0 ? (
-        <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-2xs font-bold text-amber-700">
           {unplaced} staff {unplaced === 1 ? "member has" : "members have"} no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.
         </p>
       ) : null}
@@ -326,7 +326,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        className="relative h-[620px] cursor-grab touch-none overflow-hidden rounded-2xl border border-[#cfc2d6]/40 bg-[#fafaff] active:cursor-grabbing"
+        className="relative h-[620px] cursor-grab touch-none overflow-hidden rounded-2xl border border-edge/40 bg-surface-subtle active:cursor-grabbing"
         style={{
           backgroundImage: "radial-gradient(#cfc2d6 1px, transparent 1px)",
           backgroundSize: "22px 22px",
@@ -335,7 +335,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <Users className="h-8 w-8 text-ink-muted" />
-            <p className="text-sm font-black text-ink">No staff on this campus yet</p>
+            <p className="text-sm font-bold text-ink">No staff on this campus yet</p>
             <p className="max-w-xs text-xs font-semibold text-ink-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
           </div>
         ) : (
@@ -438,19 +438,19 @@ function OrgCard({
         onClick={onSelect}
         className={cn(
           "group flex justify-start h-full w-full items-center gap-2.5 text-left",
-          selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/50",
+          selected ? "border-primary ring-2 ring-primary/20" : "border-edge/50",
           dimmed && "opacity-30"
         )}
         style={{ borderLeftWidth: 4, borderLeftColor: rail }}
       >
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f3f4f9] text-[11px] font-black text-ink-muted">
+        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-2xs font-bold text-ink-muted">
           {node.avatarUrl ? (
             <AvatarImage src={node.avatarUrl} name={node.fullName} />
           ) : (
             initialsOf(node.fullName)
           )}
           {node.isInstitutionHead ? (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#8127cf] text-white">
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-white">
               <Crown className="h-2.5 w-2.5" />
             </span>
           ) : null}
@@ -458,25 +458,25 @@ function OrgCard({
 
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1">
-            <span className="truncate text-[13px] font-black leading-tight text-ink">{node.fullName}</span>
+            <span className="truncate text-[13px] font-bold leading-tight text-ink">{node.fullName}</span>
             {node.dueForReview ? (
-              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-[9px] font-black text-amber-700" title="Has served the usual time in this rank">
+              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-2xs font-bold text-amber-700" title="Has served the usual time in this rank">
                 DUE
               </span>
             ) : null}
           </span>
           <span
             className={cn(
-              "mt-0.5 block truncate text-[10px] font-black uppercase tracking-wide",
+              "mt-0.5 block truncate text-2xs font-semibold uppercase tracking-wide",
               !tone && "text-ink-subtle"
             )}
             style={tone ? { color: tone.hex } : undefined}
           >
             {rank || "No rank set"}
           </span>
-          <span className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold text-ink-muted">
+          <span className="mt-0.5 flex items-center gap-1 truncate text-2xs font-semibold text-ink-muted">
             {headship ? (
-              <span className="truncate text-[#8127cf]">
+              <span className="truncate text-primary">
                 {headship.isActing ? "Acting head" : "Head"} · {headship.name}
               </span>
             ) : (
@@ -486,7 +486,7 @@ function OrgCard({
         </span>
 
         {isLeaving ? (
-          <span className="absolute right-2 top-2 rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-rose-600">
+          <span className="absolute right-2 top-2 rounded-full bg-rose-50 px-1.5 py-0.5 text-2xs font-semibold uppercase text-rose-600">
             {node.employmentStatus === "NOTICE_PERIOD" ? "Notice" : "Left"}
           </span>
         ) : null}

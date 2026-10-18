@@ -18,8 +18,10 @@
 
 import * as React from "react";
 import { AlertCircle } from "lucide-react";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { Label } from "./label";
+import { InfoTip } from "./tooltip";
 
 interface FormFieldProps {
   /** Must match the schema key so `field(name)` and the label agree. */
@@ -30,8 +32,21 @@ interface FormFieldProps {
   idScope?: string;
   label?: React.ReactNode;
   error?: string;
+  /** Guidance shown under the control (format, example, consequence). */
   hint?: React.ReactNode;
+  /**
+   * What the field is for, shown between the label and the control so it is
+   * read before typing. Prefer this to a placeholder for anything important:
+   * placeholders vanish on the first keystroke.
+   */
+  description?: React.ReactNode;
+  /** Extra background behind an (i) beside the label, for detail most people skip. */
+  tooltip?: React.ReactNode;
   required?: boolean;
+  /** Marks the field "(optional)" — use on forms where most fields are required. */
+  optional?: boolean;
+  /** Shows "used / max" under a controlled text control that has a maxLength. */
+  showCount?: boolean;
   className?: string;
   /** Renders the control. Receives the ids it must carry. */
   children: React.ReactNode;
@@ -61,7 +76,7 @@ function describedBy(caller: string | undefined, hintId?: string, errorId?: stri
     if (previousId && errorId && reference === `${previousId}-error`) return errorId;
     return reference;
   });
-  return [...new Set([...references, hintId, errorId].filter(Boolean))].join(" ") || undefined;
+  return [...new Set([...references, hintId, errorId].filter(Boolean).flatMap(value => value!.split(/\s+/)))].join(" ") || undefined;
 }
 
 export function FormField({
@@ -71,10 +86,15 @@ export function FormField({
   label,
   error,
   hint,
+  description,
+  tooltip,
   required,
+  optional,
+  showCount,
   className,
   children,
 }: FormFieldProps) {
+  const tr = useUiText();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const labelRef = React.useRef<HTMLLabelElement>(null);
   const control = React.isValidElement<ControlProps>(children) ? children : null;
@@ -82,6 +102,12 @@ export function FormField({
   const fieldId = id ?? (idScope ? `field-${idScope}-${name}` : control?.props.id ?? `field-${name}`);
   const errorId = `${fieldId}-error`;
   const hintId = `${fieldId}-hint`;
+  const descriptionId = `${fieldId}-description`;
+  // The description is read before the hint: it says what the field is for.
+  const guidanceId = [description ? descriptionId : null, hint ? hintId : null].filter(Boolean).join(" ") || undefined;
+  const maxLength = control?.props.maxLength;
+  const currentValue = control?.props.value;
+  const count = showCount && typeof maxLength === "number" && typeof currentValue === "string" ? currentValue.length : null;
   // Compound InputGroup/Urdu controls need the label and errors on the actual
   // input, not on their decorative wrapper. Resolve that shared contract here.
   React.useLayoutEffect(() => {
@@ -110,7 +136,7 @@ export function FormField({
     if (!input.hasAttribute("data-form-field-control")) {
       if (error) setAttribute(input, "aria-invalid", "true");
       if (required) setAttribute(input, "aria-required", "true");
-      setAttribute(input, "aria-describedby", describedBy(input.getAttribute("aria-describedby") ?? undefined, hint ? hintId : undefined, error ? errorId : undefined, control?.props.id ?? `field-${name}`) ?? null);
+      setAttribute(input, "aria-describedby", describedBy(input.getAttribute("aria-describedby") ?? undefined, guidanceId, error ? errorId : undefined, control?.props.id ?? `field-${name}`) ?? null);
     }
     return () => { restore.reverse().forEach(undo => undo()); };
   });
@@ -118,17 +144,28 @@ export function FormField({
   return (
     <div ref={containerRef} data-form-field={name} className={cn("flex flex-col gap-1.5", className)}>
       {label ? (
-        <Label ref={labelRef} htmlFor={fieldId} className="mb-1">
-          {label}
-          {required ? (
-            // aria-hidden because the requirement is already conveyed to
-            // assistive tech by `aria-required` on the control itself; without
-            // this the label is read as "Email star".
-            <span aria-hidden="true" className="ms-0.5 text-destructive">
-              *
-            </span>
-          ) : null}
-        </Label>
+        <div className="mb-1 flex min-w-0 items-center gap-1">
+          <Label ref={labelRef} htmlFor={fieldId}>
+            {label}
+            {required ? (
+              // aria-hidden because the requirement is already conveyed to
+              // assistive tech by `aria-required` on the control itself; without
+              // this the label is read as "Email star".
+              <span aria-hidden="true" className="ms-0.5 text-destructive">
+                *
+              </span>
+            ) : null}
+            {optional && !required ? (
+              <span className="ms-1.5 text-xs font-normal text-ink-subtle">({tr("optional")})</span>
+            ) : null}
+          </Label>
+          {tooltip ? <InfoTip content={tooltip} className="-my-1" /> : null}
+        </div>
+      ) : null}
+      {description ? (
+        <p id={descriptionId} className="-mt-1 mb-1 text-[0.8125rem] leading-relaxed text-ink-muted">
+          {description}
+        </p>
       ) : null}
 
       {control ? React.cloneElement(control, {
@@ -138,7 +175,7 @@ export function FormField({
         ...(compound ? null : { id: fieldId }),
         "aria-invalid": error ? true : control.props["aria-invalid"],
         "aria-required": required || control.props["aria-required"],
-        "aria-describedby": describedBy(control.props["aria-describedby"], hint ? hintId : undefined, error ? errorId : undefined, control.props.id ?? `field-${name}`),
+        "aria-describedby": describedBy(control.props["aria-describedby"], guidanceId, error ? errorId : undefined, control.props.id ?? `field-${name}`),
       }) : children}
 
       {error ? (
@@ -147,16 +184,25 @@ export function FormField({
           // `role="alert"` so the message is announced when it appears after a
           // blur or a failed submit, rather than only on next focus.
           role="alert"
-          className="flex items-start gap-1 text-sm font-semibold text-destructive"
+          className="sk-field-message flex items-start gap-1.5 text-[0.8125rem] font-medium leading-snug text-destructive"
         >
-          <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <AlertCircle aria-hidden="true" className="mt-px size-4 shrink-0" />
           <span>{error}</span>
         </p>
       ) : null}
-      {hint ? (
-        <p id={hintId} className="text-sm font-medium text-ink-subtle">
-          {hint}
-        </p>
+      {hint || count !== null ? (
+        <div className="flex items-start justify-between gap-3">
+          {hint ? (
+            <p id={hintId} className="text-[0.8125rem] leading-relaxed text-ink-subtle">
+              {hint}
+            </p>
+          ) : <span />}
+          {count !== null ? (
+            <span data-numeric aria-live="polite" className={cn("shrink-0 text-xs text-ink-subtle", count >= (maxLength as number) && "font-semibold text-status-warning-text")}>
+              {count}/{maxLength as number}
+            </span>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -172,9 +218,9 @@ export function FieldError({ id, children }: { id?: string; children?: React.Rea
     <p
       id={id}
       role="alert"
-      className="flex items-start gap-1 text-sm font-semibold text-destructive"
+      className="sk-field-message flex items-start gap-1.5 text-[0.8125rem] font-medium leading-snug text-destructive"
     >
-      <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <AlertCircle aria-hidden="true" className="mt-px size-4 shrink-0" />
       <span>{children}</span>
     </p>
   );
@@ -196,6 +242,7 @@ export function FormErrorSummary({
   onFocusField?: (field: string) => void;
   className?: string;
 }) {
+  const tr = useUiText();
   const entries = Object.entries(errors).filter(([, message]) => Boolean(message)) as [
     string,
     string,
@@ -206,15 +253,15 @@ export function FormErrorSummary({
     <div
       role="alert"
       className={cn(
-        "rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text",
+        "sk-field-message rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text shadow-xs",
         className
       )}
     >
-      <p className="flex items-center gap-1.5 text-sm font-bold">
-        <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" />
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <AlertCircle aria-hidden="true" className="size-4" />
         {entries.length === 1
-          ? "There is 1 problem with this form"
-          : `There are ${entries.length} problems with this form`}
+          ? tr("There is 1 problem with this form")
+          : tr("There are {0} problems with this form", [entries.length])}
       </p>
       <ul className="mt-1.5 flex flex-col gap-0.5">
         {entries.map(([field, message]) => (

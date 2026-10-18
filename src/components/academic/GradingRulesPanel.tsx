@@ -16,7 +16,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { BrandButton } from "@/components/role-dashboard";
@@ -149,7 +149,7 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-20 rounded-[20px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div key={i} className="h-20 rounded-[20px] bg-border-subtle/40 skeleton-shimmer" />
         ))}
       </div>
     );
@@ -167,20 +167,20 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="sk-rise space-y-4">
-      <header className="relative overflow-hidden rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#1f1a23] via-[#2d2338] to-[#3d2a52] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(31,26,35,0.6)]">
+      <header className="relative overflow-hidden rounded-[28px] border border-edge/25 bg-gradient-to-br from-ink-strong via-[#2d2338] to-[#3d2a52] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(31,26,35,0.6)]">
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-14 -top-16 h-56 w-56 rounded-full bg-[#8127cf]/25 blur-3xl"
+          className="pointer-events-none absolute -right-14 -top-16 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
         />
         <div className="relative flex flex-wrap items-center gap-4">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/12">
             <Scale className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-white/55">
               Assess · {academicYear}
             </p>
-            <h2 className="mt-0.5 text-2xl font-black tracking-tight">Grading &amp; passing rules</h2>
+            <h2 className="mt-0.5 text-2xl font-bold tracking-tight">Grading &amp; passing rules</h2>
             <p className="mt-1 text-xs font-semibold text-white/65">
               What counts as a pass, how each exam type is weighted, and where the grade
               boundaries fall. Set per class — every section of that class gets the same rules.
@@ -201,8 +201,8 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
       ) : null}
 
       {unset > 0 ? (
-        <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-4 py-3">
-          <Sparkles className="h-4 w-4 shrink-0 text-[#8127cf]" />
+        <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-edge/25 bg-surface-subtle px-4 py-3">
+          <Sparkles className="h-4 w-4 shrink-0 text-primary" />
           <p className="min-w-0 flex-1 text-xs font-bold text-ink-muted">
             {unset} class{unset === 1 ? "" : "es"} are still on the default rules — a 50% pass mark
             and a 10 / 20 / 30 / 40 weighting. That is a working default, not a decision anyone
@@ -217,7 +217,7 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
         icon={Award}
         bodyClassName="p-0"
       >
-        <ul className="divide-y divide-[#cfc2d6]/12">
+        <ul className="divide-y divide-edge/12">
           {groups.map((group) => (
             <li key={group.className}>
               <Button variant="secondary"
@@ -227,12 +227,12 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
               >
                 <span
                   className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black",
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
                     group.drifted
                       ? "bg-amber-50 text-amber-600"
                       : group.configured
                       ? "bg-emerald-50 text-emerald-600"
-                      : "bg-[#f3f4f9] text-ink-subtle",
+                      : "bg-muted text-ink-subtle",
                   )}
                 >
                   {group.drifted ? (
@@ -246,8 +246,8 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
 
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-black text-[#1f1a23]">{group.className}</span>
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-ink-subtle">
+                    <span className="text-sm font-bold text-ink-strong">{group.className}</span>
+                    <span className="flex items-center gap-1 text-2xs font-bold text-ink-subtle">
                       <Users className="h-3 w-3" />
                       {group.students}
                     </span>
@@ -255,30 +255,30 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
                       {group.sections.map((s) => (
                         <span
                           key={s.id}
-                          className="rounded bg-[#f3eeff] px-1.5 py-px text-[9px] font-black text-[#8127cf]"
+                          className="rounded bg-brand-100 px-1.5 py-px text-2xs font-bold text-primary"
                         >
                           {s.section ?? "—"}
                         </span>
                       ))}
                     </span>
                     {group.drifted ? (
-                      <span className="rounded bg-amber-100 px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-amber-700">
+                      <span className="rounded bg-amber-100 px-1.5 py-px text-2xs font-semibold uppercase tracking-wider text-amber-700">
                         Sections disagree
                       </span>
                     ) : !group.configured ? (
-                      <span className="rounded bg-[#f3f4f9] px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+                      <span className="rounded bg-muted px-1.5 py-px text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                         Default
                       </span>
                     ) : null}
                   </span>
-                  <span className="mt-1 block text-[10px] font-bold text-ink-subtle">
+                  <span className="mt-1 block text-2xs font-bold text-ink-subtle">
                     Pass at {group.config.passingPercentage}% · A+ from {group.config.gradeAplus}%
                     · Mid {group.config.midTermWeight}% / Final {group.config.finalWeight}% / Tests{" "}
                     {group.config.classTestWeight}% / Quiz {group.config.quizWeight}%
                   </span>
                 </span>
 
-                <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
               </Button>
             </li>
           ))}
@@ -388,11 +388,11 @@ function RulesEditor({
     >
       <div className="space-y-5">
         {/* ── Pass mark ─────────────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-[#cfc2d6]/20 bg-gradient-to-r from-[#faf5ff] to-white p-4">
+        <div className="rounded-2xl border border-edge/20 bg-gradient-to-r from-brand-50 to-white p-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-black text-[#1f1a23]">Pass mark</p>
-              <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-muted">
+              <p className="text-xs font-bold text-ink-strong">Pass mark</p>
+              <p className="mt-0.5 text-2xs font-semibold leading-snug text-ink-muted">
                 A student below this in the weighted total does not pass the year. This is the
                 single number parents ask about.
               </p>
@@ -404,7 +404,7 @@ function RulesEditor({
                 max={100}
                 value={cfg.passingPercentage}
                 onChange={(e) => set("passingPercentage", Number(e.target.value))}
-                className="h-1.5 w-40 cursor-pointer appearance-none rounded-full bg-[#e8e0ec] accent-[#8127cf]"
+                className="h-1.5 w-40 cursor-pointer appearance-none rounded-full bg-border-subtle accent-primary"
               />
               <SystemInput
                 type="number"
@@ -414,7 +414,7 @@ function RulesEditor({
                 onChange={(e) => set("passingPercentage", Number(e.target.value))}
                 className={cn(inputClass, "w-20 text-center")}
               />
-              <span className="text-sm font-black text-[#8127cf]">%</span>
+              <span className="text-sm font-bold text-primary">%</span>
             </div>
           </div>
         </div>
@@ -422,12 +422,12 @@ function RulesEditor({
         {/* ── Weights ───────────────────────────────────────────────────── */}
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <p className="pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+            <p className="pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               How each exam type is weighted
             </p>
             <span
               className={cn(
-                "rounded-lg px-2 py-0.5 text-[10px] font-black tabular-nums",
+                "rounded-lg px-2 py-0.5 text-2xs font-bold tabular-nums",
                 Math.round(total) === 100
                   ? "bg-emerald-50 text-emerald-600"
                   : "bg-rose-50 text-rose-600",
@@ -451,14 +451,14 @@ function RulesEditor({
           </div>
 
           {/* One stacked bar makes the split legible without reading four numbers. */}
-          <div className="mb-3 flex h-3 overflow-hidden rounded-full bg-[#e8e0ec]/60">
+          <div className="mb-3 flex h-3 overflow-hidden rounded-full bg-border-subtle/60">
             {WEIGHTS.map((w, i) => (
               <span
                 key={w.key}
                 title={`${w.label} ${cfg[w.key]}%`}
                 className={cn(
                   "h-full transition-[width] duration-500",
-                  ["bg-[#8127cf]", "bg-[#b06bea]", "bg-teal-500", "bg-amber-500"][i],
+                  ["bg-primary", "bg-brand-300", "bg-teal-500", "bg-amber-500"][i],
                 )}
                 style={{ width: `${Math.min(100, cfg[w.key])}%` }}
               />
@@ -475,12 +475,12 @@ function RulesEditor({
                   <span
                     className={cn(
                       "h-2 w-2 shrink-0 rounded-full",
-                      ["bg-[#8127cf]", "bg-[#b06bea]", "bg-teal-500", "bg-amber-500"][i],
+                      ["bg-primary", "bg-brand-300", "bg-teal-500", "bg-amber-500"][i],
                     )}
                   />
-                  <p className="truncate text-[11px] font-black text-[#1f1a23]">{w.label}</p>
+                  <p className="truncate text-2xs font-bold text-ink-strong">{w.label}</p>
                 </div>
-                <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   Created by {w.who}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
@@ -492,12 +492,12 @@ function RulesEditor({
                     onChange={(e) => set(w.key, Number(e.target.value))}
                     className={cn(inputClass, "text-center")}
                   />
-                  <span className="text-xs font-black text-ink-subtle">%</span>
+                  <span className="text-xs font-bold text-ink-subtle">%</span>
                 </div>
               </div>
             ))}
           </div>
-          <p className="mt-2 pl-0.5 text-[10px] font-semibold leading-snug text-ink-subtle">
+          <p className="mt-2 pl-0.5 text-2xs font-semibold leading-snug text-ink-subtle">
             Set a type to 0% and it stops counting towards the report card — useful when a school
             grades on term exams alone.
           </p>
@@ -505,7 +505,7 @@ function RulesEditor({
 
         {/* ── Mode ──────────────────────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+          <p className="mb-2 pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             Mid-year percentages
           </p>
           <div className="grid gap-2.5 sm:grid-cols-2">
@@ -523,10 +523,10 @@ function RulesEditor({
                   )}
                 >
                   <span className="flex items-center gap-1.5">
-                    {on ? <Check className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" /> : null}
-                    <span className="text-xs font-black text-[#1f1a23]">{m.label}</span>
+                    {on ? <Check className="h-3.5 w-3.5 shrink-0 text-primary" /> : null}
+                    <span className="text-xs font-bold text-ink-strong">{m.label}</span>
                   </span>
-                  <span className="mt-1 block text-[10px] font-semibold leading-snug text-ink-muted">
+                  <span className="mt-1 block text-2xs font-semibold leading-snug text-ink-muted">
                     {m.help}
                   </span>
                 </Button>
@@ -535,16 +535,16 @@ function RulesEditor({
           </div>
         </div>
 
-        <section className="rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-4" aria-labelledby="result-semantics-title">
-          <h3 id="result-semantics-title" className="text-xs font-black text-[#1f1a23]"><UiText>Missing, absent and exempt results</UiText></h3>
-          <p className="mt-1 text-[11px] leading-snug text-ink-muted"><UiText>A zero is a scored result. These rules keep it distinct from an unentered mark, absence or approved exemption.</UiText></p>
+        <section className="rounded-2xl border border-edge/20 bg-surface-subtle p-4" aria-labelledby="result-semantics-title">
+          <h3 id="result-semantics-title" className="text-xs font-bold text-ink-strong"><UiText>Missing, absent and exempt results</UiText></h3>
+          <p className="mt-1 text-2xs leading-snug text-ink-muted"><UiText>A zero is a scored result. These rules keep it distinct from an unentered mark, absence or approved exemption.</UiText></p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {([
               ["missingMarkPolicy", "No mark entered", "Used when a student has no mark row for a completed component."],
               ["absentMarkPolicy", "Absent", "Used when the student did not sit the assessment."],
               ["exemptMarkPolicy", "Exempt", "Used for an approved exemption; excluded is the default."],
             ] as const).map(([key, label, help]) => (
-              <label key={key} className="space-y-1.5 text-[11px] font-bold text-ink-muted">
+              <label key={key} className="space-y-1.5 text-2xs font-bold text-ink-muted">
                 <span>{tr(label)}</span>
                 <Select
                   value={cfg[key]}
@@ -555,10 +555,10 @@ function RulesEditor({
                   <option value="EXCLUDE">{tr("Exclude from the result")}</option>
                   <option value="BLOCK">{tr("Block until resolved")}</option>
                 </Select>
-                <span className="block text-[10px] font-medium">{tr(help)}</span>
+                <span className="block text-2xs font-medium">{tr(help)}</span>
               </label>
             ))}
-            <label className="space-y-1.5 text-[11px] font-bold text-ink-muted">
+            <label className="space-y-1.5 text-2xs font-bold text-ink-muted">
               <span><UiText>Rounding</UiText></span>
               <Select
                 value={cfg.roundingRule}
@@ -569,7 +569,7 @@ function RulesEditor({
                 <option value="ONE_DECIMAL">{tr("One decimal place (half up)")}</option>
                 <option value="TWO_DECIMALS">{tr("Two decimal places (half up)")}</option>
               </Select>
-              <span className="block text-[10px] font-medium"><UiText>For example, 82.5 rounds to 83 with whole percentage.</UiText></span>
+              <span className="block text-2xs font-medium"><UiText>For example, 82.5 rounds to 83 with whole percentage.</UiText></span>
             </label>
           </div>
         </section>
@@ -577,11 +577,11 @@ function RulesEditor({
         {/* ── Grade boundaries ──────────────────────────────────────────── */}
         <div>
           <div className="mb-2 flex items-center gap-2">
-            <p className="pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+            <p className="pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Grade boundaries
             </p>
             {ladderBroken ? (
-              <span className="rounded-lg bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-600">
+              <span className="rounded-lg bg-rose-50 px-2 py-0.5 text-2xs font-bold text-rose-600">
                 Each grade must start below the one above
               </span>
             ) : null}
@@ -639,7 +639,7 @@ function RulesEditor({
                   key={String(g.key)}
                   title={`${g.label}: ${from}–${to}%`}
                   className={cn(
-                    "flex items-center justify-center text-[9px] font-black text-white transition-[width] duration-500",
+                    "flex items-center justify-center text-2xs font-bold text-white transition-[width] duration-500",
                     g.tone,
                   )}
                   style={{ width: `${width}%` }}
@@ -650,7 +650,7 @@ function RulesEditor({
             })}
             <span
               title={`Below ${cfg.gradeD}% — fail`}
-              className="flex items-center justify-center bg-rose-500 text-[9px] font-black text-white"
+              className="flex items-center justify-center bg-rose-500 text-2xs font-bold text-white"
               style={{ width: `${Math.max(0, cfg.gradeD)}%` }}
             >
               {cfg.gradeD > 6 ? "F" : ""}

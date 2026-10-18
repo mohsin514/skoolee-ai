@@ -40,7 +40,7 @@ export function OnlinePayAction({ invoiceId, onPending }: { invoiceId: string; o
       {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Wallet className="size-4" aria-hidden="true" />}
       {busy ? ui("Starting SafePay...") : ui("Pay Now (SafePay)")}
     </Button>
-    {state.availability.mode === "SANDBOX" && <p className="text-[11px] text-ink-muted">{ui("Test mode: no real money is taken.")}</p>}
+    {state.availability.mode === "SANDBOX" && <p className="text-2xs text-ink-muted">{ui("Test mode: no real money is taken.")}</p>}
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </div>;
 }

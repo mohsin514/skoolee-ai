@@ -82,24 +82,24 @@ function ReportCard({ report, index }: { report: any; index: number }) {
   const scoreLabel = pct >= 80 ? "Excellent" : pct >= 60 ? "Good" : "Needs improvement";
 
   return (
-    <div className="sk-panel sk-rise group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${200 + index * 60}ms` }}>
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#fbf0fe]/60 via-white to-white p-4 pb-3 border-b border-[#cfc2d6]/8">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
+    <div className="sk-panel sk-rise group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${200 + index * 60}ms` }}>
+      <div className="relative overflow-hidden bg-gradient-to-br from-brand-50/60 via-white to-white p-4 pb-3 border-b border-edge/8">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-primary/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
         <div className="relative flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mb-1 transition-colors group-hover:text-ink-muted">
+            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-1 transition-colors group-hover:text-ink-muted">
               {report.exam?.term || "Exam"}
             </p>
-            <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight transition-colors group-hover:text-[#8127cf]">
+            <h3 className="text-lg font-bold text-ink-strong tracking-tight transition-colors group-hover:text-primary">
               {report.exam?.title || "Report Card"}
             </h3>
             <div className="flex items-center gap-2.5 mt-2.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-white border border-[#8127cf]/10 px-3 py-0.5 text-[9px] font-bold text-[#8127cf] uppercase tracking-wider shadow-sm transition-all group-hover:bg-[#8127cf] group-hover:text-white group-hover:border-transparent group-hover:shadow-md">
+              <span className="inline-flex items-center gap-1 rounded-full bg-white border border-primary/10 px-3 py-0.5 text-2xs font-semibold text-primary uppercase tracking-wider shadow-sm transition-all group-hover:bg-primary group-hover:text-white group-hover:border-transparent group-hover:shadow-md">
                 <Award className="w-3 h-3" />
                 {report.grade || "Pending"}
               </span>
               <span className={cn(
-                "text-[9px] font-semibold uppercase tracking-wider",
+                "text-2xs font-semibold uppercase tracking-wider",
                 status === "PUBLISHED" || status === "SENT" ? "text-emerald-600" : "text-amber-600"
               )}>
                 {status === "PUBLISHED" || status === "SENT" ? "Published" : status === "DRAFT" ? "Draft" : status}
@@ -113,21 +113,21 @@ function ReportCard({ report, index }: { report: any; index: number }) {
             )}>
               <span className="text-xl font-bold text-white">{pct}</span>
             </div>
-            <span className={cn("text-[9px] font-bold mt-1", scoreText)}>{scoreLabel}</span>
+            <span className={cn("text-2xs font-bold mt-1", scoreText)}>{scoreLabel}</span>
           </div>
         </div>
       </div>
       <div className="p-4 pt-3">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-[10px] font-semibold text-ink-subtle">Academic Year {report.exam?.academicYear || "—"}</span>
-          <span className="h-3 w-[1px] bg-[#cfc2d6]/20" />
-          <span className="text-[10px] font-semibold text-ink-subtle">{Math.round(report.percentage || 0)}% overall</span>
+          <span className="text-2xs font-semibold text-ink-subtle">Academic Year {report.exam?.academicYear || "—"}</span>
+          <span className="h-3 w-[1px] bg-edge/20" />
+          <span className="text-2xs font-semibold text-ink-subtle">{Math.round(report.percentage || 0)}% overall</span>
         </div>
         <p className="mt-2 text-sm" dir="auto">{report.language === "ar" ? "النسخة المنشورة" : report.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi>v{report.version}</bdi></p>
         {report.correctionReason && <p className="mt-2 rounded border p-3 text-sm" dir="auto">{report.language === "ar" ? "تصحيح:" : report.language === "ur" ? "تصحیح:" : "Correction:"} {report.correctionReason}</p>}
         {report.remarksEn ? (
-          <div className="rounded-2xl border border-[#cfc2d6]/10 bg-[#fbf0fe]/30 p-3">
-            <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+          <div className="rounded-2xl border border-edge/10 bg-brand-50/30 p-3">
+            <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Teacher Remarks
             </p>
             <p className="text-xs font-medium leading-relaxed text-ink">{report.remarksEn}</p>

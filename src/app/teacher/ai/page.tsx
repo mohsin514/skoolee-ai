@@ -8,7 +8,7 @@ import {
   BarChart3, BookOpen, Bot, BrainCircuit, ChevronDown, ClipboardCheck, Copy,
   GraduationCap, Lightbulb, Search, Sparkles, Users, X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { StatTiles } from "@/components/shared-admin/workspace";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { AiActionPanel } from "@/components/role-dashboard";
@@ -124,21 +124,21 @@ export default function AIPage() {
 
         {/* ── The tool itself ── */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
-          <section className="sk-panel group relative overflow-hidden border-[#8127cf]/10 transition-all duration-300">
+          <section className="sk-panel group relative overflow-hidden border-primary/10 transition-all duration-300">
             {/* One wash, not six. */}
             <span
               aria-hidden
-              className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#8127cf]/[0.07] blur-3xl"
+              className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/[0.07] blur-3xl"
             />
             <CornerSparkles />
             <div className="relative p-5">
               <div className="mb-4 flex items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#b876f0] text-white shadow-[0_8px_20px_-6px_rgba(129,39,207,0.6)]">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-300 text-white shadow-[0_8px_20px_-6px_rgba(129,39,207,0.6)]">
                   <Bot className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="text-base font-black tracking-tight text-[#1d1b20]">AI Assistant</h2>
-                  <p className="text-[11px] font-semibold text-ink-subtle">
+                  <h2 className="text-base font-bold tracking-tight text-ink-strong">AI Assistant</h2>
+                  <p className="text-2xs font-semibold text-ink-subtle">
                     Drafts are saved below — nothing is sent to a guardian automatically.
                   </p>
                 </div>
@@ -157,10 +157,10 @@ export default function AIPage() {
               opening this screen for the first time has no idea what any of
               the five actions actually produce; that is the gap worth
               filling. */}
-          <aside className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#1f1a23] via-[#2d2433] to-[#1f1a23] p-5 text-white shadow-[0_12px_32px_-12px_rgba(31,26,35,0.6)]">
+          <aside className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-ink-strong via-[#2d2433] to-ink-strong p-5 text-white shadow-[0_12px_32px_-12px_rgba(31,26,35,0.6)]">
             <span
               aria-hidden
-              className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#8127cf]/25 blur-3xl"
+              className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
             />
             <CornerSparkles color="#c084fc" />
             <div className="relative">
@@ -168,7 +168,7 @@ export default function AIPage() {
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">
                   <Sparkles className="h-3.5 w-3.5 text-[#c084fc]" />
                 </span>
-                <p className="text-[11px] font-black uppercase tracking-wider text-white/60">What it can do</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-white/60">What it can do</p>
               </div>
               <ul className="space-y-2.5">
                 {[
@@ -179,12 +179,12 @@ export default function AIPage() {
                   ["Translate", "An English remark rendered into Urdu"],
                 ].map(([label, what]) => (
                   <li key={label} className="rounded-xl bg-white/[0.06] px-3 py-2.5 transition-colors hover:bg-white/[0.11]">
-                    <p className="text-[12px] font-black text-white">{label}</p>
-                    <p className="mt-0.5 text-[11px] font-semibold leading-snug text-white/50">{what}</p>
+                    <p className="text-xs font-bold text-white">{label}</p>
+                    <p className="mt-0.5 text-2xs font-semibold leading-snug text-white/50">{what}</p>
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 rounded-xl bg-white/[0.06] px-3 py-2.5 text-[11px] font-semibold leading-snug text-white/55">
+              <p className="mt-4 rounded-xl bg-white/[0.06] px-3 py-2.5 text-2xs font-semibold leading-snug text-white/55">
                 Student names are never sent to the model — drafts are written from
                 pseudonymised data and always need your review.
               </p>
@@ -194,14 +194,14 @@ export default function AIPage() {
 
         {/* ── Saved drafts ── */}
         <section className="sk-panel overflow-hidden">
-          <div className="flex flex-wrap items-center gap-3 border-b border-[#cfc2d6]/12 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 border-b border-edge/12 px-4 py-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                 <Lightbulb className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <h2 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">Saved AI drafts</h2>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+                <h2 className="truncate text-sm font-bold tracking-tight text-ink-strong">Saved AI drafts</h2>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {insights.length} total{featureFilter || query ? ` · ${visibleInsights.length} shown` : ""}
                 </p>
               </div>
@@ -245,14 +245,14 @@ export default function AIPage() {
           </div>
 
           {visibleInsights.length ? (
-            <ul className="divide-y divide-[#f3f4f9]">
+            <ul className="divide-y divide-muted">
               {visibleInsights.map((insight) => (
                 <InsightRow key={insight.id} insight={insight} />
               ))}
             </ul>
           ) : insights.length ? (
             <div className="flex flex-col items-center gap-3 p-10 text-center">
-              <p className="text-sm font-bold text-[#1d1b20]">No draft matches that</p>
+              <p className="text-sm font-bold text-ink-strong">No draft matches that</p>
               <Button variant="secondary" type="button" onClick={() => { setQuery(""); setFeatureFilter(""); }}
                 className="items-center gap-1.5 justify-start">
                 <X className="h-3.5 w-3.5" /> Clear filters
@@ -260,10 +260,10 @@ export default function AIPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                 <Lightbulb className="h-7 w-7" />
               </span>
-              <h3 className="mt-2 text-base font-black text-[#1d1b20]">No drafts yet</h3>
+              <h3 className="mt-2 text-base font-bold text-ink-strong">No drafts yet</h3>
               <p className="max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
                 Pick an action above and run it. Every draft is saved here so you can come
                 back to it, copy it, and edit it before it goes anywhere.
@@ -299,38 +299,38 @@ function InsightRow({ insight }: { insight: any }) {
   };
 
   return (
-    <li className="group transition-colors hover:bg-[#fbf0fe]/20">
+    <li className="group transition-colors hover:bg-brand-50/20">
       <div className="flex items-start gap-3 px-4 py-3.5">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
           <Sparkles className="h-4 w-4" />
         </span>
 
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
               {featureLabel(insight.feature)}
             </span>
             {insight.approvalStatus === "APPROVED" ? (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
                 Approved
               </span>
             ) : insight.approvalStatus === "REJECTED" ? (
-              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-700">
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-700">
                 Rejected
               </span>
             ) : null}
             {when ? (
-              <span className="text-[10px] font-semibold text-ink-subtle">{when}</span>
+              <span className="text-2xs font-semibold text-ink-subtle">{when}</span>
             ) : null}
           </div>
 
           {/* `title` was selected by the server and then never rendered — the
               row led with the summary and dropped the headline entirely. */}
           {insight.title ? (
-            <p className="text-sm font-black leading-snug text-[#1d1b20]">{insight.title}</p>
+            <p className="text-sm font-bold leading-snug text-ink-strong">{insight.title}</p>
           ) : null}
           <p className={cn(
-            "mt-0.5 whitespace-pre-line text-[12px] font-semibold leading-relaxed text-ink-muted",
+            "mt-0.5 whitespace-pre-line text-xs font-semibold leading-relaxed text-ink-muted",
             !open && "line-clamp-2",
           )}>
             {body}

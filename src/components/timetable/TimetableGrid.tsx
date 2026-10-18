@@ -28,8 +28,8 @@ const DENSITY = {
     cell: "min-h-[42px]",
     dayMin: 104,
     timeCol: 76,
-    subject: "text-[10px]",
-    meta: "text-[8px]",
+    subject: "text-2xs",
+    meta: "text-3xs",
     pad: "p-1.5",
     gap: "gap-0.5",
     showMeta: false,
@@ -39,8 +39,8 @@ const DENSITY = {
     cell: "min-h-[64px]",
     dayMin: 132,
     timeCol: 88,
-    subject: "text-[11px]",
-    meta: "text-[9px]",
+    subject: "text-2xs",
+    meta: "text-2xs",
     pad: "p-2",
     gap: "gap-1",
     showMeta: true,
@@ -51,7 +51,7 @@ const DENSITY = {
     dayMin: 168,
     timeCol: 96,
     subject: "text-[13px]",
-    meta: "text-[10px]",
+    meta: "text-2xs",
     pad: "p-2.5",
     gap: "gap-1.5",
     showMeta: true,
@@ -60,7 +60,7 @@ const DENSITY = {
 } as const;
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string; short: string }> = {
-  BREAK: { bg: "bg-[#f3f4f9]", text: "text-ink-muted", label: "Break", short: "Break" },
+  BREAK: { bg: "bg-muted", text: "text-ink-muted", label: "Break", short: "Break" },
   PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/70", label: "Prayer / Namaz", short: "Prayer" },
   ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/70", label: "Assembly", short: "Assembly" },
   ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/70", label: "Activity", short: "Activity" },
@@ -134,11 +134,11 @@ export function TimetableGrid({
       {/* Header row — sticky so the day you are looking at stays named while
           you scroll a long list of periods. */}
       <div
-        className="sticky top-0 z-10 grid border-b border-[#cfc2d6]/20 bg-white/95 backdrop-blur"
+        className="sticky top-0 z-10 grid border-b border-edge/20 bg-white/95 backdrop-blur"
         style={{ gridTemplateColumns: gridCols }}
       >
         <div className="flex items-center justify-center p-3">
-          <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Period</span>
+          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period</span>
         </div>
         {visibleDays.map((day) => {
           const isOff = weekendDays.includes(day.num);
@@ -146,16 +146,16 @@ export function TimetableGrid({
             <div
               key={day.num}
               className={cn(
-                "flex flex-col items-center justify-center border-l border-[#f3f4f9] py-2.5",
-                isOff && "bg-[#f3f4f9]/70 opacity-60",
+                "flex flex-col items-center justify-center border-l border-muted py-2.5",
+                isOff && "bg-muted/70 opacity-60",
               )}
             >
-              <span className="text-[11px] font-black uppercase tracking-wider text-[#1f1a23]">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-strong">
                 {day.short}
               </span>
-              <span className="mt-0.5 text-[9px] font-semibold text-ink-subtle">{day.full}</span>
+              <span className="mt-0.5 text-2xs font-semibold text-ink-subtle">{day.full}</span>
               {isOff ? (
-                <span className="mt-1 rounded bg-rose-50 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-rose-500">
+                <span className="mt-1 rounded bg-rose-50 px-1.5 py-px text-3xs font-semibold uppercase tracking-wider text-rose-500">
                   Off
                 </span>
               ) : null}
@@ -173,23 +173,23 @@ export function TimetableGrid({
           <div
             key={period.num}
             className={cn(
-              "grid border-b border-[#f3f4f9] transition-colors last:border-b-0",
-              isSpecial ? specialStyle?.bg || "bg-[#f3f4f9]" : "hover:bg-[#fbf0fe]/20",
+              "grid border-b border-muted transition-colors last:border-b-0",
+              isSpecial ? specialStyle?.bg || "bg-muted" : "hover:bg-brand-50/20",
             )}
             style={{ gridTemplateColumns: gridCols }}
           >
             {/* Time column: the period, the window it covers, and how long it
                 runs — the three things anyone reads a timetable row for. */}
-            <div className="flex flex-col items-center justify-center border-r border-[#f3f4f9] px-1.5 py-2">
-              <span className="text-[11px] font-black text-[#8127cf]">P{period.num}</span>
-              <span className="mt-0.5 text-[9px] font-bold leading-tight text-ink-muted">
+            <div className="flex flex-col items-center justify-center border-r border-muted px-1.5 py-2">
+              <span className="text-2xs font-bold text-primary">P{period.num}</span>
+              <span className="mt-0.5 text-2xs font-bold leading-tight text-ink-muted">
                 {period.start}
               </span>
-              <span className="text-[9px] font-semibold leading-tight text-ink-subtle">
+              <span className="text-2xs font-semibold leading-tight text-ink-subtle">
                 {period.end}
               </span>
               {duration && density !== "compact" ? (
-                <span className="mt-1 rounded-full bg-[#f3f4f9] px-1.5 text-[8px] font-black uppercase tracking-wider text-ink-subtle">
+                <span className="mt-1 rounded-full bg-muted px-1.5 text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {duration}
                 </span>
               ) : null}
@@ -197,10 +197,10 @@ export function TimetableGrid({
 
             {visibleDays.map((day) => {
               const isOff = weekendDays.includes(day.num);
-              const offCls = isOff ? "opacity-40 bg-[#f3f4f9]/70" : "";
+              const offCls = isOff ? "opacity-40 bg-muted/70" : "";
               const slot = getSlot(day.num, period.num);
               if (!slot) {
-                return <div key={day.num} className={cn("border-l border-[#f3f4f9] p-1", offCls)} />;
+                return <div key={day.num} className={cn("border-l border-muted p-1", offCls)} />;
               }
 
               const change = pendingChanges.get(slot.id);
@@ -212,13 +212,13 @@ export function TimetableGrid({
                   <div
                     key={day.num}
                     className={cn(
-                      "flex cursor-pointer items-center justify-center border-l border-[#f3f4f9] p-1",
+                      "flex cursor-pointer items-center justify-center border-l border-muted p-1",
                       offCls,
                     )}
                     onClick={() => onCellClick(slot)}
                     title={style?.label || effectiveType}
                   >
-                    <span className={cn("text-[9px] font-bold", style?.text || "text-ink-subtle")}>
+                    <span className={cn("text-2xs font-bold", style?.text || "text-ink-subtle")}>
                       {density === "compact" ? style?.short : style?.label || effectiveType}
                     </span>
                   </div>
@@ -261,7 +261,7 @@ export function TimetableGrid({
               return (
                 <div
                   key={day.num}
-                  className={cn("group cursor-pointer border-l border-[#f3f4f9] p-1 transition-all", offCls)}
+                  className={cn("group cursor-pointer border-l border-muted p-1 transition-all", offCls)}
                   onClick={() => onCellClick(slot)}
                   onDragOver={(e) => {
                     if (onDropSubject) e.preventDefault();
@@ -297,7 +297,7 @@ export function TimetableGrid({
                       />
                       <p
                         className={cn(
-                          "truncate pl-1.5 font-black leading-tight",
+                          "truncate pl-1.5 font-bold leading-tight",
                           d.subject,
                           color?.text || "text-gray-600",
                         )}
@@ -349,11 +349,11 @@ export function TimetableGrid({
                     <div
                       title={`Free · ${day.full} P${period.num} ${period.start}–${period.end}`}
                       className={cn(
-                        "flex h-full items-center justify-center rounded-xl border border-dashed border-[#cfc2d6]/20 transition-all group-hover:border-[#8127cf]/30 group-hover:bg-[#fbf0fe]/30",
+                        "flex h-full items-center justify-center rounded-xl border border-dashed border-edge/20 transition-all group-hover:border-primary/30 group-hover:bg-brand-50/30",
                         d.cell,
                       )}
                     >
-                      <BookOpen className="h-3.5 w-3.5 text-ink-subtle transition-colors group-hover:text-[#8127cf]/40" />
+                      <BookOpen className="h-3.5 w-3.5 text-ink-subtle transition-colors group-hover:text-primary/40" />
                     </div>
                   )}
                 </div>

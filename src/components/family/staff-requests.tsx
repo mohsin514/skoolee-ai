@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -36,9 +36,9 @@ export function LearnerLeaveQueue() {
   useEffect(() => { void load(); }, [load]);
   if (!rows) return null;
   return <div className="sk-panel space-y-3 p-5" data-leave-queue>
-    <h3 className="text-base font-black">{ui("Learner leave requests ({0})", [String(rows.length)])}</h3>
+    <h3 className="text-base font-bold">{ui("Learner leave requests ({0})", [String(rows.length)])}</h3>
     <p className="text-xs text-ink-muted">{ui("A decision does not mark the register; mark the days when they come.")}</p>
-    {rows.length ? <ul className="divide-y divide-[#cfc2d6]/20">{rows.map(row => <li key={row.id} className="space-y-1 py-2" data-leave-row={row.id}>
+    {rows.length ? <ul className="divide-y divide-edge/20">{rows.map(row => <li key={row.id} className="space-y-1 py-2" data-leave-row={row.id}>
       <p className="text-sm"><bdi>{row.studentName}</bdi> · <bdi>{row.className}</bdi> · <bdi>{date(row.fromDate)}</bdi>{row.toDate !== row.fromDate ? <> – <bdi>{date(row.toDate)}</bdi></> : null}</p>
       <p className="whitespace-pre-line text-xs text-ink-muted" dir="auto">{row.reason}</p>
       <div className="flex gap-2"><Button size="sm" onClick={() => setDeciding({ row, action: "approve" })} data-leave-approve>{ui("Approve")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "clarify" })} data-leave-clarify>{ui("Ask for more detail")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "decline" })} data-leave-decline>{ui("Decline")}</Button></div>
@@ -73,15 +73,15 @@ export function TripsDesk() {
   };
   if (!trips) return null;
   return <div className="sk-panel space-y-3 p-5" data-trips-desk>
-    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-black">{ui("Trips and permission")}</h3><Button size="sm" variant="outline" onClick={() => { setForm(emptyTerms); setEditing({ mode: "create" }); }} data-new-trip>{ui("New trip notice")}</Button></div>
-    {trips.length ? <ul className="divide-y divide-[#cfc2d6]/20">{trips.map(trip => <li key={trip.id} className="flex flex-wrap items-center gap-2 py-2" data-trip-row={trip.id}>
+    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Trips and permission")}</h3><Button size="sm" variant="outline" onClick={() => { setForm(emptyTerms); setEditing({ mode: "create" }); }} data-new-trip>{ui("New trip notice")}</Button></div>
+    {trips.length ? <ul className="divide-y divide-edge/20">{trips.map(trip => <li key={trip.id} className="flex flex-wrap items-center gap-2 py-2" data-trip-row={trip.id}>
       <span className="flex-1 text-sm font-bold" dir="auto">{trip.title} <span className="text-xs font-normal text-ink-muted">· {ui("Version {0}", [String(trip.currentVersion)])} · <bdi>{dateTime(trip.departAt)}</bdi></span></span>
       <Button size="sm" variant="outline" onClick={() => void openRoster(trip.id)} data-trip-roster>{ui("Answers")}</Button>
     </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No trips yet.")}</p>}
     {roster ? <ModalFrame title={String((roster.versions.at(-1) as { title?: string })?.title ?? "")} eyebrow={ui("Trip permission")} subtitle={ui("Version {0} · answers count from version {1}", [String(roster.trip.currentVersion), String(roster.trip.baseline)])} onClose={() => setRoster(null)} wide>
       <div className="space-y-3" data-trip-roster-dialog>
         <p className="text-sm">{["GRANTED", "PARTIAL", "PENDING", "DECLINED"].map(k => `${standing(ui, k)}: ${roster.counts[k] ?? 0}`).join(" · ")}</p>
-        <ul className="divide-y divide-[#cfc2d6]/20">{roster.rows.map(row => <li key={row.studentId} className="py-2 text-sm" data-roster-row={row.studentId} data-roster-status={row.status}><span className="font-bold"><bdi>{row.name}</bdi></span> · {standing(ui, row.status)}{row.history.length ? <span className="block text-xs text-ink-muted">{row.history.map((h, i) => <span key={i}>{i ? " · " : ""}<bdi>{h.guardian ?? ""}</bdi> · {ui("Version {0}", [String(h.version)])} · {({ GRANTED: ui("Permission given"), DECLINED: ui("Permission refused"), WITHDRAWN: ui("Permission withdrawn") } as Record<string, string>)[h.choice] ?? h.choice}</span>)}</span> : null}</li>)}</ul>
+        <ul className="divide-y divide-edge/20">{roster.rows.map(row => <li key={row.studentId} className="py-2 text-sm" data-roster-row={row.studentId} data-roster-status={row.status}><span className="font-bold"><bdi>{row.name}</bdi></span> · {standing(ui, row.status)}{row.history.length ? <span className="block text-xs text-ink-muted">{row.history.map((h, i) => <span key={i}>{i ? " · " : ""}<bdi>{h.guardian ?? ""}</bdi> · {ui("Version {0}", [String(h.version)])} · {({ GRANTED: ui("Permission given"), DECLINED: ui("Permission refused"), WITHDRAWN: ui("Permission withdrawn") } as Record<string, string>)[h.choice] ?? h.choice}</span>)}</span> : null}</li>)}</ul>
         {roster.trip.status === "OPEN" ? <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { const v = roster.versions.at(-1) as Record<string, string | number>; const local = (iso: string | number) => new Date(String(iso)).toISOString().slice(0, 16); setForm({ title: String(v.title), destination: String(v.destination), departAt: local(v.departAt), returnAt: local(v.returnAt), respondBy: local(v.respondBy), costAmount: String(v.costAmount), costCurrency: String(v.costCurrency), contact: String(v.contact), instructions: String(v.instructions), consentKind: String(v.consentKind), signatoryRule: String(v.signatoryRule) }); setMaterial(true); setChangeNote(""); setEditing({ mode: "revise", tripId: roster.trip.id, knownVersion: roster.trip.currentVersion }); setRoster(null); }} data-revise-trip>{ui("Change the terms")}</Button></div> : null}
       </div>
     </ModalFrame> : null}

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Noto_Sans_Arabic, Plus_Jakarta_Sans } from "next/font/google";
 import { AppToaster } from "@/components/ui/app-toaster";
 import { Suspense } from "react";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
@@ -8,9 +8,20 @@ import { CandidateExamGuard } from "@/components/providers/candidate-exam-guard"
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+  // latin-ext covers Turkish, Polish, Czech, Vietnamese-adjacent names that
+  // international schools enter for staff, guardians and learners.
+  subsets: ["latin", "latin-ext"],
   variable: "--font-plus-jakarta-sans",
   display: "swap",
+});
+
+// Arabic and Urdu glyphs. Not preloaded: its @font-face carries the Arabic
+// unicode-range, so an English-only session never downloads it.
+const notoSansArabic = Noto_Sans_Arabic({
+  subsets: ["arabic"],
+  variable: "--font-noto-arabic",
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -70,7 +81,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${plusJakartaSans.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${notoSansArabic.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">

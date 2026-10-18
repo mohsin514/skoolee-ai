@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Loader2, Shield, Lock, CreditCard, CheckCircle2 } from "lucide-react";
 import { Input as SystemInput } from "@/components/ui/input";
 import { safeReturnPath } from "@/lib/auth/return-path";
@@ -98,7 +98,7 @@ function SafePayForm() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
         <div className="sk-panel sk-rise p-10 max-w-sm w-full text-center" style={{ animationDelay: "0ms" }}>
           <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-[#1f1a23]">Payment Successful!</h2>
+          <h2 className="text-2xl font-bold text-ink-strong">Payment Successful!</h2>
           <p className="text-sm text-ink-muted mt-2">Redirecting to billing...</p>
         </div>
       </div>
@@ -109,36 +109,36 @@ function SafePayForm() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
       <div className="sk-panel sk-rise p-8 max-w-md w-full" style={{ animationDelay: "0ms" }}>
         <div className="group relative flex items-center gap-3 mb-6">
-          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[#8127cf]/18" />
-          <div className="relative w-10 h-10 rounded-xl bg-[#8127cf] flex items-center justify-center">
+          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-primary/18" />
+          <div className="relative w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
             <Shield className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-[#1f1a23]">SafePay</h1>
-            <p className="text-[10px] font-semibold text-ink-subtle uppercase tracking-wider">Secured by HBL</p>
+            <h1 className="text-xl font-bold text-ink-strong">SafePay</h1>
+            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider">Secured by HBL</p>
           </div>
         </div>
 
-        <div className="rounded-xl bg-[#f3f4f9] p-4 mb-6">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Order Reference</p>
-          <p className="text-sm font-bold text-[#1f1a23]">{orderRef}</p>
-          <div className="flex justify-between items-center mt-2 pt-2 border-t border-[#cfc2d6]/20">
+        <div className="rounded-xl bg-muted p-4 mb-6">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Order Reference</p>
+          <p className="text-sm font-bold text-ink-strong">{orderRef}</p>
+          <div className="flex justify-between items-center mt-2 pt-2 border-t border-edge/20">
             <p className="text-sm font-semibold text-ink-muted">
               {kind === "FEE" ? "Invoice:" : "Plan:"}{" "}
-              <span className="text-[#1f1a23]">
+              <span className="text-ink-strong">
                 {kind === "FEE" ? "Fee Payment" : `${plan} · ${billingPeriod === "annual" ? "Annual" : "Monthly"}`}
               </span>
             </p>
             {billingPeriod === "annual" && (
-              <p className="text-[10px] font-bold text-emerald-600 mt-0.5">20% annual discount applied</p>
+              <p className="text-2xs font-bold text-emerald-600 mt-0.5">20% annual discount applied</p>
             )}
-            <p className="text-lg font-black text-[#8127cf]">{amountLabel}</p>
+            <p className="text-lg font-bold text-primary">{amountLabel}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Cardholder Name</label>
+            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Cardholder Name</label>
             <SystemInput
               value={cardName}
               onChange={(e) => setCardName(e.target.value)}
@@ -148,7 +148,7 @@ function SafePayForm() {
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Card Number</label>
+            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Card Number</label>
             <SystemInput
               value={cardNumber}
               onChange={(e) => setCardNumber(formatCard(e.target.value))}
@@ -159,7 +159,7 @@ function SafePayForm() {
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Expiry</label>
+              <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Expiry</label>
               <SystemInput
                 value={expiry}
                 onChange={(e) => setExpiry(formatExpiry(e.target.value))}
@@ -169,7 +169,7 @@ function SafePayForm() {
               />
             </div>
             <div className="flex-1">
-              <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">CVV</label>
+              <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">CVV</label>
               <SystemInput
                 value={cvv}
                 onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
@@ -192,7 +192,7 @@ function SafePayForm() {
             )}
             {submitting ? "Processing..." : `Pay ${amountLabel}`}
           </Button>
-          <p className="text-[10px] text-center text-ink-subtle font-semibold">
+          <p className="text-2xs text-center text-ink-subtle font-semibold">
             This is a test payment page. No real payment will be charged.
           </p>
         </form>

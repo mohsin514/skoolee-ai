@@ -74,7 +74,7 @@ export default function VerifySuccessPage() {
   }, [countdown, router]);
 
   return (
-    <main lang={language} dir={directionFor(language)} className="grid min-h-dvh w-full grid-cols-1 bg-[#fff7fe] font-sans md:grid-cols-2">
+    <main lang={language} dir={directionFor(language)} className="grid min-h-dvh w-full grid-cols-1 bg-brand-50 font-sans md:grid-cols-2">
 
       {/* ─── LEFT SIDE: Visual Narrative ─── */}
       <section className="relative hidden min-h-dvh overflow-hidden md:block">
@@ -83,8 +83,8 @@ export default function VerifySuccessPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 to-transparent z-20"></div>
         <div className="absolute bottom-12 inset-x-8 z-30 max-w-md xl:inset-x-12">
           <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-normal text-emerald-600 uppercase mb-2 block">{t.eyebrow}</span>
-            <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">{t.quote}</h2>
+            <span className="text-xs font-semibold tracking-normal text-emerald-600 uppercase mb-2 block">{t.eyebrow}</span>
+            <h2 className="text-3xl font-extrabold text-ink-strong leading-tight mb-4">{t.quote}</h2>
             <p className="text-ink font-medium text-sm">{t.brandBody}</p>
           </div>
         </div>
@@ -108,7 +108,7 @@ export default function VerifySuccessPage() {
               <CheckCircle aria-hidden className="w-12 h-12" />
             </div>
 
-            <h1 className="mb-4 text-3xl font-extrabold tracking-normal text-[#1f1a23]">{t.title}</h1>
+            <h1 className="mb-4 text-3xl font-extrabold tracking-normal text-ink-strong">{t.title}</h1>
             <p className="text-sm font-medium text-ink mb-10 leading-relaxed px-2">
               {t.body}
             </p>
@@ -122,7 +122,7 @@ export default function VerifySuccessPage() {
             </div>
           </div>
 
-          <p className="mt-8 text-center text-xs font-bold text-ink-subtle uppercase tracking-normal flex items-center justify-center gap-2">
+          <p className="mt-8 text-center text-xs font-semibold text-ink-subtle uppercase tracking-normal flex items-center justify-center gap-2">
             <ShieldCheck aria-hidden className="w-4 h-4" /> {t.complete}
           </p>
         </div>

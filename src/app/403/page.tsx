@@ -30,15 +30,15 @@ export default async function ForbiddenPage() {
   };
 
   return (
-    <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="flex min-h-screen items-center justify-center bg-[#f3f4f9] p-6 text-[#1f1a23]">
+    <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="flex min-h-screen items-center justify-center bg-muted p-6 text-ink-strong">
       <section
         className="sk-panel sk-rise max-w-md p-10 text-center"
         style={{ animationDelay: "0ms" }}
       >
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-[#fbf0fe] text-[#8127cf]">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-brand-50 text-primary">
           <ShieldAlert aria-hidden="true" className="h-8 w-8" />
         </div>
-        <h1 className="mb-2 text-2xl font-black tracking-normal">{copy.title}</h1>
+        <h1 className="mb-2 text-2xl font-bold tracking-normal">{copy.title}</h1>
         <p className="mb-6 text-sm font-semibold leading-relaxed text-ink-muted">
           {copy.description}
         </p>
@@ -47,7 +47,7 @@ export default async function ForbiddenPage() {
           <div className="space-y-3">
             <Link
               href={home}
-              className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-[#8127cf] px-6 text-sm font-black text-white transition-colors hover:bg-[#6d1fae]"
+              className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-6 text-sm font-bold text-white transition-colors hover:bg-[#6d1fae]"
             >
               {copy.home}
             </Link>
@@ -56,7 +56,7 @@ export default async function ForbiddenPage() {
         ) : (
           <Link
             href="/login"
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-[#1f1a23] px-6 text-sm font-black text-white"
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-ink-strong px-6 text-sm font-bold text-white"
           >
             {copy.login}
           </Link>

@@ -17,7 +17,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, StatCard } from "@/components/role-dashboard";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import type { FeeTab, FeeSummary, RecentPayment } from "./fee-types";
@@ -59,14 +59,14 @@ export function FeeOverviewTab({
       <div className="space-y-6">
         <div className="sk-panel p-6 animate-skeleton-in">
           <div className="flex items-center gap-3 mb-5">
-            <div className="h-10 w-10 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
-            <div className="h-5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-10 w-10 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
+            <div className="h-5 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
           </div>
           <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="rounded-2xl bg-[#f3f4f9]/50 p-4 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
-                <div className="h-3 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer mb-2" />
-                <div className="h-6 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div key={i} className="rounded-2xl bg-muted/50 p-4 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+                <div className="h-3 w-16 rounded-full bg-border-subtle/50 skeleton-shimmer mb-2" />
+                <div className="h-6 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
               </div>
             ))}
           </div>
@@ -77,14 +77,14 @@ export function FeeOverviewTab({
 
   return (
     <div className="space-y-6"><CurrencySelect value={currency} onChange={setCurrency} />
-      <div className="sk-rise relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-rise relative overflow-hidden rounded-[32px] border border-edge/25 bg-gradient-to-br from-brand-50/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <CornerSparkles />
         <div className="flex items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
               <Receipt className="h-5 w-5" />
             </div>
-            <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Fee Dashboard"}</UiText></h3>
+            <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee Dashboard"}</UiText></h3>
           </div>
           {onNavigate && (
             <div className="flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export function FeeOverviewTab({
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div>
-            <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Collection by Class"}</UiText></h4>
+            <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Collection by Class"}</UiText></h4>
             <div className="space-y-2">
               {summary?.byClass.map((cls) => (
                 <div
@@ -143,21 +143,21 @@ export function FeeOverviewTab({
                   className="sk-panel flex items-center justify-between gap-3 px-4 py-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black text-[#1f1a23]">
+                    <p className="truncate text-sm font-bold text-ink-strong">
                       {cls.className}
                     </p>
-                    <div className="mt-1 h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                    <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#a855f7] transition-all"
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-[#a855f7] transition-all"
                         style={{ width: `${Math.min(100, cls.collectionRate)}%` }}
                       />
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-xs font-black text-ink-muted">
+                    <p className="text-xs font-bold text-ink-muted">
                       {cls.collectionRate}%
                     </p>
-                    <p className="text-[9px] font-bold text-ink-subtle">
+                    <p className="text-2xs font-bold text-ink-subtle">
                       {formatPKR(cls.totalPaid, summary?.currency)} / {formatPKR(cls.totalDue, summary?.currency)}
                     </p>
                   </div>
@@ -171,7 +171,7 @@ export function FeeOverviewTab({
 
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle"><UiText>{"At-Risk Students"}</UiText></h4>
+              <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"At-Risk Students"}</UiText></h4>
               {onNavigate && summary?.atRiskStudents && summary.atRiskStudents.length > 0 && (
                 <Button variant="link"
                   type="button"
@@ -184,17 +184,17 @@ export function FeeOverviewTab({
               {summary?.atRiskStudents.map((s) => (
                 <div
                   key={s.studentId}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 border border-[#cfc2d6]/10 hover:border-rose-200 transition-colors"
+                  className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 border border-edge/10 hover:border-rose-200 transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-[#1f1a23]">
+                    <p className="truncate text-sm font-bold text-ink-strong">
                       {s.studentName}
                     </p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+                    <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                       {s.className} · {s.daysOverdue}<UiText>{"d overdue"}</UiText></p>
                   </div>
                   <p
-                    className={`text-xs font-black whitespace-nowrap ${
+                    className={`text-xs font-bold whitespace-nowrap ${
                       s.paymentStatus === "critical"
                         ? "text-rose-600"
                         : s.paymentStatus === "warning"
@@ -222,7 +222,7 @@ export function FeeOverviewTab({
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <TrendingUp className="h-4 w-4" />
               </div>
-              <h4 className="text-sm font-black text-[#1f1a23]"><UiText>{"Recent Payments"}</UiText></h4>
+              <h4 className="text-sm font-bold text-ink-strong"><UiText>{"Recent Payments"}</UiText></h4>
             </div>
             {onNavigate && (
               <Button variant="link"
@@ -236,21 +236,21 @@ export function FeeOverviewTab({
             {summary.recentPayments.slice(0, 5).map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-[#f3f4f9]/50 px-4 py-3"
+                className="flex items-center justify-between gap-3 rounded-2xl bg-muted/50 px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black text-[#1f1a23] truncate">
+                  <p className="text-sm font-bold text-ink-strong truncate">
                     {p.studentName}
                   </p>
-                  <p className="text-[9px] font-bold text-ink-subtle">
+                  <p className="text-2xs font-bold text-ink-subtle">
                     {p.invoiceNumber} · {tr(paymentMethodLabel(p.paymentMethod))}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-black text-emerald-600">
+                  <p className="text-sm font-bold text-emerald-600">
                     {formatPKR(p.amount, summary?.currency)}
                   </p>
-                  <p className="text-[9px] font-bold text-ink-subtle">
+                  <p className="text-2xs font-bold text-ink-subtle">
                     {p.receiptNo}
                   </p>
                 </div>

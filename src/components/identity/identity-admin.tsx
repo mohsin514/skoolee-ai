@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ function ConnectionForm({ data, conn, reload }: { data: Overview; conn: Conn | n
   const [emergency, setEmergency] = useState<string[]>(conn?.emergencyAdminIds ?? []), [domain, setDomain] = useState(""), [busy, setBusy] = useState(false), [test, setTest] = useState<{ ok: boolean; problems: string[]; callback: string; audience: string; issuer: string } | null>(null), [record, setRecord] = useState<{ record: string; token: string } | null>(null);
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   return <section className="sk-panel min-w-0 space-y-3 p-4" data-identity-connection={conn?.name ?? "new"}>
-    <h2 className="text-lg font-black">{conn ? <><bdi>{conn.name}</bdi> · {statusLabel(ui, conn.status)}</> : ui("New identity connection")}</h2>
+    <h2 className="text-lg font-bold">{conn ? <><bdi>{conn.name}</bdi> · {statusLabel(ui, conn.status)}</> : ui("New identity connection")}</h2>
     <p className="text-xs text-ink-muted">{ui("Supported: OpenID Connect authorization code with PKCE. SAML, SCIM and OneRoster are not available.")}</p>
     <div className="grid gap-2 sm:grid-cols-2">
       <FormField name="id-name" label={ui("Connection name")}><Input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} dir="auto" data-identity-name /></FormField>
@@ -75,7 +75,7 @@ function LinkRequests({ data, reload }: { data: Overview; reload: () => Promise<
   useEffect(() => { if (open) call(`/api/identity?view=candidates&id=${open.id}`).then(setCands).catch(() => setCands([])); }, [open]);
   if (!data.requests.length) return null;
   const decide = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { await call("/api/identity", "POST", { action: "decide-link", id: open!.id, ...body }); toast.success(ui(done)); setOpen(null); await reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
-  return <section className="sk-panel space-y-2 p-4" data-link-requests><h2 className="text-lg font-black">{ui("Accounts waiting to be linked")}</h2><p className="text-xs text-ink-muted">{ui("Match by a stable identifier. Names alone never establish identity.")}</p>
+  return <section className="sk-panel space-y-2 p-4" data-link-requests><h2 className="text-lg font-bold">{ui("Accounts waiting to be linked")}</h2><p className="text-xs text-ink-muted">{ui("Match by a stable identifier. Names alone never establish identity.")}</p>
     {data.requests.map(r => <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-2 text-sm" data-link-request={r.subject}><span><bdi dir="ltr">{r.subject}</bdi> · <bdi dir="ltr">{r.email ?? "—"}</bdi>{r.emailVerified ? "" : ` · ${ui("email not verified")}`} · <span dir="auto">{ui(r.reason)}</span> · <bdi>{dateTime(r.createdAt)}</bdi></span><Button size="sm" variant="outline" onClick={() => setOpen(r)} data-link-review>{ui("Review")}</Button></div>)}
     {open ? <ModalFrame title={ui("Link provider identity {0}", [open.subject])} onClose={() => setOpen(null)}><div className="space-y-3" data-link-modal>
       <div className="rounded-xl border p-2 text-sm"><p className="font-bold">{ui("From the provider")}</p><p><bdi dir="ltr">{open.subject}</bdi></p><p><bdi dir="auto">{open.name ?? "—"}</bdi> · <bdi dir="ltr">{open.email ?? "—"}</bdi></p></div>
@@ -93,7 +93,7 @@ function RosterReview({ data, reload }: { data: Overview; reload: () => Promise<
   if (!data.connections.length) return null;
   const ready = batch ? batch.changes.filter(c => ["ADD", "UPDATE", "WITHDRAW"].includes(c.action)).length + Object.values(decisions).filter(d => d === "APPLY_SOURCE" || d === "KEEP_LOCAL").length : 0;
   return <section className="sk-panel min-w-0 space-y-3 p-4" data-roster>
-    <h2 className="text-lg font-black">{ui("Roster change review")}</h2>
+    <h2 className="text-lg font-bold">{ui("Roster change review")}</h2>
     <div className="grid gap-2 sm:grid-cols-3"><FormField name="rb-conn" label={ui("Source")}><Select value={form.connectionId} onChange={e => setForm({ ...form, connectionId: e.target.value })} data-roster-connection>{data.connections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></FormField>
       {data.isGroupAdmin ? <FormField name="rb-campus" label={ui("Campus")}><Select value={form.campusId} onChange={e => setForm({ ...form, campusId: e.target.value })} data-roster-campus>{data.campuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></FormField> : null}
       <FormField name="rb-id" label={ui("Source batch id")}><Input value={form.externalBatchId} onChange={e => setForm({ ...form, externalBatchId: e.target.value })} dir="ltr" data-roster-batch-id /></FormField></div>
@@ -101,7 +101,7 @@ function RosterReview({ data, reload }: { data: Overview; reload: () => Promise<
     <Button variant="outline" disabled={busy || !form.externalBatchId.trim()} onClick={async () => { setBusy(true); try { let rows; try { rows = JSON.parse(form.rows); } catch { throw new Error("Rows must be valid JSON."); } const r = await call("/api/identity", "POST", { action: "batch", ...form, rows }); toast.success(ui(r.replayed ? "This batch was already received; showing it." : "Preview ready. Nothing has changed yet.")); await open(r.id); await reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-roster-preview>{ui("Preview changes")}</Button>
     {data.batches.length ? <ul className="flex flex-wrap gap-2 text-xs">{data.batches.map(b => <li key={b.id}><Button size="sm" variant="ghost" onClick={() => void open(b.id)} data-roster-open={b.externalBatchId}><bdi dir="ltr">{b.externalBatchId}</bdi> · {statusLabel(ui, b.status)}</Button></li>)}</ul> : null}
     {batch ? <div className="space-y-2" data-roster-batch={batch.externalBatchId} data-roster-status={batch.status}>
-      <p className="font-black" data-roster-summary>{ui("{0} changes ready · {1} need a decision", [String(batch.summary.add + batch.summary.update + batch.summary.withdraw), String(batch.summary.conflict)])} · {ui("Add {0}, update {1}, withdraw {2}, cannot apply {3}", [String(batch.summary.add), String(batch.summary.update), String(batch.summary.withdraw), String(batch.summary.error)])}</p>
+      <p className="font-bold" data-roster-summary>{ui("{0} changes ready · {1} need a decision", [String(batch.summary.add + batch.summary.update + batch.summary.withdraw), String(batch.summary.conflict)])} · {ui("Add {0}, update {1}, withdraw {2}, cannot apply {3}", [String(batch.summary.add), String(batch.summary.update), String(batch.summary.withdraw), String(batch.summary.error)])}</p>
       <p className="text-xs text-ink-muted">{ui("Withdrawal preserves historical records. Names alone never establish identity.")}</p>
       <ul className="space-y-2">{batch.changes.filter(c => c.action !== "UNCHANGED").map(c => <li key={c.key} className={cn("rounded-xl border p-2 text-sm", c.action === "CONFLICT" && "border-amber-400", c.destructive && "border-red-300")} data-roster-change={c.externalId} data-roster-action={c.action}>
         <p className="font-bold">{actionLabel(ui, c.action)} · <bdi dir="ltr">{c.externalId}</bdi>{c.destructive ? <> · {ui("Removes access")}</> : null}</p>
@@ -123,7 +123,7 @@ export function IdentityAdmin() {
   if (denied) return <p className="sk-panel p-4 text-sm" data-identity-denied>{ui("Identity administration permission is required.")}</p>;
   if (!data) return <p className="text-sm text-ink-muted">{ui("Testing metadata and retrieving a roster preview.")}</p>;
   return <div className="min-w-0 space-y-5" data-identity>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h1 className="text-xl font-black">{ui("Identity and roster connection")}</h1><p className="text-sm text-ink-muted">{ui("Local password sign-in always stays available for recovery.")}</p></div>{data.isGroupAdmin ? <Button variant="outline" onClick={() => setAdding(!adding)} data-identity-add>{ui("Add connection")}</Button> : null}</header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h1 className="text-xl font-bold">{ui("Identity and roster connection")}</h1><p className="text-sm text-ink-muted">{ui("Local password sign-in always stays available for recovery.")}</p></div>{data.isGroupAdmin ? <Button variant="outline" onClick={() => setAdding(!adding)} data-identity-add>{ui("Add connection")}</Button> : null}</header>
     {data.isGroupAdmin ? <>{adding ? <ConnectionForm data={data} conn={null} reload={async () => { setAdding(false); await load(); }} /> : null}{data.connections.map(c => <ConnectionForm key={c.id + c.status + (c.lastTestedAt ?? "") + c.verifiedDomains.join()} data={data} conn={c} reload={load} />)}{!data.connections.length && !adding ? <p className="sk-panel p-4 text-sm" data-identity-empty>{ui("No identity provider connected. Configure a supported connection.")}</p> : null}<LinkRequests data={data} reload={load} /></> : <p className="text-xs text-ink-muted">{ui("Group identity settings are managed by your group's identity administrators. You can review roster changes for your campus.")}</p>}
     <RosterReview data={data} reload={load} />
     {data.events.length ? <details className="sk-panel p-4 text-sm" data-identity-audit><summary className="cursor-pointer font-bold">{ui("Provisioning and sign-in audit")}</summary><ol className="mt-2 space-y-1">{data.events.map(e => <li key={e.id} data-identity-event={e.kind}><bdi>{dateTime(e.createdAt)}</bdi> · <bdi dir="ltr">{e.kind}</bdi></li>)}</ol></details> : null}

@@ -88,19 +88,19 @@ function WizardChrome({
         {/* Header scrolls with the fields so 200% text cannot consume the entry viewport. */}
         <div
           {...dragHandleProps}
-          className="relative shrink-0 touch-none overflow-hidden border-b border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
+          className="relative shrink-0 touch-none overflow-hidden border-b border-edge/20 bg-gradient-to-br from-surface-subtle via-white to-brand-100 px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
         >
-          <div className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/12 to-transparent blur-3xl" />
+          <div className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl from-primary/12 to-transparent blur-3xl" />
           <div className="relative flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3.5">
-              <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
+              <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
                 <Icon className="h-6 w-6" />
               </span>
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
                   {eyebrow} · Step {step + 1} of {steps.length}
                 </p>
-                <h3 id={titleId} className="break-words text-xl sm:text-2xl font-black tracking-tight text-[#1f1a23]">
+                <h3 id={titleId} className="break-words text-xl sm:text-2xl font-bold tracking-tight text-ink-strong">
                   {current.label}
                 </h3>
                 <p className="mt-0.5 text-xs font-semibold leading-snug text-ink-muted">{current.blurb}</p>
@@ -148,20 +148,20 @@ function WizardChrome({
 
           <div className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/80">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] via-[#9c48ea] to-[#b876f0] transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-primary via-brand-400 to-brand-300 transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
 
         {/* ── Scrolling body ── */}
-        <fieldset disabled={submitting} className="m-0 min-w-0 border-0 bg-[#fdfcfe] px-4 py-6 sm:px-7">
+        <fieldset disabled={submitting} className="m-0 min-w-0 border-0 bg-surface-subtle px-4 py-6 sm:px-7">
           {children}
         </fieldset>
 
         </div>
         {/* ── Pinned footer ── */}
-        <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-white px-6 py-4 sm:px-7">
+        <div className="shrink-0 border-t border-edge/15 bg-white px-6 py-4 sm:px-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <SystemButton variant="outline"
               type="button"
@@ -221,7 +221,7 @@ export function FormSection({
   children: React.ReactNode;
 }) {
   const tones = {
-    violet: "bg-[#f3eeff] text-[#8127cf]",
+    violet: "bg-brand-100 text-primary",
     emerald: "bg-emerald-50 text-emerald-600",
     amber: "bg-amber-50 text-amber-600",
     sky: "bg-sky-50 text-sky-600",
@@ -233,8 +233,8 @@ export function FormSection({
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h3 className="break-words text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
-          {hint ? <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-muted">{hint}</p> : null}
+          <h3 className="break-words text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
+          {hint ? <p className="mt-0.5 text-2xs font-semibold leading-snug text-ink-muted">{hint}</p> : null}
         </div>
       </div>
       {children}
@@ -278,14 +278,14 @@ export function ReviewHero({
   meta: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#8127cf]/20 bg-gradient-to-br from-white via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(129,39,207,0.18)]">
+    <div className="rounded-[24px] border border-primary/20 bg-gradient-to-br from-white via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(129,39,207,0.18)]">
       <div className="flex items-start gap-4">
-        <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
+        <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
           <Icon className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
-          <h3 className="truncate text-lg font-black tracking-tight text-[#1f1a23]">{title}</h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{eyebrow}</p>
+          <h3 className="truncate text-lg font-bold tracking-tight text-ink-strong">{title}</h3>
           <p className="mt-0.5 truncate text-xs font-semibold text-ink-muted">{meta}</p>
         </div>
       </div>
@@ -309,10 +309,10 @@ export function ReviewSection({
     <div className="sk-panel p-3 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex bg-[#f3eeff] text-[#8127cf]">
+          <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex bg-brand-100 text-primary">
             <Icon className="h-5 w-5" />
           </span>
-          <h3 className="break-words text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
+          <h3 className="break-words text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
         </div>
         <SystemButton variant="default"
           type="button"
@@ -322,7 +322,7 @@ export function ReviewSection({
           Edit
         </SystemButton>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-[#f3f4f9] pt-3">{children}</div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-muted pt-3">{children}</div>
     </div>
   );
 }
@@ -343,8 +343,8 @@ export function ReviewRow({
   const missing = required && !value;
   return (
     <div>
-      <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{label}</p>
-      <p className={cn("truncate text-sm font-bold", missing ? "text-rose-500" : "text-[#1f1a23]")} dir={dir}>
+      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
+      <p className={cn("truncate text-sm font-bold", missing ? "text-rose-500" : "text-ink-strong")} dir={dir}>
         {value || (required ? "Required — not set" : "—")}
       </p>
     </div>

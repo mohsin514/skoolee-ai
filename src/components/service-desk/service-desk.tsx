@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -59,14 +59,14 @@ export function ServiceDesk() {
   };
   const chosen = useMemo(() => form?.categories.find(c => c.id === draft.categoryId) ?? null, [form, draft.categoryId]);
   const list = (rows: Summary[], showRequester: boolean) => rows.length ? <ul className="space-y-2">{rows.map(r => <li key={r.id}>
-    <Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", r.overdue ? "border-rose-200 bg-rose-50/40" : !r.ownerId && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(r.status) ? "border-amber-300 bg-amber-50/40" : "border-[#cfc2d6]/40 bg-white")} onClick={() => void openRequest(r.id)} data-sd-row={r.reference} data-sd-status={r.status}>
-      <p className="text-sm font-black"><bdi>{r.reference}</bdi> · <span dir="auto">{r.title}</span>{r.safety ? <span className="ms-2 rounded bg-rose-100 px-1.5 text-[10px] font-black text-rose-800">{ui("Safety")}</span> : null}</p>
+    <Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", r.overdue ? "border-rose-200 bg-rose-50/40" : !r.ownerId && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(r.status) ? "border-amber-300 bg-amber-50/40" : "border-edge/40 bg-white")} onClick={() => void openRequest(r.id)} data-sd-row={r.reference} data-sd-status={r.status}>
+      <p className="text-sm font-bold"><bdi>{r.reference}</bdi> · <span dir="auto">{r.title}</span>{r.safety ? <span className="ms-2 rounded bg-rose-100 px-1.5 text-2xs font-bold text-rose-800">{ui("Safety")}</span> : null}</p>
       <p className="text-xs text-ink-muted"><span dir="auto">{r.location}</span> · <span dir="auto">{r.category}</span> · {priorityLabel(ui, r.priority)} · {statusLabel(ui, r.status, Boolean(r.ownerId))}{r.status === "BLOCKED" && r.blockedReason ? <>: <span dir="auto">{r.blockedReason}</span></> : null}</p>
-      <p className="text-xs">{r.owner ? <>{ui("Owner")}: <bdi>{r.owner}</bdi></> : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{showRequester ? <> · {ui("Requested by {0}", [r.requester])}</> : null}{r.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(r.resolveDueAt)}</bdi></> : null}{r.overdue ? <> · <span className="font-black text-rose-700">{ui("Overdue")}</span></> : null}{r.reopenedCount ? <> · {ui("Reopened {0}×", [String(r.reopenedCount)])}</> : null}</p>
+      <p className="text-xs">{r.owner ? <>{ui("Owner")}: <bdi>{r.owner}</bdi></> : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{showRequester ? <> · {ui("Requested by {0}", [r.requester])}</> : null}{r.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(r.resolveDueAt)}</bdi></> : null}{r.overdue ? <> · <span className="font-bold text-rose-700">{ui("Overdue")}</span></> : null}{r.reopenedCount ? <> · {ui("Reopened {0}×", [String(r.reopenedCount)])}</> : null}</p>
     </Button></li>)}</ul> : <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted">{ui("No open requests match these filters.")}</p>;
 
   return <section className="sk-panel min-w-0 max-w-full space-y-4 p-4 sm:p-5" data-service-desk>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-black">{ui("Service desk")}</h2><p className="text-xs text-ink-muted">{ui("Report repairs, access, supplies or questions. Each request gets a reference and an owner.")}</p></div>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold">{ui("Service desk")}</h2><p className="text-xs text-ink-muted">{ui("Report repairs, access, supplies or questions. Each request gets a reference and an owner.")}</p></div>
       <div className="flex gap-2" role="tablist">{(["mine", "new", ...(q?.agent ? ["queue"] : [])] as const).map(t => <Button key={t} size="sm" variant={tab === t ? "default" : "outline"} aria-pressed={tab === t} onClick={() => setTab(t as typeof tab)} data-sd-tab={t}>{t === "mine" ? ui("My requests") : t === "new" ? ui("New request") : ui("Service queue")}</Button>)}</div></header>
     {error ? <p className="text-sm text-rose-700">{error}</p> : null}
 
@@ -91,8 +91,8 @@ export function ServiceDesk() {
       <div className="space-y-4" data-sd-detail data-sd-agent={open.agent ? "true" : "false"}>
         <p className="text-sm" dir="auto">{open.description}</p>
         <p className="text-xs">{statusLabel(ui, open.status, Boolean(open.ownerId))} · {priorityLabel(ui, open.priority)} · {open.owner ? <>{ui("Owner")}: <bdi>{open.owner}</bdi></> : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{open.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(open.resolveDueAt)}</bdi></> : null}{open.firstResponseAt ? <> · {ui("First response")} <bdi>{dateTime(open.firstResponseAt)}</bdi></> : null}</p>
-        <ol className="space-y-2 border-s-2 border-[#cfc2d6]/50 ps-3" data-sd-timeline>{open.events.map(e => <li key={e.id} className={cn("text-sm", e.visibility === "INTERNAL" && "rounded-lg bg-slate-50 p-2")} data-sd-event={e.kind} data-sd-visibility={e.visibility}>
-          <p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi>{e.actor ? <> · <bdi>{e.actor}</bdi></> : null} · {kindLabel(ui, e.kind, e.detail)}{e.visibility === "INTERNAL" ? <span className="ms-2 rounded bg-slate-200 px-1 text-[10px] font-black">{ui("Internal — not shown to the requester")}</span> : null}</p>
+        <ol className="space-y-2 border-s-2 border-edge/50 ps-3" data-sd-timeline>{open.events.map(e => <li key={e.id} className={cn("text-sm", e.visibility === "INTERNAL" && "rounded-lg bg-slate-50 p-2")} data-sd-event={e.kind} data-sd-visibility={e.visibility}>
+          <p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi>{e.actor ? <> · <bdi>{e.actor}</bdi></> : null} · {kindLabel(ui, e.kind, e.detail)}{e.visibility === "INTERNAL" ? <span className="ms-2 rounded bg-slate-200 px-1 text-2xs font-bold">{ui("Internal — not shown to the requester")}</span> : null}</p>
           {e.body ? <p dir="auto">{e.body}</p> : null}{e.attachment ? <a className="text-xs underline" href={e.attachment} target="_blank" rel="noreferrer">{ui("Photo")}</a> : null}
         </li>)}</ol>
 

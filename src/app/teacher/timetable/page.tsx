@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Calendar, CalendarX2, Loader2 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { TimetableSkeleton } from "@/components/teacher/teacher-components";
@@ -73,10 +73,10 @@ export default function TeacherTimetablePage() {
       <SubstituteDuties />
       {slots.length === 0 ? (
         <div className="sk-panel sk-rise p-10 text-center" style={{ animationDelay: "80ms" }}>
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe]">
-            <CalendarX2 className="h-7 w-7 text-[#8127cf]" />
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
+            <CalendarX2 className="h-7 w-7 text-primary" />
           </div>
-          <h3 className="text-base font-black text-[#1f1a23]">No classes assigned yet</h3>
+          <h3 className="text-base font-bold text-ink-strong">No classes assigned yet</h3>
           <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-ink-muted">
             Your timetable will appear here once the admin publishes a schedule and assigns classes to you. Check back later.
           </p>
@@ -87,12 +87,12 @@ export default function TeacherTimetablePage() {
 
           {/* Today's classes highlight */}
           {todaySlots.length > 0 && (
-            <div className="sk-rise rounded-[24px] bg-gradient-to-r from-[#8127cf]/5 to-[#fbf0fe]/50 border border-[#8127cf]/10 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+            <div className="sk-rise rounded-[24px] bg-gradient-to-r from-primary/5 to-brand-50/50 border border-primary/10 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
               <div className="flex items-center gap-2 mb-3">
-                <div className="h-7 w-7 rounded-lg bg-[#8127cf] flex items-center justify-center">
+                <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
                   <Calendar className="w-3.5 h-3.5 text-white" />
                 </div>
-                <h3 className="text-xs font-black text-[#1f1a23]">Today&apos;s Classes</h3>
+                <h3 className="text-xs font-bold text-ink-strong">Today&apos;s Classes</h3>
               </div>
               <div className="flex flex-wrap gap-2">
                 {todaySlots.map((s) => {
@@ -104,14 +104,14 @@ export default function TeacherTimetablePage() {
                       className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
                         clashes
                           ? "bg-rose-50 border-rose-200"
-                          : "bg-white/80 border-[#cfc2d6]/10"
+                          : "bg-white/80 border-edge/10"
                       }`}
                     >
                       {clashes ? <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" /> : null}
-                      <span className={`text-[10px] font-black ${clashes ? "text-rose-600" : "text-[#8127cf]"}`}>{s.startTime}</span>
-                      <span className="text-[10px] font-bold text-ink-subtle">|</span>
-                      <span className="text-[10px] font-black text-[#1f1a23]">{s.subject?.name}</span>
-                      <span className="text-[9px] font-semibold text-ink-subtle">
+                      <span className={`text-2xs font-bold ${clashes ? "text-rose-600" : "text-primary"}`}>{s.startTime}</span>
+                      <span className="text-2xs font-bold text-ink-subtle">|</span>
+                      <span className="text-2xs font-bold text-ink-strong">{s.subject?.name}</span>
+                      <span className="text-2xs font-semibold text-ink-subtle">
                         {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
                       </span>
                     </div>

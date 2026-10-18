@@ -28,7 +28,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   FormSection,
   ReviewHero,
@@ -235,7 +235,7 @@ function UrduInput({
       {showKeyboard && (
         <div className="sk-panel absolute left-0 right-0 top-full z-50 mt-1.5 p-2.5">
           <div className="mb-1.5 flex items-center justify-between px-1">
-            <span className="text-[10px] font-bold text-ink-muted">اردو کی بورڈ</span>
+            <span className="text-2xs font-bold text-ink-muted">اردو کی بورڈ</span>
             <Button aria-label="Close Urdu keyboard" size="icon" variant="ghost"
               type="button"
 
@@ -874,14 +874,14 @@ function GuardianPicker({
   }, [search]);
 
   return (
-    <div className="rounded-2xl border border-[#8127cf]/20 bg-[#fbf0fe]/50 p-4">
+    <div className="rounded-2xl border border-primary/20 bg-brand-50/50 p-4">
       <div className="mb-2 flex items-center gap-2">
-        <UserCheck className="h-4 w-4 shrink-0 text-[#8127cf]" />
-        <p className="text-xs font-black text-[#1f1a23]">
+        <UserCheck className="h-4 w-4 shrink-0 text-primary" />
+        <p className="text-xs font-bold text-ink-strong">
           Already have a guardian at this school?
         </p>
       </div>
-      <p className="mb-3 text-[11px] font-semibold leading-relaxed text-ink-muted">
+      <p className="mb-3 text-2xs font-semibold leading-relaxed text-ink-muted">
         Search by name, phone or email to reuse their details and link this student
         to their brothers and sisters.
       </p>
@@ -896,14 +896,14 @@ function GuardianPicker({
           aria-label="Search existing guardians"
         />
         {loading ? (
-          <Loader2 data-field-affix="end" className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#8127cf]" />
+          <Loader2 data-field-affix="end" className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />
         ) : null}
       </InputGroup>
 
       {open && search.trim().length >= 2 ? (
         <div className="mt-3 space-y-2">
           {results.length === 0 && !loading ? (
-            <p className="px-1 text-[11px] font-bold text-ink-muted">
+            <p className="px-1 text-2xs font-bold text-ink-muted">
               No existing guardian matches that. Fill the fields below to add a new one.
             </p>
           ) : null}
@@ -919,12 +919,12 @@ function GuardianPicker({
               }}
               className="block w-full p-3 text-start"
             >
-              <p className="truncate text-xs font-black text-[#1f1a23]">{parent.fullName}</p>
-              <p className="truncate text-[11px] font-semibold text-ink-muted">
+              <p className="truncate text-xs font-bold text-ink-strong">{parent.fullName}</p>
+              <p className="truncate text-2xs font-semibold text-ink-muted">
                 {[parent.phone, parent.email].filter(Boolean).join(" · ") || "No contact details"}
               </p>
               {parent.parentedStudents.length > 0 ? (
-                <p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">
+                <p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-primary">
                   {parent.parentedStudents
                     .map((c) => `${c.fullName}${c.class ? ` (${c.class.name}${c.class.section ? ` ${c.class.section}` : ""})` : ""}`)
                     .join(" · ")}

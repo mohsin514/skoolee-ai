@@ -31,7 +31,7 @@ export function ExamStudioShell({ role, campusId, userId }: { role: string; camp
         <span className={styles.identity}><Sparkles className="size-4" aria-hidden="true" />{t.title}</span>
         {viewer && <Link href="/messages" className={buttonVariants({ variant: "outline", size: "icon", className: "relative shrink-0 sm:hidden" })} aria-label={unreadTotal > 0 ? t.unreadMessages.replace("{count}", new Intl.NumberFormat(language).format(unreadTotal)) : t.messages}>
           <MessageCircle aria-hidden="true" />
-          {unreadTotal > 0 && <span aria-hidden="true" className="absolute -end-1 -top-1 rounded-full bg-primary px-1.5 text-[10px] font-bold leading-5 text-primary-foreground">{unreadTotal > 99 ? "99+" : new Intl.NumberFormat(language).format(unreadTotal)}</span>}
+          {unreadTotal > 0 && <span aria-hidden="true" className="absolute -end-1 -top-1 rounded-full bg-primary px-1.5 text-2xs font-bold leading-5 text-primary-foreground">{unreadTotal > 99 ? "99+" : new Intl.NumberFormat(language).format(unreadTotal)}</span>}
         </Link>}
       </div>
       <div className={styles.heroBody}>

@@ -151,7 +151,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
   return (
     <div
       style={{ zIndex: z }}
-      className="fixed inset-0 flex items-start justify-center bg-[#1f1a23]/50 p-4 pt-[12vh] backdrop-blur-md animate-backdrop-enter"
+      className="fixed inset-0 flex items-start justify-center bg-ink-strong/50 p-4 pt-[12vh] backdrop-blur-md animate-backdrop-enter"
       role="presentation"
       onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
     >
@@ -177,7 +177,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
             aria-label={t("Search sections, classes and students")}
             className="h-14 w-full"
           />
-          <kbd data-field-affix="end" data-field-action="text" className="hidden shrink-0 rounded-md border border-[#cfc2d6]/40 px-1.5 py-0.5 text-[10px] font-black text-ink-subtle sm:block">
+          <kbd data-field-affix="end" data-field-action="text" className="hidden shrink-0 rounded-md border border-edge/40 px-1.5 py-0.5 text-2xs font-bold text-ink-subtle sm:block">
             ESC
           </kbd>
         </InputGroup>
@@ -194,7 +194,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
               return (
                 <div key={cmd.id}>
                   {newGroup ? (
-                    <p className="px-3 pb-1 pt-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+                    <p className="px-3 pb-1 pt-3 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                       {cmd.group}
                     </p>
                   ) : null}
@@ -217,9 +217,9 @@ export function TeacherCommandPalette({ data }: { data: any }) {
                       <Icon className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-black text-ink">{cmd.label}</span>
+                      <span className="block truncate text-sm font-bold text-ink">{cmd.label}</span>
                       {cmd.sub ? (
-                        <span className="block truncate text-[11px] font-semibold text-ink-subtle">{cmd.sub}</span>
+                        <span className="block truncate text-2xs font-semibold text-ink-subtle">{cmd.sub}</span>
                       ) : null}
                     </span>
                     {cursor === i ? <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-primary" /> : null}
@@ -230,7 +230,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-edge/15 bg-surface-subtle px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           <span>↑↓ {t("Navigate")}</span>
           <span>↵ {t("Open")}</span>
           <span className="ms-auto">{t("Type 2+ letters to search students")}</span>

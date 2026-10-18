@@ -47,10 +47,10 @@ function demoMailto(context: string) {
 
 export function ProductPage({ copy }: { copy: ProductPageCopy }) {
   return (
-    <main className="min-h-screen bg-white text-[#1f1a23]">
-      <header className="border-b border-[#e8e0ed] bg-white/95">
+    <main className="min-h-screen bg-white text-ink-strong">
+      <header className="border-b border-border-subtle bg-white/95">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-          <Link href="/" className="flex shrink-0 items-center gap-2 font-black tracking-normal">
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-normal">
             <SkooleeLogo size="1.15rem" />
           </Link>
           <nav aria-label="Product navigation" className="flex w-full flex-wrap items-center gap-2 text-sm font-semibold sm:w-auto">
@@ -68,11 +68,11 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
         </div>
       </header>
 
-      <section className="bg-[#fbf0fe]/60">
+      <section className="bg-brand-50/60">
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 lg:grid-cols-[1fr_420px] lg:items-center">
           <div>
-            <p className="text-xs font-black uppercase tracking-normal text-[#8127cf]">{copy.eyebrow}</p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-normal sm:text-5xl">
+            <p className="text-xs font-semibold uppercase tracking-normal text-primary">{copy.eyebrow}</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-extrabold leading-tight tracking-normal sm:text-5xl">
               {copy.title}
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-ink">{copy.description}</p>
@@ -95,7 +95,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             </div>
           </div>
 
-          <div className="rounded-lg border border-[#e8e0ed] bg-white p-4 shadow-xl">
+          <div className="rounded-lg border border-border-subtle bg-white p-4 shadow-xl">
             <div className="mb-4 flex items-center gap-2 border-b border-[#f0e8f5] pb-3">
               <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
               <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
@@ -105,20 +105,20 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
             <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">Synthetic example data. This is not a customer result or measured outcome.</p>
             <div className="grid gap-3">
               <div className="rounded-lg bg-[#f6f8fb] p-4">
-                <p className="text-xs font-bold uppercase tracking-normal text-[#8127cf]">AI remark draft</p>
+                <p className="text-xs font-semibold uppercase tracking-normal text-primary">AI remark draft</p>
                 <p className="mt-2 text-sm font-semibold leading-6">
                   English and Urdu report card comments queued for principal review.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {["Students", "Fees", "Campuses"].map((label, index) => (
-                  <div key={label} className="rounded-lg border border-[#e8e0ed] p-3">
-                    <p className="text-[10px] font-bold uppercase text-ink-subtle">{label}</p>
-                    <p className="mt-2 text-xl font-black">{[482, "91%", 4][index]}</p>
+                  <div key={label} className="rounded-lg border border-border-subtle p-3">
+                    <p className="text-2xs font-semibold uppercase text-ink-subtle">{label}</p>
+                    <p className="mt-2 text-xl font-bold">{[482, "91%", 4][index]}</p>
                   </div>
                 ))}
               </div>
-              <div className="space-y-2 rounded-lg border border-[#e8e0ed] p-3">
+              <div className="space-y-2 rounded-lg border border-border-subtle p-3">
                 {["WhatsApp sent", "PDF exported", "Human reviewed"].map((label) => (
                   <div key={label} className="flex items-center justify-between text-sm">
                     <span className="font-semibold">{label}</span>
@@ -135,7 +135,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
         <div className="grid gap-5 md:grid-cols-3">
           {copy.sections.map((section) => (
             <article key={section.title} className="sk-panel p-5">
-              <section.icon className="h-6 w-6 text-[#8127cf]" />
+              <section.icon className="h-6 w-6 text-primary" />
               <h2 className="mt-4 text-lg font-bold tracking-normal">{section.title}</h2>
               <p className="mt-2 text-sm leading-6 text-ink">{section.body}</p>
             </article>
@@ -143,7 +143,7 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
         </div>
       </section>
 
-      <section className="border-y border-[#e8e0ed] bg-[#f7faf8]">
+      <section className="border-y border-border-subtle bg-[#f7faf8]">
         <div className="mx-auto grid max-w-6xl gap-4 px-6 py-10 md:grid-cols-3">
           {copy.proof.map((item) => (
             <p key={item} className="text-sm font-bold text-[#315f49]">{item}</p>

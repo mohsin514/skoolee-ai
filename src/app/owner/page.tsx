@@ -59,7 +59,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { PlatformOverview } from "@/components/insights";
 import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { AddUserModal } from "@/components/owner/provisioning-modals";
@@ -192,20 +192,20 @@ interface Stats {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  APP_OWNER: "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white",
-  SUPER_ADMIN: "bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] text-white",
+  APP_OWNER: "bg-gradient-to-r from-ink-strong to-[#2d2633] text-white",
+  SUPER_ADMIN: "bg-gradient-to-r from-primary to-brand-700 text-white",
   CAMPUS_ADMIN: "bg-indigo-100 text-indigo-700",
   ADMIN: "bg-indigo-100 text-indigo-700",
   PRINCIPAL: "bg-emerald-100 text-emerald-700",
   TEACHER: "bg-sky-100 text-sky-700",
   PARENT: "bg-amber-100 text-amber-700",
-  STUDENT: "bg-[#fbf0fe] text-[#8127cf]",
+  STUDENT: "bg-brand-50 text-primary",
 };
 
 const ACTION_META: Record<string, { icon: any; label: string; tone: string }> = {
   login: { icon: LogIn, label: "Login", tone: "bg-emerald-50 text-emerald-600" },
   login_failed: { icon: AlertCircle, label: "Login Failed", tone: "bg-rose-50 text-rose-600" },
-  logout: { icon: LogOut, label: "Logout", tone: "bg-[#f3f4f9] text-ink-muted" },
+  logout: { icon: LogOut, label: "Logout", tone: "bg-muted text-ink-muted" },
   password_change: { icon: KeyRound, label: "Password Changed", tone: "bg-amber-50 text-amber-600" },
   school_suspended: { icon: Pause, label: "School Suspended", tone: "bg-rose-50 text-rose-600" },
   school_activated: { icon: Play, label: "School Activated", tone: "bg-emerald-50 text-emerald-600" },
@@ -213,7 +213,7 @@ const ACTION_META: Record<string, { icon: any; label: string; tone: string }> = 
 };
 
 function getActionMeta(action: string) {
-  return ACTION_META[action] || { icon: Activity, label: action.replace(/_/g, " "), tone: "bg-[#f3f4f9] text-ink-muted" };
+  return ACTION_META[action] || { icon: Activity, label: action.replace(/_/g, " "), tone: "bg-muted text-ink-muted" };
 }
 
 function formatDate(d: string | null) {
@@ -256,11 +256,11 @@ function StatusPill({ status }: { status: string }) {
     : ["SUSPENDED", "Suspended"].includes(status)
     ? "bg-rose-50 text-rose-600"
     : ["TRIAL", "Trial"].includes(status)
-    ? "bg-[#fbf0fe] text-[#8127cf]"
-    : "bg-[#f3f4f9] text-ink-muted";
-  const dot = tone.includes("emerald") ? "bg-emerald-500" : tone.includes("rose") ? "bg-rose-500" : tone.includes("8127cf") ? "bg-[#8127cf]" : "bg-[#4d4354]/40";
+    ? "bg-brand-50 text-primary"
+    : "bg-muted text-ink-muted";
+  const dot = tone.includes("emerald") ? "bg-emerald-500" : tone.includes("rose") ? "bg-rose-500" : tone.includes("8127cf") ? "bg-primary" : "bg-ink/40";
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${tone}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-3xs font-semibold uppercase tracking-normal ${tone}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
       {status}
     </span>
@@ -619,7 +619,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
 
       <div className="sk-panel p-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="flex-1 min-w-[200px] max-w-sm relative">
+          <InputGroup surfaceClassName="bg-muted" className="flex-1 min-w-[200px] max-w-sm relative">
             <Search data-field-affix="start" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
             <SystemInput
               type="text"
@@ -676,7 +676,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                       className="block w-full p-5 text-start"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0 overflow-hidden">
+                        <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center text-primary shrink-0 overflow-hidden">
                           {school.logoUrl ? (
                             <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
                           ) : (
@@ -685,20 +685,20 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 flex-wrap">
-                            <h3 className="text-base font-black text-[#1f1a23]">{school.name}</h3>
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${
-                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white" :
-                              school.plan === "PRO" ? "bg-[#fbf0fe] text-[#8127cf]" :
+                            <h3 className="text-base font-bold text-ink-strong">{school.name}</h3>
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-3xs font-semibold uppercase tracking-normal ${
+                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-ink-strong to-[#2d2633] text-white" :
+                              school.plan === "PRO" ? "bg-brand-50 text-primary" :
                               school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
-                              "bg-[#f3f4f9] text-ink-muted"
+                              "bg-muted text-ink-muted"
                             }`}>
                               {planLabel(school.plan)}
                             </span>
                           </div>
                           <div className="flex flex-wrap items-center gap-4 mt-1.5">
-                            <span className="text-[10px] font-bold text-ink-subtle">{school.contactEmail || "—"}</span>
-                            <span className="text-[10px] font-bold text-ink-subtle">{school.city || "—"}</span>
-                            <span className="text-[10px] font-bold text-ink-subtle">Since {new Date(school.createdAt).toLocaleDateString("en-PK", { month: "short", year: "numeric" })}</span>
+                            <span className="text-2xs font-bold text-ink-subtle">{school.contactEmail || "—"}</span>
+                            <span className="text-2xs font-bold text-ink-subtle">{school.city || "—"}</span>
+                            <span className="text-2xs font-bold text-ink-subtle">Since {new Date(school.createdAt).toLocaleDateString("en-PK", { month: "short", year: "numeric" })}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
@@ -714,7 +714,7 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                     </Button>
 
                     {isExpanded && (
-                      <div className="border-t border-[#f3f4f9] bg-[#fbf0fe]/10 p-5">
+                      <div className="border-t border-muted bg-brand-50/10 p-5">
                         <div className="flex flex-wrap gap-3 mb-4 md:hidden">
                           <MiniStat label="Campuses" value={school.campusCount} />
                           <MiniStat label="Students" value={school.totalStudents} />
@@ -723,11 +723,11 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                         </div>
 
                         <div className="flex items-center justify-between gap-4 mb-4">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
                             Campus Breakdown
                           </p>
                           <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold text-ink-subtle">
+                            <span className="text-2xs font-bold text-ink-subtle">
                               AI Credits: {school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}
                             </span>
                             <Button variant="default"
@@ -737,11 +737,11 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                               <ExternalLink className="w-3 h-3" />
                               Details
                             </Button>
-                            <span className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal ${
-                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white" :
-                              school.plan === "PRO" ? "bg-[#fbf0fe] text-[#8127cf]" :
+                            <span className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-2xs font-semibold uppercase tracking-normal ${
+                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-ink-strong to-[#2d2633] text-white" :
+                              school.plan === "PRO" ? "bg-brand-50 text-primary" :
                               school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
-                              "bg-[#f3f4f9] text-ink-muted"
+                              "bg-muted text-ink-muted"
                             }`}>
                               {planLabel(school.plan)}
                             </span>
@@ -752,15 +752,15 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {school.campuses.map((campus) => (
                               <div key={campus.id} className="sk-panel p-4">
-                                <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
-                                {campus.principalName ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
-                                {campus.phone ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
-                                {campus.website ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.website}</p> : null}
+                                <p className="text-sm font-bold text-ink-strong">{campus.name}</p>
+                                <p className="text-2xs font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
+                                {campus.principalName ? <p className="text-2xs font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
+                                {campus.phone ? <p className="text-2xs font-bold text-ink-subtle mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
+                                {campus.website ? <p className="text-2xs font-bold text-ink-subtle mt-0.5">{campus.website}</p> : null}
                                 <div className="flex gap-3 mt-3">
-                                  <span className="text-[9px] font-bold text-ink-muted">{campus.students} students</span>
-                                  <span className="text-[9px] font-bold text-ink-muted">{campus.staff} staff</span>
-                                  <span className="text-[9px] font-bold text-ink-muted">{campus.classes} classes</span>
+                                  <span className="text-2xs font-bold text-ink-muted">{campus.students} students</span>
+                                  <span className="text-2xs font-bold text-ink-muted">{campus.staff} staff</span>
+                                  <span className="text-2xs font-bold text-ink-muted">{campus.classes} classes</span>
                                 </div>
                               </div>
                             ))}
@@ -863,8 +863,8 @@ function UsersView() {
     <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">All Users</h2>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Platform</p>
+          <h2 className="text-3xl font-extrabold text-ink-strong tracking-normal mt-1">All Users</h2>
           <p className="text-sm font-semibold text-ink-muted mt-1">
             {pagination.total} users across all schools
           </p>
@@ -888,7 +888,7 @@ function UsersView() {
 
       <div className="sk-panel p-6">
         <div className="flex flex-wrap items-center gap-3 mb-5">
-          <InputGroup surfaceClassName="bg-[#f3f4f9]" className="flex-1 min-w-[200px] max-w-sm relative">
+          <InputGroup surfaceClassName="bg-muted" className="flex-1 min-w-[200px] max-w-sm relative">
             <Search data-field-affix="start" className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
             <SystemInput
               type="text"
@@ -931,7 +931,7 @@ function UsersView() {
 
               <Table containerClassName="overflow-x-auto custom-scrollbar" className="w-full min-w-[1000px] text-start">
                 <TableHeader>
-                  <TableRow className="text-ink-subtle bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
+                  <TableRow className="text-ink-subtle bg-gradient-to-r from-brand-50/30 to-transparent">
                     <TableHead className="px-4 py-3">User</TableHead>
                     <TableHead className="px-4 py-3">Role</TableHead>
                     <TableHead className="px-4 py-3">School</TableHead>
@@ -941,22 +941,22 @@ function UsersView() {
                     <TableHead className="px-4 py-3 text-end">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody className="divide-y divide-[#f3f4f9]">
+                <TableBody className="divide-y divide-muted">
                   {users.map((u) => (
                     <TableRow key={u.id} className="text-sm duration-200">
                       <TableCell className="px-4 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
+                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 flex items-center justify-center text-primary shrink-0">
                             <User className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-black text-[#1f1a23] truncate">{u.fullName}</p>
-                            <p className="text-[10px] font-bold text-ink-subtle truncate">{u.email}</p>
+                            <p className="font-bold text-ink-strong truncate">{u.fullName}</p>
+                            <p className="text-2xs font-bold text-ink-subtle truncate">{u.email}</p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${ROLE_COLORS[u.role] || "bg-[#f3f4f9] text-ink"}`}>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-3xs font-semibold uppercase tracking-normal ${ROLE_COLORS[u.role] || "bg-muted text-ink"}`}>
                           {u.role.replace("_", " ")}
                         </span>
                       </TableCell>
@@ -967,7 +967,7 @@ function UsersView() {
                         {u.campus?.name || "—"}
                       </TableCell>
                       <TableCell className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${u.isActive ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-3xs font-semibold uppercase tracking-normal ${u.isActive ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${u.isActive ? "bg-emerald-500" : "bg-rose-500"}`} />
                           {u.isActive ? "Active" : "Inactive"}
                         </span>
@@ -1046,8 +1046,8 @@ function AuditLogView() {
     <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Audit Log</h2>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Platform</p>
+          <h2 className="text-3xl font-extrabold text-ink-strong tracking-normal mt-1">Audit Log</h2>
           <p className="text-sm font-semibold text-ink-muted mt-1">{total} actions recorded</p>
         </div>
         <Button variant="default"
@@ -1111,25 +1111,25 @@ function AuditLogView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-black text-[#1f1a23]">{meta.label}</p>
+                        <p className="text-sm font-bold text-ink-strong">{meta.label}</p>
                         {log.status === "failed" && (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase bg-rose-50 text-rose-600">
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-semibold uppercase bg-rose-50 text-rose-600">
                             <AlertCircle className="w-2 h-2" /> Failed
                           </span>
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-3 mt-1">
-                        <span className="text-[10px] font-bold text-ink-muted flex items-center gap-1">
+                        <span className="text-2xs font-bold text-ink-muted flex items-center gap-1">
                           <User className="w-2.5 h-2.5" /> {log.user?.fullName || "System"}
                         </span>
                         {log.user?.role && (
-                          <span className="text-[10px] font-bold text-ink-subtle">{log.user.role.replace("_", " ")}</span>
+                          <span className="text-2xs font-bold text-ink-subtle">{log.user.role.replace("_", " ")}</span>
                         )}
                         {log.targetName && (
-                          <span className="text-[10px] font-bold text-ink-muted">Target: {log.targetName}</span>
+                          <span className="text-2xs font-bold text-ink-muted">Target: {log.targetName}</span>
                         )}
                         {log.ipAddress && (
-                          <span className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
+                          <span className="text-2xs font-bold text-ink-subtle flex items-center gap-1">
                             <Globe className="w-2.5 h-2.5" /> {log.ipAddress}
                           </span>
                         )}
@@ -1140,22 +1140,22 @@ function AuditLogView() {
                         <Clock className="w-3 h-3" /> {relativeTime(log.createdAt)}
                       </p>
                       {log.userAgent && (
-                        <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{parseBrowser(log.userAgent)}</p>
+                        <p className="text-2xs font-bold text-ink-subtle mt-0.5">{parseBrowser(log.userAgent)}</p>
                       )}
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-[#f3f4f9] space-y-3">
+                    <div className="mt-4 pt-4 border-t border-muted space-y-3">
                       {log.errorMessage && (
                         <div className="rounded-xl bg-rose-50 px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-rose-500 mb-1">Error</p>
+                          <p className="text-2xs font-semibold uppercase text-rose-500 mb-1">Error</p>
                           <p className="text-xs font-bold text-rose-700">{log.errorMessage}</p>
                         </div>
                       )}
                       {log.oldValues && (
-                        <div className="rounded-xl bg-[#f3f4f9] px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-ink-subtle mb-1">Before</p>
+                        <div className="rounded-xl bg-muted px-4 py-3">
+                          <p className="text-2xs font-semibold uppercase text-ink-subtle mb-1">Before</p>
                           <pre className="text-xs font-mono text-ink whitespace-pre-wrap break-all">
                             {JSON.stringify(log.oldValues, null, 2)}
                           </pre>
@@ -1163,15 +1163,15 @@ function AuditLogView() {
                       )}
                       {log.newValues && (
                         <div className="rounded-xl bg-emerald-50/50 px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-emerald-600/60 mb-1">After</p>
+                          <p className="text-2xs font-semibold uppercase text-emerald-600/60 mb-1">After</p>
                           <pre className="text-xs font-mono text-emerald-700/70 whitespace-pre-wrap break-all">
                             {JSON.stringify(log.newValues, null, 2)}
                           </pre>
                         </div>
                       )}
                       {log.userAgent && (
-                        <div className="rounded-xl bg-[#f3f4f9] px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-ink-subtle mb-1">User Agent</p>
+                        <div className="rounded-xl bg-muted px-4 py-3">
+                          <p className="text-2xs font-semibold uppercase text-ink-subtle mb-1">User Agent</p>
                           <p className="text-xs font-mono text-ink-muted break-all">{log.userAgent}</p>
                         </div>
                       )}
@@ -1246,8 +1246,8 @@ function SessionsView() {
     <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Active Sessions</h2>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Platform</p>
+          <h2 className="text-3xl font-extrabold text-ink-strong tracking-normal mt-1">Active Sessions</h2>
           <p className="text-sm font-semibold text-ink-muted mt-1">
             {pagination.total} sessions across all schools
           </p>
@@ -1264,10 +1264,10 @@ function SessionsView() {
       <div className="sk-panel p-6">
         <div className="flex items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] flex items-center justify-center">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary flex items-center justify-center">
               <Wifi className="w-5 h-5" />
             </div>
-            <h3 className="text-lg font-black text-[#1f1a23]">Login Sessions</h3>
+            <h3 className="text-lg font-bold text-ink-strong">Login Sessions</h3>
           </div>
           <div className="flex items-center gap-2">
             <Button aria-pressed={showActiveOnly} variant="choice"
@@ -1303,43 +1303,43 @@ function SessionsView() {
                   className={`rounded-2xl border p-4 transition-all ${
                     isLive
                       ? "border-emerald-100/50 bg-gradient-to-r from-emerald-50/30 to-white"
-                      : "border-[#f3f4f9] bg-[#f3f4f9]/30"
+                      : "border-muted bg-muted/30"
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      isLive ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
+                      isLive ? "bg-emerald-100 text-emerald-600" : "bg-muted text-ink-subtle"
                     }`}>
                       <DeviceIcon className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-black text-[#1f1a23]">{session.user.fullName}</p>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase ${
-                          isLive ? "bg-emerald-50 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
+                        <p className="text-sm font-bold text-ink-strong">{session.user.fullName}</p>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-semibold uppercase ${
+                          isLive ? "bg-emerald-50 text-emerald-600" : "bg-muted text-ink-subtle"
                         }`}>
-                          <span className={`h-1 w-1 rounded-full ${isLive ? "bg-emerald-500" : "bg-[#4d4354]/30"}`} />
+                          <span className={`h-1 w-1 rounded-full ${isLive ? "bg-emerald-500" : "bg-ink/30"}`} />
                           {isLive ? "Active" : "Ended"}
                         </span>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[7px] font-black uppercase ${ROLE_COLORS[session.user.role] || "bg-[#f3f4f9] text-ink"}`}>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-3xs font-semibold uppercase ${ROLE_COLORS[session.user.role] || "bg-muted text-ink"}`}>
                           {session.user.role.replace("_", " ")}
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 mt-1">
-                        <span className="text-[10px] font-bold text-ink-subtle">{session.user.email}</span>
+                        <span className="text-2xs font-bold text-ink-subtle">{session.user.email}</span>
                         {session.user.school && (
-                          <span className="text-[10px] font-bold text-[#8127cf]/60">{session.user.school.name}</span>
+                          <span className="text-2xs font-bold text-primary/60">{session.user.school.name}</span>
                         )}
-                        <span className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
+                        <span className="text-2xs font-bold text-ink-subtle flex items-center gap-1">
                           <Globe className="w-2.5 h-2.5" /> {session.ipAddress || "—"}
                         </span>
-                        <span className="text-[10px] font-bold text-ink-subtle">
+                        <span className="text-2xs font-bold text-ink-subtle">
                           {device.browser} / {device.os}
                         </span>
                       </div>
                     </div>
                     <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                      <p className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
+                      <p className="text-2xs font-bold text-ink-subtle flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {formatDate(session.loginAt)}
                       </p>
                       {isLive && (
@@ -1374,10 +1374,10 @@ function SessionsView() {
 
 function BillingView({ stats }: { stats: Stats | null }) {
   const planColors: Record<string, string> = {
-    FREE: "bg-[#f3f4f9] text-ink-muted border border-[#cfc2d6]/10",
+    FREE: "bg-muted text-ink-muted border border-edge/10",
     STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
-    PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
-    ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
+    PRO: "bg-brand-50 text-primary border border-primary/10",
+    ENTERPRISE: "bg-gradient-to-br from-ink-strong to-[#2d2633] text-white border-0",
   };
 
 
@@ -1385,8 +1385,8 @@ function BillingView({ stats }: { stats: Stats | null }) {
     <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Billing & Plans</h2>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Platform</p>
+          <h2 className="text-3xl font-extrabold text-ink-strong tracking-normal mt-1">Billing & Plans</h2>
           <p className="text-sm font-semibold text-ink-muted mt-1">Revenue overview and plan distribution</p>
         </div>
       </div>
@@ -1394,34 +1394,34 @@ function BillingView({ stats }: { stats: Stats | null }) {
       {stats && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="rounded-[24px] bg-gradient-to-br from-[#1f1a23] to-[#2d2633] p-6 text-white">
-              <p className="text-[9px] font-black uppercase tracking-normal text-white/40 flex items-center gap-2">
+            <div className="rounded-[24px] bg-gradient-to-br from-ink-strong to-[#2d2633] p-6 text-white">
+              <p className="text-2xs font-semibold uppercase tracking-normal text-white/40 flex items-center gap-2">
                 <Banknote className="w-3 h-3" /> Total Revenue
               </p>
-              <p className="text-3xl font-black mt-2">
+              <p className="text-3xl font-extrabold mt-2">
                 PKR {((stats.totalRevenue || 0) / 100).toLocaleString("en-PK")}
               </p>
               <p className="text-xs font-bold text-white/50 mt-1">{stats.totalPaymentCount} successful payments</p>
             </div>
             <div className="rounded-[24px] bg-gradient-to-br from-amber-50 to-amber-50/50 border border-amber-100/50 p-6">
-              <p className="text-[9px] font-black uppercase tracking-normal text-amber-600/60 flex items-center gap-2">
+              <p className="text-2xs font-semibold uppercase tracking-normal text-amber-600/60 flex items-center gap-2">
                 <Clock className="w-3 h-3" /> Pending Invoices
               </p>
-              <p className="text-3xl font-black text-amber-800 mt-2">{stats.pendingInvoices}</p>
+              <p className="text-3xl font-extrabold text-amber-800 mt-2">{stats.pendingInvoices}</p>
               <p className="text-xs font-bold text-amber-600/60 mt-1">Awaiting payment</p>
             </div>
             <div className="rounded-[24px] bg-gradient-to-br from-emerald-50 to-emerald-50/50 border border-emerald-100/50 p-6">
-              <p className="text-[9px] font-black uppercase tracking-normal text-emerald-600/60 flex items-center gap-2">
+              <p className="text-2xs font-semibold uppercase tracking-normal text-emerald-600/60 flex items-center gap-2">
                 <CreditCard className="w-3 h-3" /> Active Schools
               </p>
-              <p className="text-3xl font-black text-emerald-800 mt-2">{stats.schoolsByStatus?.ACTIVE || 0}</p>
+              <p className="text-3xl font-extrabold text-emerald-800 mt-2">{stats.schoolsByStatus?.ACTIVE || 0}</p>
               <p className="text-xs font-bold text-emerald-600/60 mt-1">Out of {stats.schoolCount} total</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div className="sk-panel p-6">
-              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Plan</p>
+              <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle mb-4">Schools by Plan</p>
               {Object.keys(stats.schoolsByPlan).length > 0 ? (
                 <div className="space-y-3">
                   {Object.entries(stats.schoolsByPlan)
@@ -1431,22 +1431,22 @@ function BillingView({ stats }: { stats: Stats | null }) {
                       return (
                         <div key={plan}>
                           <div className="flex items-center justify-between mb-1">
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-normal ${planColors[plan] || "bg-muted text-ink"}`}>
                               {planLabel(plan)}
                             </span>
-                            <span className="text-sm font-black text-[#1f1a23]">{count}</span>
+                            <span className="text-sm font-bold text-ink-strong">{count}</span>
                           </div>
-                          <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${
-                                plan === "ENTERPRISE" ? "bg-[#1f1a23]" :
-                                plan === "PRO" ? "bg-[#8127cf]" :
-                                plan === "STARTER" ? "bg-sky-500" : "bg-[#cfc2d6]/40"
+                                plan === "ENTERPRISE" ? "bg-ink-strong" :
+                                plan === "PRO" ? "bg-primary" :
+                                plan === "STARTER" ? "bg-sky-500" : "bg-edge/40"
                               }`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{pct}% of schools</p>
+                          <p className="text-2xs font-bold text-ink-subtle mt-0.5">{pct}% of schools</p>
                         </div>
                       );
                     })}
@@ -1457,7 +1457,7 @@ function BillingView({ stats }: { stats: Stats | null }) {
             </div>
 
             <div className="sk-panel p-6">
-              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Status</p>
+              <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle mb-4">Schools by Status</p>
               {Object.keys(stats.schoolsByStatus).length > 0 ? (
                 <div className="space-y-3">
                   {Object.entries(stats.schoolsByStatus)
@@ -1468,19 +1468,19 @@ function BillingView({ stats }: { stats: Stats | null }) {
                         <div key={status}>
                           <div className="flex items-center justify-between mb-1">
                             <StatusPill status={status} />
-                            <span className="text-sm font-black text-[#1f1a23]">{count}</span>
+                            <span className="text-sm font-bold text-ink-strong">{count}</span>
                           </div>
-                          <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${
                                 status === "ACTIVE" ? "bg-emerald-500" :
-                                status === "TRIAL" ? "bg-[#8127cf]" :
-                                status === "SUSPENDED" ? "bg-rose-500" : "bg-[#cfc2d6]/40"
+                                status === "TRIAL" ? "bg-primary" :
+                                status === "SUSPENDED" ? "bg-rose-500" : "bg-edge/40"
                               }`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{pct}% of schools</p>
+                          <p className="text-2xs font-bold text-ink-subtle mt-0.5">{pct}% of schools</p>
                         </div>
                       );
                     })}
@@ -1499,10 +1499,10 @@ function BillingView({ stats }: { stats: Stats | null }) {
 
 function PricingView({ stats }: { stats: Stats | null }) {
   const planColors: Record<string, string> = {
-    FREE: "bg-[#f3f4f9] text-ink-muted border border-[#cfc2d6]/10",
+    FREE: "bg-muted text-ink-muted border border-edge/10",
     STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
-    PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
-    ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
+    PRO: "bg-brand-50 text-primary border border-primary/10",
+    ENTERPRISE: "bg-gradient-to-br from-ink-strong to-[#2d2633] text-white border-0",
   };
   const [pricingSchoolId, setPricingSchoolId] = useState("");
   const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>({
@@ -1632,14 +1632,14 @@ function PricingView({ stats }: { stats: Stats | null }) {
     <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Plan Pricing</h2>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Platform</p>
+          <h2 className="text-3xl font-extrabold text-ink-strong tracking-normal mt-1">Plan Pricing</h2>
           <p className="text-sm font-semibold text-ink-muted mt-1">Set global defaults and per-school overrides</p>
         </div>
       </div>
 
       <div className="sk-panel p-6 mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
+        <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <Globe className="w-3 h-3" /> Default Plan Prices
         </p>
         <p className="text-xs font-semibold text-ink-subtle mb-4">
@@ -1648,7 +1648,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         <div className="space-y-3 mb-4">
           {Object.entries(defaultPricing).map(([plan, vals]) => (
             <div key={plan} className="flex items-center gap-4">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-normal w-28 ${planColors[plan] || "bg-muted text-ink"}`}>
                 {planLabel(plan)}
               </span>
               <InputGroup surfaceClassName="bg-white" className="relative flex-1 max-w-[200px]">
@@ -1677,7 +1677,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
       </div>
 
       <div className="sk-panel p-6 mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
+        <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <DollarSign className="w-3 h-3" /> Plan Pricing Override
         </p>
         <p className="text-xs font-semibold text-ink-subtle mb-4">
@@ -1685,7 +1685,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <div className="flex-1">
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">School</label>
+            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">School</label>
             <SystemSelect
               value={pricingSchoolId}
               onChange={(e) => {
@@ -1706,7 +1706,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
           <div className="space-y-3">
             {Object.entries(pricingValues).map(([plan, vals]) => (
               <div key={plan} className="flex items-center gap-4">
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-normal w-28 ${planColors[plan] || "bg-muted text-ink"}`}>
                   {planLabel(plan)}
                 </span>
                 <InputGroup surfaceClassName="bg-white" className="relative flex-1 max-w-[200px]">
@@ -1819,8 +1819,8 @@ function PaymentSettingsView() {
     <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Payment Settings</h2>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Platform</p>
+          <h2 className="text-3xl font-extrabold text-ink-strong tracking-normal mt-1">Payment Settings</h2>
           <p className="text-sm font-semibold text-ink-muted mt-1">
             Configure how you receive subscription payments from schools
           </p>
@@ -1828,7 +1828,7 @@ function PaymentSettingsView() {
       </div>
 
       <div className="sk-panel p-6 mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
+        <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <WalletCards className="w-3 h-3" /> Stripe Connect
         </p>
         <p className="text-xs font-semibold text-ink-subtle mb-4">
@@ -1838,7 +1838,7 @@ function PaymentSettingsView() {
         {settings?.connectedAccountId ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal ${settings.onboardingComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-normal ${settings.onboardingComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
                 {settings.onboardingComplete ? "Active" : "Incomplete"}
               </span>
               <span className="text-xs font-semibold text-ink-subtle">
@@ -1881,7 +1881,7 @@ function PaymentSettingsView() {
       </div>
 
       <div className="sk-panel p-6 mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
+        <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
           <Building2 className="w-3 h-3" /> Bank Account (Fallback)
         </p>
         <p className="text-xs font-semibold text-ink-subtle mb-4">
@@ -1889,7 +1889,7 @@ function PaymentSettingsView() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Bank Name</label>
+            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Bank Name</label>
             <SystemInput
               value={bankForm.bankName}
               onChange={(e) => setBankForm(prev => ({ ...prev, bankName: e.target.value }))}
@@ -1898,7 +1898,7 @@ function PaymentSettingsView() {
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Account Title</label>
+            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Account Title</label>
             <SystemInput
               value={bankForm.accountTitle}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountTitle: e.target.value }))}
@@ -1907,7 +1907,7 @@ function PaymentSettingsView() {
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Account Number</label>
+            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Account Number</label>
             <SystemInput
               value={bankForm.accountNumber}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountNumber: e.target.value }))}
@@ -1916,7 +1916,7 @@ function PaymentSettingsView() {
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">IBAN (optional)</label>
+            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">IBAN (optional)</label>
             <SystemInput
               value={bankForm.iban}
               onChange={(e) => setBankForm(prev => ({ ...prev, iban: e.target.value }))}
@@ -1966,7 +1966,7 @@ function SchoolDetailModal({
         <>
           <StatusPill status={school.status} />
           {school.tagline ? (
-            <span className="text-[10px] font-bold italic text-[#8127cf]/60">&ldquo;{school.tagline}&rdquo;</span>
+            <span className="text-2xs font-bold italic text-primary/60">&ldquo;{school.tagline}&rdquo;</span>
           ) : null}
         </>
       }
@@ -1974,7 +1974,7 @@ function SchoolDetailModal({
         school.logoUrl ? (
           <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
         ) : (
-          <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]">
+          <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100 text-primary">
             <School className="h-5 w-5" />
           </span>
         )
@@ -1983,7 +1983,7 @@ function SchoolDetailModal({
       onClose={onClose}
       bodyClassName="px-0 py-0 sm:px-0"
     >
-        <div className="px-7 pt-5 flex gap-6 border-b border-[#f3f4f9]">
+        <div className="px-7 pt-5 flex gap-6 border-b border-muted">
           <Button aria-pressed={tab === "overview"} variant="choice"  onClick={() => setTab("overview")}>Overview</Button>
           <Button aria-pressed={tab === "campuses"} variant="choice"  onClick={() => setTab("campuses")}>Campuses</Button>
           <Button aria-pressed={tab === "subscription"} variant="choice"  onClick={() => setTab("subscription")}>Subscription</Button>
@@ -1998,19 +1998,19 @@ function SchoolDetailModal({
                 <MiniStat label="Staff" value={school.totalStaff} />
                 <MiniStat label="Classes" value={school.totalClasses} />
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/50 to-white border border-[#cfc2d6]/10 p-5">
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]/60 mb-3">AI Credits</p>
+              <div className="rounded-2xl bg-gradient-to-br from-brand-50/50 to-white border border-edge/10 p-5">
+                <p className="text-2xs font-semibold uppercase tracking-normal text-primary/60 mb-3">AI Credits</p>
                 <div className="flex items-center gap-4">
                   <Zap className="w-8 h-8 text-amber-500" />
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-black text-[#1f1a23]">{school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}</span>
-                      <span className={`text-[10px] font-black ${school.aiCreditsLimit > 0 && (school.aiCreditsUsed / school.aiCreditsLimit) > 0.8 ? "text-rose-600" : "text-emerald-600"}`}>
+                      <span className="text-sm font-bold text-ink-strong">{school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}</span>
+                      <span className={`text-2xs font-bold ${school.aiCreditsLimit > 0 && (school.aiCreditsUsed / school.aiCreditsLimit) > 0.8 ? "text-rose-600" : "text-emerald-600"}`}>
                         {school.aiCreditsLimit > 0 ? `${Math.round((school.aiCreditsUsed / school.aiCreditsLimit) * 100)}% used` : "—"}
                       </span>
                     </div>
                     {school.aiCreditsLimit > 0 && (
-                      <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${(school.aiCreditsUsed / school.aiCreditsLimit) > 0.8 ? "bg-rose-500" : (school.aiCreditsUsed / school.aiCreditsLimit) > 0.5 ? "bg-amber-500" : "bg-emerald-500"}`}
                           style={{ width: `${Math.min((school.aiCreditsUsed / school.aiCreditsLimit) * 100, 100)}%` }}
@@ -2020,21 +2020,21 @@ function SchoolDetailModal({
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between rounded-2xl bg-[#f3f4f9]/50 p-4">
+              <div className="flex items-center justify-between rounded-2xl bg-muted/50 p-4">
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Plan</p>
-                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{planLabel(school.plan)}</p>
+                  <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle">Plan</p>
+                  <p className="text-sm font-bold text-ink-strong mt-0.5">{planLabel(school.plan)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Since</p>
-                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{new Date(school.createdAt).toLocaleDateString("en-PK", { month: "short", year: "numeric" })}</p>
+                  <p className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle">Since</p>
+                  <p className="text-sm font-bold text-ink-strong mt-0.5">{new Date(school.createdAt).toLocaleDateString("en-PK", { month: "short", year: "numeric" })}</p>
                 </div>
               </div>
               <div className="rounded-2xl bg-amber-50/50 border border-amber-100/50 p-4 flex items-center gap-3">
                 <CreditCard className="w-5 h-5 text-amber-600 shrink-0" />
                 <div>
-                  <p className="text-xs font-black text-amber-800">Manage Plan</p>
-                  <p className="text-[10px] font-semibold text-amber-700/60">Go to the Subscription tab to change the plan for this school.</p>
+                  <p className="text-xs font-bold text-amber-800">Manage Plan</p>
+                  <p className="text-2xs font-semibold text-amber-700/60">Go to the Subscription tab to change the plan for this school.</p>
                 </div>
               </div>
             </div>
@@ -2048,23 +2048,23 @@ function SchoolDetailModal({
                     <div key={campus.id} className="sk-panel p-5">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                          <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
-                          {campus.principalName ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
-                          {campus.phone ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
-                          {campus.website ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.website}</p> : null}
+                          <p className="text-sm font-bold text-ink-strong">{campus.name}</p>
+                          <p className="text-2xs font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
+                          {campus.principalName ? <p className="text-2xs font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
+                          {campus.phone ? <p className="text-2xs font-bold text-ink-subtle mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
+                          {campus.website ? <p className="text-2xs font-bold text-ink-subtle mt-0.5">{campus.website}</p> : null}
                         </div>
                         <div className="flex gap-4">
-                          <span className="text-[10px] font-bold text-ink-muted">{campus.students} students</span>
-                          <span className="text-[10px] font-bold text-ink-muted">{campus.staff} staff</span>
-                          <span className="text-[10px] font-bold text-ink-muted">{campus.classes} classes</span>
+                          <span className="text-2xs font-bold text-ink-muted">{campus.students} students</span>
+                          <span className="text-2xs font-bold text-ink-muted">{campus.staff} staff</span>
+                          <span className="text-2xs font-bold text-ink-muted">{campus.classes} classes</span>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-2xl bg-[#f3f4f9]/50 p-8 text-center">
+                <div className="rounded-2xl bg-muted/50 p-8 text-center">
                   <p className="text-sm font-bold text-ink-subtle">No campuses registered.</p>
                 </div>
               )}
@@ -2073,15 +2073,15 @@ function SchoolDetailModal({
 
           {tab === "subscription" && (
             <div className="space-y-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]/60">Select Plan for {school.name}</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary/60">Select Plan for {school.name}</p>
               <div className="grid gap-3">
                 {(["FREE", "BASIC", "PRO", "ENTERPRISE"] as const).map((plan) => {
                   const isCurrent = school.plan === plan;
                   const dotStyles: Record<string, string> = {
-                    FREE: "bg-[#cfc2d6]/40",
+                    FREE: "bg-edge/40",
                     BASIC: "bg-sky-500",
-                    PRO: "bg-[#8127cf]",
-                    ENTERPRISE: "bg-[#1f1a23]",
+                    PRO: "bg-primary",
+                    ENTERPRISE: "bg-ink-strong",
                   };
                   return (
                     <Button aria-pressed={isCurrent} variant="choice"
@@ -2092,10 +2092,10 @@ function SchoolDetailModal({
                       className="relative justify-between p-4 text-start"
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`h-3 w-3 rounded-full ${dotStyles[plan]} ${isCurrent ? "ring-2 ring-[#8127cf]/30 ring-offset-2" : ""}`} />
+                        <span className={`h-3 w-3 rounded-full ${dotStyles[plan]} ${isCurrent ? "ring-2 ring-primary/30 ring-offset-2" : ""}`} />
                         <div>
-                          <p className={`text-sm font-black ${isCurrent ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{planLabel(plan)}</p>
-                          <p className="text-[10px] font-bold text-ink-muted mt-0.5">
+                          <p className={`text-sm font-bold ${isCurrent ? "text-primary" : "text-ink-strong"}`}>{planLabel(plan)}</p>
+                          <p className="text-2xs font-bold text-ink-muted mt-0.5">
                             {plan === "FREE" ? "50 students, 2 teachers, 1 campus" :
                              plan === "BASIC" ? "500 students, 10 teachers, 1 campus" :
                              plan === "PRO" ? "2,500 students, 50 teachers, 5 campuses" :
@@ -2104,7 +2104,7 @@ function SchoolDetailModal({
                         </div>
                       </div>
                       {isCurrent && (
-                        <span className="text-[9px] font-black text-[#8127cf] bg-white rounded-full px-3 py-1 border border-[#8127cf]/10">
+                        <span className="text-2xs font-bold text-primary bg-white rounded-full px-3 py-1 border border-primary/10">
                           Current
                         </span>
                       )}
@@ -2120,10 +2120,10 @@ function SchoolDetailModal({
 }
 
 const planColors: Record<string, string> = {
-  FREE: "bg-[#f3f4f9] text-ink-muted border border-[#cfc2d6]/10",
+  FREE: "bg-muted text-ink-muted border border-edge/10",
   STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
-  PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
-  ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
+  PRO: "bg-brand-50 text-primary border border-primary/10",
+  ENTERPRISE: "bg-gradient-to-br from-ink-strong to-[#2d2633] text-white border-0",
 };
 
 function ChangePasswordModal({
@@ -2205,15 +2205,15 @@ function ChangePasswordModal({
       }
     >
 
-        <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 mb-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="rounded-2xl bg-brand-50/50 border border-edge/10 p-4 mb-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-[#8127cf]">
+            <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-primary">
               <User className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-black text-sm text-[#1f1a23]">{user.fullName}</p>
-              <p className="text-[10px] font-bold text-ink-subtle">{user.email}</p>
-              {user.school && <p className="text-[10px] font-bold text-[#8127cf]/60 mt-0.5">{user.school.name}</p>}
+              <p className="font-bold text-sm text-ink-strong">{user.fullName}</p>
+              <p className="text-2xs font-bold text-ink-subtle">{user.email}</p>
+              {user.school && <p className="text-2xs font-bold text-primary/60 mt-0.5">{user.school.name}</p>}
             </div>
           </div>
         </div>
@@ -2223,7 +2223,7 @@ function ChangePasswordModal({
             <label htmlFor="owner-new-password" className="sk-field-label mb-2">
               New Password
             </label>
-            <InputGroup surfaceClassName="bg-[#fbf0fe]/50" className="relative">
+            <InputGroup surfaceClassName="bg-brand-50/50" className="relative">
               <SystemInput id="owner-new-password"
                 type={showPassword ? "text" : "password"}
                 value={newPassword}
@@ -2250,12 +2250,12 @@ function ChangePasswordModal({
                       className={`h-1.5 flex-1 rounded-full transition-all ${
                         level <= strength.level
                           ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
-                          : "bg-[#f3f4f9]"
+                          : "bg-muted"
                       }`}
                     />
                   ))}
                 </div>
-                <span className={`text-[9px] font-black uppercase tracking-normal ${
+                <span className={`text-2xs font-semibold uppercase tracking-normal ${
                   strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
                 }`}>
                   {strength.label}
@@ -2286,8 +2286,8 @@ function ChangePasswordModal({
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-black text-amber-800">Security Notice</p>
-              <p className="text-[10px] font-semibold text-amber-700/70 mt-0.5">
+              <p className="text-xs font-bold text-amber-800">Security Notice</p>
+              <p className="text-2xs font-semibold text-amber-700/70 mt-0.5">
                 This action is logged. The user will need the new password on their next login.
               </p>
             </div>
@@ -2306,9 +2306,9 @@ function ChangePasswordModal({
 
 function MiniStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl bg-[#f3f4f9] px-3 py-2 text-center">
-      <p className="text-[7px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
-      <p className="text-sm font-black text-[#1f1a23]">{value}</p>
+    <div className="rounded-xl bg-muted px-3 py-2 text-center">
+      <p className="text-3xs font-semibold uppercase tracking-normal text-ink-subtle">{label}</p>
+      <p className="text-sm font-bold text-ink-strong">{value}</p>
     </div>
   );
 }
@@ -2323,7 +2323,7 @@ function PaginationBar({
   onPage: (page: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between mt-5 pt-4 border-t border-[#f3f4f9]">
+    <div className="flex items-center justify-between mt-5 pt-4 border-t border-muted">
       <p className="text-xs font-bold text-ink-subtle">
         Page {pagination.page} of {pagination.pages} ({pagination.total} {label})
       </p>

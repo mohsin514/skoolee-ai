@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarRange } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
@@ -48,7 +48,7 @@ export function InstallmentPlanPanel({ invoiceId, currency }: { invoiceId: strin
   if (!data) return null;
   const plan = data.plans[0];
   return <section className="space-y-3 rounded-2xl border border-border p-4" data-installment-panel={plan?.status ?? "none"}>
-    <h4 className="flex items-center gap-2 text-sm font-black"><CalendarRange className="size-4 text-primary" aria-hidden="true" />{ui("Instalment plan")}</h4>
+    <h4 className="flex items-center gap-2 text-sm font-bold"><CalendarRange className="size-4 text-primary" aria-hidden="true" />{ui("Instalment plan")}</h4>
     {plan ? <>
       <p className="text-xs text-ink-muted">{plan.status === "active" ? ui("Approved. The family sees this schedule; only past-due instalments count as overdue.") : plan.proposedByYou ? ui("Proposed by you. Another staff member must approve it before the family sees it.") : ui("Proposed by a colleague and waiting for your approval.")}</p>
       <InstallmentSchedule installments={plan.installments} currency={currency} />

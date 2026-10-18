@@ -125,9 +125,9 @@ export function ExamBoardCard({
         "group relative rounded-2xl border bg-white shadow-sm outline-none transition-all",
         compact ? "p-3" : "p-4",
         dragging
-          ? "scale-[0.98] rotate-[0.6deg] border-[#8127cf]/40 opacity-50"
-          : "hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(129,39,207,0.18)]",
-        selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/15",
+          ? "scale-[0.98] rotate-[0.6deg] border-primary/40 opacity-50"
+          : "hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(129,39,207,0.18)]",
+        selected ? "border-primary ring-2 ring-primary/20" : "border-edge/15",
       )}
     >
       {/* Stage colour rail — tells the eye which lane a card belongs to even
@@ -142,7 +142,7 @@ export function ExamBoardCard({
         <div className="flex min-w-0 items-start gap-2">
           <span
             aria-hidden
-            className="mt-0.5 cursor-grab text-[#cfc2d6] opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+            className="mt-0.5 cursor-grab text-edge opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
           >
             <GripVertical className="h-4 w-4" />
           </span>
@@ -153,7 +153,7 @@ export function ExamBoardCard({
             onClick={(e) => e.stopPropagation()}
             aria-label={`Select ${exam.title}`}
             className={cn(
-              "mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[#8127cf] transition-opacity",
+              "mt-1 h-4 w-4 shrink-0 cursor-pointer accent-primary transition-opacity",
               selectionActive || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
             )}
           />
@@ -177,16 +177,16 @@ export function ExamBoardCard({
       </div>
 
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+        <span className="rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
           {EXAM_TYPE_LABELS[exam.examType as ExamType] ||
             exam.examType?.replaceAll("_", " ") ||
             "Exam"}
         </span>
-        <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[9px] font-bold text-ink-muted">
+        <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-bold text-ink-muted">
           {classLabel(exam.class)}
         </span>
         {dateRange ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[9px] font-bold text-teal-700">
+          <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-2xs font-bold text-teal-700">
             <CalendarDays className="h-2.5 w-2.5" />
             {dateRange}
           </span>
@@ -194,7 +194,7 @@ export function ExamBoardCard({
       </div>
 
       {!compact ? (
-        <p className="mb-3 text-[11px] font-semibold text-ink-muted">
+        <p className="mb-3 text-2xs font-semibold text-ink-muted">
           {exam.subject ? exam.subject.name : "All subjects"}
           {meta?.subjectsCount
             ? ` · ${meta.subjectsCount} subject${meta.subjectsCount > 1 ? "s" : ""}`
@@ -205,13 +205,13 @@ export function ExamBoardCard({
 
       {meta && meta.expectedMarks > 0 ? (
         <div className="mb-3">
-          <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
+          <div className="mb-1 flex items-center justify-between text-2xs font-bold">
             <span className="text-ink-muted">Marks entered</span>
             <span className="text-ink">
               {meta.enteredMarks}/{meta.expectedMarks} · {pct}%
             </span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f9]">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${pct}%`, backgroundColor: accent }}
@@ -222,11 +222,11 @@ export function ExamBoardCard({
 
       {exam.rejectionReason ? (
         <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
-          <p className="text-[10px] font-black uppercase tracking-wider text-rose-600">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-rose-600">
             Sent back
             {exam.rejectionCount && exam.rejectionCount > 1 ? ` · ${exam.rejectionCount} times` : ""}
           </p>
-          <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-rose-700">
+          <p className="mt-0.5 text-2xs font-semibold leading-relaxed text-rose-700">
             {exam.rejectionReason}
           </p>
         </div>
@@ -249,7 +249,7 @@ export function ExamBoardCard({
           {action.label}
         </Button>
       ) : (
-        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-2 text-[11px] font-black uppercase tracking-wider text-emerald-600">
+        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-2 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
           <CheckCircle2 className="h-3.5 w-3.5" /> Complete
         </div>
       )}
@@ -342,13 +342,13 @@ function CardMenu({
                 }}
                 className="justify-start flex w-full items-center gap-2 px-3 py-2 text-left"
               >
-                <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
+                <Icon className="h-3.5 w-3.5 text-primary" />
                 {t.label}
               </Button>
             );
           })}
 
-          <p className="mt-1 border-t border-[#cfc2d6]/15 px-3 pb-1 pt-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+          <p className="mt-1 border-t border-edge/15 px-3 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             Move to
           </p>
           {columns.map((col) => {

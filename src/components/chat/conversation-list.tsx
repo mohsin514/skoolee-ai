@@ -41,7 +41,7 @@ function relativeTime(iso: string | null, ui: Ui, tag: string) {
 }
 
 const KIND_BADGE: Record<string, { label: (ui: Ui) => string; className: string }> = {
-  GROUP: { label: (ui) => ui("Group"), className: "bg-[#fbf0fe] text-[#8127cf]" },
+  GROUP: { label: (ui) => ui("Group"), className: "bg-brand-50 text-primary" },
   CLASS: { label: (ui) => ui("Class"), className: "bg-emerald-50 text-emerald-700" },
   ANNOUNCEMENT: { label: (ui) => ui("Notice"), className: "bg-amber-50 text-amber-700" },
 };
@@ -208,12 +208,12 @@ function ConversationRow({
           >
             <bdi>{c.title}</bdi>
           </span>
-          {c.isPinned && <Pin className="h-3 w-3 shrink-0 self-center text-[#8127cf]" aria-label={ui("Pinned")} />}
+          {c.isPinned && <Pin className="h-3 w-3 shrink-0 self-center text-primary" aria-label={ui("Pinned")} />}
           {c.isMuted && <BellOff className="h-3 w-3 shrink-0 self-center text-ink-faint" aria-label={ui("Muted")} />}
           <span
             className={cn(
-              "shrink-0 text-[10px] font-bold",
-              unread ? "text-[#b10e6b]" : "text-ink-faint"
+              "shrink-0 text-2xs font-bold",
+              unread ? "text-berry" : "text-ink-faint"
             )}
           >
             {relativeTime(c.lastMessageAt, ui, localeTag(locale))}
@@ -224,7 +224,7 @@ function ConversationRow({
           {badge && (
             <span
               className={cn(
-                "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider",
+                "shrink-0 rounded-full px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider",
                 badge.className
               )}
             >
@@ -251,7 +251,7 @@ function ConversationRow({
         </span>
 
         {c.kind === "DIRECT" && c.counterpart && (
-          <span className="mt-1 block truncate text-[11px] font-medium text-ink-faint">
+          <span className="mt-1 block truncate text-2xs font-medium text-ink-faint">
             {roleLabel(c.counterpart.role, locale.language)}
           </span>
         )}
@@ -265,10 +265,10 @@ function ListSkeleton() {
     <div className="space-y-1 p-1" aria-hidden>
       {[0, 1, 2, 3, 4].map((i) => (
         <div key={i} className="flex items-center gap-3 rounded-2xl px-2 py-2.5">
-          <div className="skeleton-shimmer h-10 w-10 shrink-0 rounded-2xl bg-[#eadfed]" />
+          <div className="skeleton-shimmer h-10 w-10 shrink-0 rounded-2xl bg-border-subtle" />
           <div className="flex-1 space-y-2">
-            <div className="skeleton-shimmer h-2.5 w-2/3 rounded-full bg-[#eadfed]" />
-            <div className="skeleton-shimmer h-2.5 w-full rounded-full bg-[#eadfed]/70" />
+            <div className="skeleton-shimmer h-2.5 w-2/3 rounded-full bg-border-subtle" />
+            <div className="skeleton-shimmer h-2.5 w-full rounded-full bg-border-subtle/70" />
           </div>
         </div>
       ))}

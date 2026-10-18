@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Archive, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Input } from "@/components/ui/input";
@@ -69,9 +69,9 @@ export function ArchivedCampusList({ campuses, onDone }: { campuses: { id: strin
     } catch (failure) { setError(failure instanceof Error ? failure.message : ui("Could not restore this campus.")); } finally { setBusy(false); }
   };
   return <div className="mt-6 space-y-3" data-archived-campuses>
-    <p className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">{ui("Archived campuses")}</p>
+    <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Archived campuses")}</p>
     {campuses.map(campus => <div key={campus.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-border p-4" data-archived-campus={campus.id}>
-      <div className="min-w-0"><p className="break-words text-sm font-black">{campus.name}</p><p className="text-[11px] font-semibold text-ink-muted">{[campus.city, campus.archiveReason, campus.archivedAt?.slice(0, 10)].filter(Boolean).join(" · ")}</p></div>
+      <div className="min-w-0"><p className="break-words text-sm font-bold">{campus.name}</p><p className="text-2xs font-semibold text-ink-muted">{[campus.city, campus.archiveReason, campus.archivedAt?.slice(0, 10)].filter(Boolean).join(" · ")}</p></div>
       <Button variant="outline" type="button" onClick={() => { setError(""); setRestoring(campus); }}><RotateCcw className="h-3 w-3" aria-hidden="true" />{ui("Restore")}</Button>
     </div>)}
     <ConfirmAction open={Boolean(restoring)} title={ui("Restore {0}?", [restoring?.name ?? ""])} description={ui("The campus returns to current lists with everything it held. A campus with the same name that is already active blocks the restore.")} confirmLabel={ui("Restore campus")} tone="success" busy={busy}

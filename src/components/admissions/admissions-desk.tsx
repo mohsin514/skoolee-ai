@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ClipboardList, Copy, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -102,7 +102,7 @@ function Pipeline({ forms, owners, classes }: { forms: Form[]; owners: Person[];
           <p className="text-xs text-ink-muted"><bdi>{row.formVersion.form.name}</bdi> · {ui("Form version {0}", [row.formVersion.version])}{row.channel === "STAFF" ? ` · ${ui("Entered by staff")}` : ""}{row.lastFamilyContact ? <> · {ui("Last family contact")} <bdi>{dateTime(row.lastFamilyContact)}</bdi></> : null}</p>
           <p className="text-xs text-ink-muted">{row.owner ? <>{ui("Owner")}: <bdi>{row.owner.fullName}</bdi></> : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{row.nextContactAt ? <> · <span className={row.overdue ? "font-bold text-rose-800" : ""}>{ui("Next contact")} <bdi>{dateTime(row.nextContactAt)}</bdi></span></> : null}</p>
         </div>
-        <span className="rounded-lg bg-muted px-2 py-0.5 text-[10px] font-black">{statusLabel(ui, row.status)}</span>
+        <span className="rounded-lg bg-muted px-2 py-0.5 text-2xs font-bold">{statusLabel(ui, row.status)}</span>
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Review application {0}", [row.reference])}>{ui("Review")}</Button>
       </li>)}</ul>}
     {openId ? <ReviewDialog id={openId} owners={owners} classes={classes} onClose={() => { setOpenId(null); void load(); }} /> : null}
@@ -115,7 +115,7 @@ function Questions({ definition, answers, onChange, problems }: { definition: Fo
   const ui = useUiText();
   const { language } = useLocale();
   return <div className="space-y-3">{visibleFields(definition, answers).map(field => <div key={field.key}>
-    {field.section ? <p className="pt-2 text-xs font-black uppercase text-ink-subtle">{label(field.section, language as Language)}</p> : null}
+    {field.section ? <p className="pt-2 text-xs font-semibold uppercase text-ink-subtle">{label(field.section, language as Language)}</p> : null}
     {field.type === "checkbox" ? <label className="flex items-center gap-2 text-sm"><Checkbox checked={answers[field.key] === true} onChange={event => onChange(field.key, event.target.checked)} />{label(field.label, language as Language)}</label>
       : <FormField name={`entry-${field.key}`} label={label(field.label, language as Language)} required={field.required} error={problems[field.key] ? ui(problems[field.key]) : undefined}>
         {field.type === "select" ? <Select value={String(answers[field.key] ?? "")} onChange={event => onChange(field.key, event.target.value)}><option value="">{ui("Choose…")}</option>{field.options?.map(option => <option key={option.value} value={option.value}>{label(option.label, language as Language)}</option>)}</Select>
@@ -185,16 +185,16 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
       {detail.convertedStudent ? <p className="rounded-xl bg-emerald-50 p-3 text-sm" data-converted>{ui("Enrolled as {0}, roll {1}.", [detail.convertedStudent.fullName, detail.convertedStudent.rollNo])}</p> : null}
 
       {staffDraft ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Answers")}>
-        <p className="text-xs font-black uppercase text-ink-subtle">{ui("Answers (entered by staff)")}</p>
+        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Answers (entered by staff)")}</p>
         <Questions definition={definition} answers={answers} onChange={(key, value) => setAnswers(current => ({ ...current, [key]: value }))} problems={draftProblems} />
         <Button variant="secondary" disabled={busy} onClick={() => void run({ action: "save-answers", answers }, ui("Answers saved."), "POST")}>{ui("Save answers")}</Button>
       </section> : <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Submitted answers")}>
-        <p className="text-xs font-black uppercase text-ink-subtle">{ui("Submitted answers")} · {detail.submissions.length ? ui("Sent {0} time(s), last {1}", [detail.submissions.length, dateTime(detail.submissions[detail.submissions.length - 1].submittedAt)]) : ui("Not sent yet")}</p>
+        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Submitted answers")} · {detail.submissions.length ? ui("Sent {0} time(s), last {1}", [detail.submissions.length, dateTime(detail.submissions[detail.submissions.length - 1].submittedAt)]) : ui("Not sent yet")}</p>
         <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">{visibleFields(definition, detail.answers).map(field => <div key={field.key}><dt className="text-xs text-ink-muted">{label(field.label, "en")}</dt><dd className="font-semibold"><bdi>{typeof detail.answers[field.key] === "boolean" ? (detail.answers[field.key] ? ui("Yes") : ui("No")) : field.type === "select" ? (field.options?.find(option => option.value === detail.answers[field.key])?.label.en ?? String(detail.answers[field.key] ?? "—")) : String(detail.answers[field.key] ?? "—")}</bdi></dd></div>)}</dl>
       </section>}
 
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Documents")}>
-        <p className="text-xs font-black uppercase text-ink-subtle">{ui("Documents")}</p>
+        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Documents")}</p>
         {visibleDocuments(definition, detail.answers).map(document => {
           const files = detail.documents.filter(file => file.key === document.key);
           return <div key={document.key} className="flex flex-wrap items-center gap-2" data-review-document={document.key} data-present={files.length > 0}>
@@ -211,7 +211,7 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
       </div> : null}
 
       {hasDuplicates ? <section className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm" aria-label={ui("Possible duplicates")} data-duplicates>
-        <p className="font-black">{ui("Possible duplicates")}</p>
+        <p className="font-bold">{ui("Possible duplicates")}</p>
         {detail.duplicates.students.map(student => <p key={student.id} data-duplicate-student={student.id}>{ui("Pupil")}: <bdi>{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi> · <bdi>{student.className}</bdi>{student.dateOfBirth ? <> · <bdi dir="ltr">{student.dateOfBirth}</bdi></> : null}{student.archived ? ` · ${ui("archived")}` : ""}</p>)}
         {detail.duplicates.applications.map(other => <p key={other.id}>{ui("Application")}: <bdi dir="ltr">{other.reference}</bdi> · <bdi>{other.childName}</bdi> · {statusLabel(ui, other.status)}</p>)}
       </section> : null}
@@ -234,7 +234,7 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
       </section> : null}
 
       {detail.status === "ACCEPTED" ? <section className="space-y-2 rounded-xl border-2 border-primary/30 p-3" aria-label={ui("Enrol")} data-convert>
-        <p className="text-sm font-black">{ui("Enrol the child")}</p>
+        <p className="text-sm font-bold">{ui("Enrol the child")}</p>
         <p className="text-xs text-ink-muted">{ui("This creates the pupil record once. Guardian sign-in invitations are sent separately from the pupil's record and can be retried there.")}</p>
         {hasDuplicates ? <fieldset className="space-y-1 text-sm"><legend className="text-xs font-bold">{ui("This child may already be on the school's records. Choose:")}</legend>
           <label className="flex items-center gap-2"><input type="radio" name="duplicate-choice" checked={choice === "new"} onChange={() => setChoice("new")} />{ui("Enrol as a new pupil (not the same child)")}</label>
@@ -249,7 +249,7 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
       </section> : null}
 
       <section aria-label={ui("History")}>
-        <p className="mb-2 text-xs font-black uppercase text-ink-subtle">{ui("History")}</p>
+        <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
         <ol className="space-y-1.5 text-xs" data-application-history>{detail.events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
           <p className="font-bold">{eventLabel(ui, event.kind)}{event.toStatus ? ` → ${statusLabel(ui, event.toStatus)}` : ""} · <bdi>{dateTime(event.createdAt)}</bdi> · {event.actorName ? <bdi>{event.actorName}</bdi> : ui("Family")}</p>
           {event.officeNote ? <p className="whitespace-pre-wrap"><span className="font-bold">{ui("Office note")}:</span> <bdi>{event.officeNote}</bdi></p> : null}
@@ -329,7 +329,7 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
       </li>)}</ol>
       <Button variant="secondary" onClick={() => setDefinition(current => ({ ...current, fields: [...current.fields, { key: `question${current.fields.length + 1}`, type: "text", required: false, label: { en: "" } }] }))}>{ui("Add a question")}</Button>
       <section className="space-y-2" aria-label={ui("Documents")}>
-        <p className="text-sm font-black">{ui("Documents")}</p>
+        <p className="text-sm font-bold">{ui("Documents")}</p>
         {definition.documents.map((document, index) => <div key={index} className="grid items-end gap-2 rounded-xl border border-border p-3 sm:grid-cols-4" data-editor-document={document.key}>
           <FormField name={`doc-en-${index}`} label={ui("Document (English)")}><Input value={document.label.en} onChange={event => setDefinition(current => ({ ...current, documents: current.documents.map((d, i) => i === index ? { ...d, label: { ...d.label, en: event.target.value } } : d) }))} /></FormField>
           <FormField name={`doc-ar-${index}`} label={ui("Document (Arabic)")}><Input dir="rtl" value={document.label.ar ?? ""} onChange={event => setDefinition(current => ({ ...current, documents: current.documents.map((d, i) => i === index ? { ...d, label: { ...d.label, ar: event.target.value } } : d) }))} /></FormField>
@@ -338,7 +338,7 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
         </div>)}
         <Button variant="secondary" onClick={() => setDefinition(current => ({ ...current, documents: [...current.documents, { key: `document${current.documents.length + 1}`, required: false, label: { en: "" } }] }))}>{ui("Add a document")}</Button>
       </section>
-      <fieldset className="space-y-1 text-sm"><legend className="text-sm font-black">{ui("Find possible duplicates by")}</legend>
+      <fieldset className="space-y-1 text-sm"><legend className="text-sm font-bold">{ui("Find possible duplicates by")}</legend>
         {IDENTITY_KEYS.map(key => <label key={key} className="flex items-center gap-2"><Checkbox checked={definition.identityKeys.includes(key)} onChange={event => setDefinition(current => ({ ...current, identityKeys: event.target.checked ? [...current.identityKeys, key] : current.identityKeys.filter(k => k !== key) }))} />{key === "nationalId" ? ui("National ID / birth registration number") : key === "nameAndDob" ? ui("Child's name and date of birth") : ui("Guardian phone and child's name")}</label>)}
       </fieldset>
       <FormField name="form-consent" label={ui("Consent statement (English)")}><Textarea rows={2} value={definition.consent.en} onChange={event => setDefinition(current => ({ ...current, consent: { ...current.consent, en: event.target.value } }))} /></FormField>

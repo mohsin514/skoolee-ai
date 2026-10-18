@@ -20,7 +20,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
@@ -180,7 +180,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Invoices"}</UiText></h3>
+        <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Invoices"}</UiText></h3>
         <div className="flex items-center gap-2">
           <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExportCSV}><UiText>{"Export"}</UiText></BrandButton>
           <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowGenerate(true)}><UiText>{"Generate"}</UiText></BrandButton>
@@ -188,7 +188,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+        <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-muted p-1">
           {STATUSES.map((s) => (
             <Button aria-pressed={statusFilter === s.value} variant="choice"
               key={s.value}
@@ -238,27 +238,27 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-[9px] font-bold text-ink-subtle">{tr("Invoices")}: {total}</p>
+      <p className="text-2xs font-bold text-ink-subtle">{tr("Invoices")}: {total}</p>
 
       {loading ? (
         <div className="sk-panel overflow-hidden animate-skeleton-in">
-          <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50">
+          <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-muted/50">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="h-3 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div key={i} className="h-3 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             ))}
           </div>
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 border-t border-[#f3f4f9]" style={{ animationDelay: `${i * 50}ms` }}>
+            <div key={i} className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 border-t border-muted" style={{ animationDelay: `${i * 50}ms` }}>
               <div className="space-y-1.5">
-                <div className="h-3.5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-2.5 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                <div className="h-3.5 w-24 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-2.5 w-16 rounded-full bg-border-subtle/30 skeleton-shimmer" />
               </div>
               <div className="space-y-1.5">
-                <div className="h-3.5 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-2.5 w-14 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                <div className="h-3.5 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-2.5 w-14 rounded-full bg-border-subtle/30 skeleton-shimmer" />
               </div>
               {Array.from({ length: 5 }).map((_, j) => (
-                <div key={j} className="h-3.5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer self-center" />
+                <div key={j} className="h-3.5 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer self-center" />
               ))}
             </div>
           ))}
@@ -272,7 +272,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       ) : (
         <>
           <div className="sk-panel sk-rise overflow-hidden">
-            <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+            <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               <span><UiText>{"Student"}</UiText></span>
               <span><UiText>{"Invoice"}</UiText></span>
               <span><UiText>{"Total"}</UiText></span>
@@ -281,27 +281,27 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
               <span><UiText>{"Status"}</UiText></span>
               <span></span>
             </div>
-            <div className="divide-y divide-[#f3f4f9]">
+            <div className="divide-y divide-muted">
               {invoices.map((inv) => (
                 <div
                   key={inv.id}
-                  className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 items-center hover:bg-[#fbf0fe]/20 transition-colors"
+                  className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-[#1f1a23] truncate">{inv.student.fullName}</p>
-                    <p className="text-[9px] font-bold text-ink-subtle">
+                    <p className="text-xs font-bold text-ink-strong truncate">{inv.student.fullName}</p>
+                    <p className="text-2xs font-bold text-ink-subtle">
                       {classLabel(inv.student.class.name, inv.student.class.section)}
                     </p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-[#1f1a23] truncate">{inv.invoiceNumber}</p>
-                    <p className="text-[9px] font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{formatDate(inv.dueDate)}
+                    <p className="text-xs font-bold text-ink-strong truncate">{inv.invoiceNumber}</p>
+                    <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{formatDate(inv.dueDate)}
                     </p>
                   </div>
-                  <p className="text-xs font-black text-[#1f1a23]">{formatPKR(inv.totalAmount, inv.currency)}</p>
-                  <p className="text-xs font-black text-emerald-600">{formatPKR(inv.totalAmountPaid, inv.currency)}</p>
-                  <p className="text-xs font-black text-rose-600">{formatPKR(inv.balanceDue, inv.currency)}</p>
-                  <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg w-fit ${statusBadgeClass(inv.status)}`}>
+                  <p className="text-xs font-bold text-ink-strong">{formatPKR(inv.totalAmount, inv.currency)}</p>
+                  <p className="text-xs font-bold text-emerald-600">{formatPKR(inv.totalAmountPaid, inv.currency)}</p>
+                  <p className="text-xs font-bold text-rose-600">{formatPKR(inv.balanceDue, inv.currency)}</p>
+                  <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg w-fit ${statusBadgeClass(inv.status)}`}>
                     {tr(inv.status)}
                   </span>
                   <div className="flex items-center gap-1 justify-end">
@@ -338,7 +338,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                 className="justify-start flex items-center gap-1 px-3"
               >
                 <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
-              <span className="text-[9px] font-black uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
+              <span className="text-2xs font-semibold uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
               </span>
               <Button variant="secondary"
                 type="button"
@@ -435,30 +435,30 @@ function InvoiceDetailModal({
         {loading || !inv ? (
           <div className="space-y-4 py-2 animate-skeleton-in">
             <div className="flex items-center justify-between">
-              <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-6 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-4 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-6 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             </div>
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="flex justify-between animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
-                  <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                  <div className="h-3 w-24 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                  <div className="h-3 w-20 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                  <div className="h-3 w-24 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                 </div>
               ))}
             </div>
-            <div className="h-px bg-[#e8e0ec]/30" />
-            <div className="h-5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-px bg-border-subtle/30" />
+            <div className="h-5 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">{inv.invoiceNumber}</p>
-                <p className="text-[9px] font-bold text-ink-subtle">
+                <p className="text-sm font-bold text-ink-strong">{inv.invoiceNumber}</p>
+                <p className="text-2xs font-bold text-ink-subtle">
                   {inv.student?.fullName} · {inv.student?.class?.name}
                 </p>
               </div>
-              <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>
+              <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>
                 {tr(inv.status)}
               </span>
             </div>
@@ -468,16 +468,16 @@ function InvoiceDetailModal({
                 <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
                   <Receipt className="h-5 w-5 text-emerald-600" />
                 </div>
-                <p className="text-sm font-black text-emerald-800"><UiText>{"Fully Paid"}</UiText></p>
-                <p className="text-[10px] font-bold text-emerald-600/70 mt-0.5"><UiText>{"Receipt:"}</UiText>{inv.payments[0].receiptNo ?? "—"}
+                <p className="text-sm font-bold text-emerald-800"><UiText>{"Fully Paid"}</UiText></p>
+                <p className="text-2xs font-bold text-emerald-600/70 mt-0.5"><UiText>{"Receipt:"}</UiText>{inv.payments[0].receiptNo ?? "—"}
                 </p>
               </div>
             )}
 
-            <div className="rounded-2xl bg-[#f3f4f9]/50 p-4 space-y-2">
+            <div className="rounded-2xl bg-muted/50 p-4 space-y-2">
               <Row label={tr("Invoice Date")} value={formatDate(inv.invoiceDate)} />
               <Row label={tr("Due Date")} value={formatDate(inv.dueDate)} />
-              <div className="border-t border-[#cfc2d6]/10 pt-2 mt-2" />
+              <div className="border-t border-edge/10 pt-2 mt-2" />
               <Row label={tr("Monthly Fee")} value={formatPKR(inv.monthlyFee, inv.currency)} />
               {inv.oneTimeFees > 0 && <Row label={tr("One-Time Fees")} value={formatPKR(inv.oneTimeFees, inv.currency)} />}
               <Row label={tr("Subtotal")} value={formatPKR(inv.subtotal, inv.currency)} />
@@ -485,7 +485,7 @@ function InvoiceDetailModal({
               {Boolean(inv.carryForwardAmount) && <Row label={tr("Carry Forward")} value={formatPKR(inv.carryForwardAmount || 0, inv.currency)} />}
               {inv.lateFeeAmount > 0 && <Row label={tr("Late Fee")} value={formatPKR(inv.lateFeeAmount, inv.currency)} className="text-rose-600" />}
               {inv.taxAmount > 0 && <Row label={tr("Tax")} value={formatPKR(inv.taxAmount, inv.currency)} />}
-              <div className="border-t border-[#cfc2d6]/10 pt-2 mt-2" />
+              <div className="border-t border-edge/10 pt-2 mt-2" />
               <Row label={tr("Total Amount")} value={formatPKR(inv.totalAmount, inv.currency)} bold />
               <Row label={tr("Amount Paid")} value={formatPKR(inv.totalAmountPaid, inv.currency)} className="text-emerald-600" />
               <Row label={tr("Balance Due")} value={formatPKR(inv.balanceDue, inv.currency)} className={inv.balanceDue > 0 ? "text-rose-600" : "text-emerald-600"} bold />
@@ -493,23 +493,23 @@ function InvoiceDetailModal({
 
             {inv.payments && inv.payments.length > 0 && (
               <div>
-                <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Payment Receipts"}</UiText></p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Payment Receipts"}</UiText></p>
                 <div className="space-y-2">
                   {inv.payments.map((p: any) => (
                     <div key={p.id} className="rounded-2xl bg-emerald-50/50 border border-emerald-100 px-4 py-3">
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-black text-emerald-700">{formatPKR(p.amount, inv.currency)}</p>
-                        <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-lg">
+                        <p className="text-sm font-bold text-emerald-700">{formatPKR(p.amount, inv.currency)}</p>
+                        <span className="text-2xs font-semibold uppercase text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-lg">
                           {p.receiptNo ?? "—"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-[9px] font-bold text-ink-subtle">
+                        <p className="text-2xs font-bold text-ink-subtle">
                           {formatDate(p.paymentDate)} · {tr(paymentMethodLabel(p.paymentMethod))}
                           {p.referenceNumber ? tr(" · Ref: {0}", [p.referenceNumber]) : ""}
                         </p>
                         {p.recorder?.fullName && (
-                          <p className="text-[9px] font-bold text-ink-subtle"><UiText>{"by"}</UiText>{p.recorder.fullName}</p>
+                          <p className="text-2xs font-bold text-ink-subtle"><UiText>{"by"}</UiText>{p.recorder.fullName}</p>
                         )}
                       </div>
                     </div>
@@ -545,8 +545,8 @@ function InvoiceDetailModal({
 function Row({ label, value, className, bold }: { label: string; value: string; className?: string; bold?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[9px] font-black uppercase text-ink-subtle">{label}</span>
-      <span className={`text-sm ${bold ? "font-black" : "font-bold"} ${className ?? "text-[#1f1a23]"}`}>{value}</span>
+      <span className="text-2xs font-semibold uppercase text-ink-subtle">{label}</span>
+      <span className={`text-sm ${bold ? "font-bold" : "font-bold"} ${className ?? "text-ink-strong"}`}>{value}</span>
     </div>
   );
 }
@@ -615,11 +615,11 @@ function GenerateInvoicesModal({
     >
         <div className="space-y-4">
           <label>
-            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Month"}</UiText></span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Month"}</UiText></span>
             <SystemInput type="month" value={generationMonth} onChange={(e) => setGenerationMonth(e.target.value)} className={inputClass} />
           </label>
           <label>
-            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Class (optional)"}</UiText></span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Class (optional)"}</UiText></span>
             <SystemSelect value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={inputClass}>
               <option value=""><UiText>{"All Classes"}</UiText></option>
               {classes.map((c) => (

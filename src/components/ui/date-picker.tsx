@@ -118,7 +118,7 @@ export const DatePicker = forwardRef<HTMLInputElement, Props>(function DatePicke
     <button type="button" disabled={disabled || readOnly} aria-label={copy.openCalendar(label)} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setLocalValue(inputRef.current?.value ?? ""); setCursor(boundedDate(parse(inputRef.current?.value ?? value) ?? campusToday)); setOpen(true); }} className="absolute end-0.5 top-0.5 grid h-11 w-11 place-items-center rounded-[14px] text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"><CalendarDays aria-hidden="true" className="h-5 w-5" /></button>
     {open && <ModalSurface onClose={() => setOpen(false)} ariaLabel={copy.dialogTitle} className="!max-w-sm">
       <div dir={dir} lang={locale} className="min-h-0 overflow-y-auto overscroll-contain">
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#542080] via-[#7020b9] to-[#8127cf] px-5 pb-5 pt-5 text-white sm:px-6">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#542080] via-brand-700 to-primary px-5 pb-5 pt-5 text-white sm:px-6">
           <div className="relative flex items-start justify-between gap-3">
             <div className="min-w-0"><p className="text-xs font-semibold tracking-wide text-white/85">{label}</p><h2 className="mt-1 text-lg font-bold">{copy.title}</h2></div>
             <Button variant="ghost" size="icon" aria-label={copy.close} onClick={() => setOpen(false)} className="-me-2 -mt-2 shrink-0 text-white hover:bg-white/15 hover:text-white focus-on-dark"><X /></Button>

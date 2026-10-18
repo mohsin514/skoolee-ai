@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Check, ClipboardCheck, Copy, Loader2, RefreshCw, Send, Sparkles, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -102,12 +102,12 @@ export function AiActionPanel({
     <div className={cn("group min-w-0", className)}>
       <div className="mb-[12px] flex min-w-0 items-center gap-[10px]">
         <div className="relative shrink-0">
-          <div className="absolute -inset-2 bg-[#8127cf]/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className="relative h-[36px] w-[36px] rounded-2xl bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center sk-float">
+          <div className="absolute -inset-2 bg-primary/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="relative h-[36px] w-[36px] rounded-2xl bg-brand-50 text-primary flex items-center justify-center sk-float">
             <Sparkles className="w-[20px] h-[20px]" />
           </div>
         </div>
-        <h3 className="min-w-0 text-sm font-black text-[#1f1a23] tracking-wider [overflow-wrap:anywhere]">{title}</h3>
+        <h3 className="min-w-0 text-sm font-bold text-ink-strong tracking-wider [overflow-wrap:anywhere]">{title}</h3>
       </div>
 
       <div className="space-y-3">
@@ -154,7 +154,7 @@ export function AiActionPanel({
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-emerald-700">
                 <Check className="sk-check-pop w-4 h-4" />
-                <p className="text-[9px] font-black uppercase tracking-wider">Draft saved</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider">Draft saved</p>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="secondary" size="sm"
@@ -180,10 +180,10 @@ export function AiActionPanel({
             </div>
             {/* A long lesson plan scrolls inside this box; without the cue the
                 text simply appeared to stop mid-sentence. */}
-            <p className="custom-scrollbar max-h-40 overflow-y-auto whitespace-pre-line text-xs font-semibold leading-relaxed text-[#1f1a23]">
+            <p className="custom-scrollbar max-h-40 overflow-y-auto whitespace-pre-line text-xs font-semibold leading-relaxed text-ink-strong">
               {output}
             </p>
-            <p className="mt-2 text-[10px] font-semibold text-emerald-700/70">
+            <p className="mt-2 text-2xs font-semibold text-emerald-700/70">
               {output.split(/\s+/).filter(Boolean).length} words · scroll for the rest · always read an AI draft before you use it
             </p>
           </div>
@@ -234,14 +234,14 @@ export function AIReviewQueue({
     <div className="space-y-3">
       {visibleItems.slice(0, 5).map((item, index) => (
         <div key={item.id} className="sk-panel sk-rise p-4" style={{ animationDelay: `${index * 60}ms` }}>
-          <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-wider mb-1">
+          <p className="text-2xs font-semibold text-primary uppercase tracking-wider mb-1">
             {item.feature.replaceAll("_", " ")}
           </p>
-          <p className="text-xs font-black text-[#1f1a23] leading-snug mb-3">{item.title}</p>
+          <p className="text-xs font-bold text-ink-strong leading-snug mb-3">{item.title}</p>
           <div className="flex gap-2">
             <BrandButton
               variant="soft"
-              className="h-9 flex-1 text-[11px]"
+              className="h-9 flex-1 text-2xs"
               onClick={() => review(item.id, "approve")}
               disabled={busyId === item.id}
               icon={busyId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
@@ -250,7 +250,7 @@ export function AIReviewQueue({
             </BrandButton>
             <BrandButton
               variant="danger"
-              className="h-9 flex-1 text-[11px]"
+              className="h-9 flex-1 text-2xs"
               onClick={() => review(item.id, "reject")}
               disabled={busyId === item.id}
               icon={<X className="w-3.5 h-3.5" />}

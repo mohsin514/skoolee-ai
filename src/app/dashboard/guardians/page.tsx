@@ -27,8 +27,8 @@ export default async function GuardianAccessPage() {
   const locale = account?.preferredLanguage === "ar" || account?.preferredLanguage === "ur" ? account.preferredLanguage : "en";
   return <main className="mx-auto w-full max-w-6xl space-y-5 p-[12px] sm:p-6" dir={locale === "ar" || locale === "ur" ? "rtl" : "ltr"}>
     <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8127cf]">{locale === "ar" ? "سجلات المدرسة" : locale === "ur" ? "اسکول ریکارڈز" : "School records"}</p>
-      <h1 className="text-2xl font-bold tracking-tight text-[#1d1b20]">{locale === "ar" ? "أولياء الأمور والصلاحيات" : locale === "ur" ? "سرپرست اور رسائی" : "Guardians and access"}</h1>
+      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{locale === "ar" ? "سجلات المدرسة" : locale === "ur" ? "اسکول ریکارڈز" : "School records"}</p>
+      <h1 className="text-2xl font-bold tracking-tight text-ink-strong">{locale === "ar" ? "أولياء الأمور والصلاحيات" : locale === "ur" ? "سرپرست اور رسائی" : "Guardians and access"}</h1>
       <p className="max-w-3xl text-sm leading-6 text-ink-muted">{locale === "ar" ? "اربط كل سرپرست بطفل محدد وراجع صلاحياته قبل تفعيل الدعوة." : locale === "ur" ? "ہر سرپرست کو ایک مخصوص طالب علم سے جوڑیں اور دعوت فعال کرنے سے پہلے اجازتیں دیکھیں۔" : "Link each guardian to one child and review the access they will receive before activating an invitation."}</p>
     </header>
     <GuardianAccessManager students={students} locale={locale} />

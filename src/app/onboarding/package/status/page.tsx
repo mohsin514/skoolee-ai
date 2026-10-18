@@ -92,11 +92,11 @@ function CheckoutStatus() {
 
   const isRtl = language === "ar" || language === "ur";
   return (
-    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-[#fff7fe] px-4 py-8 text-[#1f1a23] sm:px-8 sm:py-12">
+    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
       <section aria-labelledby="payment-status-title" className="sk-panel mx-auto max-w-xl p-6 sm:p-10">
-        <h1 id="payment-status-title" className="text-2xl font-black sm:text-3xl">{copy.statusTitle}</h1>
+        <h1 id="payment-status-title" className="text-2xl font-extrabold sm:text-3xl">{copy.statusTitle}</h1>
         {error && <p role="alert" className="mt-5 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900">{error}</p>}
-        {!intent && !error && <p aria-live="polite" className="mt-5 flex items-center gap-2 text-sm text-[#615668]"><Loader2 className="h-4 w-4 animate-spin" />{copy.loadingOrder}</p>}
+        {!intent && !error && <p aria-live="polite" className="mt-5 flex items-center gap-2 text-sm text-ink-muted"><Loader2 className="h-4 w-4 animate-spin" />{copy.loadingOrder}</p>}
         {intent && (
           <div className="mt-6 space-y-5">
             <div className={`rounded-2xl border p-4 ${isSettled ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
@@ -104,21 +104,21 @@ function CheckoutStatus() {
                 {isSettled ? <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-emerald-700" /> : isPending ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-amber-800" /> : <AlertCircle aria-hidden="true" className="h-5 w-5 text-amber-800" />}
                 {copy.stateNames[intent.status] ?? intent.status}
               </p>
-              <p aria-live="polite" className="mt-2 text-sm leading-6 text-[#615668]">
+              <p aria-live="polite" className="mt-2 text-sm leading-6 text-ink-muted">
                 {isSettled ? copy.savedActive : isPending ? copy.savedPending : intent.status === "FAILED" ? intent.failureReason || copy.savedFailed : intent.status === "CANCELLED" ? copy.savedCancelled : copy.savedSelection}
               </p>
             </div>
             <dl className="grid gap-3 rounded-2xl bg-[#fbf7fc] p-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-[#615668]">{copy.orderReference}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{intent.id}</bdi></dd></div>
-              <div><dt className="text-[#615668]">{copy.package}</dt><dd className="font-semibold">{copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan}</dd></div>
-              <div><dt className="text-[#615668]">{copy.paymentState}</dt><dd className="font-semibold">{copy.stateNames[intent.status] ?? intent.status}</dd></div>
-              {intent.amount != null && <div><dt className="text-[#615668]">{copy.savedAmount}</dt><dd dir="ltr" className="font-semibold"><bdi>{intent.currency} {intent.amount.toLocaleString()}</bdi></dd></div>}
+              <div><dt className="text-ink-muted">{copy.orderReference}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{intent.id}</bdi></dd></div>
+              <div><dt className="text-ink-muted">{copy.package}</dt><dd className="font-semibold">{copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan}</dd></div>
+              <div><dt className="text-ink-muted">{copy.paymentState}</dt><dd className="font-semibold">{copy.stateNames[intent.status] ?? intent.status}</dd></div>
+              {intent.amount != null && <div><dt className="text-ink-muted">{copy.savedAmount}</dt><dd dir="ltr" className="font-semibold"><bdi>{intent.currency} {intent.amount.toLocaleString()}</bdi></dd></div>}
             </dl>
             {bank && intent.status === "PENDING_SETTLEMENT" && <dl className="grid gap-2 rounded-2xl border border-[#e6dce9] p-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-[#615668]">{copy.bank}</dt><dd className="font-semibold">{bank.bankName}</dd></div>
-              <div><dt className="text-[#615668]">{copy.accountTitle}</dt><dd className="font-semibold">{bank.accountTitle}</dd></div>
-              <div><dt className="text-[#615668]">{copy.accountNumber}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.accountNumber}</bdi></dd></div>
-              {bank.iban && <div><dt className="text-[#615668]">{copy.iban}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.iban}</bdi></dd></div>}
+              <div><dt className="text-ink-muted">{copy.bank}</dt><dd className="font-semibold">{bank.bankName}</dd></div>
+              <div><dt className="text-ink-muted">{copy.accountTitle}</dt><dd className="font-semibold">{bank.accountTitle}</dd></div>
+              <div><dt className="text-ink-muted">{copy.accountNumber}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.accountNumber}</bdi></dd></div>
+              {bank.iban && <div><dt className="text-ink-muted">{copy.iban}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.iban}</bdi></dd></div>}
             </dl>}
             {intent.checkoutUrl && isPending && <a href={intent.checkoutUrl} className={buttonVariants({ variant: "default", className: "w-full" })}>{copy.continueCheckout}</a>}
             {canRetry && <Button variant="default" type="button" onClick={retry} disabled={busy} className="w-full items-center justify-center gap-2">

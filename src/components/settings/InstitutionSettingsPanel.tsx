@@ -11,7 +11,7 @@ import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   Building,
   Building2,
@@ -73,10 +73,10 @@ function changedFields<T extends Record<string, unknown>>(baseline: T, form: T, 
 function ChangeSummary({ keys, baseline, form }: { keys: string[]; baseline: Record<string, unknown>; form: Record<string, unknown> }) {
   const tr = useUiText();
   const show = (key: string, value: unknown) => key === "logoUrl" ? (value ? tr("New logo") : tr("No logo")) : String(clean(value)) || tr("(empty)");
-  return <section aria-label={tr("Review changes")} className="space-y-2 rounded-2xl border border-[#cfc2d6]/40 bg-white p-4" data-change-summary>
-    <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{tr("Review changes")}</p>
+  return <section aria-label={tr("Review changes")} className="space-y-2 rounded-2xl border border-edge/40 bg-white p-4" data-change-summary>
+    <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{tr("Review changes")}</p>
     {keys.length ? <ul className="space-y-1.5 text-sm">{keys.map(key => <li key={key} data-changed-field={key}><span className="font-bold">{FIELD_LABEL(tr, key)}</span>: <s className="text-ink-muted"><bdi>{key === "logoUrl" ? show(key, baseline[key]) : show(key, baseline[key])}</bdi></s> → <bdi className="font-semibold">{show(key, form[key])}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{tr("Nothing has changed yet.")}</p>}
-    <p className="text-[11px] text-ink-muted">{tr("Only these fields are saved. Documents already issued keep the details they were issued with.")}</p>
+    <p className="text-2xs text-ink-muted">{tr("Only these fields are saved. Documents already issued keep the details they were issued with.")}</p>
   </section>;
 }
 
@@ -87,7 +87,7 @@ function HistoryDialog({ level, campusId, title, onClose }: { level: "school" | 
   const kind = (entry: InstitutionHistoryEntry) => entry.kind === "ARCHIVED" ? tr("Archived") : entry.kind === "RESTORED" ? tr("Restored") : tr("Details changed");
   return <Modal title={tr("Change history")} eyebrow={title} icon={Clock} size="lg" onClose={onClose}>
     {error ? <p role="alert" className="text-sm font-bold text-rose-700">{error}</p> : !rows ? <p role="status" className="text-sm">{tr("Loading history…")}</p> : !rows.length ? <p className="text-sm text-ink-muted">{tr("No changes have been recorded yet.")}</p>
-      : <ol className="space-y-2" data-institution-history>{rows.map(entry => <li key={entry.id} className="rounded-xl bg-[#fbf0fe]/60 px-3 py-2 text-sm" data-history-kind={entry.kind}>
+      : <ol className="space-y-2" data-institution-history>{rows.map(entry => <li key={entry.id} className="rounded-xl bg-brand-50/60 px-3 py-2 text-sm" data-history-kind={entry.kind}>
         <p className="font-bold">{kind(entry)} · <bdi>{new Date(entry.at).toLocaleString()}</bdi>{entry.actor ? <> · <bdi>{entry.actor}</bdi></> : null}</p>
         {Object.entries(entry.fields).map(([key, change]) => <p key={key} className="text-xs">{FIELD_LABEL(tr, key)}: <s className="text-ink-muted"><bdi>{String(change.from ?? "") || tr("(empty)")}</bdi></s> → <bdi>{String(change.to ?? "") || tr("(empty)")}</bdi></p>)}
         {entry.reason ? <p className="text-xs">{tr("Reason")}: <bdi>{entry.reason}</bdi></p> : null}
@@ -137,7 +137,7 @@ export function InstitutionSettingsPanel({
   if (loading) {
     return (
       <div className="sk-panel flex items-center justify-center p-16">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8127cf]" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
@@ -149,7 +149,7 @@ export function InstitutionSettingsPanel({
       <section className="sk-panel p-6 sm:p-7">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-50 text-primary">
               {(() => {
                 const logoSrc = resolveMediaUrl(data.school.logoUrl);
                 return logoSrc ? (
@@ -160,10 +160,10 @@ export function InstitutionSettingsPanel({
               })()}
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]"><UiText>{"Institution"}</UiText></p>
-              <h3 className="mt-0.5 truncate text-xl font-black tracking-tight text-[#1f1a23]">{data.school.name}</h3>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-primary"><UiText>{"Institution"}</UiText></p>
+              <h3 className="mt-0.5 truncate text-xl font-bold tracking-tight text-ink-strong">{data.school.name}</h3>
               {data.school.tagline ? (
-                <p className="mt-0.5 truncate text-[12px] font-semibold italic text-ink-muted"><UiText>{"\""}</UiText>{data.school.tagline}<UiText>{"\""}</UiText></p>
+                <p className="mt-0.5 truncate text-xs font-semibold italic text-ink-muted"><UiText>{"\""}</UiText>{data.school.tagline}<UiText>{"\""}</UiText></p>
               ) : null}
             </div>
           </div>
@@ -192,8 +192,8 @@ export function InstitutionSettingsPanel({
         </div>
 
         {!data.canEditSchool ? (
-          <p className="mt-5 flex items-start gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-[11px] font-bold leading-snug text-ink-muted">
-            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" /><UiText>{"School details are managed by the institution owner. You can edit the campus you administer below."}</UiText></p>
+          <p className="mt-5 flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-2xs font-bold leading-snug text-ink-muted">
+            <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /><UiText>{"School details are managed by the institution owner. You can edit the campus you administer below."}</UiText></p>
         ) : null}
       </section>
 
@@ -201,8 +201,8 @@ export function InstitutionSettingsPanel({
       <section className="sk-panel p-6 sm:p-7">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]"><UiText>{"Campuses"}</UiText></p>
-            <h3 className="mt-0.5 text-xl font-black tracking-tight text-[#1f1a23]">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary"><UiText>{"Campuses"}</UiText></p>
+            <h3 className="mt-0.5 text-xl font-bold tracking-tight text-ink-strong">
               {campuses.length} {campuses.length === 1 ? tr("campus") : tr("campuses")}
             </h3>
           </div>
@@ -214,21 +214,21 @@ export function InstitutionSettingsPanel({
             return (
               <div
                 key={campus.id}
-                className="rounded-[24px] border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 p-4 transition-all hover:bg-[#fbf0fe]/70"
+                className="rounded-[24px] border border-edge/20 bg-brand-50/40 p-4 transition-all hover:bg-brand-50/70"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8127cf] shadow-sm">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-sm">
                       <Building2 className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                      <p className="mt-0.5 truncate text-[11px] font-bold text-ink-subtle">
+                      <p className="truncate text-sm font-bold text-ink-strong">{campus.name}</p>
+                      <p className="mt-0.5 truncate text-2xs font-bold text-ink-subtle">
                         {campus.city} · {campus.regId}
                         {campus.board ? ` · ${campus.board}` : ""}
                       </p>
                       {campus.principalName || campus.phone || campus.email ? (
-                        <p className="mt-0.5 truncate text-[11px] font-semibold text-ink-muted">
+                        <p className="mt-0.5 truncate text-2xs font-semibold text-ink-muted">
                           {[campus.principalName, campus.phone, campus.email].filter(Boolean).join(" · ")}
                         </p>
                       ) : null}
@@ -245,7 +245,7 @@ export function InstitutionSettingsPanel({
                     >
                       <Pencil className="h-3 w-3" /><UiText>{"Edit"}</UiText></Button>
                   ) : (
-                    <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+                    <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                       <Lock className="h-3 w-3" /><UiText>{"View only"}</UiText></span>
                   )}
                   </div>
@@ -254,7 +254,7 @@ export function InstitutionSettingsPanel({
             );
           })}
           {campuses.length === 0 ? (
-            <p className="py-8 text-center text-[12px] font-bold text-ink-subtle"><UiText>{"No campuses to show."}</UiText></p>
+            <p className="py-8 text-center text-xs font-bold text-ink-subtle"><UiText>{"No campuses to show."}</UiText></p>
           ) : null}
         </div>
         {scope === "all" && data.canArchiveCampuses ? <ArchivedCampusList campuses={data.campuses.filter((c) => c.archivedAt)} onDone={afterSave} /> : null}
@@ -373,7 +373,7 @@ function SchoolDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="s-tz" className="sk-field-label"><UiText>{"Original Time Zone"}</UiText></Label>
-          <InputGroup surfaceClassName="bg-[#fbf0fe]" className="min-w-0">
+          <InputGroup surfaceClassName="bg-brand-50" className="min-w-0">
             <Clock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="s-tz"
@@ -386,9 +386,9 @@ function SchoolDialog({
             </SystemSelect>
           </InputGroup>
           {form.timezone !== school.timezone ? (
-            <p className="px-1 text-[11px] font-bold leading-snug text-amber-700"><UiText>{"Changing the time zone moves the boundary of \"today\", so attendance marks and fee cutoffs near midnight may fall on a different date from now on. Existing records are not rewritten."}</UiText></p>
+            <p className="px-1 text-2xs font-bold leading-snug text-amber-700"><UiText>{"Changing the time zone moves the boundary of \"today\", so attendance marks and fee cutoffs near midnight may fall on a different date from now on. Existing records are not rewritten."}</UiText></p>
           ) : (
-            <p className="px-1 text-[10px] font-bold text-ink-subtle"><UiText>{"Manage the effective timezone in Language and regional settings."}</UiText></p>
+            <p className="px-1 text-2xs font-bold text-ink-subtle"><UiText>{"Manage the effective timezone in Language and regional settings."}</UiText></p>
           )}
         </div>
 
@@ -502,7 +502,7 @@ function CampusDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="c-board" className="sk-field-label"><UiText>{"Board"}</UiText></Label>
-          <InputGroup surfaceClassName="bg-[#fbf0fe]" className="min-w-0">
+          <InputGroup surfaceClassName="bg-brand-50" className="min-w-0">
             <GraduationCap data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="c-board"
@@ -576,17 +576,17 @@ function LogoPicker({
   };
 
   return (
-    <div className="flex items-center gap-5 rounded-[24px] border-2 border-dashed border-[#8127cf]/25 p-4">
-      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#fbf0fe]">
+    <div className="flex items-center gap-5 rounded-[24px] border-2 border-dashed border-primary/25 p-4">
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-50">
         {displaySrc ? (
           <Image src={displaySrc} alt="" width={64} height={64} className="h-full w-full object-cover" unoptimized />
         ) : (
-          <ImageIcon className="h-6 w-6 text-[#8127cf]/40" />
+          <ImageIcon className="h-6 w-6 text-primary/40" />
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted"><UiText>{"Logo"}</UiText></p>
-        <p className="mb-2.5 text-[10px] font-bold text-ink-subtle">{hint}</p>
+        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted"><UiText>{"Logo"}</UiText></p>
+        <p className="mb-2.5 text-2xs font-bold text-ink-subtle">{hint}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="default"
             type="button"
@@ -606,7 +606,7 @@ function LogoPicker({
                 onChange("");
               }}
               disabled={uploading}
-              className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/30 px-3.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:border-rose-200 hover:text-rose-500 disabled:opacity-60"
+              className="h-9 cursor-pointer rounded-xl border border-edge/30 px-3.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted transition-all hover:border-rose-200 hover:text-rose-500 disabled:opacity-60"
             >
               <UiText>{"Remove"}</UiText>
             </Button>
@@ -634,8 +634,8 @@ function Field({
       <Label htmlFor={id} className="sk-field-label">
         {label} {required ? <span className="text-rose-500">*</span> : null}
       </Label>
-      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
-        <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all group-focus-within:text-[#8127cf]" />
+      <InputGroup surfaceClassName="bg-brand-50" className="group relative flex items-center">
+        <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all group-focus-within:text-primary" />
         <Input
           id={id}
           value={value}
@@ -659,14 +659,14 @@ function ReadRow({
   reason?: string;
 }) {
   return (
-    <div className="rounded-2xl bg-[#fbf0fe]/55 px-4 py-3">
-      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-muted">
-        <Icon className="h-3.5 w-3.5 text-[#8127cf]" />
+    <div className="rounded-2xl bg-brand-50/55 px-4 py-3">
+      <div className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+        <Icon className="h-3.5 w-3.5 text-primary" />
         {label}
         {locked ? <Lock className="h-2.5 w-2.5 text-ink-subtle" /> : null}
       </div>
-      <p className="mt-1 truncate text-[13px] font-bold text-[#1f1a23]"><bdi dir={locked ? "ltr" : undefined}>{value || "—"}</bdi></p>
-      {reason ? <p className="mt-1 text-[10px] font-semibold text-ink-muted">{reason}</p> : null}
+      <p className="mt-1 truncate text-[13px] font-bold text-ink-strong"><bdi dir={locked ? "ltr" : undefined}>{value || "—"}</bdi></p>
+      {reason ? <p className="mt-1 text-2xs font-semibold text-ink-muted">{reason}</p> : null}
     </div>
   );
 }
@@ -678,18 +678,18 @@ function LockedRows({
   note: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-[#f3f4f9] p-4">
+    <div className="rounded-[24px] border border-edge/25 bg-muted p-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {rows.map((row) => (
           <div key={row.label}>
-            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-ink-muted">
+            <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
               <row.icon className="h-3 w-3" /> {row.label} <Lock className="h-2.5 w-2.5" />
             </div>
-            <p className="mt-1 truncate text-[13px] font-black text-[#1f1a23]">{row.value}</p>
+            <p className="mt-1 truncate text-[13px] font-bold text-ink-strong">{row.value}</p>
           </div>
         ))}
       </div>
-      <p className="mt-3 border-t border-[#cfc2d6]/25 pt-3 text-[10px] font-bold leading-snug text-ink-subtle">
+      <p className="mt-3 border-t border-edge/25 pt-3 text-2xs font-bold leading-snug text-ink-subtle">
         {note}
       </p>
     </div>

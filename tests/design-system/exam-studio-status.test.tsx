@@ -41,7 +41,7 @@ test("each of the sixteen status tokens renders its own word and its own icon in
 test("colour comes only from the existing status, success, subtle-surface and Badge-variant tokens", () => {
   const expected: Record<StudioStatusFamily, string[]> = {
     neutral: ["bg-surface-subtle", "border-border-subtle", "text-ink"],
-    review: ["bg-[#fbf0fe]", "border-transparent", "text-[#8127cf]"],
+    review: ["bg-brand-50", "border-brand-200/70", "text-brand-700"],
     settled: ["bg-success/10", "border-success/30", "text-success"],
     sealed: ["bg-success", "border-transparent", "shadow-sm", "text-white"],
     attention: ["bg-status-warning-surface", "border-status-warning-border", "text-status-warning-text"],
@@ -76,7 +76,7 @@ test("the task presentation reuses the shared TaskStatus pill and flags what is 
     const owed = STUDIO_STATUS_FAMILY[token] === "attention" || STUDIO_STATUS_FAMILY[token] === "blocked";
     // The shared pill's own geometry, with its own `attention` colours replacing its neutral ones —
     // nothing added, so a later change to TaskStatus still reaches Exam Studio.
-    assert.deepEqual(rootClasses(html), `inline-flex rounded-full border ${owed ? "" : "border-border/50 bg-muted "}px-3 py-1.5 text-xs font-semibold ${owed ? "border-status-warning-border bg-status-warning-surface text-status-warning-text" : "text-ink"}`.split(" "), `${token} pill`);
+    assert.deepEqual(rootClasses(html), `inline-flex items-center rounded-full border ${owed ? "" : "border-border-subtle bg-surface-subtle "}px-3 py-1.5 text-xs font-semibold ${owed ? "border-status-warning-border bg-status-warning-surface text-status-warning-text" : "text-ink"}`.split(" "), `${token} pill`);
     assert.equal(words(html), studioStatusLabel(token, "en"));
     assert.match(html, /<svg[^>]*aria-hidden="true"/);
   }

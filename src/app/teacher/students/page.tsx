@@ -167,7 +167,7 @@ export default function TeacherStudentsPage() {
             dir={prefs.sortDir}
             onToggle={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
           />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             {filtered.length} student{filtered.length !== 1 ? "s" : ""}
           </span>
         </WorkspaceToolbar>
@@ -175,13 +175,13 @@ export default function TeacherStudentsPage() {
         {/* Today's roll call as filter chips. The directory already knows who is
             in; making that clickable turns "who do I chase up?" into one tap. */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Today</span>
+          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Today</span>
           {([
-            ["", "Everyone", allStudents.length, "border-[#cfc2d6]/30 bg-white text-ink-muted"],
+            ["", "Everyone", allStudents.length, "border-edge/30 bg-white text-ink-muted"],
             ["PRESENT", "Present", todayCounts.PRESENT, "border-emerald-200 bg-emerald-50 text-emerald-700"],
             ["ABSENT", "Absent", todayCounts.ABSENT, "border-rose-200 bg-rose-50 text-rose-700"],
             ["LEAVE", "Leave", todayCounts.LEAVE, "border-amber-200 bg-amber-50 text-amber-700"],
-            ["UNMARKED", "Unmarked", todayCounts.UNMARKED, "border-[#8127cf]/20 bg-[#fbf0fe] text-[#8127cf]"],
+            ["UNMARKED", "Unmarked", todayCounts.UNMARKED, "border-primary/20 bg-brand-50 text-primary"],
           ] as [string, string, number, string][]).map(([key, label, count, tone]) => (
             <Button className="justify-start" variant="choice"
               key={key || "all"}
@@ -211,12 +211,12 @@ export default function TeacherStudentsPage() {
                 label: "Student",
                 render: (st: any) => (
                   <div className="flex items-center gap-2.5">
-                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[#cfc2d6]/30 bg-[#fbf0fe]">
-                      <AvatarImage src={st.profileImageUrl} name={st.fullName} initialsClassName="text-[10px]" />
+                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-edge/30 bg-brand-50">
+                      <AvatarImage src={st.profileImageUrl} name={st.fullName} initialsClassName="text-2xs" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-black text-[#1d1b20]">{st.fullName}</span>
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                      <span className="block truncate text-sm font-bold text-ink-strong">{st.fullName}</span>
+                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                         {st.rollNo || "No roll"}
                       </span>
                     </span>
@@ -237,11 +237,11 @@ export default function TeacherStudentsPage() {
                 render: (st: any) => {
                   const report = st.reportCards?.[0];
                   return report?.grade || report?.percentage != null ? (
-                    <span className="text-sm font-black text-[#8127cf]">
+                    <span className="text-sm font-bold text-primary">
                       {report.grade || `${Math.round(report.percentage)}%`}
                     </span>
                   ) : (
-                    <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                    <span className="text-2xs font-semibold text-ink-subtle">—</span>
                   );
                 },
               },
@@ -266,13 +266,13 @@ export default function TeacherStudentsPage() {
                         href={`tel:${String(st.guardianPhone).replace(/\s+/g, "")}`}
                         onClick={(e) => e.stopPropagation()}
                         title={`Call ${st.guardianName || "guardian"}`}
-                        className="inline-flex items-center gap-1 truncate text-[10px] font-bold text-[#8127cf] hover:underline"
+                        className="inline-flex items-center gap-1 truncate text-2xs font-bold text-primary hover:underline"
                       >
                         <Phone className="h-2.5 w-2.5" />
                         {st.guardianPhone}
                       </a>
                     ) : (
-                      <p className="truncate text-[10px] font-semibold text-ink-subtle">No phone</p>
+                      <p className="truncate text-2xs font-semibold text-ink-subtle">No phone</p>
                     )}
                   </div>
                 ),
@@ -305,19 +305,19 @@ export default function TeacherStudentsPage() {
                     className="block justify-start p-0 text-start"
                   >
                     <div className="mb-4 flex items-start gap-4">
-                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">
+                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-brand-50 bg-brand-50 shadow-sm">
                         <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-base" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h4 className="truncate text-base font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
+                        <h4 className="truncate text-base font-bold text-ink-strong transition-colors group-hover:text-primary">
                           {student.fullName}
                         </h4>
                         <div className="mt-1 flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                             {student.rollNo || "No roll"}
                           </span>
-                          <span className="text-[10px] text-ink-subtle">|</span>
-                          <span className="text-[10px] font-semibold text-[#8127cf]">
+                          <span className="text-2xs text-ink-subtle">|</span>
+                          <span className="text-2xs font-semibold text-primary">
                             {classLabel(student.class)}
                           </span>
                         </div>
@@ -328,14 +328,14 @@ export default function TeacherStudentsPage() {
                     </div>
 
                     <div className="mb-4 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Latest Grade</p>
-                        <p className="text-sm font-bold text-[#8127cf]">
+                      <div className="rounded-xl bg-brand-50/70 px-3 py-2">
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Latest Grade</p>
+                        <p className="text-sm font-bold text-primary">
                           {report ? report.grade || `${Math.round(report.percentage || 0)}%` : "—"}
                         </p>
                       </div>
-                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Status</p>
+                      <div className="rounded-xl bg-brand-50/70 px-3 py-2">
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Status</p>
                         {/* Stored casing varies ("active" / "ACTIVE"), which
                             rendered raw as lowercase text among title-cased UI. */}
                         <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-600" : "text-ink-subtle"}`}>
@@ -345,11 +345,11 @@ export default function TeacherStudentsPage() {
                     </div>
 
                     {student.guardianName ? (
-                      <div className="rounded-xl bg-[#f3f4f9]/50 px-3 py-2">
-                        <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Guardian</p>
-                        <p className="truncate text-xs font-semibold text-[#1d1b20]">{student.guardianName}</p>
+                      <div className="rounded-xl bg-muted/50 px-3 py-2">
+                        <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Guardian</p>
+                        <p className="truncate text-xs font-semibold text-ink-strong">{student.guardianName}</p>
                         {student.guardianPhone ? (
-                          <p className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-ink-subtle">
+                          <p className="mt-0.5 flex items-center gap-1 text-2xs font-semibold text-ink-subtle">
                             <Phone className="h-3 w-3" /> {student.guardianPhone}
                           </p>
                         ) : null}
@@ -358,18 +358,18 @@ export default function TeacherStudentsPage() {
                   </Button>
 
                   {/* Everything a teacher actually does next, without leaving. */}
-                  <div className="mt-4 grid grid-cols-4 gap-1.5 border-t border-[#cfc2d6]/15 pt-3">
+                  <div className="mt-4 grid grid-cols-4 gap-1.5 border-t border-edge/15 pt-3">
                     {phone ? (
                       <a
                         href={`tel:${phone}`}
                         title={`Call ${student.guardianName || "guardian"}`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
+                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-brand-50/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-brand-50 active:scale-[0.97]"
                       >
                         <Phone className="h-3.5 w-3.5" />
                         Call
                       </a>
                     ) : (
-                      <span className="flex flex-col items-center gap-1 rounded-xl bg-[#f3f4f9]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-ink-faint" title="No guardian phone on file">
+                      <span className="flex flex-col items-center gap-1 rounded-xl bg-muted/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint" title="No guardian phone on file">
                         <Phone className="h-3.5 w-3.5" />
                         Call
                       </span>
@@ -380,13 +380,13 @@ export default function TeacherStudentsPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97]"
+                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-brand-50/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-brand-50 active:scale-[0.97]"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         Chat
                       </a>
                     ) : (
-                      <span className="flex flex-col items-center gap-1 rounded-xl bg-[#f3f4f9]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-ink-faint" title="No guardian number on file">
+                      <span className="flex flex-col items-center gap-1 rounded-xl bg-muted/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint" title="No guardian number on file">
                         <MessageCircle className="h-3.5 w-3.5" />
                         Chat
                       </span>
@@ -422,10 +422,10 @@ export default function TeacherStudentsPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-[#fbf0fe] text-[#8127cf] mb-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-brand-50 text-primary mb-4">
               <Users className="h-8 w-8" />
             </div>
-            <h3 className="text-lg font-bold text-[#1d1b20]">No students found</h3>
+            <h3 className="text-lg font-bold text-ink-strong">No students found</h3>
             <p className="text-sm font-semibold text-ink-muted mt-1">
               {search || classFilter || todayFilter ? "Try adjusting your search or filter" : "No students are assigned to your classes yet"}
             </p>
@@ -466,13 +466,13 @@ function TodayChip({ status }: { status?: string | null }) {
   const tone = status ? TODAY_TONE[status] : null;
   if (!tone) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#cfc2d6]/30 bg-[#faf7fc] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-edge/30 bg-surface-subtle px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
         Unmarked
       </span>
     );
   }
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", tone.className)}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider", tone.className)}>
       {tone.label}
     </span>
   );

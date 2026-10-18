@@ -14,7 +14,7 @@ import {
   Phone,
   User,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { inviteStaff } from "@/app/actions/invite";
 import { SpecialtyEditor } from "@/components/shared-admin";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";

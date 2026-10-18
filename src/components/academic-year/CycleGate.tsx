@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { AlertTriangle, Loader2, Lock } from "lucide-react";
 import { isInvalidSessionResponse, signOutInvalidSession } from "@/lib/auth/invalid-session";
 
@@ -91,16 +91,16 @@ export function CycleGate({ children }: { children: ReactNode }) {
     return (
       <div className="space-y-4 py-8 px-4 animate-skeleton-in">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div className="h-10 w-10 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
           <div className="space-y-1.5">
-            <div className="h-4 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-            <div className="h-2.5 w-24 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+            <div className="h-4 w-40 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+            <div className="h-2.5 w-24 rounded-full bg-border-subtle/30 skeleton-shimmer" />
           </div>
         </div>
-        <div className="h-px bg-[#e8e0ec]/20" />
+        <div className="h-px bg-border-subtle/20" />
         <div className="grid grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-20 rounded-2xl bg-[#e8e0ec]/20 skeleton-shimmer animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }} />
+            <div key={i} className="h-20 rounded-2xl bg-border-subtle/20 skeleton-shimmer animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }} />
           ))}
         </div>
       </div>
@@ -113,7 +113,7 @@ export function CycleGate({ children }: { children: ReactNode }) {
         <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 text-rose-400 shadow-sm mb-6">
           <Lock className="h-10 w-10" />
         </div>
-        <h2 className="text-2xl font-black text-[#1d1b20] tracking-tight mb-2">Operations Locked</h2>
+        <h2 className="text-2xl font-bold text-ink-strong tracking-tight mb-2">Operations Locked</h2>
         <p className="text-sm font-semibold text-ink-muted max-w-md leading-relaxed">
           No academic cycle is currently active. Your admin needs to create and activate a cycle
           before you can take attendance, enter marks, or generate reports.

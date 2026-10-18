@@ -34,7 +34,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { AdmissionForm } from "./admission-form";
 import { BulkImportDialog } from "./bulk-import-dialog";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -394,7 +394,7 @@ export default function StudentsPage() {
 
       <div className="p-6 space-y-6">
         {/* Student Roster */}
-        <Card className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "0ms" }}>
+        <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "0ms" }}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
@@ -495,7 +495,7 @@ export default function StudentsPage() {
                             setSelected(allOnPageSelected ? new Set() : new Set(students.map((s) => s.id)))
                           }
                           aria-label="Select all students on this page"
-                          className="h-4 w-4 accent-[#8127cf]"
+                          className="h-4 w-4 accent-primary"
                         />
                       </TableHead>
                       <SortHeader column="rollNo" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Roll No</SortHeader>
@@ -517,7 +517,7 @@ export default function StudentsPage() {
                             checked={selected.has(student.id)}
                             onChange={() => toggleRow(student.id)}
                             aria-label={`Select ${student.fullName}`}
-                            className="h-4 w-4 accent-[#8127cf]"
+                            className="h-4 w-4 accent-primary"
                           />
                         </TableCell>
                         <TableCell className="font-mono text-xs">{student.rollNo}</TableCell>
@@ -593,7 +593,7 @@ export default function StudentsPage() {
         </Card>
 
         {/* Daily Attendance */}
-        <Card className="sk-rise border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
+        <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-primary" />

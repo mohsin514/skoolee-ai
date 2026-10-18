@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Loader2, XCircle } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -98,7 +98,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
               onClick={() => setShowPasswords(!showPasswords)}
               aria-label={t(showPasswords ? "Hide passwords" : "Show passwords")}
               aria-pressed={showPasswords}
-              className="flex size-11 items-center justify-center rounded-xl text-ink-muted hover:text-[#8127cf]"
+              className="flex size-11 items-center justify-center rounded-xl text-ink-muted hover:text-primary"
             >
               {showPasswords ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
             </FieldAction>
@@ -124,7 +124,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
             onChange={(e) => setConfirmPassword(e.target.value)} placeholder={t("Re-enter new password")} />
         </FormField>
 
-        <ul className="grid grid-cols-1 gap-x-3 gap-y-1.5 rounded-2xl border border-[#ece3f3] bg-[#fcfaff] p-3.5 min-[400px]:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-x-3 gap-y-1.5 rounded-2xl border border-border-subtle bg-surface-subtle p-3.5 min-[400px]:grid-cols-2">
           {reqs.map((r) => (
             <li key={r.label} className={cn("flex items-center gap-1.5 text-xs font-semibold", r.met ? "text-emerald-700" : "text-ink-muted")}>
               {r.met ? <CheckCircle aria-hidden="true" className="size-3.5 shrink-0" /> : <XCircle aria-hidden="true" className="size-3.5 shrink-0 opacity-40" />}

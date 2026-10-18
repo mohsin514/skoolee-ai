@@ -10,7 +10,7 @@ import {
   Award, BarChart3, Loader2, TrendingDown, TrendingUp, Users,
   GraduationCap, AlertTriangle, BookOpen, Calendar,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { SkeletonBlock } from "@/components/ui/skeleton";
 
 interface AnalyticsData {
@@ -163,29 +163,29 @@ export function AnalyticsCharts() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+        <div className="rounded-[24px] border border-edge/10 bg-white p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-4">
             <div className="h-8 w-8 rounded-xl bg-emerald-50 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
-            <h3 className="text-sm font-black text-[#1f1a23]">Top Performers</h3>
+            <h3 className="text-sm font-bold text-ink-strong">Top Performers</h3>
           </div>
           {data.topStudents.length > 0 ? (
             <div className="space-y-2">
               {data.topStudents.map((s, i) => (
-                <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-[#fbf0fe]/30 transition-colors">
+                <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-brand-50/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${
-                      i < 3 ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink-muted"
+                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-2xs font-bold ${
+                      i < 3 ? "bg-primary text-white" : "bg-muted text-ink-muted"
                     }`}>{i + 1}</span>
                     <div>
-                      <p className="text-xs font-bold text-[#1f1a23]">{s.name}</p>
-                      <p className="text-[9px] font-semibold text-ink-subtle">{s.rollNo}</p>
+                      <p className="text-xs font-bold text-ink-strong">{s.name}</p>
+                      <p className="text-2xs font-semibold text-ink-subtle">{s.rollNo}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-[#8127cf]">{s.percentage}%</span>
-                    <span className="text-[9px] font-bold text-ink-subtle bg-[#f3f4f9] px-2 py-0.5 rounded-md">{s.grade}</span>
+                    <span className="text-xs font-bold text-primary">{s.percentage}%</span>
+                    <span className="text-2xs font-bold text-ink-subtle bg-muted px-2 py-0.5 rounded-md">{s.grade}</span>
                   </div>
                 </div>
               ))}
@@ -193,25 +193,25 @@ export function AnalyticsCharts() {
           ) : <p className="text-sm text-ink-subtle text-center py-8">No data yet</p>}
         </div>
 
-        <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+        <div className="rounded-[24px] border border-edge/10 bg-white p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-4">
             <div className="h-8 w-8 rounded-xl bg-amber-50 flex items-center justify-center">
               <TrendingDown className="w-4 h-4 text-amber-600" />
             </div>
-            <h3 className="text-sm font-black text-[#1f1a23]">Students Needing Attention</h3>
+            <h3 className="text-sm font-bold text-ink-strong">Students Needing Attention</h3>
           </div>
           {data.atRiskStudents.length > 0 ? (
             <div className="space-y-2">
               {data.atRiskStudents.map((s, i) => (
                 <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-rose-50/30 transition-colors">
                   <div>
-                    <p className="text-xs font-bold text-[#1f1a23]">{s.name}</p>
-                    <p className="text-[9px] font-semibold text-ink-subtle">{s.rollNo}</p>
+                    <p className="text-xs font-bold text-ink-strong">{s.name}</p>
+                    <p className="text-2xs font-semibold text-ink-subtle">{s.rollNo}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-rose-600">{s.percentage}%</span>
+                    <span className="text-xs font-bold text-rose-600">{s.percentage}%</span>
                     {s.attendancePct !== null && (
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
+                      <span className={`text-2xs font-bold px-2 py-0.5 rounded-md ${
                         s.attendancePct < 75 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
                       }`}>
                         {s.attendancePct}% att.
@@ -233,20 +233,20 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
     emerald: { bg: "bg-emerald-50/50", text: "text-emerald-600", iconBg: "bg-emerald-100" },
     blue: { bg: "bg-blue-50/50", text: "text-blue-600", iconBg: "bg-blue-100" },
     amber: { bg: "bg-amber-50/50", text: "text-amber-600", iconBg: "bg-amber-100" },
-    purple: { bg: "bg-[#fbf0fe]/50", text: "text-[#8127cf]", iconBg: "bg-[#fbf0fe]" },
+    purple: { bg: "bg-brand-50/50", text: "text-primary", iconBg: "bg-brand-50" },
     teal: { bg: "bg-teal-50/50", text: "text-teal-600", iconBg: "bg-teal-100" },
   };
   const c = colorMap[color] || colorMap.purple;
 
   return (
-    <div className={`rounded-[20px] border border-[#cfc2d6]/10 ${c.bg} p-5 shadow-sm`}>
+    <div className={`rounded-[20px] border border-edge/10 ${c.bg} p-5 shadow-sm`}>
       <div className="flex items-center gap-3">
         <div className={`h-10 w-10 rounded-xl ${c.iconBg} flex items-center justify-center`}>
           <Icon className={`h-5 w-5 ${c.text}`} />
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{label}</p>
-          <p className="text-2xl font-black text-[#1f1a23]">{value}</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
+          <p className="text-2xl font-bold text-ink-strong">{value}</p>
         </div>
       </div>
     </div>
@@ -255,12 +255,12 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
 
 function ChartCard({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
   return (
-    <div className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-6 shadow-lg">
+    <div className="rounded-[24px] border border-edge/10 bg-white p-6 shadow-lg">
       <div className="flex items-center gap-2 mb-4">
-        <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center">
-          <Icon className="w-4 h-4 text-[#8127cf]" />
+        <div className="h-8 w-8 rounded-xl bg-brand-50 flex items-center justify-center">
+          <Icon className="w-4 h-4 text-primary" />
         </div>
-        <h3 className="text-sm font-black text-[#1f1a23]">{title}</h3>
+        <h3 className="text-sm font-bold text-ink-strong">{title}</h3>
       </div>
       {children}
     </div>

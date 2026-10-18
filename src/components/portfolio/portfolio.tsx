@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -37,13 +37,13 @@ function SourceCard({ label, source, ui }: { label: string; source: Source | und
   const { date } = useLocaleFormat();
   if (source === undefined) return null;
   if (!source) return <div className="rounded-lg border border-dashed p-2 text-xs text-ink-muted">{label}: {ui("A source file is unavailable; the entry is kept. Contact the teacher.")}</div>;
-  return <div className="rounded-lg border border-[#cfc2d6]/40 p-2 text-sm" data-pf-source={source.id}>
-    <p className="text-xs font-black uppercase text-ink-muted">{label}</p>
+  return <div className="rounded-lg border border-edge/40 p-2 text-sm" data-pf-source={source.id}>
+    <p className="text-xs font-semibold uppercase text-ink-muted">{label}</p>
     <p className="font-bold"><span dir="auto">{source.title}</span> · {ui("Version {0}", [String(source.version)])}</p>
     <p className="text-xs text-ink-muted">{ui("Submitted {0}", [date(source.submittedAt)])} · {ui("Receipt {0}", [source.receiptCode])} · {ui("Rubric version {0}", [String(source.rubricVersion)])}</p>
     {source.text ? <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm" dir="auto">{source.text}</p> : null}
     {source.file ? <p className="text-xs">{ui("Attached file")}: <bdi>{source.file.name}</bdi></p> : null}
-    {source.feedback ? <div className="mt-1 rounded bg-[#f6f2f8] p-2 text-xs"><p className="font-bold">{ui("Returned feedback")}</p><p dir="auto">{source.feedback.comment}</p></div> : null}
+    {source.feedback ? <div className="mt-1 rounded bg-surface-sunken p-2 text-xs"><p className="font-bold">{ui("Returned feedback")}</p><p dir="auto">{source.feedback.comment}</p></div> : null}
   </div>;
 }
 
@@ -77,11 +77,11 @@ export function Portfolio({ studentId }: { studentId?: string }) {
   const shareable = data.entries.filter(e => e.approvedVersion !== null && e.familyVisible);
 
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-portfolio data-pf-role={data.role}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-black">{learner ? ui("My learning portfolio") : ui("Learning portfolio of {0}", [data.student.name])}</h3><p className="text-xs text-ink-muted">{ui("Evidence of how understanding changed: work, feedback, a later revision and a reflection. No class rankings.")}</p></div>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold">{learner ? ui("My learning portfolio") : ui("Learning portfolio of {0}", [data.student.name])}</h3><p className="text-xs text-ink-muted">{ui("Evidence of how understanding changed: work, feedback, a later revision and a reflection. No class rankings.")}</p></div>
       <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => void openAdd()} data-pf-add>{ui("Add evidence")}</Button><a className="inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-bold" href={`/api/portfolio/export${q}`} target="_blank" rel="noreferrer" data-pf-export>{ui("Export reviewed entries")}</a>{!learner ? <Button size="sm" variant="outline" disabled={!shareable.length} onClick={() => { setSharing(true); setShare({ guardianUserId: data.guardians[0]?.id ?? "", days: "30", title: "", entryIds: shareable.map(e => e.id) }); }} data-pf-share>{ui("Share with a guardian")}</Button> : null}</div></header>
 
-    {!data.entries.length ? <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted" data-pf-empty>{ui("Choose one piece of work that shows something you learned.")}</p> : <ol className="space-y-3" data-pf-timeline>{data.entries.map(e => <li key={e.id} className={cn("rounded-2xl border p-3", e.status === "PROPOSED" ? "border-amber-300" : "border-[#cfc2d6]/40")} data-pf-entry={e.id} data-pf-status={e.status}>
-      <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-bold text-[#7020b9]" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-black" dir="auto">{e.title}</p><p className="text-xs text-ink-muted">{statusLabel(ui, e.status)}{e.familyVisible ? <> · {ui("Visible to authorized guardians")}</> : null}{e.approvedVersion ? <> · {ui("Reviewed reflection version {0}", [String(e.approvedVersion)])}</> : null} · <bdi>{date(e.createdAt)}</bdi></p></div>
+    {!data.entries.length ? <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted" data-pf-empty>{ui("Choose one piece of work that shows something you learned.")}</p> : <ol className="space-y-3" data-pf-timeline>{data.entries.map(e => <li key={e.id} className={cn("rounded-2xl border p-3", e.status === "PROPOSED" ? "border-amber-300" : "border-edge/40")} data-pf-entry={e.id} data-pf-status={e.status}>
+      <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-bold text-brand-700" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-bold" dir="auto">{e.title}</p><p className="text-xs text-ink-muted">{statusLabel(ui, e.status)}{e.familyVisible ? <> · {ui("Visible to authorized guardians")}</> : null}{e.approvedVersion ? <> · {ui("Reviewed reflection version {0}", [String(e.approvedVersion)])}</> : null} · <bdi>{date(e.createdAt)}</bdi></p></div>
         <div className="flex flex-wrap gap-2">{learner ? <Button size="sm" variant="outline" onClick={() => { setEditing(e); setReflection(e.reflection ?? ""); }} data-pf-reflect>{ui("Add reflection")}</Button> : <Button size="sm" variant={e.status === "PROPOSED" ? "default" : "outline"} onClick={() => { setReviewing(e); setComment(e.teacherComment ?? ""); setNote(e.staffNote ?? ""); setFamilyVisible(Boolean(e.familyVisible)); }} data-pf-review>{ui("Review")}</Button>}
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "remove", entryId: e.id }), "Removed from the portfolio. The original assignment is unchanged.")} data-pf-remove>{ui("Remove")}</Button></div></div>
       <div className="mt-2 grid gap-2 md:grid-cols-2"><SourceCard label={ui("Earlier work")} source={e.earlier} ui={ui} /><SourceCard label={ui("Later work")} source={e.later} ui={ui} /></div>
@@ -91,7 +91,7 @@ export function Portfolio({ studentId }: { studentId?: string }) {
       {!learner && e.staffNote ? <p className="mt-1 rounded bg-slate-50 p-2 text-xs"><span className="font-bold">{ui("Staff note — never shown to learners or families")}:</span> <span dir="auto">{e.staffNote}</span></p> : null}
     </li>)}</ol>}
 
-    {!learner && data.shares.length ? <div className="space-y-1" data-pf-shares><p className="text-xs font-black uppercase text-ink-muted">{ui("Shared collections")}</p>{data.shares.map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm" data-pf-share-row={s.id} data-pf-share-active={s.active ? "true" : "false"}>
+    {!learner && data.shares.length ? <div className="space-y-1" data-pf-shares><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Shared collections")}</p>{data.shares.map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm" data-pf-share-row={s.id} data-pf-share-active={s.active ? "true" : "false"}>
       <span><span dir="auto">{s.title}</span> · <bdi>{s.guardian}</bdi> · {ui("{0} entries", [String(s.entryIds.length)])} · {s.revokedAt ? ui("Withdrawn") : s.active ? ui("Until {0}", [date(s.expiresAt)]) : ui("Expired")}</span>
       {s.active ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "revoke", shareId: s.id }), "Share withdrawn. Old links no longer open.")} data-pf-revoke>{ui("Withdraw")}</Button> : null}
     </div>)}</div> : null}
@@ -156,14 +156,14 @@ export function FamilyPortfolio({ studentId }: { studentId: string | null }) {
   const view = async (id: string) => { setError(""); try { setOpen(await call(`/api/portfolio?share=${encodeURIComponent(id)}`)); } catch (e) { setError(ui(e instanceof Error ? e.message : "This collection is not shared with your account.")); } };
   if (!shares?.length) return null;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-portfolio>
-    <h3 className="text-base font-black">{ui("Learning progress shared by the school")}</h3>
+    <h3 className="text-base font-bold">{ui("Learning progress shared by the school")}</h3>
     <ul className="space-y-2">{shares.map(s => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" data-fp-share={s.id}><span><span dir="auto">{s.title}</span> · {ui("Until {0}", [date(s.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => void view(s.id)} data-fp-open>{ui("Open")}</Button><a className="inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-bold" href={`/api/portfolio/export?share=${encodeURIComponent(s.id)}`} target="_blank" rel="noreferrer">{ui("Export")}</a></span></li>)}</ul>
     {error ? <p className="text-sm text-rose-700">{error}</p> : null}
     {open ? <div className="space-y-3" data-fp-collection>
       <p className="text-sm font-bold"><span dir="auto">{open.title}</span> · <bdi>{open.student}</bdi></p>
       {open.withdrawn ? <p className="text-xs text-ink-muted">{ui("{0} entries are no longer shared.", [String(open.withdrawn)])}</p> : null}
-      {open.entries.map(e => <article key={e.id} className="rounded-2xl border border-[#cfc2d6]/40 p-3" data-fp-entry={e.id}>
-        <p className="text-xs font-bold text-[#7020b9]" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-black" dir="auto">{e.title}</p>
+      {open.entries.map(e => <article key={e.id} className="rounded-2xl border border-edge/40 p-3" data-fp-entry={e.id}>
+        <p className="text-xs font-bold text-brand-700" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-bold" dir="auto">{e.title}</p>
         <div className="mt-2 grid gap-2 md:grid-cols-2"><SourceCard label={ui("Earlier work")} source={e.earlier} ui={ui} /><SourceCard label={ui("Later work")} source={e.later} ui={ui} /></div>
         <div className="mt-2"><Compare c={e.comparison} ui={ui} /></div>
         {e.reflection ? <p className="mt-2 text-sm"><span className="font-bold">{ui("Reflection")}:</span> <span dir="auto">{e.reflection}</span></p> : null}

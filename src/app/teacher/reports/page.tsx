@@ -5,7 +5,7 @@ import { InputGroup, FieldAction } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrainCircuit, ChevronDown, FileText, Loader2, Search, X } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { FamilyDigestReview } from "@/components/family/family-digest";
@@ -171,7 +171,7 @@ export default function ReportsPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div>
-              <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Locked Exam</label>
+              <label className="block mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Locked Exam</label>
               <Select value={selectedReportExamId} onChange={(e) => setSelectedReportExamId(e.target.value)} className={"min-w-[280px]"}>
                 {(data.lockedExams || []).map((exam: any) => (
                   <option key={exam.id} value={exam.id}>{exam.title} &mdash; {classLabel(exam.class)}</option>
@@ -189,7 +189,7 @@ export default function ReportsPage() {
 
         {/* Locked exam cards */}
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mb-3">Locked Exams</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-3">Locked Exams</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {(data.lockedExams || []).slice(0, 6).map((exam: any, index: number) => {
               const rcCount = exam.reportCards || 0;
@@ -198,13 +198,13 @@ export default function ReportsPage() {
                   <div className="absolute inset-0 bg-gradient-to-br from-rose-500 to-rose-600 opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
                   <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors truncate">{exam.title}</p>
-                      <p className="mt-0.5 text-[11px] text-ink-muted">{classLabel(exam.class)}</p>
+                      <p className="text-sm font-bold text-ink-strong group-hover:text-primary transition-colors truncate">{exam.title}</p>
+                      <p className="mt-0.5 text-2xs text-ink-muted">{classLabel(exam.class)}</p>
                     </div>
                     <StatusPill status={exam.status} />
                   </div>
                   <div className="relative mt-3 flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[11px] font-semibold text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white transition-all">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-primary group-hover:bg-primary group-hover:text-white transition-all">
                       <FileText className="w-3 h-3" />{rcCount} card{rcCount !== 1 ? "s" : ""}
                     </span>
                   </div>
@@ -213,10 +213,10 @@ export default function ReportsPage() {
             })}
             {!data.lockedExams?.length && (
               <div className="sk-panel col-span-full p-8 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                   <FileText className="h-7 w-7" />
                 </div>
-                <h3 className="mt-4 text-base font-bold text-[#1d1b20]">No locked exams yet</h3>
+                <h3 className="mt-4 text-base font-bold text-ink-strong">No locked exams yet</h3>
                 {/* Teachers cannot lock an exam themselves — only a principal or
                     campus admin can — so saying "locked exams will appear here"
                     left them with no idea what to actually do next. */}
@@ -236,9 +236,9 @@ export default function ReportsPage() {
         {/* Report cards list */}
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
               Report Cards
-              <span className="ml-2 normal-case text-[#8127cf]">
+              <span className="ml-2 normal-case text-primary">
                 {cardQuery || statusFilter ? `${visibleCards.length} of ${allCards.length}` : allCards.length}
               </span>
             </p>
@@ -283,13 +283,13 @@ export default function ReportsPage() {
               <Button variant="choice" key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
                 className="sk-rise group relative w-full flex-col items-start gap-2 overflow-hidden p-4 text-start sm:flex-row sm:items-center sm:justify-between"
                 style={{ animationDelay: `${index * 60}ms` }}>
-                <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
+                <div className="absolute inset-0 bg-gradient-to-br from-primary to-brand-400 opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
                 <div className="min-w-0 relative">
-                  <p className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{report.student?.fullName || "Student"}</p>
-                  <p className="text-[11px] text-ink-muted mt-0.5">{report.exam?.title || "Report"} &mdash; {classLabel(report.student?.class)}</p>
+                  <p className="text-sm font-bold text-ink-strong group-hover:text-primary transition-colors">{report.student?.fullName || "Student"}</p>
+                  <p className="text-2xs text-ink-muted mt-0.5">{report.exam?.title || "Report"} &mdash; {classLabel(report.student?.class)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 relative">
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[12px] font-bold text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white transition-all">
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-white transition-all">
                     {Math.round(report.percentage || 0)}%
                   </span>
                   <StatusPill status={report.status} />
@@ -308,7 +308,7 @@ export default function ReportsPage() {
             ) : null}
             {allCards.length && !visibleCards.length ? (
               <div className="sk-panel flex flex-col items-center gap-3 p-8 text-center">
-                <p className="text-sm font-bold text-[#1d1b20]">No report card matches that</p>
+                <p className="text-sm font-bold text-ink-strong">No report card matches that</p>
                 <Button variant="secondary" type="button" onClick={() => { setCardQuery(""); setStatusFilter(""); }}
                   className="items-center gap-1.5 justify-start">
                   <X className="h-3.5 w-3.5" /> Clear filters

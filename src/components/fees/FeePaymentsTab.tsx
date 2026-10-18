@@ -26,7 +26,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Modal } from "@/components/ui/modal";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { downloadPdfFile } from "@/lib/download";
@@ -126,7 +126,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Payments"}</UiText></h3>
+        <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Payments"}</UiText></h3>
         <div className="flex flex-wrap items-center gap-2">
           <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExportCSV}><UiText>{"Export"}</UiText></BrandButton>
           <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={() => setShowBankImport(true)}><UiText>{"Bank Import"}</UiText></BrandButton>
@@ -175,23 +175,23 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-[9px] font-bold text-ink-subtle">{tr("Payments")}: {total}</p>
+      <p className="text-2xs font-bold text-ink-subtle">{tr("Payments")}: {total}</p>
 
       {loading ? (
         <div className="sk-panel overflow-hidden animate-skeleton-in">
-          <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50">
+          <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-muted/50">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-3 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div key={i} className="h-3 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             ))}
           </div>
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 border-t border-[#f3f4f9]">
+            <div key={i} className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 border-t border-muted">
               <div className="space-y-1.5">
-                <div className="h-3.5 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-2.5 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                <div className="h-3.5 w-24 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-2.5 w-16 rounded-full bg-border-subtle/30 skeleton-shimmer" />
               </div>
               {Array.from({ length: 5 }).map((_, j) => (
-                <div key={j} className="h-3.5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer self-center" />
+                <div key={j} className="h-3.5 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer self-center" />
               ))}
             </div>
           ))}
@@ -205,7 +205,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
       ) : (
         <>
           <div className="sk-panel sk-rise overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-[#f3f4f9]/50 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               <span><UiText>{"Student"}</UiText></span>
               <span><UiText>{"Receipt"}</UiText></span>
               <span><UiText>{"Amount"}</UiText></span>
@@ -213,25 +213,25 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
               <span><UiText>{"Date"}</UiText></span>
               <span><UiText>{"Invoice"}</UiText></span>
             </div>
-            <div className="divide-y divide-[#f3f4f9]">
+            <div className="divide-y divide-muted">
               {payments.map((p) => (
                 <div
                   key={p.id}
-                  className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 items-center hover:bg-[#fbf0fe]/20 transition-colors"
+                  className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-[#1f1a23] truncate">{p.student.fullName}</p>
-                    <p className="text-[9px] font-bold text-ink-subtle">
+                    <p className="text-xs font-bold text-ink-strong truncate">{p.student.fullName}</p>
+                    <p className="text-2xs font-bold text-ink-subtle">
                       {classLabel(p.student.class.name, p.student.class.section)}
                     </p>
                   </div>
-                  <p className="text-[10px] font-black text-ink truncate">{p.receiptNo ?? "—"}</p>
-                  <p className="text-xs font-black text-emerald-600">{formatPKR(p.amount, p.invoice.currency)}</p>
-                  <p className="text-[10px] font-bold text-ink-muted">{tr(paymentMethodLabel(p.paymentMethod))}</p>
-                  <p className="text-[10px] font-bold text-ink-muted">{formatDate(p.paymentDate)}</p>
+                  <p className="text-2xs font-bold text-ink truncate">{p.receiptNo ?? "—"}</p>
+                  <p className="text-xs font-bold text-emerald-600">{formatPKR(p.amount, p.invoice.currency)}</p>
+                  <p className="text-2xs font-bold text-ink-muted">{tr(paymentMethodLabel(p.paymentMethod))}</p>
+                  <p className="text-2xs font-bold text-ink-muted">{formatDate(p.paymentDate)}</p>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black text-ink truncate">{p.invoice.invoiceNumber}</p>
-                    <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${statusBadgeClass(p.invoice.status)}`}>
+                    <p className="text-2xs font-bold text-ink truncate">{p.invoice.invoiceNumber}</p>
+                    <span className={`text-3xs font-semibold uppercase px-1.5 py-0.5 rounded ${statusBadgeClass(p.invoice.status)}`}>
                       {tr(p.invoice.status)}
                     </span>
                   </div>
@@ -249,7 +249,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
                 className="justify-start flex items-center gap-1 px-3"
               >
                 <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
-              <span className="text-[9px] font-black uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
+              <span className="text-2xs font-semibold uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
               </span>
               <Button variant="secondary"
                 type="button"
@@ -460,53 +460,53 @@ function PaymentModal({
               <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
                 <Banknote className="h-7 w-7 text-green-600" />
               </div>
-              <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Payment Successful"}</UiText></h3>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle"><UiText>{"Receipt #"}</UiText>{receipt.receiptNumber}</p>
+              <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Payment Successful"}</UiText></h3>
+              <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Receipt #"}</UiText>{receipt.receiptNumber}</p>
             </div>
-            <div className="rounded-2xl bg-[#fbf0fe]/40 px-4 py-4 border border-[#cfc2d6]/10 space-y-3">
+            <div className="rounded-2xl bg-brand-50/40 px-4 py-4 border border-edge/10 space-y-3">
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Student"}</UiText></span>
-                <span className="text-sm font-black text-[#1f1a23]">{receipt.studentName}</span>
+                <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Student"}</UiText></span>
+                <span className="text-sm font-bold text-ink-strong">{receipt.studentName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Invoice"}</UiText></span>
-                <span className="text-sm font-black text-[#1f1a23]">{receipt.invoiceNumber}</span>
+                <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Invoice"}</UiText></span>
+                <span className="text-sm font-bold text-ink-strong">{receipt.invoiceNumber}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Amount"}</UiText></span>
-                <span className="text-sm font-black text-[#1f1a23]">{formatPKR(receipt.amount, receipt.currency)}</span>
+                <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Amount"}</UiText></span>
+                <span className="text-sm font-bold text-ink-strong">{formatPKR(receipt.amount, receipt.currency)}</span>
               </div>
               {receipt.discountAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Discount"}</UiText></span>
-                  <span className="text-sm font-black text-emerald-600">−{formatPKR(receipt.discountAmount, receipt.currency)}</span>
+                  <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Discount"}</UiText></span>
+                  <span className="text-sm font-bold text-emerald-600">−{formatPKR(receipt.discountAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.fineAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Fine"}</UiText></span>
-                  <span className="text-sm font-black text-rose-600">{formatPKR(receipt.fineAmount, receipt.currency)}</span>
+                  <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Fine"}</UiText></span>
+                  <span className="text-sm font-bold text-rose-600">{formatPKR(receipt.fineAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.creditAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Carried Credit"}</UiText></span>
-                  <span className="text-sm font-black text-[#8127cf]">{formatPKR(receipt.creditAmount, receipt.currency)}</span>
+                  <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Carried Credit"}</UiText></span>
+                  <span className="text-sm font-bold text-primary">{formatPKR(receipt.creditAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.note ? (
                 <div className="flex justify-between">
-                  <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Note"}</UiText></span>
-                  <span className="text-sm font-bold text-[#1f1a23] text-right max-w-[60%]">{receipt.note}</span>
+                  <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Note"}</UiText></span>
+                  <span className="text-sm font-bold text-ink-strong text-right max-w-[60%]">{receipt.note}</span>
                 </div>
               ) : null}
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Date"}</UiText></span>
-                <span className="text-sm font-black text-[#1f1a23]">{receipt.paymentDate}</span>
+                <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Date"}</UiText></span>
+                <span className="text-sm font-bold text-ink-strong">{receipt.paymentDate}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Method"}</UiText></span>
-                <span className="text-sm font-black text-[#1f1a23] capitalize">{tr(paymentMethodLabel(receipt.paymentMethod))}</span>
+                <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Method"}</UiText></span>
+                <span className="text-sm font-bold text-ink-strong capitalize">{tr(paymentMethodLabel(receipt.paymentMethod))}</span>
               </div>
             </div>
             <div className="flex gap-3">
@@ -520,7 +520,7 @@ function PaymentModal({
         ) : step === "search" ? (
           <div className="space-y-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Find Student"}</UiText></label>
+              <label className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Find Student"}</UiText></label>
               <div className="flex gap-2">
                 <SystemInput
                   type="text"
@@ -539,14 +539,14 @@ function PaymentModal({
               <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                 {studentsList.map((s) => (
                   <Button variant="outline" key={s.id} onClick={() => loadStudentInvoices(s.id, s)} className="justify-start w-full flex items-center gap-3 px-4 py-3 text-left">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf] text-xs font-black">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary text-xs font-bold">
                       {s.fullName.charAt(0)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-black text-[#1f1a23] truncate">{s.fullName}</p>
-                      <p className="text-[9px] font-bold text-ink-subtle">{s.rollNo} · {s.class?.name}{s.class?.section ? ` ${s.class.section}` : ""}</p>
+                      <p className="text-sm font-bold text-ink-strong truncate">{s.fullName}</p>
+                      <p className="text-2xs font-bold text-ink-subtle">{s.rollNo} · {s.class?.name}{s.class?.section ? ` ${s.class.section}` : ""}</p>
                     </div>
-                    <Users className="w-4 h-4 text-[#8127cf]" />
+                    <Users className="w-4 h-4 text-primary" />
                   </Button>
                 ))}
               </div>
@@ -554,12 +554,12 @@ function PaymentModal({
             {loadingInvoices && (
               <div className="space-y-2 py-2 animate-skeleton-in">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl bg-[#f3f4f9]/50 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
+                  <div key={i} className="flex items-center justify-between px-4 py-3 rounded-2xl bg-muted/50 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
                     <div className="space-y-1.5">
-                      <div className="h-3 w-24 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                      <div className="h-2 w-16 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                      <div className="h-3 w-24 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                      <div className="h-2 w-16 rounded-full bg-border-subtle/30 skeleton-shimmer" />
                     </div>
-                    <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div className="h-4 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                   </div>
                 ))}
               </div>
@@ -569,23 +569,23 @@ function PaymentModal({
                 <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
                   <Banknote className="h-5 w-5 text-green-600" />
                 </div>
-                <p className="text-sm font-black text-green-800"><UiText>{"All Paid"}</UiText></p>
-                <p className="text-[10px] font-semibold text-green-600/70 mt-0.5">{selectedStudent.fullName}<UiText>{"has no pending dues"}</UiText></p>
+                <p className="text-sm font-bold text-green-800"><UiText>{"All Paid"}</UiText></p>
+                <p className="text-2xs font-semibold text-green-600/70 mt-0.5">{selectedStudent.fullName}<UiText>{"has no pending dues"}</UiText></p>
                 <Button variant="link" onClick={() => { setSelectedStudent(null); setStudentsList([]); }} className="mt-3 hover:underline"><UiText>{"Search Again"}</UiText></Button>
               </div>
             )}
             {invoices.length > 0 && !loadingInvoices && (
               <div>
-                <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Select Invoice"}</UiText></p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Select Invoice"}</UiText></p>
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                   {invoices.map((inv) => (
-                    <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-[#8127cf]/30 bg-[#fbf0fe]" : "border-[#cfc2d6]/10 bg-[#f3f4f9]/50 hover:border-[#8127cf]/20"}`}>
-                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.amountDue - inv.amountPaid, inv.currency))); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-[#8127cf]" />
+                    <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-primary/30 bg-brand-50" : "border-edge/10 bg-muted/50 hover:border-primary/20"}`}>
+                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.amountDue - inv.amountPaid, inv.currency))); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-primary" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-black text-[#1f1a23]">{inv.invoiceNumber || "Invoice"}</p>
-                        <p className="text-[9px] font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.amountDue, inv.currency)}</p>
+                        <p className="text-xs font-bold text-ink-strong">{inv.invoiceNumber || "Invoice"}</p>
+                        <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.amountDue, inv.currency)}</p>
                       </div>
-                      <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>{tr(inv.status)}</span>
+                      <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>{tr(inv.status)}</span>
                     </label>
                   ))}
                   <BrandButton className="w-full" onClick={() => setStep("payment")}><UiText>{"Continue to Payment"}</UiText></BrandButton>
@@ -598,32 +598,32 @@ function PaymentModal({
             {(() => {
               const sel = invoices.find((i) => i.id === selectedInvoiceId);
               return sel ? (
-                <div className="rounded-2xl bg-[#fbf0fe]/40 px-4 py-3 border border-[#cfc2d6]/10">
-                  <p className="text-xs font-black text-[#1f1a23]">{sel.invoiceNumber || "Invoice"}</p>
-                  <p className="text-[9px] font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{sel.dueDate} · {formatPKR(sel.amountDue, sel.currency)}</p>
+                <div className="rounded-2xl bg-brand-50/40 px-4 py-3 border border-edge/10">
+                  <p className="text-xs font-bold text-ink-strong">{sel.invoiceNumber || "Invoice"}</p>
+                  <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{sel.dueDate} · {formatPKR(sel.amountDue, sel.currency)}</p>
                 </div>
               ) : null;
             })()}
             <label>
-              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</span>
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</span>
               <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
             </label>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
               <label>
-                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Fine") } (<bdi>{currency}</bdi>)</span>
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Fine") } (<bdi>{currency}</bdi>)</span>
                 <SystemInput type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
               </label>
               <label>
-                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Discount") } (<bdi>{currency}</bdi>)</span>
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Discount") } (<bdi>{currency}</bdi>)</span>
                 <SystemInput type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
               </label>
             </div>
             <label>
-              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment Date"}</UiText></span>
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment Date"}</UiText></span>
               <SystemInput type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </label>
             <label>
-              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></span>
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></span>
               <SystemSelect value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
                 <option value="CASH"><UiText>{"Cash"}</UiText></option>
                 <option value="BANK"><UiText>{"Bank Transfer"}</UiText></option>
@@ -633,11 +633,11 @@ function PaymentModal({
               </SystemSelect>
             </label>
             <label>
-              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Reference (optional)"}</UiText></span>
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Reference (optional)"}</UiText></span>
               <SystemInput type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder={tr("Transaction ID / Cheque #")} className={inputClass} />
             </label>
             <label>
-              <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Note (optional)"}</UiText></span>
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Note (optional)"}</UiText></span>
               <SystemInput type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("e.g. late fee waived")} className={inputClass} />
             </label>
             {outcomeUnknown && <p role="status" data-collect-outcome="unknown" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">{tr("We could not confirm whether this payment was saved. Check the result before doing anything else; it will not be recorded twice.")}</p>}
@@ -769,14 +769,14 @@ function BankImportModal({
           {confirmReverse && reversal?.eligible && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm"><p>{tr("This marks the pending reconciliation reversed and retains its receipt.")}</p><div className="mt-3 flex gap-2"><BrandButton variant="soft" onClick={() => setConfirmReverse(false)}>{tr("Cancel")}</BrandButton><BrandButton onClick={() => void reverse()} disabled={busy}>{tr("Reverse batch")}</BrandButton></div></div>}
         </section> : <>
           <label className="block text-sm">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setCurrency(event.target.value)}>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
-          <label><span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account Name")}</span><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School Savings Account")} className="w-full" /></label>
+          <label><span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account Name")}</span><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School Savings Account")} className="w-full" /></label>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
             <label className="text-sm">{tr("From")}<SystemInput type="date" value={statementFrom} onChange={(event) => setStatementFrom(event.target.value)} className="mt-1 w-full" /></label>
             <label className="text-sm">{tr("To")}<SystemInput type="date" value={statementTo} onChange={(event) => setStatementTo(event.target.value)} className="mt-1 w-full" /></label>
           </div>
-          <div><label className="text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1">{tr("CSV File")}</label><label className="relative flex h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#cfc2d6]/20 bg-[#fbf0fe]/20   ">
+          <div><label className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("CSV File")}</label><label className="relative flex h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-edge/20 bg-brand-50/20   ">
             <input aria-label={tr("Choose CSV File")} type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
-            {file ? <div className="text-center"><FileText className="mx-auto mb-1 h-6 w-6 text-[#8127cf]" /><p className="text-xs font-bold">{file.name}</p><p className="text-[9px]">{(file.size / 1024).toFixed(1)} KB</p></div> : <div className="text-center"><Upload className="mx-auto mb-1 h-6 w-6 text-[#8127cf]" /><p className="text-xs font-bold">{tr("Click to upload CSV")}</p><p className="text-[9px]">{tr("transaction_date,amount,description")}</p></div>}
+            {file ? <div className="text-center"><FileText className="mx-auto mb-1 h-6 w-6 text-primary" /><p className="text-xs font-bold">{file.name}</p><p className="text-2xs">{(file.size / 1024).toFixed(1)} KB</p></div> : <div className="text-center"><Upload className="mx-auto mb-1 h-6 w-6 text-primary" /><p className="text-xs font-bold">{tr("Click to upload CSV")}</p><p className="text-2xs">{tr("transaction_date,amount,description")}</p></div>}
           </label></div>
           {batch?.state === "STAGED" && <>
             <div className="flex flex-wrap gap-2 text-xs font-bold"><span>{tr("{0} selected", [batch.summary.accepted])}</span><span>{tr("{0} rejected", [batch.summary.rejected])}</span><span>{tr("{0} skipped", [batch.summary.skipped])}</span><span>{tr("{0} unresolved", [batch.summary.unresolved])}</span><span>{tr("{0} total rows", [batch.summary.total])}</span></div>

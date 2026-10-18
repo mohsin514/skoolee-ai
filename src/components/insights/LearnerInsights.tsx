@@ -136,7 +136,7 @@ export function LearnerInsights({
                 ]}
               />
               {derived.best && derived.weakest && derived.best.subject !== derived.weakest.subject ? (
-                <p className="mt-2 text-[10px] font-bold leading-relaxed text-ink-subtle">
+                <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-subtle">
                   Strongest in {derived.best.subject} at {derived.best.percentage}%; {derived.weakest.subject} is the
                   one to work on at {derived.weakest.percentage}%.
                 </p>
@@ -192,7 +192,7 @@ export function LearnerInsights({
                 items={derived.split.map((s) => ({ label: s.name, color: s.color, value: s.value }))}
               />
               {series.attendance.rate !== null ? (
-                <p className="mt-2 text-center text-[10px] font-bold text-ink-subtle">
+                <p className="mt-2 text-center text-2xs font-bold text-ink-subtle">
                   {/* The school's rate counts approved leave as attending, so
                       this is not the same as the present slice above. */}
                   {series.attendance.rate}% attendance
@@ -260,11 +260,11 @@ export function LearnerInsights({
           <InsightCard icon={Receipt} title="Fees" subtitle="Invoiced to date" delay={140}>
             <div className="flex h-full flex-col justify-center gap-5 py-2">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Still to pay</p>
-                <p className="mt-1.5 text-4xl font-black leading-none tracking-tight text-[#1f1a23]">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Still to pay</p>
+                <p className="mt-1.5 text-4xl font-extrabold leading-none tracking-tight text-ink-strong">
                   {money(series.fees.balance)}
                 </p>
-                <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                <p className="mt-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {series.fees.balance > 0 ? `of ${money(series.fees.billed)} invoiced` : "All cleared — nothing due"}
                 </p>
               </div>

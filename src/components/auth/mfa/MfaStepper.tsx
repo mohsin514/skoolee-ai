@@ -17,16 +17,16 @@ export function MfaStepper({ labels, current, progressLabel, completedLabel, cla
         return (
           <li key={label} aria-current={active ? "step" : undefined} className="flex min-w-0 flex-col items-center gap-2 text-center">
             <span className="flex w-full items-center">
-              <span aria-hidden="true" className={cn("h-0.5 flex-1 rounded-full", index === 0 ? "bg-transparent" : index <= current ? "bg-[#8127cf]" : "bg-[#e7dcef]")} />
+              <span aria-hidden="true" className={cn("h-0.5 flex-1 rounded-full", index === 0 ? "bg-transparent" : index <= current ? "bg-primary" : "bg-border-subtle")} />
               <span aria-hidden="true" className={cn(
-                "mx-1 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-black motion-safe:transition-colors motion-safe:duration-300",
-                done ? "bg-[#8127cf] text-white" : active ? "bg-white text-[#8127cf] ring-2 ring-[#8127cf] shadow-[0_6px_16px_-6px_rgba(129,39,207,0.55)]" : "bg-[#f3ecfa] text-ink-subtle",
+                "mx-1 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold motion-safe:transition-colors motion-safe:duration-300",
+                done ? "bg-primary text-white" : active ? "bg-white text-primary ring-2 ring-primary shadow-[0_6px_16px_-6px_rgba(129,39,207,0.55)]" : "bg-brand-100 text-ink-subtle",
               )}>
                 {done ? <Check className="size-4" strokeWidth={3} /> : index + 1}
               </span>
-              <span aria-hidden="true" className={cn("h-0.5 flex-1 rounded-full", index === labels.length - 1 ? "bg-transparent" : index < current ? "bg-[#8127cf]" : "bg-[#e7dcef]")} />
+              <span aria-hidden="true" className={cn("h-0.5 flex-1 rounded-full", index === labels.length - 1 ? "bg-transparent" : index < current ? "bg-primary" : "bg-border-subtle")} />
             </span>
-            <span className={cn("text-[11px] font-bold leading-tight [overflow-wrap:anywhere]", active ? "text-[#1f1a23]" : "text-ink-muted")}>
+            <span className={cn("text-2xs font-bold leading-tight [overflow-wrap:anywhere]", active ? "text-ink-strong" : "text-ink-muted")}>
               {label}{done && <span className="sr-only"> ({completedLabel})</span>}
             </span>
           </li>

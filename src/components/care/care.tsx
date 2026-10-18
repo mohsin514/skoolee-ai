@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -81,7 +81,7 @@ function ConcernIntake() {
     finally { setBusy(false); }
   };
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-intake>
-    <header><h2 className="text-base font-black">{ui("Record a safeguarding concern")}</h2><p className="text-xs text-ink-muted">{ui("Record what you observed or were told, in the words used. Do not investigate, diagnose or decide what it means. The designated lead will review it.")}</p></header>
+    <header><h2 className="text-base font-bold">{ui("Record a safeguarding concern")}</h2><p className="text-xs text-ink-muted">{ui("Record what you observed or were told, in the words used. Do not investigate, diagnose or decide what it means. The designated lead will review it.")}</p></header>
     {receipt ? <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm dark:bg-emerald-950/30" data-care-receipt={receipt.reference}>
       <p className="font-bold">{ui("Observation recorded and routed to the designated lead.")}</p>
       <p>{ui("Reference {0} · {1}", [receipt.reference, dateTime(receipt.createdAt)])}</p>
@@ -107,7 +107,7 @@ function CareSummaryLookup() {
   const [student, setStudent] = useState<Student | null>(null), [summary, setSummary] = useState<{ summary: string | null } | null>(null);
   useEffect(() => { setSummary(null); if (student) call(`/api/care?view=summary&studentId=${student.id}`).then(setSummary).catch(() => setSummary({ summary: null })); }, [student]);
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-summary-lookup>
-    <header><h2 className="text-base font-black">{ui("Care summary for teachers")}</h2><p className="text-xs text-ink-muted">{ui("The accommodation the clinic asks staff to know about. Clinical detail stays with the clinic.")}</p></header>
+    <header><h2 className="text-base font-bold">{ui("Care summary for teachers")}</h2><p className="text-xs text-ink-muted">{ui("The accommodation the clinic asks staff to know about. Clinical detail stays with the clinic.")}</p></header>
     <StudentPicker value={student} onChange={setStudent} label={ui("Student")} />
     {student && summary ? <p className="rounded-xl border px-3 py-2 text-sm" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
   </section>;
@@ -151,7 +151,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
   const canPlan = !data.access.emergency && ["NURSE", "LEAD"].includes(data.access.role ?? "");
   const canRecord = !data.access.emergency;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-record={data.student.id}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-black"><bdi>{data.student.fullName}</bdi></h3><p className="text-xs text-ink-muted"><bdi>{data.student.className}</bdi> · {ui("Clinic record")}</p></div><span className="flex gap-2"><a className="text-sm underline" href={`/api/care/export?studentId=${data.student.id}`} data-clinic-export>{ui("Export")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold"><bdi>{data.student.fullName}</bdi></h3><p className="text-xs text-ink-muted"><bdi>{data.student.className}</bdi> · {ui("Clinic record")}</p></div><span className="flex gap-2"><a className="text-sm underline" href={`/api/care/export?studentId=${data.student.id}`} data-clinic-export>{ui("Export")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
     <div className="space-y-1 rounded-xl border p-3 text-sm" data-clinic-plan>
       <h4 className="font-bold">{ui("Allergies and action plan")}</h4>
@@ -211,7 +211,7 @@ function ClinicWorkspace() {
   if (error) return <p className="sk-panel p-4 text-sm" data-care-denied>{ui(error)}</p>;
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-queue>
-    <header><h2 className="text-base font-black">{ui("Clinic workspace")}</h2><p className="text-xs text-ink-muted">{ui("Only clinic members can open these records. Safeguarding uses a separately authorized workspace.")} · {roleLabel(ui, queue.role)}</p></header>
+    <header><h2 className="text-base font-bold">{ui("Clinic workspace")}</h2><p className="text-xs text-ink-muted">{ui("Only clinic members can open these records. Safeguarding uses a separately authorized workspace.")} · {roleLabel(ui, queue.role)}</p></header>
     <StudentPicker value={null} onChange={setPick} label={ui("Open a student's clinic record")} />
     <div><h3 className="text-sm font-bold">{ui("Recent visits")}</h3>{queue.visits.length ? <ul className="mt-1 space-y-1">{queue.visits.map(v => <li key={v.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><bdi>{v.studentName}</bdi> · <bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No records assigned to you in this confidential workspace.")}</p>}</div>
     <div><h3 className="text-sm font-bold">{ui("Medication in effect")}</h3>{queue.instructions.length ? <ul className="mt-1 space-y-1">{queue.instructions.map(i => <li key={i.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><bdi>{i.studentName}</bdi> · <span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
@@ -248,7 +248,7 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
   const c = data.concern, lead = !data.access.emergency, closed = c.status === "CLOSED";
   const kindLabel = (k: string) => ({ CREATED: ui("Concern recorded"), NOTE: ui("Note"), OWNER: ui("Owner assigned"), STATUS: ui("Status changed"), ESCALATION: ui("Escalated"), DISCLOSURE: ui("Disclosure"), CLOSED: ui("Closed") } as Record<string, string>)[k] ?? k;
   return <section className="sk-panel min-w-0 space-y-4 p-4 sm:p-5" data-concern={c.id} data-concern-status={c.status}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-black"><bdi>{c.reference}</bdi> · {statusLabel(ui, c.status)}</h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="text-sm underline" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold"><bdi>{c.reference}</bdi> · {statusLabel(ui, c.status)}</h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="text-sm underline" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
     <div className="rounded-xl border p-3 text-sm"><p className="text-xs text-ink-muted">{ui("Observation as recorded by {0} · {1} · event {2}", [c.reporter, sourceLabel(ui, c.source), dateTime(c.eventAt)])}</p><blockquote dir="auto" className="mt-1 whitespace-pre-wrap" data-concern-observation>{c.observation}</blockquote></div>
     {lead && !closed ? <div className="grid gap-3 sm:grid-cols-2">
@@ -320,7 +320,7 @@ function SafeguardingWorkspace() {
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
   const rows = queue.concerns.filter(c => filter === "ALL" || (filter === "MINE" ? c.mine : c.status !== "CLOSED"));
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-safeguarding-queue>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-black">{ui("Safeguarding workspace")}</h2><p className="text-xs text-ink-muted">{ui("Separately authorized. Clinic membership does not open these records.")} · {roleLabel(ui, queue.role)}</p></div>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-bold">{ui("Safeguarding workspace")}</h2><p className="text-xs text-ink-muted">{ui("Separately authorized. Clinic membership does not open these records.")} · {roleLabel(ui, queue.role)}</p></div>
       <Select value={filter} onChange={e => setFilter(e.target.value)} aria-label={ui("Show")} className="w-auto" data-safeguarding-filter><option value="OPEN">{ui("Open cases")}</option><option value="MINE">{ui("Assigned to me")}</option><option value="ALL">{ui("All cases")}</option></Select></header>
     {rows.length ? <ul className="space-y-1">{rows.map(c => <li key={c.id}><Button variant="ghost" className="h-auto w-full flex-wrap justify-start gap-x-2 py-2 text-start" onClick={() => setOpen(c.id)} data-safeguarding-row={c.reference}>
       <bdi className="font-bold">{c.reference}</bdi><span>{statusLabel(ui, c.status)}</span><span className="text-ink-muted">{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}</span><span className="text-ink-muted"><bdi>{dateTime(c.createdAt)}</bdi></span>
@@ -341,7 +341,7 @@ function Oversight({ domain }: { domain: Domain }) {
   if (!data) return null;
   const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
-    <h2 className="text-base font-black">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    <h2 className="text-base font-bold">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
     <h3 className="text-sm font-bold">{ui("Emergency access")}</h3>
     {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className="rounded-xl border px-3 py-2 text-sm" data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
       <p><bdi>{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
@@ -362,7 +362,7 @@ function EmergencyPanel({ me, reload, onOpen }: { me: Me; reload: () => void; on
   const open = async () => { if (!student) return; setBusy(true); try { await call("/api/care", "POST", { action: "emergency", domain, studentId: student.id, purpose, minutes: Number(minutes) }); toast.success(ui("Emergency access opened. It is logged and will be reviewed.")); setStudent(null); setPurpose(""); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   const end = async (id: string) => { try { await call("/api/care", "POST", { action: "revoke-emergency", id }); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-emergency>
-    <header><h2 className="text-base font-black">{ui("Emergency access")}</h2><p className="text-xs text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></header>
+    <header><h2 className="text-base font-bold">{ui("Emergency access")}</h2><p className="text-xs text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></header>
     {me.grants.length ? <ul className="space-y-2">{me.grants.map(g => <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-400 px-3 py-2 text-sm" data-my-grant={g.id}><span>{domainLabel(ui, g.domain)} · <bdi>{g.studentName}</bdi> · {ui("ends {0}", [dateTime(g.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => onOpen(g)} data-my-grant-open>{ui("Open record")}</Button><Button size="sm" variant="secondary" onClick={() => void end(g.id)} data-my-grant-end>{ui("End access now")}</Button></span></li>)}</ul> : null}
     {domains.length ? <div className="space-y-2">
       <FormField name="em-domain" label={ui("Workspace")}><Select value={domain} onChange={e => setDomain(e.target.value as Domain)} data-emergency-domain>{domains.map(d => <option key={d} value={d}>{domainLabel(ui, d)}</option>)}</Select></FormField>
@@ -383,7 +383,7 @@ function EmergencyRecord({ grant, onClose }: { grant: Me["grants"][number]; onCl
   if (open) return <ConcernDetail concernId={open} members={[]} onClose={() => setOpen(null)} />;
   if (gone) return <section className="sk-panel space-y-2 p-4" data-care-gone><p className="text-sm">{ui(gone)}</p><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></section>;
   return <section className="sk-panel space-y-2 p-4" data-emergency-concerns>
-    <div className="flex justify-between gap-2"><h3 className="font-black"><bdi>{grant.studentName}</bdi></h3><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></div>
+    <div className="flex justify-between gap-2"><h3 className="font-bold"><bdi>{grant.studentName}</bdi></h3><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></div>
     {concerns?.length ? <ul className="space-y-1">{concerns.map(c => <li key={c.id}><Button variant="ghost" onClick={() => setOpen(c.id)} data-emergency-concern={c.reference}><bdi>{c.reference}</bdi> · {statusLabel(ui, c.status)} · <bdi>{dateTime(c.createdAt)}</bdi></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No safeguarding records for this student.")}</p>}
   </section>;
 }
@@ -404,7 +404,7 @@ function CareSettings() {
     const d = drafts[s.domain] ?? { procedureReference: "", leadUserId: "", retentionMonths: "", confirm: false }, a = add[s.domain] ?? { userId: "", role: s.domain === "CLINIC" ? "NURSE" : "LEAD" };
     const members = data.members.filter(m => m.domain === s.domain), leads = members.filter(m => m.role === "LEAD");
     return <div key={s.domain} className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-setting={s.domain} data-enabled={s.enabled}>
-      <header><h2 className="text-base font-black">{ui("{0} workspace", [domainLabel(ui, s.domain)])} · {s.enabled ? ui("Enabled") : ui("Not enabled")}</h2>{s.confirmedAt ? <p className="text-xs text-ink-muted">{ui("Procedures confirmed by {0} on {1}", [s.confirmedBy, dateTime(s.confirmedAt)])}</p> : <p className="text-xs text-ink-muted">{ui("Add the members and responsible lead, record the local procedure and retention, then enable.")}</p>}</header>
+      <header><h2 className="text-base font-bold">{ui("{0} workspace", [domainLabel(ui, s.domain)])} · {s.enabled ? ui("Enabled") : ui("Not enabled")}</h2>{s.confirmedAt ? <p className="text-xs text-ink-muted">{ui("Procedures confirmed by {0} on {1}", [s.confirmedBy, dateTime(s.confirmedAt)])}</p> : <p className="text-xs text-ink-muted">{ui("Add the members and responsible lead, record the local procedure and retention, then enable.")}</p>}</header>
       <div><h3 className="text-sm font-bold">{ui("Members")}</h3>{members.length ? <ul className="mt-1 space-y-1">{members.map(m => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm" data-care-member={m.userId}><span><bdi>{m.name}</bdi> · {roleLabel(ui, m.role)}</span><Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "revoke-member", id: m.id }), "Access removed.")} data-care-member-remove>{ui("Remove")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No members yet.")}</p>}
         <div className="mt-2 flex flex-col gap-2 sm:flex-row"><Select value={a.userId} onChange={e => setAdd({ ...add, [s.domain]: { ...a, userId: e.target.value } })} aria-label={ui("Staff member")} data-care-member-user><option value="">{ui("Choose staff member")}</option>{data.staff.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}</Select><Select value={a.role} onChange={e => setAdd({ ...add, [s.domain]: { ...a, role: e.target.value } })} aria-label={ui("Role")} data-care-member-role>{(s.domain === "CLINIC" ? ["NURSE", "CLINIC_STAFF", "LEAD"] : ["LEAD", "DEPUTY"]).map(r => <option key={r} value={r}>{roleLabel(ui, r)}</option>)}</Select><Button size="sm" disabled={busy || !a.userId} onClick={() => void run(() => call("/api/care", "POST", { action: "add-member", domain: s.domain, ...a }), "Member added.")} data-care-member-add>{ui("Add member")}</Button></div>
       </div>
@@ -425,7 +425,7 @@ function MessagesToMe({ family = false }: { family?: boolean }) {
   useEffect(() => { call(family ? "/api/family/care-messages" : "/api/care?view=messages").then(setRows).catch(() => setRows([])); }, [family]);
   if (!rows.length) return null;
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-care-messages>
-    <h2 className="text-base font-black">{ui("Messages from the school")}</h2>
+    <h2 className="text-base font-bold">{ui("Messages from the school")}</h2>
     <ul className="space-y-2">{rows.map(r => <li key={r.id} className="rounded-xl border px-3 py-2 text-sm" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
   </section>;
 }
@@ -452,7 +452,7 @@ export function CareDesk() {
   if (!me) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
   if (!me.canReport) return <p className="sk-panel p-4 text-sm" data-care-denied>{ui("You do not have access to this confidential workspace.")}</p>;
   return <div className={cn("min-w-0 space-y-4 transition", hidden && "blur-md")} data-care-desk>
-    <header><h1 className="text-xl font-black">{ui("Confidential care")}</h1><p className="text-sm text-ink-muted">{ui("Clinic and safeguarding are separate workspaces with their own members. Nothing here appears in search, timelines or AI.")}</p></header>
+    <header><h1 className="text-xl font-bold">{ui("Confidential care")}</h1><p className="text-sm text-ink-muted">{ui("Clinic and safeguarding are separate workspaces with their own members. Nothing here appears in search, timelines or AI.")}</p></header>
     <nav className="flex flex-wrap gap-2" aria-label={ui("Confidential care")}>{tabs.map(t => <Button key={t.id} size="sm" variant={tab === t.id ? "default" : "outline"} aria-pressed={tab === t.id} onClick={() => { setTab(t.id); setGrant(null); }} data-care-tab={t.id}>{t.label}</Button>)}</nav>
     <MessagesToMe />
     {tab === "report" ? <ConcernIntake /> : null}

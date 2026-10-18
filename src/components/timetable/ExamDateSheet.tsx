@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { CalendarClock, CalendarDays, Loader2, Printer } from "lucide-react";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Select as SystemSelect } from "@/components/ui/select";
@@ -147,12 +147,12 @@ export function ExamDateSheet({
     <div className="sk-panel sk-rise p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fbf0fe]">
-            <CalendarClock className="h-5 w-5 text-[#8127cf]" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50">
+            <CalendarClock className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-[#1d1b20] tracking-tight">Exam Date Sheet</h3>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+            <h3 className="text-lg font-bold text-ink-strong tracking-tight">Exam Date Sheet</h3>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               {exams.length} exam cycle{exams.length !== 1 ? "s" : ""}
             </p>
           </div>
@@ -200,7 +200,7 @@ export function ExamDateSheet({
         <SkeletonList rows={3} label="Loading exams" />
       ) : visibleExams.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16">
-          <CalendarDays className="mb-4 h-12 w-12 text-[#8127cf]/25" />
+          <CalendarDays className="mb-4 h-12 w-12 text-primary/25" />
           <p className="text-sm font-bold text-ink-muted">
             {classId
               ? "No exam cycles published for your class yet."
@@ -209,14 +209,14 @@ export function ExamDateSheet({
         </div>
       ) : selectedExam && visibleExams.length > 0 ? (
         <>
-          <div className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-[#f6f2fa] p-3">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">{selectedExam.title}</span>
-            <span className="text-[10px] font-bold text-ink-muted">
+          <div className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-surface-sunken p-3">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-primary">{selectedExam.title}</span>
+            <span className="text-2xs font-bold text-ink-muted">
               {selectedExam.class ? `${selectedExam.class.name}${selectedExam.class.section ? ` ${selectedExam.class.section}` : ""} · ` : ""}
               {selectedExam.term} · {selectedExam.academicYear}
             </span>
             {weekends.length > 0 && (
-              <span className="ml-auto text-[9px] font-bold text-amber-600">
+              <span className="ml-auto text-2xs font-bold text-amber-600">
                 Off days: {weekends.map((d) => WEEKDAY_LABELS[d]).join(", ")}
               </span>
             )}
@@ -226,7 +226,7 @@ export function ExamDateSheet({
             <SkeletonList rows={4} label="Loading date sheet" />
           ) : !hasSheets ? (
             <div className="flex flex-col items-center justify-center py-14">
-              <CalendarDays className="mb-3 h-10 w-10 text-[#8127cf]/20" />
+              <CalendarDays className="mb-3 h-10 w-10 text-primary/20" />
               <p className="text-xs font-bold text-ink-subtle">
                 Papers are being scheduled for this exam — check back soon.
               </p>
@@ -234,20 +234,20 @@ export function ExamDateSheet({
           ) : (
             <div className="space-y-4">
               {grouped.map(({ date, rows }) => (
-                <div key={date} className="rounded-2xl border border-[#cfc2d6]/15 bg-[#fbf0fe]/25 p-4">
+                <div key={date} className="rounded-2xl border border-edge/15 bg-brand-50/25 p-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-black text-[#8127cf]">{date} · {weekdayLabel(date)}</p>
-                    <span className="text-[9px] font-bold text-ink-subtle">{rows.length} paper{rows.length !== 1 ? "s" : ""}</span>
+                    <p className="text-xs font-bold text-primary">{date} · {weekdayLabel(date)}</p>
+                    <span className="text-2xs font-bold text-ink-subtle">{rows.length} paper{rows.length !== 1 ? "s" : ""}</span>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {rows.map((row) => (
                       <div key={row.id} className="flex items-center gap-2 rounded-xl bg-white p-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#8127cf]/10 text-[10px] font-black text-[#8127cf]">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-2xs font-bold text-primary">
                           P{row.periodDefinition?.periodNumber || "—"}
                         </span>
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-black text-[#1f1a23]">{row.subject?.name || "Class-wide paper"}</p>
-                          <p className="text-[9px] font-semibold text-ink-subtle">
+                          <p className="truncate text-xs font-bold text-ink-strong">{row.subject?.name || "Class-wide paper"}</p>
+                          <p className="text-2xs font-semibold text-ink-subtle">
                             {row.periodDefinition ? `${row.periodDefinition.startTime}–${row.periodDefinition.endTime}` : "Any time"}
                             {row.room ? ` · Room ${row.room.roomNumber}` : ""}
                           </p>

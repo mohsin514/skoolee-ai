@@ -38,12 +38,12 @@ export function RoleShellSkeleton({
 }) {
   return (
     <div
-      className="flex min-h-screen bg-[#fbf0fe] font-sans"
+      className="sk-app-canvas flex min-h-screen font-sans"
       role="status"
       aria-busy="true"
       aria-label={label}
     >
-      <aside className="fixed inset-y-0 start-0 hidden h-full w-64 shrink-0 flex-col border-e border-[#cfc2d6]/25 bg-white/70 p-6 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl md:flex">
+      <aside className="fixed inset-y-0 start-0 hidden h-full w-64 shrink-0 flex-col border-e border-edge/25 bg-white/70 p-6 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl md:flex">
         <div className="mb-5 flex shrink-0 items-center gap-3">
           <SkeletonBar className="h-11 w-11 shrink-0" />
           <div className="min-w-0 flex-1 space-y-1.5">
@@ -59,7 +59,7 @@ export function RoleShellSkeleton({
       </aside>
 
       <main className="flex h-screen flex-1 flex-col overflow-hidden p-3 pb-20 md:ms-64 md:p-5 md:pb-5">
-        <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-[22px] border border-[#cfc2d6]/25 bg-white/40 px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] backdrop-blur-xl">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-[22px] border border-edge/25 bg-white/40 px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] backdrop-blur-xl">
           <div className="flex items-center gap-4">
             <SkeletonBar className="h-9 w-9 shrink-0 rounded-xl" />
             <div className="hidden space-y-1.5 sm:block">
@@ -92,10 +92,10 @@ export function RoleShellSkeleton({
 /** The dark banner each command centre opens with. */
 function HeroSkeleton() {
   return (
-    <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#1f1a23] via-[#2a2130] to-[#2d2533] p-6 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45)] sm:p-8">
+    <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-ink-strong via-[#2a2130] to-[#2d2533] p-6 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45)] sm:p-8">
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-gradient-to-bl from-[#8127cf]/30 to-transparent blur-[70px]"
+        className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-gradient-to-bl from-primary/30 to-transparent blur-[70px]"
       />
       <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="min-w-0">
@@ -194,7 +194,7 @@ function ChartCardSkeleton({
               <SkeletonBar className="h-2.5 w-14 shrink-0 rounded-full" delay={delay + i * 50} />
               <div className="min-w-0 flex-1">
                 <div
-                  className="skeleton-shimmer h-4 rounded-md bg-[#e8e0ec]/55"
+                  className="skeleton-shimmer h-4 rounded-md bg-border-subtle/55"
                   style={{ width: `${spread[i % spread.length] * 100}%`, animationDelay: `${delay + i * 50}ms` }}
                   aria-hidden="true"
                 />
@@ -207,7 +207,7 @@ function ChartCardSkeleton({
           {Array.from({ length: bars }).map((_, i) => (
             <div
               key={i}
-              className="skeleton-shimmer w-full rounded-md bg-[#e8e0ec]/55"
+              className="skeleton-shimmer w-full rounded-md bg-border-subtle/55"
               style={{ height: `${spread[i % spread.length] * 100}%`, animationDelay: `${delay + i * 50}ms` }}
               aria-hidden="true"
             />

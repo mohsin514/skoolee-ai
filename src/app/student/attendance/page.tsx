@@ -132,12 +132,12 @@ export default function StudentAttendancePage() {
         <div className="sk-panel sk-rise p-4" style={{ animationDelay: "120ms" }}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                 <CalendarDays className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]"><UiText>{"Monthly Calendar"}</UiText></h3>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+                <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Monthly Calendar"}</UiText></h3>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   {monthStats.rate ?? 0}<UiText>{"% this month"}</UiText></p>
               </div>
             </div>
@@ -152,7 +152,7 @@ export default function StudentAttendancePage() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="min-w-[130px] text-center text-xs font-black tabular-nums text-[#1d1b20]">
+              <span className="min-w-[130px] text-center text-xs font-bold tabular-nums text-ink-strong">
                 {monthLabel}
               </span>
               <Button variant="default" size="icon"
@@ -174,7 +174,7 @@ export default function StudentAttendancePage() {
             ].map((k) => (
               <span
                 key={k.label}
-                className={`inline-flex items-center gap-1.5 rounded-full bg-[#faf7fc] px-2.5 py-1 text-[10px] font-bold ${k.text}`}
+                className={`inline-flex items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-2xs font-bold ${k.text}`}
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${k.dot}`} />
                 {k.label}
@@ -185,7 +185,7 @@ export default function StudentAttendancePage() {
 
           <div className="grid grid-cols-7 gap-1">
             {Array.from({length:7}, (_, index) => new Intl.DateTimeFormat(localeTag(locale), {weekday:"short",timeZone:"UTC"}).format(new Date(Date.UTC(2024,0,7+(locale.weekStartsOn+index)%7)))).map(d => (
-              <div key={d} className="text-center text-[9px] font-bold text-ink-subtle uppercase tracking-wider py-2">{d}</div>
+              <div key={d} className="text-center text-2xs font-semibold text-ink-subtle uppercase tracking-wider py-2">{d}</div>
             ))}
             {calendarDays.map((cell, i) => {
               if (!cell) return <div key={`empty-${i}`} />;
@@ -205,7 +205,7 @@ export default function StudentAttendancePage() {
                 ? "bg-rose-50 border-rose-200/50 text-rose-700"
                 : status === "LEAVE"
                 ? "bg-amber-50 border-amber-200/50 text-amber-700"
-                : "bg-[#f3f4f9]/30 border-transparent text-ink-subtle";
+                : "bg-muted/30 border-transparent text-ink-subtle";
               return (
                 <div
                   key={cell.day}
@@ -216,7 +216,7 @@ export default function StudentAttendancePage() {
                 >
                   <span className="text-xs font-bold">{cell.day}</span>
                   {status && (
-                    <span className="text-[7px] font-bold uppercase tracking-wider mt-0.5">
+                    <span className="text-3xs font-semibold uppercase tracking-wider mt-0.5">
                       {tr(status).slice(0,1)}
                     </span>
                   )}
@@ -228,15 +228,15 @@ export default function StudentAttendancePage() {
 
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-black tracking-tight text-[#1d1b20]"><UiText>{"Attendance History"}</UiText></h3>
-            <span className="text-[10px] font-semibold text-ink-subtle">
+            <h3 className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Attendance History"}</UiText></h3>
+            <span className="text-2xs font-semibold text-ink-subtle">
               {tr("Days recorded: {0}", [stats.total])}</span>
           </div>
           {data.user.attendance.length > 0 ? (
             <div className="space-y-3">
               {groupedByMonth.map((group) => (
                 <div key={group.key}>
-                  <p className="text-[11px] font-bold text-ink-subtle uppercase tracking-wider mb-2.5 px-1">{group.label}</p>
+                  <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-2.5 px-1">{group.label}</p>
                   <div className="space-y-1.5">
                     {group.entries.map((entry: any) => (
                       <AttendanceRow key={entry.id} entry={entry} />
@@ -270,25 +270,25 @@ function AttendanceRow({ entry }: { entry: any }) {
     ABSENT: { label: tr("Absent"), bg: "bg-rose-50 text-rose-600 border-rose-200/50 hover:bg-rose-100 hover:border-rose-300", dot: "bg-rose-500" },
     LEAVE: { label: tr("Leave"), bg: "bg-amber-50 text-amber-600 border-amber-200/50 hover:bg-amber-100 hover:border-amber-300", dot: "bg-amber-500" },
   };
-  const cfg = statusConfig[entry.status] || { label: entry.status, bg: "bg-[#fbf0fe] text-[#8127cf] border-[#cfc2d6]/20", dot: "bg-[#8127cf]" };
+  const cfg = statusConfig[entry.status] || { label: entry.status, bg: "bg-brand-50 text-primary border-edge/20", dot: "bg-primary" };
 
   return (
-    <div className="sk-panel group flex items-center justify-between gap-3 px-5 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:border-[#cfc2d6]/20">
+    <div className="sk-panel group flex items-center justify-between gap-3 px-5 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:border-edge/20">
       <div className="flex items-center gap-4">
         <div className="flex flex-col items-center w-10">
-          <span className="text-[9px] font-bold text-ink-subtle uppercase tracking-wider">{dayName}</span>
-          <span className="text-sm font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{new Intl.NumberFormat(localeTag(locale)).format(date.getUTCDate())}</span>
+          <span className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider">{dayName}</span>
+          <span className="text-sm font-bold text-ink-strong transition-colors group-hover:text-primary">{new Intl.NumberFormat(localeTag(locale)).format(date.getUTCDate())}</span>
         </div>
-        <div className="h-8 w-[1px] bg-[#cfc2d6]/15" />
+        <div className="h-8 w-[1px] bg-edge/15" />
         <div>
           <p className="text-xs font-semibold text-ink">{formatted}</p>
-          {entry.notes && <p className="text-[9px] font-semibold text-ink-subtle">{entry.notes}</p>}
+          {entry.notes && <p className="text-2xs font-semibold text-ink-subtle">{entry.notes}</p>}
           {entry.marker?.fullName && (
-            <p className="text-[9px] font-semibold text-ink-subtle"><UiText>{"Marked by"}</UiText>{entry.marker.fullName}</p>
+            <p className="text-2xs font-semibold text-ink-subtle"><UiText>{"Marked by"}</UiText>{entry.marker.fullName}</p>
           )}
         </div>
       </div>
-      <span className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-[9px] font-bold uppercase tracking-wider border shadow-sm transition-all duration-200 group-hover:shadow-md ${cfg.bg}`}>
+      <span className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-2xs font-semibold uppercase tracking-wider border shadow-sm transition-all duration-200 group-hover:shadow-md ${cfg.bg}`}>
         <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
         {cfg.label}
       </span>

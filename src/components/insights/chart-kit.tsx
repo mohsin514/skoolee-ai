@@ -64,12 +64,12 @@ export function InsightCard({
       <header className="mb-[12px] flex flex-wrap items-start justify-between gap-[12px]">
         <div className="flex min-w-[min(100%,12rem)] flex-1 items-start gap-[10px]">
           {Icon ? (
-            <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+            <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
               <Icon className="h-[18px] w-[18px]" />
             </span>
           ) : null}
           <div className="min-w-0">
-            <h3 id={headingId} className="break-words text-base font-bold tracking-tight text-[#1f1a23]">
+            <h3 id={headingId} className="break-words text-base font-bold tracking-tight text-ink-strong">
               {title}
             </h3>
             {subtitle ? (
@@ -105,16 +105,16 @@ export function InsightCard({
 export function DataTable({ columns, rows }: TableTwin) {
   if (rows.length === 0) return <EmptyChart label="Nothing to tabulate yet" />;
   return (
-    <div className="max-h-[300px] overflow-auto custom-scrollbar rounded-2xl border border-[#cfc2d6]/25">
+    <div className="max-h-[300px] overflow-auto custom-scrollbar rounded-2xl border border-edge/25">
       <table className="sk-data-table border-collapse">
-        <thead className="sticky top-0 bg-[#fbf0fe]">
+        <thead className="sticky top-0 bg-brand-50">
           <tr>
             {columns.map((c, i) => (
               <th
                 key={c}
                 scope="col"
                 className={cn(
-                  "px-3 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle",
+                  "px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle",
                   i > 0 && "text-right",
                 )}
               >
@@ -125,12 +125,12 @@ export function DataTable({ columns, rows }: TableTwin) {
         </thead>
         <tbody>
           {rows.map((row, r) => (
-            <tr key={r} className="border-t border-[#cfc2d6]/20">
+            <tr key={r} className="border-t border-edge/20">
               {row.map((cell, c) => (
                 <td
                   key={c}
                   className={cn(
-                    "px-3 py-2 text-xs font-bold text-[#1f1a23]",
+                    "px-3 py-2 text-xs font-bold text-ink-strong",
                     c > 0 && "text-right [font-variant-numeric:tabular-nums]",
                   )}
                 >
@@ -163,9 +163,9 @@ export function VizTooltip({ active, payload, label, unit = "", format, titleFor
   if (!active || !payload?.length) return null;
   const heading = titleFor ? titleFor(label, payload) : String(label ?? "");
   return (
-    <div className="pointer-events-none rounded-2xl border border-[#cfc2d6]/30 bg-white/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(31,26,35,0.22)] backdrop-blur">
+    <div className="pointer-events-none rounded-2xl border border-edge/30 bg-white/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(31,26,35,0.22)] backdrop-blur">
       {heading ? (
-        <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">{heading}</p>
+        <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{heading}</p>
       ) : null}
       <ul className="space-y-1">
         {payload.map((entry: any, i: number) => {
@@ -178,8 +178,8 @@ export function VizTooltip({ active, payload, label, unit = "", format, titleFor
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ background: entry.color || entry.payload?.fill || INK.muted }}
               />
-              <span className="text-[11px] font-bold text-ink-muted">{name}</span>
-              <span className="ml-auto text-[11px] font-black text-[#1f1a23] [font-variant-numeric:tabular-nums]">
+              <span className="text-2xs font-bold text-ink-muted">{name}</span>
+              <span className="ml-auto text-2xs font-bold text-ink-strong [font-variant-numeric:tabular-nums]">
                 {format ? format(value, String(name), entry) : `${value.toLocaleString()}${unit}`}
               </span>
             </li>
@@ -206,9 +206,9 @@ export function SeriesLegend({ items, className }: { items: LegendItem[]; classN
       {items.map((item) => (
         <li key={item.label} className="flex items-center gap-1.5">
           <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: item.color }} />
-          <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{item.label}</span>
+          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{item.label}</span>
           {item.value !== undefined ? (
-            <span className="text-[10px] font-black text-[#1f1a23] [font-variant-numeric:tabular-nums]">
+            <span className="text-2xs font-bold text-ink-strong [font-variant-numeric:tabular-nums]">
               {typeof item.value === "number" ? item.value.toLocaleString() : item.value}
             </span>
           ) : null}
@@ -239,12 +239,12 @@ export function HeroFigure({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-black uppercase tracking-wider text-white/55">{label}</p>
+      <p className="text-2xs font-semibold uppercase tracking-wider text-white/55">{label}</p>
       <div className="mt-2 flex flex-wrap items-end gap-3">
-        <span className="text-5xl font-black leading-none tracking-tight text-white sm:text-6xl">{value}</span>
+        <span className="text-5xl font-extrabold leading-none tracking-tight text-white sm:text-6xl">{value}</span>
         {accent}
       </div>
-      {caption ? <p className="mt-3 text-[11px] font-bold leading-relaxed text-white/55">{caption}</p> : null}
+      {caption ? <p className="mt-3 text-2xs font-bold leading-relaxed text-white/55">{caption}</p> : null}
       {children}
     </div>
   );
@@ -275,7 +275,7 @@ export function Meter({
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <span
           className={cn(
-            "truncate text-[10px] font-black uppercase tracking-wider",
+            "truncate text-2xs font-semibold uppercase tracking-wider",
             onDark ? "text-white/55" : "text-ink-subtle",
           )}
         >
@@ -283,8 +283,8 @@ export function Meter({
         </span>
         <span
           className={cn(
-            "shrink-0 text-[11px] font-black [font-variant-numeric:tabular-nums]",
-            onDark ? "text-white" : "text-[#1f1a23]",
+            "shrink-0 text-2xs font-bold [font-variant-numeric:tabular-nums]",
+            onDark ? "text-white" : "text-ink-strong",
           )}
         >
           {valueLabel ?? `${Math.round(pct)}%`}
@@ -364,14 +364,14 @@ export function RadialGauge({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-3xl font-black leading-none tracking-tight text-[#1f1a23]">
+        <span className="text-3xl font-extrabold leading-none tracking-tight text-ink-strong">
           {Math.round(clamped)}
           <span className="text-lg">%</span>
         </span>
-        <span className="mt-1 px-4 text-[9px] font-black uppercase leading-tight tracking-wider text-ink-subtle">
+        <span className="mt-1 px-4 text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-subtle">
           {label}
         </span>
-        {sublabel ? <span className="mt-0.5 text-[9px] font-bold text-ink-faint">{sublabel}</span> : null}
+        {sublabel ? <span className="mt-0.5 text-2xs font-bold text-ink-faint">{sublabel}</span> : null}
       </div>
     </div>
   );
@@ -449,36 +449,36 @@ export function StatTile({
   delay?: number;
 }) {
   const toneChip: Record<string, string> = {
-    brand: "bg-[#fbf0fe] text-[#8127cf]",
+    brand: "bg-brand-50 text-primary",
     good: "bg-emerald-50 text-emerald-700",
     warning: "bg-amber-50 text-amber-700",
     critical: "bg-rose-50 text-rose-700",
-    dark: "bg-[#1f1a23] text-white",
+    dark: "bg-ink-strong text-white",
   };
   const toneGlow: Record<string, string> = {
-    brand: "bg-[#8127cf]/18",
+    brand: "bg-primary/18",
     good: "bg-emerald-500/18",
     warning: "bg-amber-500/18",
     critical: "bg-rose-500/18",
-    dark: "bg-[#1f1a23]/18",
+    dark: "bg-ink-strong/18",
   };
 
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">{label}</p>
+          <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
           {/* A long word ("Enterprise") does not fit the tile at 3xl and was
               getting clipped by the icon, so the type steps down instead. */}
           <p
             className={cn(
-              "font-black leading-none tracking-tight text-[#1f1a23]",
+              "font-bold leading-none tracking-tight text-ink-strong",
               typeof value === "string" && value.length > 8 ? "text-xl" : "text-3xl",
             )}
           >
             {typeof value === "number" ? compact(value) : value}
           </p>
-          {sub ? <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{sub}</p> : null}
+          {sub ? <p className="mt-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p> : null}
         </div>
         <div className="relative shrink-0">
           <div
@@ -549,14 +549,14 @@ export function SingleFigure({
 }) {
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 text-center">
-      <span className="text-5xl font-black leading-none tracking-tight text-[#1f1a23]">
+      <span className="text-5xl font-extrabold leading-none tracking-tight text-ink-strong">
         {typeof value === "number" ? value.toLocaleString() : value}
       </span>
       <span className="flex items-center gap-1.5">
         <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-        <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{label}</span>
+        <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</span>
       </span>
-      {note ? <p className="max-w-[220px] text-[10px] font-bold leading-relaxed text-ink-faint">{note}</p> : null}
+      {note ? <p className="max-w-[220px] text-2xs font-bold leading-relaxed text-ink-faint">{note}</p> : null}
     </div>
   );
 }
@@ -565,9 +565,9 @@ export function SingleFigure({
 
 export function EmptyChart({ label = "No data for this period yet" }: { label?: string }) {
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-[#cfc2d6]/40 bg-[#fbf0fe]/25 px-4 py-8 text-center">
-      <BarChart3 className="h-6 w-6 text-[#cfc2d6]" />
-      <p className="text-[11px] font-bold text-ink-subtle">{label}</p>
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-edge/40 bg-brand-50/25 px-4 py-8 text-center">
+      <BarChart3 className="h-6 w-6 text-edge" />
+      <p className="text-2xs font-bold text-ink-subtle">{label}</p>
     </div>
   );
 }

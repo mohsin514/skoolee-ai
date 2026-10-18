@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BookOpen, Eye, EyeOff, FileText, Lock, Mail, Users } from "lucide-react";
 import { PageCard } from "@/components/ui/page-card";
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
@@ -42,7 +42,7 @@ export function ApplicationPatternsReference() {
         <div><Label htmlFor="example-password" className="sk-field-label">Password with an action</Label><InputGroup surfaceClassName="bg-[#eef2ff]"><Lock data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="example-password" type={show ? "text" : "password"} defaultValue="Example only" /><FieldAction data-field-affix="end" type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow(!show)}>{show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</FieldAction></InputGroup></div>
         <div><Label htmlFor="example-date" className="sk-field-label">Date field</Label><Input id="example-date" type="date" defaultValue="2026-10-08" /></div>
       </div>
-      <div><Label htmlFor="example-board" className="sk-field-label">Board with icon</Label><InputGroup surfaceClassName="bg-[#f3f4f9]"><BookOpen data-field-affix="start" className="size-4" /><Select id="example-board"><option>Example board</option></Select></InputGroup></div>
+      <div><Label htmlFor="example-board" className="sk-field-label">Board with icon</Label><InputGroup surfaceClassName="bg-muted"><BookOpen data-field-affix="start" className="size-4" /><Select id="example-board"><option>Example board</option></Select></InputGroup></div>
       <ManagementCard title="Class leadership" description="A real management card with synthetic data." icon={Users} onAdd={() => {}} emptyLabel="Assign a leader" />
       <section aria-labelledby="feedback-heading" className="space-y-3">
         <h2 id="feedback-heading" className="text-lg font-bold text-foreground">Feedback examples</h2>
@@ -61,7 +61,7 @@ export function ApplicationPatternsReference() {
           <div className="sm:col-span-2"><Label htmlFor="field-states-notes" className="sk-field-label">Standalone notes</Label><Textarea id="field-states-notes" defaultValue="Example note for review." /></div>
           <div><Label htmlFor="field-states-invalid" className="sk-field-label">Invalid text</Label><Input id="field-states-invalid" aria-invalid="true" aria-describedby="field-states-invalid-error" defaultValue="Example" /><p id="field-states-invalid-error" className="mt-2 text-sm font-semibold text-destructive">Enter at least 10 characters.</p></div>
           <div><Label htmlFor="field-states-disabled" className="sk-field-label">Disabled text</Label><Input id="field-states-disabled" disabled value="Read only example" readOnly /></div>
-          <div><Label htmlFor="field-states-invalid-group" className="sk-field-label">Invalid group</Label><InputGroup surfaceClassName="bg-[#fdf2f8]"><Mail data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="field-states-invalid-group" type="email" aria-invalid="true" aria-describedby="field-states-invalid-group-error" defaultValue="example@" /></InputGroup><p id="field-states-invalid-group-error" className="mt-2 text-sm font-semibold text-destructive">Enter a complete email address.</p></div>
+          <div><Label htmlFor="field-states-invalid-group" className="sk-field-label">Invalid group</Label><InputGroup surfaceClassName="bg-pink-50"><Mail data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="field-states-invalid-group" type="email" aria-invalid="true" aria-describedby="field-states-invalid-group-error" defaultValue="example@" /></InputGroup><p id="field-states-invalid-group-error" className="mt-2 text-sm font-semibold text-destructive">Enter a complete email address.</p></div>
           <div><Label htmlFor="field-states-grouped-date" className="sk-field-label">Grouped date</Label><InputGroup surfaceClassName="bg-[#eff6ff]"><Input id="field-states-grouped-date" type="date" aria-label="Grouped date" defaultValue="2026-10-08" /></InputGroup></div>
           <div><Label htmlFor="field-states-disabled-group" className="sk-field-label">Disabled group</Label><InputGroup><Lock data-field-affix="start" aria-hidden="true" className="size-4" /><Input id="field-states-disabled-group" disabled value="Locked example" readOnly /></InputGroup></div>
         </div>

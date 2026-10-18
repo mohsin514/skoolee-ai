@@ -67,8 +67,8 @@ export default function ParentAttendancePage() {
 
             <div className="sk-panel sk-rise p-4" style={{ animationDelay: "120ms" }}>
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-black tracking-tight text-[#1d1b20]"><UiText>{"Recent Attendance"}</UiText></h3>
-                <span className="text-[10px] font-semibold text-ink-subtle">{tr("Recent school days: {0}", [attendance.recent.length])}
+                <h3 className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Recent Attendance"}</UiText></h3>
+                <span className="text-2xs font-semibold text-ink-subtle">{tr("Recent school days: {0}", [attendance.recent.length])}
                 </span>
               </div>
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
@@ -86,7 +86,7 @@ export default function ParentAttendancePage() {
                         title={label}
                         className={`h-6 w-6 rounded-lg transition-transform hover:scale-110 ${statusColors[a.status] || "bg-gray-300"}`}
                       />
-                      <span className="text-[8px] font-semibold tabular-nums text-ink-subtle">
+                      <span className="text-3xs font-semibold tabular-nums text-ink-subtle">
                         {new Intl.NumberFormat(localeTag(locale)).format(new Date(a.date).getUTCDate())}
                       </span>
                     </div>
@@ -97,7 +97,7 @@ export default function ParentAttendancePage() {
                 {presentStatuses.map((status) => (
                   <span
                     key={status}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-[#faf7fc] px-2.5 py-1 text-[10px] font-bold capitalize text-ink-muted"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-2xs font-bold capitalize text-ink-muted"
                   >
                     <span className={`h-1.5 w-1.5 rounded-full ${statusColors[status]}`} />
                     {tr(status)}

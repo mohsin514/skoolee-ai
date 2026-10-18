@@ -288,15 +288,15 @@ export default function TeacherOnboardingPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#fff7fe]" aria-busy="true">
-        <Loader2 className="h-8 w-8 animate-spin text-[#8127cf]" aria-hidden />
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-brand-50" aria-busy="true">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
         <p className="text-xs font-bold text-ink" role="status">{ui("Loading your profile…")}</p>
       </main>
     );
   }
 
   return (
-    <main className="grid min-h-screen w-full grid-cols-1 bg-[#fff7fe] font-sans text-[#1f1a23] lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]">
+    <main className="grid min-h-screen w-full grid-cols-1 bg-brand-50 font-sans text-ink-strong lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]">
 
 
       {/* ─── BRAND PANEL ─────────────────────────────── */}
@@ -304,20 +304,20 @@ export default function TeacherOnboardingPage() {
         ref={brandRef}
         onMouseMove={handleBrandMouseMove}
         onMouseLeave={resetBrandParallax}
-        className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 lg:flex xl:p-14"
+        className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 p-12 lg:flex xl:p-14"
       >
         <div aria-hidden className="absolute inset-0 overflow-hidden">
           <div
             className="sk-parallax absolute -top-1/4 -left-1/5 h-[72%] w-[72%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0)" }}
           >
-            <div className="sk-blob h-full w-full rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+            <div className="sk-blob h-full w-full rounded-full bg-brand-400 opacity-70 blur-[90px]" />
           </div>
           <div
             className="sk-parallax absolute top-1/4 -right-1/4 h-[68%] w-[68%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * -34px), calc(var(--my, 0) * -34px), 0)" }}
           >
-            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-brand-300 opacity-45 blur-[100px]" />
           </div>
           <div
             className="absolute inset-0 opacity-[0.07]"
@@ -338,59 +338,59 @@ export default function TeacherOnboardingPage() {
 
         <div className="relative z-10 flex items-center gap-2.5">
           <span className="h-8 w-1 rounded-full bg-white/70" />
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Skoolee AI</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-white/80">Skoolee AI</p>
         </div>
 
         <div className="relative z-10 max-w-xl">
           <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">{ui("Almost there")}</span>
+            <Sparkles className="h-3.5 w-3.5 text-brand-200" />
+            <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">{ui("Almost there")}</span>
           </div>
 
           <h1
-            className="sk-rise mt-7 text-[2.6rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance xl:text-[3.1rem]"
+            className="sk-rise mt-7 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-white text-balance xl:text-[3.1rem]"
             style={{ animationDelay: "80ms" }}
           >
             {ui("Your classroom")}
             <br />
-            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-200 to-fuchsia-300 bg-clip-text text-transparent">
               {ui("is ready for you.")}
             </span>
           </h1>
 
           {/* Live preview of the profile card colleagues and the timetable
               builder will see — the form's payoff, visible while filling it in. */}
-          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl" style={{ animationDelay: "160ms" }}>
+          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl" style={{ animationDelay: "160ms" }}>
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20 text-lg font-black text-white">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20 text-lg font-bold text-white">
                 {form.fullName.trim().charAt(0).toUpperCase() || "T"}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-black text-white">
+                <p className="truncate text-md font-bold text-white">
                   {form.fullName.trim() || ui("Your name")}
                 </p>
-                <p className="mt-0.5 text-[11px] font-bold text-[#e4c9f7]">
+                <p className="mt-0.5 text-2xs font-bold text-brand-200">
                   {ui("Teacher")}{form.qualification ? ` · ${form.qualification}` : ""}
                   {form.experience.trim() ? ` · ${form.experience.trim()}` : ""}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {teachesAll ? (
-                    <span className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-black text-white">
+                    <span className="rounded-full bg-white/20 px-2.5 py-1 text-2xs font-bold text-white">
                       {ui("All subjects")}
                     </span>
                   ) : specialties.length > 0 ? (
                     specialties.slice(0, 5).map((s) => (
-                      <span key={s} className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-black text-white">
+                      <span key={s} className="rounded-full bg-white/20 px-2.5 py-1 text-2xs font-bold text-white">
                         {s}
                       </span>
                     ))
                   ) : (
-                    <span className="rounded-full border border-dashed border-white/30 px-2.5 py-1 text-[10px] font-bold text-white/60">
+                    <span className="rounded-full border border-dashed border-white/30 px-2.5 py-1 text-2xs font-bold text-white/60">
                       {ui("Subjects you teach")}
                     </span>
                   )}
                   {!teachesAll && specialties.length > 5 && (
-                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-black text-white/70">
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-2xs font-bold text-white/70">
                       <bdi>+{specialties.length - 5}</bdi>
                     </span>
                   )}
@@ -400,24 +400,24 @@ export default function TeacherOnboardingPage() {
 
             <div className="mt-5 border-t border-white/15 pt-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#e4c9f7]">{ui("Profile completeness")}</span>
-                <span className="text-[10px] font-black text-white"><bdi>{completeness}%</bdi></span>
+                <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">{ui("Profile completeness")}</span>
+                <span className="text-2xs font-bold text-white"><bdi>{completeness}%</bdi></span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#e9d5ff] to-white transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-brand-200 to-white transition-all duration-500"
                   style={{ width: `${completeness}%` }}
                 />
               </div>
             </div>
           </div>
 
-          <p className="sk-rise mt-6 text-[12px] font-semibold leading-relaxed text-white/70" style={{ animationDelay: "240ms" }}>
+          <p className="sk-rise mt-6 text-xs font-semibold leading-relaxed text-white/70" style={{ animationDelay: "240ms" }}>
             {ui("The subjects you list here are what the timetable builder matches against, so you are never quietly booked onto a class outside your field.")}
           </p>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
+        <div className="relative z-10 flex items-center gap-6 text-2xs font-bold text-white/75">
           <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {ui("Your details stay inside your school")}</span>
         </div>
       </section>
@@ -427,9 +427,9 @@ export default function TeacherOnboardingPage() {
         <div className="w-full max-w-lg">
           <div className="sk-rise mb-7 flex flex-col items-center">
             <SkooleeLogo size="2.1rem" weight="heavy" />
-            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
+            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
             {context && (context.school || context.campus) ? (
-              <p className="mt-3 text-center text-[12px] font-bold text-ink-muted">
+              <p className="mt-3 text-center text-xs font-bold text-ink-muted">
                 {ui("Teacher profile for {0}", [[context.school, context.campus].filter(Boolean).join(" · ")])}
               </p>
             ) : null}
@@ -437,7 +437,7 @@ export default function TeacherOnboardingPage() {
 
           {sessionExpired ? (
             <div className="sk-panel p-7 sm:p-9" role="alert" aria-labelledby="session-ended">
-              <h1 id="session-ended" tabIndex={-1} ref={headingRef} className="text-[1.4rem] font-black tracking-[-0.02em] text-[#1f1a23]">{ui("Your session has ended")}</h1>
+              <h1 id="session-ended" tabIndex={-1} ref={headingRef} className="text-[1.4rem] font-bold tracking-[-0.02em] text-ink-strong">{ui("Your session has ended")}</h1>
               <p className="mt-2 text-[13px] font-semibold text-ink-muted">{ui("Nothing was saved. Sign in again to finish your profile.")}</p>
               <Button className="mt-6" onClick={() => window.location.assign("/login?redirect=/teacher-onboarding")}>{ui("Sign in again")}</Button>
             </div>
@@ -462,27 +462,27 @@ export default function TeacherOnboardingPage() {
                     className="justify-start px-1"
                   >
                     <span
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[10px] font-black transition-all duration-300 ${
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-2xs font-bold transition-all duration-300 ${
                         complete
                           ? "bg-emerald-500 text-white"
                           : active
-                          ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-md shadow-[#8127cf]/25"
-                          : "bg-[#cfc2d6]/25 text-ink-subtle"
+                          ? "bg-gradient-to-br from-primary to-brand-400 text-white shadow-md shadow-primary/25"
+                          : "bg-edge/25 text-ink-subtle"
                       }`}
                     >
                       {complete ? <Check className="h-3 w-3" strokeWidth={3.5} /> : i + 1}
                     </span>
                     <span
-                      className={`hidden whitespace-nowrap text-[10px] font-black uppercase tracking-wider transition-colors sm:block ${
-                        active ? "text-[#1f1a23]" : complete ? "text-emerald-600" : "text-ink-subtle"
+                      className={`hidden whitespace-nowrap text-2xs font-semibold uppercase tracking-wider transition-colors sm:block ${
+                        active ? "text-ink-strong" : complete ? "text-emerald-600" : "text-ink-subtle"
                       }`}
                     >
                       {ui(label)}
                     </span>
                   </Button>
                   {i < STEPS.length - 1 && (
-                    <span className="h-px flex-1 rounded-full bg-[#cfc2d6]/30">
-                      <span className={`block h-px rounded-full bg-gradient-to-r from-[#8127cf] to-emerald-500 transition-all duration-500 ${complete ? "w-full" : "w-0"}`} />
+                    <span className="h-px flex-1 rounded-full bg-edge/30">
+                      <span className={`block h-px rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all duration-500 ${complete ? "w-full" : "w-0"}`} />
                     </span>
                   )}
                 </div>
@@ -492,11 +492,11 @@ export default function TeacherOnboardingPage() {
 
           <div className="sk-panel sk-rise p-5 sm:p-9">
             <div className="mb-6">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-primary">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden />
                 {ui("Step {0} of {1}", [step + 1, STEPS.length])}
               </div>
-              <h1 ref={headingRef} tabIndex={-1} className="text-[1.6rem] font-black tracking-[-0.03em] text-[#1f1a23] outline-none">{ui(STEPS[step])}</h1>
+              <h1 ref={headingRef} tabIndex={-1} className="text-[1.6rem] font-bold tracking-[-0.03em] text-ink-strong outline-none">{ui(STEPS[step])}</h1>
               <p className="mt-1.5 text-[13px] font-semibold text-ink-muted">
                 {ui(step === 0
                   ? "How your name and number appear to staff and parents."
@@ -507,7 +507,7 @@ export default function TeacherOnboardingPage() {
                   : "Check your details. Only your name and phone are needed to start; the rest can be added later from your profile.")}
               </p>
               {step === 1 || step === 2 ? (
-                <p className="mt-2 inline-flex rounded-full border border-[#cfc2d6]/40 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">{ui("Optional — you can complete this later")}</p>
+                <p className="mt-2 inline-flex rounded-full border border-edge/40 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Optional — you can complete this later")}</p>
               ) : null}
             </div>
 
@@ -515,7 +515,7 @@ export default function TeacherOnboardingPage() {
               <DraftRecovery recordLabel={ui("Teacher onboarding")} draft={recovery} saving={saving} excluded={ui("National ID, date of birth, home address and emergency contacts are not stored in device drafts.")} />
               <FormErrorSummary errors={Object.fromEntries(Object.entries(errors).map(([key, value]) => [key, ui(value)]))} onFocusField={(field) => { setStep(FIELD_STEP[field] ?? 0); requestAnimationFrame(() => document.getElementById(field === "dateOfBirth" ? "dob" : field)?.focus()); }} />
               {failure ? (
-                <div ref={statusRef} tabIndex={-1} role="alert" className="mb-4 rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-[12.5px] font-bold text-destructive outline-none">
+                <div ref={statusRef} tabIndex={-1} role="alert" className="mb-4 rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs font-bold text-destructive outline-none">
                   {ui(failure)}
                 </div>
               ) : null}
@@ -568,13 +568,13 @@ export default function TeacherOnboardingPage() {
                   />
 
                   {/* ── Teaching specialities ── */}
-                  <fieldset className="space-y-3 rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe] p-5">
+                  <fieldset className="space-y-3 rounded-3xl border border-edge/25 bg-brand-50 p-5">
                     <legend className="sr-only">{ui("Subjects you teach")}</legend>
                     <div className="flex items-center gap-2" aria-hidden>
-                      <BookOpen className="h-3.5 w-3.5 text-[#8127cf]" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">{ui("Subjects you teach")}</p>
+                      <BookOpen className="h-3.5 w-3.5 text-primary" />
+                      <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Subjects you teach")}</p>
                     </div>
-                    <p className="text-[11px] font-semibold text-ink-muted">{ui("These record what you can teach. Classes and subjects are assigned by your school, not by this form.")}</p>
+                    <p className="text-2xs font-semibold text-ink-muted">{ui("These record what you can teach. Classes and subjects are assigned by your school, not by this form.")}</p>
 
                     <Button aria-pressed={teachesAll} variant="choice"
                       type="button"
@@ -583,14 +583,14 @@ export default function TeacherOnboardingPage() {
                     >
                       <span
                         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
-                          teachesAll ? "border-emerald-500 bg-emerald-500" : "border-[#cfc2d6]/50 bg-white"
+                          teachesAll ? "border-emerald-500 bg-emerald-500" : "border-edge/50 bg-white"
                         }`}
                       >
                         {teachesAll ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-[11.5px] font-black text-[#1f1a23]">{ui("I can teach all subjects")}</span>
-                        <span className="block text-[10px] font-bold text-ink-muted">
+                        <span className="block text-2xs font-bold text-ink-strong">{ui("I can teach all subjects")}</span>
+                        <span className="block text-2xs font-bold text-ink-muted">
                           {ui("Generalist — never warned about a subject mismatch.")}
                         </span>
                       </span>
@@ -603,7 +603,7 @@ export default function TeacherOnboardingPage() {
                             {specialties.map((s) => (
                               <li
                                 key={s}
-                                className="inline-flex items-center gap-1.5 rounded-full bg-[#8127cf] px-3 py-1.5 text-[10px] font-black text-white shadow-sm shadow-[#8127cf]/25"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-2xs font-bold text-white shadow-sm shadow-primary/25"
                               >
                                 <bdi>{s}</bdi>
                                 <Button size="icon" variant="ghost"
@@ -643,7 +643,7 @@ export default function TeacherOnboardingPage() {
                           </Button>
                         </div>
 
-                        <div className="flex flex-wrap gap-1.5 border-t border-[#cfc2d6]/20 pt-3">
+                        <div className="flex flex-wrap gap-1.5 border-t border-edge/20 pt-3">
                           {SUGGESTED_SUBJECTS
                             .filter((s) => !specialties.some((x) => x.toLowerCase() === s.toLowerCase()))
                             .map((s) => (
@@ -676,11 +676,11 @@ export default function TeacherOnboardingPage() {
                   </div>
                   <Field label={ui("Postal Code")} id="postalCode" value={form.postalCode} placeholder={ui("Postal code")} onChange={(v) => set("postalCode", v)} />
 
-                  <fieldset className="space-y-4 rounded-3xl border border-[#cfc2d6]/25 bg-[#fbf0fe] p-5">
+                  <fieldset className="space-y-4 rounded-3xl border border-edge/25 bg-brand-50 p-5">
                     <legend className="sr-only">{ui("Emergency contact")}</legend>
                     <div className="flex items-center gap-2" aria-hidden>
-                      <Shield className="h-3.5 w-3.5 text-[#8127cf]" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">{ui("Emergency contact")}</p>
+                      <Shield className="h-3.5 w-3.5 text-primary" />
+                      <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Emergency contact")}</p>
                     </div>
                     <Field label={ui("Contact Person")} id="emergencyContact" value={form.emergencyContact} placeholder={ui("Who should we call?")} onChange={(v) => set("emergencyContact", v)} inputClassName="bg-white" />
                     <Field label={ui("Contact Phone")} id="emergencyPhone" type="tel" value={form.emergencyPhone} placeholder={ui("Emergency phone number")} onChange={(v) => set("emergencyPhone", v)} inputClassName="bg-white"
@@ -757,13 +757,13 @@ export default function TeacherOnboardingPage() {
 
           {/* Mobile completeness readout — the brand panel is hidden here. */}
           <div className="mt-5 flex items-center gap-3 px-1 lg:hidden">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#cfc2d6]/25" aria-hidden>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-edge/25" aria-hidden>
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500"
+                className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500"
                 style={{ width: `${completeness}%` }}
               />
             </div>
-            <span className="text-[10px] font-black text-ink-muted">{ui("{0}% complete", [completeness])}</span>
+            <span className="text-2xs font-bold text-ink-muted">{ui("{0}% complete", [completeness])}</span>
           </div>
           </>
           )}
@@ -782,14 +782,14 @@ function ReviewPanel({ rows, privateCount, onEdit }: {
   const later = rows.filter((row) => !row.required && !row.value).length;
   return (
     <div className="space-y-4">
-      <dl className="divide-y divide-[#cfc2d6]/25 rounded-3xl border border-[#cfc2d6]/30">
+      <dl className="divide-y divide-edge/25 rounded-3xl border border-edge/30">
         {rows.map((row) => (
           <div key={row.label} className="flex items-start justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <dt className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+              <dt className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 {ui(row.label)} {row.required ? <span className="text-rose-500" aria-hidden>*</span> : null}
               </dt>
-              <dd className="mt-0.5 break-words text-[13px] font-bold text-[#1f1a23]">
+              <dd className="mt-0.5 break-words text-[13px] font-bold text-ink-strong">
                 {row.value ? <bdi dir={row.ltr ? "ltr" : undefined}>{row.value}</bdi> : <span className="font-semibold text-ink-subtle">{ui("Add later")}</span>}
               </dd>
             </div>
@@ -799,7 +799,7 @@ function ReviewPanel({ rows, privateCount, onEdit }: {
           </div>
         ))}
       </dl>
-      <p className="text-[12px] font-semibold text-ink-muted">
+      <p className="text-xs font-semibold text-ink-muted">
         {later > 0 ? ui("{0} optional details can be added later from your profile.", [later]) : ui("Every listed detail is filled in.")}
         {" "}
         {privateCount > 0 ? ui("{0} private details (ID, date of birth, address) are saved to your staff record and not shown to parents.", [privateCount]) : null}
@@ -818,11 +818,11 @@ function ReadyPanel({ done, headingRef, onOpen }: {
   const action = next.kind === "REGISTER" ? "Take today's register" : next.kind === "CLASSES" ? "Open your classes" : "Open your workspace";
   return (
     <div className="sk-panel p-5 sm:p-9" role="status" aria-live="polite">
-      <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+      <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
         <ClipboardCheck className="h-3.5 w-3.5" aria-hidden />
         {ui(done.alreadyComplete ? "Already saved" : "Profile saved")}
       </div>
-      <h1 ref={headingRef} tabIndex={-1} className="text-[1.5rem] font-black tracking-[-0.02em] text-[#1f1a23] outline-none">{ui("You're ready to teach")}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="text-[1.5rem] font-bold tracking-[-0.02em] text-ink-strong outline-none">{ui("You're ready to teach")}</h1>
       <p className="mt-1.5 text-[13px] font-semibold text-ink-muted">
         {ui(done.alreadyComplete ? "Your profile was already complete, so nothing was saved twice." : "Your profile is saved to your staff record.")}
       </p>
@@ -830,21 +830,21 @@ function ReadyPanel({ done, headingRef, onOpen }: {
       <div className="mt-5 space-y-3">
         {classTeacherOf.length ? (
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{ui("Class teacher of")}</p>
-            <p className="mt-1 text-[13px] font-bold text-[#1f1a23]"><bdi>{classTeacherOf.join(", ")}</bdi></p>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Class teacher of")}</p>
+            <p className="mt-1 text-[13px] font-bold text-ink-strong"><bdi>{classTeacherOf.join(", ")}</bdi></p>
           </div>
         ) : null}
         {subjects.length ? (
           <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{ui("Subjects assigned to you")}</p>
-            <ul className="mt-1 space-y-0.5 text-[13px] font-bold text-[#1f1a23]">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Subjects assigned to you")}</p>
+            <ul className="mt-1 space-y-0.5 text-[13px] font-bold text-ink-strong">
               {subjects.slice(0, 6).map((row) => <li key={`${row.className}:${row.subject}`}><bdi>{row.subject} · {row.className}</bdi></li>)}
             </ul>
-            {subjects.length > 6 ? <p className="text-[11px] font-semibold text-ink-muted">{ui("And {0} more", [subjects.length - 6])}</p> : null}
+            {subjects.length > 6 ? <p className="text-2xs font-semibold text-ink-muted">{ui("And {0} more", [subjects.length - 6])}</p> : null}
           </div>
         ) : null}
         {next.kind === "UNASSIGNED" ? (
-          <p className="rounded-2xl border border-[#cfc2d6]/40 bg-[#fbf0fe] px-4 py-3 text-[12.5px] font-semibold text-ink">
+          <p className="rounded-2xl border border-edge/40 bg-brand-50 px-4 py-3 text-xs font-semibold text-ink">
             {ui("No classes are assigned to you yet. Your school office assigns classes and subjects; they will appear in your workspace as soon as they do.")}
           </p>
         ) : null}
@@ -883,12 +883,12 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="ms-1 text-[10px] font-black uppercase tracking-wider text-ink">
+      <Label htmlFor={id} className="ms-1 text-2xs font-semibold uppercase tracking-wider text-ink">
         {label} {required && <span className="text-rose-500">*</span>}
       </Label>
-      <InputGroup surfaceClassName="bg-[#fbf0fe]" className="group relative flex items-center">
+      <InputGroup surfaceClassName="bg-brand-50" className="group relative flex items-center">
         {Icon && (
-          <Icon data-field-affix="start" className="pointer-events-none absolute start-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+          <Icon data-field-affix="start" className="pointer-events-none absolute start-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-primary" />
         )}
         <Input
           id={id}
@@ -924,7 +924,7 @@ function SelectField({ label, id, value, onChange, children }: {
 }) {
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="ms-1 text-[10px] font-black uppercase tracking-wider text-ink">{label}</Label>
+      <Label htmlFor={id} className="ms-1 text-2xs font-semibold uppercase tracking-wider text-ink">{label}</Label>
       <SystemSelect
         id={id}
         value={value}

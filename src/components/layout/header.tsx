@@ -5,7 +5,7 @@ import { clearDeviceDrafts } from "@/lib/drafts/store";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   Award,
   Bell,
@@ -176,7 +176,7 @@ export function Header({ title, description, actions }: HeaderProps) {
   const avatarSrc = user?.profileImageUrl;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#cfc2d6]/25 bg-[#fbf0fe]/90 px-4 py-3 backdrop-blur-xl shadow-[0_1px_2px_rgba(31,26,35,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] md:px-6">
+    <header className="sticky top-0 z-30 border-b border-edge/25 bg-brand-50/90 px-4 py-3 backdrop-blur-xl shadow-[0_1px_2px_rgba(31,26,35,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] md:px-6">
       <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-center gap-4">
           <div className="shrink-0 -rotate-2 md:hidden">
@@ -184,17 +184,17 @@ export function Header({ title, description, actions }: HeaderProps) {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-[9px] font-black text-[#b10e6b]/70 tracking-wide">
+              <span className="text-2xs font-bold text-berry/70 tracking-wide">
                 Skoolee Console
               </span>
               {cycle && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-[#8127cf]/15 bg-[#8127cf]/5 px-2 py-0.5 text-[8px] font-semibold text-[#8127cf]">
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-2 py-0.5 text-3xs font-semibold text-primary">
                   <Calendar className="h-2.5 w-2.5" />
                   {cycle.label}
                 </span>
               )}
             </div>
-            <h1 className="truncate text-xl font-black leading-tight text-[#1f1a23]">
+            <h1 className="truncate text-xl font-bold leading-tight text-ink-strong">
               {title}
             </h1>
             {description && (
@@ -220,18 +220,18 @@ export function Header({ title, description, actions }: HeaderProps) {
             >
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
-                <span className="sk-glow absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#8127cf] px-1 text-[10px] font-black text-white ring-2 ring-white">
+                <span className="sk-glow absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-2xs font-bold text-white ring-2 ring-white">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </Button>
 
             {notifOpen && (
-              <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
-                <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-5 py-4">
-                  <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">Notifications</h3>
+              <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+                <div className="flex items-center justify-between border-b border-edge/10 px-5 py-4">
+                  <h3 className="text-sm font-bold text-ink-strong tracking-tight">Notifications</h3>
                   {unreadCount > 0 && (
-                    <span className="rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[10px] font-semibold text-[#8127cf]">{unreadCount} new</span>
+                    <span className="rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-primary">{unreadCount} new</span>
                   )}
                 </div>
                 <NotificationCenter formatTime={relativeTime} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
@@ -250,23 +250,23 @@ export function Header({ title, description, actions }: HeaderProps) {
               }}
               className={cn(
                 "flex justify-start items-center gap-2 text-left hover:-translate-y-0.5",
-                menuOpen && "border-[#8127cf]/35 bg-white shadow-lg ring-2 ring-[#8127cf]/15"
+                menuOpen && "border-primary/35 bg-white shadow-lg ring-2 ring-primary/15"
               )}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#8127cf] text-[10px] font-black text-white">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary text-2xs font-bold text-white">
                 {user?.profileImageUrl ? <AvatarImage src={avatarSrc} /> : initials}
               </span>
               <span className="hidden min-w-0 sm:block">
-                <span className="max-w-28 truncate text-xs font-semibold text-[#1f1a23]">
+                <span className="max-w-28 truncate text-xs font-semibold text-ink-strong">
                   {(user?.fullName || "Account").split("@")[0].replace(/[._-]/g, " ")}
                 </span>
               </span>
               <ChevronDown
                 className={cn(
                   "h-3.5 w-3.5 shrink-0 text-ink-muted transition-transform",
-                  menuOpen && "rotate-180 text-[#8127cf]"
+                  menuOpen && "rotate-180 text-primary"
                 )}
               />
             </Button>
@@ -274,18 +274,18 @@ export function Header({ title, description, actions }: HeaderProps) {
             {menuOpen && (
               <div
                 role="menu"
-                className="animate-dropdown-enter absolute right-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_24px_70px_rgba(31,26,35,0.16)]"
+                className="animate-dropdown-enter absolute right-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_24px_70px_rgba(31,26,35,0.16)]"
               >
-                <div className="border-b border-[#cfc2d6]/15 bg-[#fbf0fe]/70 p-4">
+                <div className="border-b border-edge/15 bg-brand-50/70 p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-[#8127cf] text-xs font-black text-white shadow-lg shadow-[#8127cf]/20">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-primary text-xs font-bold text-white shadow-lg shadow-primary/20">
                       {user?.profileImageUrl ? <AvatarImage src={avatarSrc} /> : initials}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-[#1f1a23]">
+                      <p className="truncate text-xs font-bold text-ink-strong">
                         {(user?.fullName || "Skoolee User").split("@")[0].replace(/[._-]/g, " ")}
                       </p>
-                      <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[9px] font-semibold text-[#8127cf]">
+                      <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-2xs font-semibold text-primary">
                         <ShieldCheck className="h-2.5 w-2.5" />
                         {user?.roleLabel || "Active"}
                       </div>
@@ -347,7 +347,7 @@ function AccountLink({
     <Link
       href={href}
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+      className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-semibold text-ink transition-all hover:bg-brand-50 hover:text-primary"
       role="menuitem"
     >
       <Icon className="h-4 w-4" />

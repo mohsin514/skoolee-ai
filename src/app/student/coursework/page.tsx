@@ -41,26 +41,26 @@ export default function CourseworkPage() {
         <div className="sk-rise grid grid-cols-1 md:grid-cols-3 gap-4" style={{ animationDelay: "20ms" }}>
           <div className="sk-panel md:col-span-2 p-4">
             <div className="mb-3 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                 <MapPin className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Current Class</p>
-                <p className="text-base font-black text-[#1d1b20]">{user.className}</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Current Class</p>
+                <p className="text-base font-bold text-ink-strong">{user.className}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Class Teacher</p>
-                <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.classTeacher?.fullName || "Not assigned"}</p>
+              <div className="rounded-2xl border border-edge/20 bg-brand-50/30 p-3">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Class Teacher</p>
+                <p className="mt-1.5 text-sm font-bold text-ink-strong">{user.classTeacher?.fullName || "Not assigned"}</p>
                 {user.classTeacher?.email && (
-                  <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle">{user.classTeacher.email}</p>
+                  <p className="mt-0.5 text-2xs font-semibold text-ink-subtle">{user.classTeacher.email}</p>
                 )}
               </div>
-              <div className="rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Enrolled Subjects</p>
-                <p className="mt-1.5 text-sm font-bold text-[#1d1b20]">{user.subjects.length} subjects</p>
-                <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle line-clamp-2">
+              <div className="rounded-2xl border border-edge/20 bg-brand-50/30 p-3">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Enrolled Subjects</p>
+                <p className="mt-1.5 text-sm font-bold text-ink-strong">{user.subjects.length} subjects</p>
+                <p className="mt-0.5 text-2xs font-semibold text-ink-subtle line-clamp-2">
                   {user.subjects?.length ? user.subjects.map((s: any) => s.name).join(", ") : "—"}
                 </p>
               </div>
@@ -73,18 +73,18 @@ export default function CourseworkPage() {
                 <UserRound className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">Roll Number</p>
-                <p className="text-base font-black text-[#1d1b20]">{user.rollNo || "N/A"}</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Roll Number</p>
+                <p className="text-base font-bold text-ink-strong">{user.rollNo || "N/A"}</p>
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between gap-3 text-sm">
                 <span className="font-semibold text-ink-muted">Name</span>
-                <span className="font-bold text-[#1d1b20] truncate">{user.fullName}</span>
+                <span className="font-bold text-ink-strong truncate">{user.fullName}</span>
               </div>
               <div className="flex justify-between gap-3 text-sm">
                 <span className="font-semibold text-ink-muted">Campus</span>
-                <span className="font-bold text-[#1d1b20] truncate">{user.campusName}</span>
+                <span className="font-bold text-ink-strong truncate">{user.campusName}</span>
               </div>
             </div>
           </div>
@@ -167,38 +167,38 @@ export default function CourseworkPage() {
 
           <div className="xl:col-span-3">
             <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "200ms" }}>
-              <div className="flex items-center justify-between gap-3 border-b border-[#cfc2d6]/10 px-4 py-3">
-                <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">All Marks</h3>
+              <div className="flex items-center justify-between gap-3 border-b border-edge/10 px-4 py-3">
+                <h3 className="text-sm font-bold tracking-tight text-ink-strong">All Marks</h3>
                 {user.marks.length > 0 && (
-                  <span className="text-[10px] font-semibold text-ink-subtle">
+                  <span className="text-2xs font-semibold text-ink-subtle">
                     {user.marks.length} entr{user.marks.length === 1 ? "y" : "ies"}
                   </span>
                 )}
               </div>
               <Table className="w-full text-left min-w-[480px]">
                 <TableHeader>
-                  <TableRow className="bg-[#fbf0fe]/30 text-[9px] font-semibold text-ink-subtle uppercase tracking-wider border-b border-[#cfc2d6]/10">
+                  <TableRow className="bg-brand-50/30 text-2xs font-semibold text-ink-subtle uppercase tracking-wider border-b border-edge/10">
                     <TableHead className="px-4 py-3">Subject</TableHead>
                     <TableHead className="px-3 py-3 text-center">Score</TableHead>
                     <TableHead className="px-3 py-3 text-center">%</TableHead>
                     <TableHead className="px-4 py-3 text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody className="divide-y divide-[#cfc2d6]/10">
+                <TableBody className="divide-y divide-edge/10">
                   {user.marks.length > 0 ? (
                     user.marks.map((mark: any) => {
                       const pct = Math.round((mark.marksObtained / (mark.subject?.totalMarks || 100)) * 100);
                       return (
-                        <TableRow key={mark.id} className="group transition-all duration-200 hover:bg-[#fbf0fe]/40 hover:shadow-sm cursor-default">
+                        <TableRow key={mark.id} className="group transition-all duration-200 hover:bg-brand-50/40 hover:shadow-sm cursor-default">
                           <TableCell className="px-4 py-3">
-                            <p className="text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{mark.subject?.name}</p>
-                            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">
+                            <p className="text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary">{mark.subject?.name}</p>
+                            <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                               {mark.exam?.title || "Exam"}
                             </p>
                           </TableCell>
                           <TableCell className="px-3 py-3 text-center">
-                            <span className="text-sm font-bold text-[#1d1b20]">{mark.marksObtained}</span>
-                            <span className="text-[10px] text-ink-subtle"> / {mark.subject?.totalMarks || 100}</span>
+                            <span className="text-sm font-bold text-ink-strong">{mark.marksObtained}</span>
+                            <span className="text-2xs text-ink-subtle"> / {mark.subject?.totalMarks || 100}</span>
                           </TableCell>
                           <TableCell className="px-3 py-3 text-center">
                             <span className={cn(
@@ -212,12 +212,12 @@ export default function CourseworkPage() {
                           </TableCell>
                           <TableCell className="px-4 py-3 text-right">
                             <span className={cn(
-                              "rounded-lg px-3 py-1 text-[9px] font-semibold uppercase tracking-wider",
+                              "rounded-lg px-3 py-1 text-2xs font-semibold uppercase tracking-wider",
                               mark.exam?.status === "PUBLISHED" || mark.exam?.status === "COMPLETED"
                                 ? "bg-emerald-50 text-emerald-600"
                                 : mark.exam?.status === "DRAFT"
                                   ? "bg-amber-50 text-amber-600"
-                                  : "bg-[#fbf0fe] text-[#8127cf]",
+                                  : "bg-brand-50 text-primary",
                             )}>
                               {mark.exam?.status || "Entered"}
                             </span>
@@ -228,8 +228,8 @@ export default function CourseworkPage() {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={4} className="px-4 py-12 text-center">
-                        <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#8127cf]/40" />
-                        <p className="text-sm font-black tracking-tight text-[#1d1b20]">No marks recorded yet</p>
+                        <BookOpen className="mx-auto mb-3 h-8 w-8 text-primary/40" />
+                        <p className="text-sm font-bold tracking-tight text-ink-strong">No marks recorded yet</p>
                         <p className="mt-1 text-xs font-semibold text-ink-muted">
                           Marks appear here as teachers publish each exam.
                         </p>
@@ -249,11 +249,11 @@ export default function CourseworkPage() {
 
 function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teacher: string; totalMarks: number; score: number | null }) {
   return (
-    <div className="sk-panel group relative bg-[#fbf0fe]/40 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/20 hover:shadow-xl hover:bg-white">
+    <div className="sk-panel group relative bg-brand-50/40 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-xl hover:bg-white">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">{name}</p>
-          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{teacher}</p>
+          <p className="truncate text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary">{name}</p>
+          <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{teacher}</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {score !== null && (
@@ -264,7 +264,7 @@ function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teach
               {score}%
             </span>
           )}
-          <span className="rounded-full bg-white border border-[#cfc2d6]/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-[#8127cf] transition-all group-hover:bg-[#8127cf] group-hover:text-white group-hover:border-transparent group-hover:shadow-md">
+          <span className="rounded-full bg-white border border-edge/10 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-primary transition-all group-hover:bg-primary group-hover:text-white group-hover:border-transparent group-hover:shadow-md">
             {totalMarks} marks
           </span>
         </div>
@@ -282,13 +282,13 @@ function PerfBar({ label, exam, score }: { label: string; exam?: string; score: 
   return (
     <div className="group transition-all duration-200 hover:-translate-y-0.5">
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <span className="min-w-0 truncate text-xs font-semibold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
+        <span className="min-w-0 truncate text-xs font-semibold text-ink-strong transition-colors group-hover:text-primary">
           {label}
           {exam ? <span className="ml-1.5 font-medium text-ink-subtle">{exam}</span> : null}
         </span>
-        <span className={`shrink-0 text-[10px] font-black tabular-nums ${text}`}>{score}%</span>
+        <span className={`shrink-0 text-2xs font-bold tabular-nums ${text}`}>{score}%</span>
       </div>
-      <div className="h-3 w-full bg-[#f3f4f9] rounded-full overflow-hidden p-0.5 border border-[#cfc2d6]/10 transition-all group-hover:shadow-md">
+      <div className="h-3 w-full bg-muted rounded-full overflow-hidden p-0.5 border border-edge/10 transition-all group-hover:shadow-md">
         <div
           className={`h-full ${bar} rounded-full transition-all duration-700`}
           style={{ width: `${Math.max(0, Math.min(score, 100))}%` }}

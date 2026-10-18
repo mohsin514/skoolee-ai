@@ -55,10 +55,10 @@ export function CommandHero({
   actions?: ReactNode;
 }) {
   return (
-    <section className="sk-rise relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#1f1a23] via-[#2a2130] to-[#2d2533] p-6 text-white shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] sm:p-8">
+    <section className="sk-rise relative overflow-hidden rounded-[32px] bg-gradient-to-br from-ink-strong via-[#2a2130] to-[#2d2533] p-6 text-white shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] sm:p-8">
       {/* Decorative only — pointer-events-none so nothing here eats a click. */}
-      <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-gradient-to-bl from-[#8127cf]/30 to-transparent blur-[70px]" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-16 -left-12 h-48 w-48 rounded-full bg-gradient-to-tr from-[#b876f0]/20 to-transparent blur-[60px]" />
+      <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-gradient-to-bl from-primary/30 to-transparent blur-[70px]" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-16 -left-12 h-48 w-48 rounded-full bg-gradient-to-tr from-brand-300/20 to-transparent blur-[60px]" />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -75,10 +75,10 @@ export function CommandHero({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d9b8f5]">{eyebrow}</p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-[#d9b8f5]">{eyebrow}</p>
               {/* Wraps on a phone rather than truncating — the title is short enough
                   to fit two lines and losing its last word reads as a bug. */}
-              <h1 className="mt-1.5 text-2xl font-black tracking-tight text-balance sm:text-3xl">{title}</h1>
+              <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-balance sm:text-3xl">{title}</h1>
             </div>
             {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
           </div>
@@ -115,8 +115,8 @@ export function CommandHero({
                 const content = (
                   <>
                     <Icon className="h-3.5 w-3.5 shrink-0 text-[#d9b8f5]" />
-                    <span className="text-[10px] font-black uppercase tracking-wider text-white/60">{pill.label}</span>
-                    <span className="text-xs font-black text-white [font-variant-numeric:tabular-nums]">
+                    <span className="text-2xs font-semibold uppercase tracking-wider text-white/60">{pill.label}</span>
+                    <span className="text-xs font-bold text-white [font-variant-numeric:tabular-nums]">
                       {typeof pill.value === "number" ? pill.value.toLocaleString() : pill.value}
                     </span>
                   </>

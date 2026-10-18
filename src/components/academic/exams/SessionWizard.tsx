@@ -10,7 +10,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Field, inputClass, selectClass } from "@/components/academic/exams/shared";
@@ -228,7 +228,7 @@ export function SessionWizard({
       <div className="space-y-5">
         {/* ── What kind of exam ─────────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+          <p className="mb-2 pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             What kind of exam
           </p>
           <div className="grid gap-2.5 sm:grid-cols-2">
@@ -250,25 +250,25 @@ export function SessionWizard({
                   <span
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
-                      active ? "bg-[#8127cf] text-white" : "bg-[#f3eeff] text-[#8127cf]",
+                      active ? "bg-primary text-white" : "bg-brand-100 text-primary",
                     )}
                   >
                     <t.icon className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-black text-[#1f1a23]">{t.label}</span>
-                    <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-ink-muted">
+                    <span className="block text-sm font-bold text-ink-strong">{t.label}</span>
+                    <span className="mt-0.5 block text-2xs font-semibold leading-snug text-ink-muted">
                       {t.blurb}
                     </span>
                   </span>
                   {active ? (
-                    <Check className="absolute right-3 top-3 h-4 w-4 text-[#8127cf]" />
+                    <Check className="absolute right-3 top-3 h-4 w-4 text-primary" />
                   ) : null}
                 </Button>
               );
             })}
           </div>
-          <p className="mt-2 pl-0.5 text-[10px] font-semibold text-ink-subtle">
+          <p className="mt-2 pl-0.5 text-2xs font-semibold text-ink-subtle">
             Quizzes and class tests are created by teachers for their own subjects — they
             never need a date sheet or a seating plan.
           </p>
@@ -318,7 +318,7 @@ export function SessionWizard({
         {/* ── Which classes ─────────────────────────────────────────────── */}
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <p className="pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+            <p className="pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Which classes sit it
             </p>
             <div className="ml-auto flex gap-1.5">
@@ -342,15 +342,15 @@ export function SessionWizard({
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-12 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div key={i} className="h-12 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
               ))}
             </div>
           ) : grouped.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-[#cfc2d6]/35 p-6 text-center text-xs font-bold text-ink-muted">
+            <p className="rounded-2xl border border-dashed border-edge/35 p-6 text-center text-xs font-bold text-ink-muted">
               No classes for {academicYear} yet. Create classes first.
             </p>
           ) : (
-            <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-2.5 custom-scrollbar">
+            <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-edge/20 bg-surface-subtle p-2.5 custom-scrollbar">
               {grouped.map(([name, rows]) => {
                 const allOn = rows.every((r) => selected.has(r.id));
                 const someOn = !allOn && rows.some((r) => selected.has(r.id));
@@ -372,11 +372,11 @@ export function SessionWizard({
                         aria-label={`Select all sections of ${name}`}
                       >
                         {allOn ? <Check className="h-3 w-3" /> : null}
-                        {someOn ? <span className="h-1.5 w-1.5 rounded-sm bg-[#8127cf]" /> : null}
+                        {someOn ? <span className="h-1.5 w-1.5 rounded-sm bg-primary" /> : null}
                       </Button>
-                      <School className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
-                      <span className="text-xs font-black text-[#1f1a23]">{name}</span>
-                      <span className="text-[10px] font-bold text-ink-subtle">
+                      <School className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="text-xs font-bold text-ink-strong">{name}</span>
+                      <span className="text-2xs font-bold text-ink-subtle">
                         {rows.length} section{rows.length === 1 ? "" : "s"}
                       </span>
                     </div>
@@ -398,7 +398,7 @@ export function SessionWizard({
                             ))}
                           >
                             {labelOf(row)}
-                            <span className="flex items-center gap-0.5 text-[9px] font-bold opacity-70">
+                            <span className="flex items-center gap-0.5 text-2xs font-bold opacity-70">
                               <Users className="h-2.5 w-2.5" />
                               {n.students}
                             </span>
@@ -414,24 +414,24 @@ export function SessionWizard({
         </div>
 
         {/* ── What this will create ─────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl bg-gradient-to-r from-[#f3eeff] to-[#faf7fc] px-4 py-3">
-          <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl bg-gradient-to-r from-brand-100 to-surface-subtle px-4 py-3">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
             This creates
           </p>
-          <p className="text-xs font-bold text-[#1f1a23]">
+          <p className="text-xs font-bold text-ink-strong">
             <span className="tabular-nums">{selected.size}</span> exam
             {selected.size === 1 ? "" : "s"}
           </p>
-          <p className="text-xs font-bold text-[#1f1a23]">
+          <p className="text-xs font-bold text-ink-strong">
             <span className="tabular-nums">{totals.papers}</span> paper
             {totals.papers === 1 ? "" : "s"} to date
           </p>
-          <p className="text-xs font-bold text-[#1f1a23]">
+          <p className="text-xs font-bold text-ink-strong">
             <span className="tabular-nums">{totals.students}</span> candidate
             {totals.students === 1 ? "" : "s"} to seat
           </p>
           {withoutSubjects.length > 0 ? (
-            <p className="w-full text-[10px] font-bold text-amber-600">
+            <p className="w-full text-2xs font-bold text-amber-600">
               {withoutSubjects.map(labelOf).join(", ")} {withoutSubjects.length === 1 ? "has" : "have"}{" "}
               no subjects, so {withoutSubjects.length === 1 ? "it" : "they"} will be skipped.
             </p>

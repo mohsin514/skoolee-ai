@@ -65,7 +65,7 @@ function ChildSwitcher() {
   return (
     <>
       <Button variant="choice" type="button" aria-label={t("Change child")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="mb-[12px] w-full min-w-0 shrink-0 justify-between gap-[8px] px-[12px] py-[8px] text-start">
-        <span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-wider text-ink-muted">{t("Viewing")}</span><bdi className="block text-sm [overflow-wrap:anywhere]">{selected.fullName}</bdi>{selected.rollNo && <bdi className="block text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{selected.rollNo}</bdi>}</span>
+        <span className="min-w-0"><span className="block text-2xs font-semibold uppercase tracking-wider text-ink-muted">{t("Viewing")}</span><bdi className="block text-sm [overflow-wrap:anywhere]">{selected.fullName}</bdi>{selected.rollNo && <bdi className="block text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{selected.rollNo}</bdi>}</span>
         <ChevronDown aria-hidden="true" className="shrink-0" />
       </Button>
       {open && <ModalSurface ariaLabel={t("Choose child")} onClose={() => setOpen(false)}>

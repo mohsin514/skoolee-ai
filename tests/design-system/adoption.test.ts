@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
+import { isTokenized, transformSource } from '../../scripts/ui-token-codemod';
 
 // Application controls have no per-route migration exemptions. Specialized native
 // inputs below retain their browser contracts; ordinary controls belong in ui/.
@@ -86,4 +87,21 @@ test('focus styling uses the shared token; no screen forks the focus ring', () =
 test('Sonner visual configuration has one shared owner', () => {
   const owners = sourceFiles('src').filter(file => /<Toaster(?:\s|\/>)/.test(readFileSync(file, 'utf8')));
   assert.deepEqual(owners, ['src/components/ui/app-toaster.tsx']);
+});
+
+// Styling reads the design tokens. Hex literals that have a token, pixel font
+// sizes below the type scale, font-black (Plus Jakarta Sans has no 900) and
+// direct Sonner imports are rewritten by the codemod; run it to fix:
+//   npx tsx scripts/ui-token-codemod.ts <files>
+test('styling uses design tokens, the type scale and the shared toast', () => {
+  const violations = sourceFiles('src').filter(isTokenized).filter((file) => {
+    const text = readFileSync(file, 'utf8');
+    return transformSource(file, text) !== text;
+  });
+  assert.deepEqual(violations, []);
+});
+
+test('toasts go through the shared wrapper', () => {
+  const direct = sourceFiles('src').filter((file) => !file.startsWith('src/components/ui/') && /from\s+["']sonner["']/.test(readFileSync(file, 'utf8')));
+  assert.deepEqual(direct, []);
 });

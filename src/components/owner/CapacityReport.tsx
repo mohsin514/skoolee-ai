@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -91,7 +91,7 @@ export function CapacityReport() {
   const req = data.requests;
   const stateText = req.state === "MEASURED" ? ui("Measured") : req.state === "STALE" ? ui("Stale: no request in the last minute") : ui("No measurement yet");
   return <div className="min-w-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6" data-capacity>
-    <header><h2 className="text-xl font-black">{ui("Capacity and tenant fairness")}</h2><p className="text-sm text-ink-muted">{ui("Synthetic benchmarks and live measurements. Values here are not capacity claims.")}</p></header>
+    <header><h2 className="text-xl font-bold">{ui("Capacity and tenant fairness")}</h2><p className="text-sm text-ink-muted">{ui("Synthetic benchmarks and live measurements. Values here are not capacity claims.")}</p></header>
     {data.followUpRequired ? <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900" role="status" data-follow-up>{ui("Scoped policy applied. A follow-up measurement is required.")}</p> : null}
 
     <section className="sk-panel space-y-3 p-4" data-runs>

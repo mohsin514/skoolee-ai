@@ -25,7 +25,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -237,9 +237,9 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-24 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-20 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-72 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-24 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
+        <div className="h-20 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
+        <div className="h-72 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
       </div>
     );
   }
@@ -247,21 +247,21 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
   return (
     <div className="sk-rise space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="relative overflow-hidden rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#8127cf] via-[#7322bb] to-[#5c1a96] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(129,39,207,0.7)]">
+      <header className="relative overflow-hidden rounded-[28px] border border-edge/25 bg-gradient-to-br from-primary via-[#7322bb] to-[#5c1a96] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(129,39,207,0.7)]">
         <span
           aria-hidden
           className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl"
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -bottom-24 left-24 h-56 w-56 rounded-full bg-[#b06bea]/25 blur-3xl"
+          className="pointer-events-none absolute -bottom-24 left-24 h-56 w-56 rounded-full bg-brand-300/25 blur-3xl"
         />
         <div className="relative flex flex-wrap items-center gap-4">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/60">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-white/60">
               Exams &amp; Results
             </p>
-            <h2 className="mt-0.5 text-2xl font-black tracking-tight">
+            <h2 className="mt-0.5 text-2xl font-bold tracking-tight">
               {active ? active.title : "No exam scheduled yet"}
             </h2>
             <p className="mt-1 text-xs font-semibold text-white/70">
@@ -331,7 +331,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
           {/* ── The rail ──────────────────────────────────────────────── */}
           <nav
             aria-label="Exam steps"
-            className="grid gap-2 rounded-[24px] border border-[#cfc2d6]/25 bg-white p-2.5 shadow-[0_2px_6px_rgba(31,26,35,0.05),0_14px_34px_-22px_rgba(129,39,207,0.3)] sm:grid-cols-3 xl:grid-cols-5"
+            className="grid gap-2 rounded-[24px] border border-edge/25 bg-white p-2.5 shadow-[0_2px_6px_rgba(31,26,35,0.05),0_14px_34px_-22px_rgba(129,39,207,0.3)] sm:grid-cols-3 xl:grid-cols-5"
           >
             {STEPS.map((s) => {
               const value = progress[s.key];
@@ -353,12 +353,12 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black transition-colors",
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors",
                       done
                         ? "bg-emerald-500 text-white"
                         : on || isNext
-                        ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white"
-                        : "bg-white text-ink-subtle ring-1 ring-[#cfc2d6]/35",
+                        ? "bg-gradient-to-br from-primary to-brand-400 text-white"
+                        : "bg-white text-ink-subtle ring-1 ring-edge/35",
                     )}
                   >
                     {done ? <Check className="h-4 w-4" /> : <s.icon className="h-4 w-4" />}
@@ -367,19 +367,19 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                     <span className="flex items-center gap-1.5">
                       <span
                         className={cn(
-                          "truncate text-xs font-black",
-                          on ? "text-[#8127cf]" : "text-[#1f1a23]",
+                          "truncate text-xs font-bold",
+                          on ? "text-primary" : "text-ink-strong",
                         )}
                       >
                         {s.index}. {s.label}
                       </span>
                       {isNext ? (
-                        <span className="shrink-0 rounded bg-[#f3eeff] px-1 py-px text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
+                        <span className="shrink-0 rounded bg-brand-100 px-1 py-px text-3xs font-semibold uppercase tracking-wider text-primary">
                           Next
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block truncate text-[10px] font-semibold text-ink-subtle">
+                    <span className="mt-0.5 block truncate text-2xs font-semibold text-ink-subtle">
                       {done ? "Done" : `${value}% · ${s.blurb}`}
                     </span>
                     <Meter
@@ -451,14 +451,14 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
             onClick={() => setShowLegacy((v) => !v)}
             className="justify-start flex w-full items-center gap-3 px-5 py-3.5 text-left"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3f4f9]">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted">
               <MoreHorizontal className="h-4 w-4 text-ink-muted" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-black text-[#1f1a23]">
+              <span className="block text-sm font-bold text-ink-strong">
                 Other exams ({legacy.length})
               </span>
-              <span className="block text-[11px] font-semibold text-ink-muted">
+              <span className="block text-2xs font-semibold text-ink-muted">
                 Teachers&apos; quizzes and class tests, plus anything scheduled before exams were
                 organised by term.
               </span>
@@ -471,7 +471,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
             />
           </Button>
           {showLegacy ? (
-            <ul className="divide-y divide-[#cfc2d6]/12 border-t border-[#cfc2d6]/12">
+            <ul className="divide-y divide-edge/12 border-t border-edge/12">
               {legacy.map((e) => (
                 <li key={e.id}>
                   <Button variant="secondary"
@@ -480,10 +480,10 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                     className="justify-start flex w-full items-center gap-3 px-5 py-2.5 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-black text-[#1f1a23]">
+                      <span className="block truncate text-xs font-bold text-ink-strong">
                         {e.title}
                       </span>
-                      <span className="block truncate text-[10px] font-semibold text-ink-subtle">
+                      <span className="block truncate text-2xs font-semibold text-ink-subtle">
                         {[e.class?.name, e.class?.section].filter(Boolean).join(" ")} ·{" "}
                         {EXAM_TYPE_LABELS[e.examType as ExamType] ?? e.examType} · {e.term}
                       </span>
@@ -637,12 +637,12 @@ function PlanStep({
               className="block group p-3 text-left hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-black text-[#1f1a23]">
+                <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink-strong">
                   {classLabel(cls)}
                 </span>
                 <StatusPill status={cls.status} />
               </div>
-              <p className="mt-1 text-[10px] font-bold text-ink-subtle">
+              <p className="mt-1 text-2xs font-bold text-ink-subtle">
                 {cls.studentCount} students · {cls.subjectCount} subjects
               </p>
               <div className="mt-2 space-y-1.5">
@@ -662,11 +662,11 @@ function MiniBar({ label, value, total }: { label: string; value: number; total:
   const done = total > 0 && value >= total;
   return (
     <div className="flex items-center gap-2">
-      <span className="w-11 shrink-0 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+      <span className="w-11 shrink-0 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
         {label}
       </span>
       <Meter value={value} total={total} tone={done ? "emerald" : "violet"} className="flex-1" />
-      <span className="w-11 shrink-0 text-right text-[9px] font-bold tabular-nums text-ink-subtle">
+      <span className="w-11 shrink-0 text-right text-2xs font-bold tabular-nums text-ink-subtle">
         {value}/{total}
       </span>
     </div>
@@ -732,7 +732,7 @@ function MarksStep({
         icon={PenLine}
         bodyClassName="p-0"
       >
-        <ul className="divide-y divide-[#cfc2d6]/12">
+        <ul className="divide-y divide-edge/12">
           {sorted.map((cls) => {
             const done = cls.marksExpected > 0 && cls.marksEntered >= cls.marksExpected;
             return (
@@ -745,14 +745,14 @@ function MarksStep({
                   <span
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                      done ? "bg-emerald-50 text-emerald-600" : "bg-[#f3eeff] text-[#8127cf]",
+                      done ? "bg-emerald-50 text-emerald-600" : "bg-brand-100 text-primary",
                     )}
                   >
                     {done ? <Check className="h-4 w-4" /> : <PenLine className="h-4 w-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-black text-[#1f1a23]">
+                      <span className="truncate text-sm font-bold text-ink-strong">
                         {classLabel(cls)}
                       </span>
                       <StatusPill status={cls.status} />
@@ -764,12 +764,12 @@ function MarksStep({
                         tone={done ? "emerald" : "violet"}
                         className="max-w-xs"
                       />
-                      <span className="shrink-0 text-[10px] font-bold tabular-nums text-ink-subtle">
+                      <span className="shrink-0 text-2xs font-bold tabular-nums text-ink-subtle">
                         {cls.marksEntered}/{cls.marksExpected}
                       </span>
                     </span>
                   </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                 </Button>
               </li>
             );
@@ -868,7 +868,7 @@ function ResultsStep({
         icon={BadgeCheck}
         bodyClassName="p-0"
       >
-        <ul className="divide-y divide-[#cfc2d6]/12">
+        <ul className="divide-y divide-edge/12">
           {session.classes.map((cls) => {
             const action = RESULT_ACTIONS[cls.status];
             const complete = cls.marksExpected > 0 && cls.marksEntered >= cls.marksExpected;
@@ -878,19 +878,19 @@ function ResultsStep({
                 <span
                   className={cn(
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                    published ? "bg-emerald-50 text-emerald-600" : "bg-[#f3eeff] text-[#8127cf]",
+                    published ? "bg-emerald-50 text-emerald-600" : "bg-brand-100 text-primary",
                   )}
                 >
                   {published ? <BadgeCheck className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
-                    <span className="truncate text-sm font-black text-[#1f1a23]">
+                    <span className="truncate text-sm font-bold text-ink-strong">
                       {classLabel(cls)}
                     </span>
                     <StatusPill status={cls.status} />
                   </span>
-                  <span className="mt-0.5 block text-[10px] font-bold text-ink-subtle">
+                  <span className="mt-0.5 block text-2xs font-bold text-ink-subtle">
                     {cls.marksEntered}/{cls.marksExpected} marks ·{" "}
                     {complete ? "complete" : "incomplete"}
                   </span>
@@ -924,7 +924,7 @@ function ResultsStep({
                     {action.label}
                   </Button>
                 ) : (
-                  <span className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-[11px] font-black uppercase tracking-wider text-emerald-600">
+                  <span className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
                     <Check className="h-3.5 w-3.5" />
                     Published
                   </span>

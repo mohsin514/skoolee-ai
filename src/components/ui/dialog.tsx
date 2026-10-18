@@ -129,12 +129,12 @@ function DialogBody({ children }: { children: React.ReactNode }) {
           DialogHeader. The grab strip is still the phone's drag target, so
           the sheet stays dismissable by gesture. */}
       <div {...dragHandleProps} className="shrink-0 touch-none pt-3 sm:hidden">
-        <div className="mx-auto h-1.5 w-11 rounded-full bg-[#1f1a23]/15" aria-hidden />
+        <div className="mx-auto h-1.5 w-11 rounded-full bg-ink-strong/15" aria-hidden />
       </div>
 
       <button
         type="button"
-        className="absolute end-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+        className="absolute end-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-brand-50 hover:text-primary"
         onClick={requestClose}
         disabled={!dismissible}
       >
@@ -193,7 +193,7 @@ function DialogTitle({
   const { titleId } = useModalSurface();
   return (
     <h2
-      className={cn("text-2xl font-black leading-tight text-foreground", className)}
+      className={cn("text-2xl font-bold leading-tight text-foreground", className)}
       {...props}
       id={titleId}
     />

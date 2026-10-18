@@ -62,22 +62,22 @@ export function RoomView({
     <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
       <div className="min-w-[760px]">
         {/* Header */}
-        <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
+        <div className="grid border-b border-muted" style={{ gridTemplateColumns: gridCols }}>
           <div className="flex items-center gap-1.5 p-3">
             <DoorOpen className="w-4 h-4 text-ink-subtle" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Room</span>
+            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Room</span>
           </div>
           {visibleDays.map((day) => {
             const isOff = weekendDays.includes(day.num);
             return (
               <div
                 key={day.num}
-                className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${
-                  isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""
+                className={`flex flex-col items-center justify-center py-3 border-l border-muted ${
+                  isOff ? "opacity-50 bg-muted/70" : ""
                 }`}
               >
-                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                <span className="text-3xs font-bold text-ink-subtle mt-0.5">{day.full}</span>
               </div>
             );
           })}
@@ -93,12 +93,12 @@ export function RoomView({
             return (
               <div
                 key={room.id}
-                className="grid border-b border-[#f3f4f9] last:border-b-0 hover:bg-[#fbf0fe]/20 transition-colors"
+                className="grid border-b border-muted last:border-b-0 hover:bg-brand-50/20 transition-colors"
                 style={{ gridTemplateColumns: gridCols }}
               >
-                <div className="flex flex-col justify-center p-3 border-r border-[#f3f4f9]">
-                  <span className="text-[11px] font-black text-[#1f1a23]">{room.roomNumber}</span>
-                  <span className="text-[8px] font-bold text-ink-subtle mt-0.5">
+                <div className="flex flex-col justify-center p-3 border-r border-muted">
+                  <span className="text-2xs font-bold text-ink-strong">{room.roomNumber}</span>
+                  <span className="text-3xs font-bold text-ink-subtle mt-0.5">
                     cap {room.capacity || "—"}
                   </span>
                 </div>
@@ -111,7 +111,7 @@ export function RoomView({
                   return (
                     <div
                       key={day.num}
-                      className={`border-l border-[#f3f4f9] p-1.5 ${isOff ? "opacity-40 bg-[#f3f4f9]/70" : ""}`}
+                      className={`border-l border-muted p-1.5 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
                     >
                       {occupied ? (
                         <div className="space-y-1">
@@ -120,15 +120,15 @@ export function RoomView({
                               key={i}
                               className={`rounded-lg ${u.color.bg}  ${u.color.border} border px-2 py-1`}
                             >
-                              <p className={`text-[9px] font-black leading-tight ${u.color.text}`}>
+                              <p className={`text-2xs font-bold leading-tight ${u.color.text}`}>
                                 P{u.period} · {u.clsLabel}
                               </p>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <div className="flex h-full min-h-[40px] items-center justify-center rounded-lg border border-dashed border-[#cfc2d6]/15">
-                          <span className="text-[8px] font-semibold text-ink-subtle">free</span>
+                        <div className="flex h-full min-h-[40px] items-center justify-center rounded-lg border border-dashed border-edge/15">
+                          <span className="text-3xs font-semibold text-ink-subtle">free</span>
                         </div>
                       )}
                     </div>

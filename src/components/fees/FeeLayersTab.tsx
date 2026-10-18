@@ -7,7 +7,7 @@ import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, Check, Layers, Loader2, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame, ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
@@ -27,7 +27,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const inputClass = "w-full";
-const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
+const labelClass = "block mb-2 pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
 
 export function FeeLayersTab({ campusId }: { campusId?: string }) {
  const tr = useUiText();
@@ -44,7 +44,7 @@ export function FeeLayersTab({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
+      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = active === tab.key;
@@ -169,8 +169,8 @@ function TypesPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Fee Types"}</UiText></h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle"><UiText>{"Reusable fee heads — Tuition, Admission, Lab, Books&hellip;"}</UiText></p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee Types"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Reusable fee heads — Tuition, Admission, Lab, Books&hellip;"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Type"}</UiText></BrandButton>
       </div>
@@ -187,8 +187,8 @@ function TypesPanel({ campusId }: { campusId?: string }) {
           {types.map((t) => (
             <div key={t.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">{t.name}</p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-sm font-bold text-ink-strong">{t.name}</p>
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {t.code} · {t._count?.masters ?? 0}<UiText>{"line(s)"}</UiText>{t.description ? ` · ${t.description}` : ""}
                 </p>
               </div>
@@ -320,8 +320,8 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Fee Groups"}</UiText></h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle"><UiText>{"Packages bundling multiple fee types — price them in Master"}</UiText></p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee Groups"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Packages bundling multiple fee types — price them in Master"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Group"}</UiText></BrandButton>
       </div>
@@ -341,8 +341,8 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
               <div key={g.id} className="sk-panel p-5">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <p className="text-sm font-black text-[#1f1a23]">{g.name}</p>
-                    <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                    <p className="text-sm font-bold text-ink-strong">{g.name}</p>
+                    <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                       {g.lines.length}<UiText>{"fee line(s) ·"}</UiText>{g.assignments.length}<UiText>{"class assignment(s)"}</UiText></p>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -363,12 +363,12 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
                     />
                   </div>
                 </div>
-                <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2 flex items-center justify-between">
-                  <p className="text-[9px] font-black uppercase text-ink-subtle"><UiText>{"Bundled value"}</UiText></p>
-                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(lineTotal, g.currency)}</p>
+                <div className="rounded-xl bg-brand-50/50 px-3 py-2 flex items-center justify-between">
+                  <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Bundled value"}</UiText></p>
+                  <p className="text-sm font-bold text-primary">{formatPKR(lineTotal, g.currency)}</p>
                 </div>
                 {g.description && (
-                  <p className="text-[10px] font-semibold text-ink-subtle mt-2 px-1">{g.description}</p>
+                  <p className="text-2xs font-semibold text-ink-subtle mt-2 px-1">{g.description}</p>
                 )}
               </div>
             );
@@ -511,9 +511,9 @@ function MasterPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               {selectedGroup.name}<UiText>{"—"}</UiText>{selectedGroup.lines.length}<UiText>{"line(s)"}</UiText></p>
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
               {formatPKR(selectedGroup.lines.reduce((s, l) => s + l.amount, 0), selectedGroup.currency)}<UiText>{"total"}</UiText></p>
           </div>
           {selectedGroup.lines.length === 0 ? (
@@ -522,14 +522,14 @@ function MasterPanel({ campusId }: { campusId?: string }) {
             selectedGroup.lines.map((line) => (
               <div key={line.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
                 <div>
-                  <p className="text-sm font-black text-[#1f1a23]">{line.feeType?.name ?? "Unknown"}</p>
-                  <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                  <p className="text-sm font-bold text-ink-strong">{line.feeType?.name ?? "Unknown"}</p>
+                  <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                     {line.feeType?.code}
                     {line.dueDate ? tr(" · due {0}", [new Date(line.dueDate).toLocaleDateString()]) : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(line.amount, selectedGroup?.currency)}</p>
+                  <p className="text-sm font-bold text-primary">{formatPKR(line.amount, selectedGroup?.currency)}</p>
                   <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(line)} className="flex items-center justify-center">
                     <BookOpen className="w-3.5 h-3.5" />
                   </Button>
@@ -664,8 +664,8 @@ function AssignPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Class Assignments"}</UiText></h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle"><UiText>{"Which fee group serves each class, per academic year"}</UiText></p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Class Assignments"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Which fee group serves each class, per academic year"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)} disabled={groups.length === 0 || classes.length === 0}><UiText>{"Assign Group"}</UiText></BrandButton>
       </div>
@@ -677,10 +677,10 @@ function AssignPanel({ campusId }: { campusId?: string }) {
           {assignments.map((a) => (
             <div key={a.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">
+                <p className="text-sm font-bold text-ink-strong">
                   {a.class ? classLabel(a.class.name, a.class.section) : tr("Unknown class")}
                 </p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {a.feeGroup?.name} · {a.academicYear}
                 </p>
               </div>
@@ -908,8 +908,8 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Discounts"}</UiText></h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{tr("Flat amount")} (<bdi>{currency}</bdi>) / {tr("Percent (max 100)")}</p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Discounts"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{tr("Flat amount")} (<bdi>{currency}</bdi>) / {tr("Percent (max 100)")}</p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Discount"}</UiText></BrandButton>
       </div>
@@ -921,8 +921,8 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
           {discounts.map((d) => (
             <div key={d.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">{d.name}</p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-sm font-bold text-ink-strong">{d.name}</p>
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {d.code} · {d.type === "PERCENT" ? `${d.value}%` : formatPKR(d.value, d.currency)}
                   {d.category ? tr(" · auto: {0}", [d.category.name]) : ""} · {d._count?.assignments ?? 0}<UiText>{"student(s)"}</UiText></p>
               </div>
@@ -988,15 +988,15 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
             </label>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Assigned ("}</UiText>{assigned.length})
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Assigned ("}</UiText>{assigned.length})
               </p>
               {assigned.length === 0 ? (
-                <p className="text-[10px] font-semibold text-ink-subtle italic"><UiText>{"No students assigned yet."}</UiText></p>
+                <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"No students assigned yet."}</UiText></p>
               ) : (
                 <div className="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1">
                   {assigned.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between rounded-xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 px-3 py-2">
-                      <p className="text-xs font-black text-[#1f1a23]">
+                    <div key={a.id} className="flex items-center justify-between rounded-xl bg-brand-50/50 border border-edge/10 px-3 py-2">
+                      <p className="text-xs font-bold text-ink-strong">
                         {a.student?.fullName} <span className="text-ink-subtle font-bold">· {a.student?.rollNo ?? ""}</span>
                       </p>
                       <Button variant="secondary"
@@ -1012,7 +1012,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Add student"}</UiText></p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Add student"}</UiText></p>
               <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pr-1">
                 {students
                   .filter((s) => {
@@ -1025,8 +1025,8 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                   })
                   .slice(0, 20)
                   .map((s) => (
-                    <div key={s.id} className="flex items-center justify-between rounded-xl border border-[#cfc2d6]/10 px-3 py-2">
-                      <p className="text-xs font-bold text-[#1f1a23]">
+                    <div key={s.id} className="flex items-center justify-between rounded-xl border border-edge/10 px-3 py-2">
+                      <p className="text-xs font-bold text-ink-strong">
                         {s.fullName} <span className="text-ink-subtle font-bold">· {s.rollNo ?? ""}</span>
                       </p>
                       <Button variant="outline"
@@ -1038,7 +1038,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                     </div>
                   ))}
                 {students.filter((s) => !assigned.some((a) => a.studentId === s.id)).length === 0 && (
-                  <p className="text-[10px] font-semibold text-ink-subtle italic"><UiText>{"All students already assigned."}</UiText></p>
+                  <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"All students already assigned."}</UiText></p>
                 )}
               </div>
             </div>
@@ -1153,8 +1153,8 @@ function CarryPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]"><UiText>{"Carry Forward"}</UiText></h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle"><UiText>{"Session-end balances moved to the next academic year"}</UiText></p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Carry Forward"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Session-end balances moved to the next academic year"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)} disabled={students.length === 0}><UiText>{"New Carry-Forward"}</UiText></BrandButton>
       </div>
@@ -1166,14 +1166,14 @@ function CarryPanel({ campusId }: { campusId?: string }) {
           {forwards.map((f) => (
             <div key={f.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">{f.student?.fullName ?? "Unknown"}</p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-sm font-bold text-ink-strong">{f.student?.fullName ?? "Unknown"}</p>
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {f.fromAcademicYear}<UiText>{"&rarr;"}</UiText>{f.toAcademicYear}
                   {f.note ? ` · ${f.note}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-sm font-black ${f.balance < 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                <span className={`text-sm font-bold ${f.balance < 0 ? "text-emerald-600" : "text-rose-600"}`}>
                   {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance), f.currency)}
                 </span>
                 <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(f)} className="flex items-center justify-center">
@@ -1346,9 +1346,9 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Fine Rules"}</UiText></p>
-          <p className="text-sm font-black text-[#1f1a23]"><UiText>{"Late-payment fines applied when collecting overdue invoices"}</UiText></p>
-          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5"><UiText>{"PERCENT = % of balance · FLAT = fixed PKR · PER_DAY = PKR per day past due"}</UiText></p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Fine Rules"}</UiText></p>
+          <p className="text-sm font-bold text-ink-strong"><UiText>{"Late-payment fines applied when collecting overdue invoices"}</UiText></p>
+          <p className="text-2xs font-semibold text-ink-subtle mt-0.5"><UiText>{"PERCENT = % of balance · FLAT = fixed PKR · PER_DAY = PKR per day past due"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Fine Rule"}</UiText></BrandButton>
       </div>
@@ -1366,15 +1366,15 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
         <div className="space-y-3">
           {rules.map((rule) => (
             <div key={rule.id} className="sk-panel p-5 flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Timer className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-[#1f1a23]">
+                <p className="text-sm font-bold text-ink-strong">
                   {rule.name}
-                  {rule.description ? <span className="ml-2 text-[10px] font-semibold text-ink-subtle">{rule.description}</span> : null}
+                  {rule.description ? <span className="ml-2 text-2xs font-semibold text-ink-subtle">{rule.description}</span> : null}
                 </p>
-                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {rule.type === "PERCENT"
                     ? tr("{0}% of balance", [rule.value])
                     : rule.type === "PER_DAY"
@@ -1467,12 +1467,12 @@ function SkeletonRows() {
         <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
           <div className="flex items-start justify-between mb-3">
             <div className="space-y-2">
-              <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-3 w-40 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-4 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-3 w-40 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             </div>
-            <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div className="h-8 w-8 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
           </div>
-          <div className="h-12 rounded-xl bg-[#f3f4f9]/50 skeleton-shimmer" />
+          <div className="h-12 rounded-xl bg-muted/50 skeleton-shimmer" />
         </div>
       ))}
     </div>

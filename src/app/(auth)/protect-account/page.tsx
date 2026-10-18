@@ -280,42 +280,42 @@ export default function ProtectAccount() {
   );
 
   return (
-    <main lang={language} dir={directionFor(language)} className="grid min-h-screen w-full grid-cols-1 bg-[#fff7fe] font-sans lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] print:block print:bg-white">
+    <main lang={language} dir={directionFor(language)} className="grid min-h-screen w-full grid-cols-1 bg-brand-50 font-sans lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] print:block print:bg-white">
 
       {/* ─── BRAND PANEL (matches /login) ─────────────────── */}
-      <section className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 lg:flex xl:p-14 print:hidden">
+      <section className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 p-12 lg:flex xl:p-14 print:hidden">
         <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-          <div className="sk-blob absolute -top-1/4 -start-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
-          <div className="sk-blob sk-blob-2 absolute top-1/4 -end-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+          <div className="sk-blob absolute -top-1/4 -start-1/5 h-[72%] w-[72%] rounded-full bg-brand-400 opacity-70 blur-[90px]" />
+          <div className="sk-blob sk-blob-2 absolute top-1/4 -end-1/4 h-[68%] w-[68%] rounded-full bg-brand-300 opacity-45 blur-[100px]" />
           <div className="absolute inset-0 opacity-[0.07] bg-[linear-gradient(rgba(255,255,255,.9)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.9)_1px,transparent_1px)] bg-[size:56px_56px]" />
         </div>
 
         <div className="relative z-10 flex items-center gap-2.5">
           <span className="h-8 w-1 rounded-full bg-white/70" />
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Skoolee AI</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-white/80">Skoolee AI</p>
         </div>
 
         <div className="relative z-10 max-w-xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <LockKeyhole aria-hidden="true" className="size-3.5 text-[#e9d5ff]" />
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">{t.brandEyebrow}</span>
+            <LockKeyhole aria-hidden="true" className="size-3.5 text-brand-200" />
+            <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">{t.brandEyebrow}</span>
           </div>
-          <p className="mt-7 text-[2.6rem] font-black leading-[1.06] tracking-[-0.035em] text-white text-balance xl:text-[3.1rem]">{t.brandTitle}</p>
-          <p className="mt-5 max-w-md text-[15px] font-semibold leading-relaxed text-white/85">{t.brandBody}</p>
-          <ul className="mt-9 space-y-3 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl">
+          <p className="mt-7 text-[2.6rem] font-extrabold leading-[1.06] tracking-[-0.035em] text-white text-balance xl:text-[3.1rem]">{t.brandTitle}</p>
+          <p className="mt-5 max-w-md text-md font-semibold leading-relaxed text-white/85">{t.brandBody}</p>
+          <ul className="mt-9 space-y-3 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl">
             {t.brandPoints.map((point, index) => {
               const Icon = [Timer, KeyRound, Smartphone][index] ?? ShieldCheck;
               return (
                 <li key={point} className="flex items-center gap-3.5">
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20"><Icon aria-hidden="true" className="size-[18px] text-white" /></span>
-                  <span className="text-[15px] font-bold text-white">{point}</span>
+                  <span className="text-md font-bold text-white">{point}</span>
                 </li>
               );
             })}
           </ul>
         </div>
 
-        <p className="relative z-10 flex items-center gap-1.5 text-[11px] font-bold text-white/75">
+        <p className="relative z-10 flex items-center gap-1.5 text-2xs font-bold text-white/75">
           <ShieldCheck aria-hidden="true" className="size-3.5" /> {t.brandFooter}
         </p>
       </section>
@@ -329,18 +329,18 @@ export default function ProtectAccount() {
 
           <div className="mb-7 flex flex-col items-center text-center">
             <SkooleeLogo size="min(2.35rem, 10vw)" weight="heavy" />
-            <div aria-hidden="true" className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
-            <h1 className="mt-6 text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] text-balance">{heading}</h1>
-            {subheading && <p className="mt-2 max-w-md text-[14.5px] font-semibold leading-relaxed text-ink-muted">{subheading}</p>}
+            <div aria-hidden="true" className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
+            <h1 className="mt-6 text-[1.9rem] font-extrabold leading-tight tracking-[-0.035em] text-ink-strong text-balance">{heading}</h1>
+            {subheading && <p className="mt-2 max-w-md text-md font-semibold leading-relaxed text-ink-muted">{subheading}</p>}
             {status?.school && view !== "expired" && (
-              <p className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-[#e3d5f0] bg-white px-3 py-1 text-xs font-bold text-[#7020b9]">
+              <p className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-bold text-brand-700">
                 <ShieldCheck aria-hidden="true" className="size-3.5 shrink-0" />
                 <span className="min-w-0 [overflow-wrap:anywhere]">{t.school}: <bdi>{status.school}</bdi></span>
               </p>
             )}
           </div>
 
-          <div className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-5 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-8 print:border-0 print:p-0 print:shadow-none">
+          <div className="rounded-[30px] border border-edge/30 bg-white p-5 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-8 print:border-0 print:p-0 print:shadow-none">
             {busy && <p role="status" className="sr-only">{t.working}</p>}
             <p aria-live="polite" className="sr-only">{feedback === "key" || feedback === "codes" ? t.copied : feedback === "download" ? t.downloaded : feedback === "copyFailed" ? t.copyFailed : ""}</p>
 
@@ -372,8 +372,8 @@ export default function ProtectAccount() {
             {view === "intro" && <>
               {stepper(0)}
               {alert}
-              <div className="mb-6 flex items-start gap-3 rounded-2xl bg-[#faf5ff] p-4">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-sm shadow-[#8127cf]/25"><Smartphone aria-hidden="true" className="size-5" /></span>
+              <div className="mb-6 flex items-start gap-3 rounded-2xl bg-brand-50 p-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-white shadow-sm shadow-primary/25"><Smartphone aria-hidden="true" className="size-5" /></span>
                 <p className="text-sm font-semibold leading-relaxed text-ink-muted">{t.apps}</p>
               </div>
               <Button type="button" size="lg" className="w-full" disabled={busy} aria-busy={busy} onClick={() => send("setup")}>
@@ -385,7 +385,7 @@ export default function ProtectAccount() {
             {view === "scan" && <>
               {stepper(step)}
               <AuthenticatorSetup secret={secret} uri={uri} t={t} onCopy={() => void copyKey()} copied={feedback === "key"} />
-              <div className="my-6 h-px bg-[#cfc2d6]/30" />
+              <div className="my-6 h-px bg-edge/30" />
               <form onSubmit={submit} aria-busy={busy} className="space-y-5" noValidate>
                 {codeField}
                 {submitButton}
@@ -402,7 +402,7 @@ export default function ProtectAccount() {
                 {submitButton}
               </form>
               {status?.resumeChallenge && !status.enrolled && (
-                <div className="mt-6 border-t border-[#cfc2d6]/25 pt-5">
+                <div className="mt-6 border-t border-edge/25 pt-5">
                   <p id="mfa-start-over-hint" className="flex items-start gap-2 text-xs font-semibold leading-relaxed text-ink-muted"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{t.startOverHint}</p>
                   <Button type="button" variant="ghost" className="mt-2 w-full" disabled={busy} aria-describedby="mfa-start-over-hint" onClick={() => send("setup")}><RotateCcw aria-hidden="true" />{t.retry}</Button>
                 </div>
@@ -422,10 +422,10 @@ export default function ProtectAccount() {
             {view === "done" && <>
               {done === "enrolled" && stepper(3)}
               <div role="status" className="flex flex-col items-center gap-3 py-6 text-center">
-                <span className="sk-check-pop flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_14px_30px_-12px_rgba(129,39,207,0.7)]">
+                <span className="sk-check-pop flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-brand-400 text-white shadow-[0_14px_30px_-12px_rgba(129,39,207,0.7)]">
                   <CheckCircle2 aria-hidden="true" className="size-8" />
                 </span>
-                <p className="text-base font-black text-[#1f1a23]">{done === "verified" ? t.verifiedTitle : t.doneTitle}</p>
+                <p className="text-base font-bold text-ink-strong">{done === "verified" ? t.verifiedTitle : t.doneTitle}</p>
                 <p className="flex items-center gap-2 text-sm font-semibold text-ink-muted"><Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" />{t.doneBody}</p>
               </div>
             </>}
@@ -433,7 +433,7 @@ export default function ProtectAccount() {
 
           {view !== "expired" && view !== "done" && (
             <div className="mt-6 flex justify-center print:hidden">
-              <Link href="/login" className="flex min-h-11 items-center px-2 text-sm font-bold text-[#8127cf] underline-offset-4 motion-safe:transition-colors hover:text-[#9c48ea] hover:underline">{t.login}</Link>
+              <Link href="/login" className="flex min-h-11 items-center px-2 text-sm font-bold text-primary underline-offset-4 motion-safe:transition-colors hover:text-brand-400 hover:underline">{t.login}</Link>
             </div>
           )}
         </div>

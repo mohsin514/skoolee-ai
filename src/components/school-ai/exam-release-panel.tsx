@@ -76,10 +76,10 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
           {editable && ["READY_FOR_REVIEW", "APPROVED"].includes(item.state) && <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "NEEDS_CORRECTION" }), true)}>{t.correction}</Button>}
         </div>
       </div>
-      {compare?.questionId === item.id && <div className="space-y-2 rounded-xl border border-[#cfc2d6] p-3" data-item-compare>
+      {compare?.questionId === item.id && <div className="space-y-2 rounded-xl border border-edge p-3" data-item-compare>
         <p className="text-sm font-semibold">{t.compareTitle}</p>
         <p className="text-xs text-ink-subtle">{t.changedFields}: {compare.differingFields.length ? compare.differingFields.map(field => t.fieldLabels[field as keyof typeof t.fieldLabels] ?? field).join(locale === "en" ? ", " : "، ") : t.noChange}</p>
-        <div className="grid gap-2 md:grid-cols-2">{([[t.previousItem, compare.previous], [t.candidateItem, compare.candidate]] as const).map(([label, version], index) => <div key={index} className={`space-y-1 rounded-lg border p-2 text-sm ${index === 1 ? "border-[#8127cf]/40 bg-[#faf7fc]" : ""}`} data-compare-side={index === 0 ? "previous" : "candidate"}>
+        <div className="grid gap-2 md:grid-cols-2">{([[t.previousItem, compare.previous], [t.candidateItem, compare.candidate]] as const).map(([label, version], index) => <div key={index} className={`space-y-1 rounded-lg border p-2 text-sm ${index === 1 ? "border-primary/40 bg-surface-subtle" : ""}`} data-compare-side={index === 0 ? "previous" : "candidate"}>
           <p className="text-xs font-semibold text-ink-subtle">{label}</p>
           <p dir="auto" className={compare.differingFields.includes("prompt") ? "rounded bg-amber-50 px-1" : ""}>{version.prompt}</p>
           {version.options.length ? <ul className={`list-disc ps-5 ${compare.differingFields.includes("options") ? "rounded bg-amber-50" : ""}`}>{version.options.map(option => <li key={option.id} dir="auto">{option.text}{option.id === version.correctOptionId ? " ✓" : ""}</li>)}</ul> : null}

@@ -108,11 +108,11 @@ export function SecuritySettingsPanel() {
       <div className="space-y-4">
       <section aria-labelledby="security-password-heading" className={securityCardClass}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#f3ecfa] text-[#8127cf]">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-primary">
             <KeyRound aria-hidden="true" className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <h4 id="security-password-heading" className="text-base font-black tracking-tight text-[#1f1a23]">{ui("Password")}</h4>
+            <h4 id="security-password-heading" className="text-base font-bold tracking-tight text-ink-strong">{ui("Password")}</h4>
             <p className="mt-1 text-sm font-semibold leading-relaxed text-ink-muted">{ui("Use a long password you don't use anywhere else.")}</p>
           </div>
           <Button type="button" variant="outline" onClick={() => open("password")} className="sm:shrink-0">
@@ -136,7 +136,7 @@ export function SecuritySettingsPanel() {
 
       {state === "error" && (
         <div role="alert" className={cn(securityCardClass, "border-status-error-border")}>
-          <p className="text-sm font-bold text-[#1f1a23]">{t.loadError}</p>
+          <p className="text-sm font-bold text-ink-strong">{t.loadError}</p>
           <Button type="button" variant="outline" className="mt-4" onClick={() => { setState("loading"); setAttempt(value => value + 1); }}>
             <RotateCcw aria-hidden="true" />{t.retry}
           </Button>

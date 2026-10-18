@@ -33,9 +33,9 @@ export function Meter({
       ? "from-amber-400 to-amber-600"
       : tone === "rose"
       ? "from-rose-400 to-rose-600"
-      : "from-[#8127cf] to-[#b06bea]";
+      : "from-primary to-brand-300";
   return (
-    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-[#e8e0ec]/60", className)}>
+    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-border-subtle/60", className)}>
       <div
         className={cn("h-full rounded-full bg-gradient-to-r transition-[width] duration-700 ease-out", bar)}
         style={{ width: `${pct}%` }}
@@ -67,7 +67,7 @@ export function ProgressStat({
       ? "bg-amber-50 text-amber-600"
       : tone === "rose"
       ? "bg-rose-50 text-rose-600"
-      : "bg-[#f3eeff] text-[#8127cf]";
+      : "bg-brand-100 text-primary";
   return (
     <div className="sk-panel p-3.5">
       <div className="flex items-center gap-2.5">
@@ -75,12 +75,12 @@ export function ProgressStat({
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-black leading-none tabular-nums text-[#1f1a23]">
+          <p className="text-lg font-bold leading-none tabular-nums text-ink-strong">
             {value}
             {total > 0 ? <span className="text-xs font-bold text-ink-subtle"> / {total}</span> : null}
             {suffix ? <span className="text-xs font-bold text-ink-subtle"> {suffix}</span> : null}
           </p>
-          <p className="mt-1 truncate text-[10px] font-black uppercase tracking-wider text-ink-muted">
+          <p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-ink-muted">
             {label}
           </p>
         </div>
@@ -140,7 +140,7 @@ export function ConflictPanel({
         <AlertTriangle
           className={cn("h-4 w-4 shrink-0", blocking > 0 ? "text-rose-600" : "text-amber-600")}
         />
-        <p className={cn("text-xs font-black", blocking > 0 ? "text-rose-700" : "text-amber-700")}>
+        <p className={cn("text-xs font-bold", blocking > 0 ? "text-rose-700" : "text-amber-700")}>
           {blocking > 0
             ? `${blocking} conflict${blocking === 1 ? "" : "s"} must be fixed`
             : `${conflicts.length} thing${conflicts.length === 1 ? "" : "s"} worth checking`}
@@ -156,7 +156,7 @@ export function ConflictPanel({
         ) : null}
       </div>
 
-      <div className="divide-y divide-[#cfc2d6]/12">
+      <div className="divide-y divide-edge/12">
         {groups.map(([kind, items]) => (
           <div key={kind} className="px-4 py-2.5">
             <div className="flex items-center gap-2">
@@ -166,28 +166,28 @@ export function ConflictPanel({
                   items.some((i) => i.blocking) ? "bg-rose-500" : "bg-amber-500",
                 )}
               />
-              <p className="text-[11px] font-black text-[#1f1a23]">
+              <p className="text-2xs font-bold text-ink-strong">
                 {CONFLICT_LABELS[kind as keyof typeof CONFLICT_LABELS] ?? kind}
               </p>
-              <span className="rounded-full bg-[#f3eeff] px-1.5 py-0.5 text-[9px] font-black tabular-nums text-[#8127cf]">
+              <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-2xs font-bold tabular-nums text-primary">
                 {items.length}
               </span>
             </div>
             {!compact ? (
               <ul className="mt-1.5 space-y-0.5 pl-3.5">
                 {items.slice(0, 6).map((c, i) => (
-                  <li key={i} className="text-[11px] font-semibold leading-snug text-ink-muted">
+                  <li key={i} className="text-2xs font-semibold leading-snug text-ink-muted">
                     {c.message}
                   </li>
                 ))}
                 {items.length > 6 ? (
-                  <li className="text-[11px] font-bold text-ink-subtle">
+                  <li className="text-2xs font-bold text-ink-subtle">
                     …and {items.length - 6} more
                   </li>
                 ) : null}
               </ul>
             ) : null}
-            <p className="mt-1.5 flex items-start gap-1.5 pl-3.5 text-[10px] font-semibold leading-snug text-[#8127cf]">
+            <p className="mt-1.5 flex items-start gap-1.5 pl-3.5 text-2xs font-semibold leading-snug text-primary">
               <Info className="mt-px h-3 w-3 shrink-0" />
               {CONFLICT_FIXES[kind as keyof typeof CONFLICT_FIXES] ?? "Review this paper."}
             </p>
@@ -211,11 +211,11 @@ export function StepEmpty({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-[#cfc2d6]/35 bg-gradient-to-b from-white to-[#faf7fc] px-8 py-16 text-center">
-      <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff]">
-        <Icon className="h-6 w-6 text-[#8127cf]" />
+    <div className="flex flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-edge/35 bg-gradient-to-b from-white to-surface-subtle px-8 py-16 text-center">
+      <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-100">
+        <Icon className="h-6 w-6 text-primary" />
       </span>
-      <h4 className="text-base font-black tracking-tight text-[#1f1a23]">{title}</h4>
+      <h4 className="text-base font-bold tracking-tight text-ink-strong">{title}</h4>
       <p className="mt-1.5 max-w-md text-xs font-semibold leading-relaxed text-ink-muted">{body}</p>
       {action ? <div className="mt-5">{action}</div> : null}
     </div>
@@ -243,20 +243,20 @@ export function Panel({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_2px_6px_rgba(31,26,35,0.05),0_16px_40px_-24px_rgba(129,39,207,0.28)]",
+        "overflow-hidden rounded-[24px] border border-edge/25 bg-white shadow-[0_2px_6px_rgba(31,26,35,0.05),0_16px_40px_-24px_rgba(129,39,207,0.28)]",
         className,
       )}
     >
-      <header className="flex flex-wrap items-center gap-3 border-b border-[#cfc2d6]/15 bg-gradient-to-r from-[#faf7fc] to-white px-5 py-3.5">
+      <header className="flex flex-wrap items-center gap-3 border-b border-edge/15 bg-gradient-to-r from-surface-subtle to-white px-5 py-3.5">
         {Icon ? (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff]">
-            <Icon className="h-4.5 w-4.5 text-[#8127cf]" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-100">
+            <Icon className="h-4.5 w-4.5 text-primary" />
           </span>
         ) : null}
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
+          <h3 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
           {subtitle ? (
-            <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">{subtitle}</p>
+            <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{subtitle}</p>
           ) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -280,12 +280,12 @@ export function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <span className="mb-1 block pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+      <span className="mb-1 block pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
         {label}
       </span>
       {children}
       {hint ? (
-        <span className="mt-1 block pl-0.5 text-[10px] font-semibold leading-snug text-ink-subtle">
+        <span className="mt-1 block pl-0.5 text-2xs font-semibold leading-snug text-ink-subtle">
           {hint}
         </span>
       ) : null}

@@ -5,7 +5,7 @@ import { FieldAction, InputGroup } from "@/components/ui/input-group";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   ArrowRight,
   CheckCircle2,
@@ -211,18 +211,18 @@ export default function AcceptInvitePage() {
   return (
     <main dir={directionFor(language)} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden bg-background font-sans text-foreground md:grid-cols-2">
       <section className="relative hidden min-h-screen overflow-hidden md:block">
-        <div className="absolute inset-0 z-10 bg-[#8127cf]/10 mix-blend-multiply" />
+        <div className="absolute inset-0 z-10 bg-primary/10 mix-blend-multiply" />
         <img
           src="/login.svg"
           alt={t.brandImage}
           className="absolute inset-0 h-full w-full object-cover"
         />
-        <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#8127cf]/40 to-transparent" />
+        <div className="absolute inset-0 z-20 bg-gradient-to-t from-primary/40 to-transparent" />
         <div className="absolute bottom-12 start-12 z-30 max-w-md rounded-xl border border-white/20 bg-white/70 p-8 shadow-2xl backdrop-blur-[24px]">
-          <span className="mb-2 block text-[12px] font-bold uppercase tracking-normal text-[#9c48ea]">
+          <span className="mb-2 block text-xs font-semibold uppercase tracking-normal text-brand-400">
             {t.secureInvitation}
           </span>
-          <h1 className="mb-4 text-3xl font-extrabold leading-tight text-[#1f1a23]">
+          <h1 className="mb-4 text-3xl font-extrabold leading-tight text-ink-strong">
             {t.brandTitle}
           </h1>
           <p className="text-sm font-medium text-ink">
@@ -231,7 +231,7 @@ export default function AcceptInvitePage() {
         </div>
       </section>
 
-      <section className="flex min-h-screen items-center justify-center overflow-y-auto bg-[#fbf0fe] p-6 md:p-8">
+      <section className="flex min-h-screen items-center justify-center overflow-y-auto bg-brand-50 p-6 md:p-8">
         <div className="w-full max-w-md">
           <div className="mb-10 flex flex-col items-center">
             <div className="mb-4">
@@ -240,14 +240,14 @@ export default function AcceptInvitePage() {
             <div className="h-1 w-12 rounded-full bg-primary" />
           </div>
 
-          <div className="rounded-[32px] border border-[#cfc2d6]/10 bg-white p-8 shadow-[0_32px_64px_rgba(31,26,35,0.04)]">
+          <div className="rounded-[32px] border border-edge/10 bg-white p-8 shadow-[0_32px_64px_rgba(31,26,35,0.04)]">
             <div className="mb-8">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-secondary-foreground">
                 <MailCheck aria-hidden="true" className="h-3.5 w-3.5" />
                 {t.secureInvitation}
               </div>
               <LanguageSelect id="invite-language" label={t.language} value={language} onChange={value => { if (value) setLanguage(value); }} className="mb-4" />
-              <h1 className="text-2xl font-black tracking-normal text-foreground">{t.title}</h1>
+              <h1 className="text-2xl font-bold tracking-normal text-foreground">{t.title}</h1>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
                 {t.intro}
               </p>
@@ -362,7 +362,7 @@ export default function AcceptInvitePage() {
             </>
             )}
 
-            <div className="mt-6 border-t border-[#cfc2d6]/10 pt-6 text-center">
+            <div className="mt-6 border-t border-edge/10 pt-6 text-center">
               <Link href="/login" className="min-h-11 inline-flex items-center text-sm font-bold text-primary underline-offset-4 transition-colors hover:underline">
                 {t.returnLogin}
               </Link>

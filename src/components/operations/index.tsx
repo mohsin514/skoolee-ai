@@ -20,7 +20,7 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { PanelTitle } from "@/components/shared-admin";
 import { DormitoryAllocations } from "./dormitory-allocations";
 import { VisitorRegister } from "./visitor-register";
@@ -70,14 +70,14 @@ import { RidersPlanner, TripsPlanner } from "@/components/transport/transport";
 const inputCls =
   "max-w-full";
 const labelCls =
-  "mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle";
+  "mb-1 block pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
 const cardCls =
   "sk-panel sk-rise p-6";
 const addBoxCls =
-  "mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4";
+  "mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-edge/20 bg-surface-sunken p-4";
 const thCls =
-  "px-3 py-2 text-left text-[10px] font-black uppercase tracking-wider text-ink-subtle";
-const tdCls = "px-3 py-2.5 text-sm font-medium text-[#1d1b20]";
+  "px-3 py-2 text-left text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
+const tdCls = "px-3 py-2.5 text-sm font-medium text-ink-strong";
 
 function EmptyRow({ cols, text }: { cols: number; text: string }) {
   return (
@@ -166,7 +166,7 @@ export function TransportPanel() {
       <div className={cardCls}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <PanelTitle icon={Bus} title="Transport Management" />
-          <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-[#f6f2fa] p-1">
+          <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-surface-sunken p-1">
             {(["routes", "vehicles", "riders", "trips"] as const).map((t) => (
               <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="" data-transport-tab={t}>
                 {t === "routes" ? "Routes" : t === "vehicles" ? "Vehicles" : t === "riders" ? "Riders & stops" : "Trips"}
@@ -244,10 +244,10 @@ function RoutesTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.title}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.fare != null ? formatPKR(r.fare) : "—"}</td>
@@ -336,10 +336,10 @@ function VehiclesTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" /> : rows.map((v: any) => (
-              <tr key={v.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={v.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{v.number}</td>
                 <td className={tdCls}>{v.model || "—"}</td>
                 <td className={tdCls}>{v.capacity ?? "—"}</td>
@@ -368,7 +368,7 @@ export function DormitoryPanel() {
         {/* "Hostel" in the sidebar; the page said "Dormitory". Same thing, two
             names, on the same screen. */}
         <PanelTitle icon={Building2} title={ui("Hostel Management")} />
-        <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-[#f6f2fa] p-1">
+        <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-surface-sunken p-1">
           {(["allocations", "types", "rooms"] as const).map((t) => (
             <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
               {ui(t === "allocations" ? "Allocations" : t === "types" ? "Room Types" : "Rooms")}
@@ -431,10 +431,10 @@ function DormRoomTypesTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.costPerTerm ? formatPKR(r.costPerTerm) : "—"}</td>
@@ -510,10 +510,10 @@ function DormRoomsTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.number}</td>
                 <td className={tdCls}>{r.roomType?.name || "—"}</td>
                 <td className={tdCls}>{r.capacity}</td>
@@ -539,7 +539,7 @@ export function LibraryPanel() {
     <div className={cardCls}>
       <div className="mb-5 flex items-center justify-between gap-3">
         <PanelTitle icon={BookOpen} title="Library Management" />
-        <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
+        <div className="flex gap-1 rounded-xl bg-surface-sunken p-1">
           {(["books", "members", "issues", "categories"] as const).map((t) => (
             <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
               {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -597,10 +597,10 @@ function BookCategoriesTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Books", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Books", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={3} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r._count?.books ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
@@ -687,10 +687,10 @@ function BooksTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={7} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={7} text="No books yet" /> : rows.map((b: any) => (
-              <tr key={b.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={b.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{b.title}</td>
                 <td className={tdCls}>{b.author || "—"}</td>
                 <td className={tdCls}>{b.isbn || "—"}</td>
@@ -755,10 +755,10 @@ function MembersTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={4} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
-              <tr key={m.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={m.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{m.user?.fullName || m.userId}</td>
                 <td className={tdCls}>{m.memberNo || "—"}</td>
                 <td className={tdCls}>{m._count?.issues ?? 0}</td>
@@ -841,15 +841,15 @@ function IssuesTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
-              <tr key={i.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={i.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{i.book?.title || i.bookId}</td>
                 <td className={tdCls}>{i.member?.user?.fullName || i.memberId}</td>
                 <td className={tdCls}>{new Date(i.issueDate).toLocaleDateString()}</td>
                 <td className={tdCls}>{i.dueDate ? new Date(i.dueDate).toLocaleDateString() : "—"}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${i.returnDate ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{i.returnDate ? "Returned" : "Issued"}</span></td>
+                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-2xs font-bold ${i.returnDate ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{i.returnDate ? "Returned" : "Issued"}</span></td>
                 <td className={tdCls}>{!i.returnDate && <Button variant="secondary" size="sm" onClick={() => returnBook(i.id)} ><RotateCcw className="mr-1 inline h-3 w-3" />Return</Button>}</td>
               </tr>
             ))}
@@ -870,7 +870,7 @@ export function InventoryPanel() {
     <div className={cardCls}>
       <div className="mb-5 flex items-center justify-between gap-3">
         <PanelTitle icon={Package} title="Inventory / POS" />
-        <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
+        <div className="flex gap-1 rounded-xl bg-surface-sunken p-1">
           {(["items", "transactions", "stores", "suppliers", "categories"] as const).map((t) => (
             <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
               {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -921,10 +921,10 @@ function ItemCategoriesTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={3} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r._count?.items ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
@@ -974,10 +974,10 @@ function StoresTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={2} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
@@ -1036,10 +1036,10 @@ function SuppliersTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.phone || "—"}</td><td className={tdCls}>{r.email || "—"}</td><td className={tdCls}>{r.address || "—"}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
@@ -1108,12 +1108,12 @@ function ItemsTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No items" /> : rows.map((r: any) => {
               const totalStock = (r.stock || []).reduce((s: number, st: any) => s + (st.quantity || 0), 0);
               return (
-                <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+                <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                   <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.category?.name || "—"}</td><td className={tdCls}>{r.unit || "—"}</td><td className={tdCls}>{totalStock}</td>
                   <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
                 </tr>
@@ -1192,12 +1192,12 @@ function TransactionsTab() {
       )}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={8} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
-              <tr key={t.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+              <tr key={t.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.kind === "RECEIVE" || t.kind === "RETURN" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{t.kind}</span></td>
+                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-2xs font-bold ${t.kind === "RECEIVE" || t.kind === "RETURN" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{t.kind}</span></td>
                 <td className={tdCls}>{t.item?.name || t.itemId}</td>
                 <td className={tdCls}>{t.store?.name || t.storeId}</td>
                 <td className={tdCls}>{t.quantity}</td>

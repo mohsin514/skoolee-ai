@@ -10,7 +10,7 @@ import { InputGroup, FieldAction } from "@/components/ui/input-group";
 import { MarkScanPanel } from "@/components/marks/mark-scan-panel";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   ArrowDownToLine, BarChart3, ChevronDown, Command, Download, Eraser, FileText, Keyboard,
   Loader2, Plus, Search, Star, X,
@@ -312,10 +312,10 @@ export default function MarksPage() {
             all inert, so show the way forward instead of three dead controls. */}
         {!data.exams?.length ? (
           <div className="sk-panel sk-rise flex flex-col items-center justify-center px-8 py-14 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/25">
+            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-brand-400 shadow-lg shadow-primary/25">
               <Star className="h-8 w-8 text-white" />
             </div>
-            <h3 className="mt-5 text-xl font-bold text-[#1d1b20]">No assessments yet</h3>
+            <h3 className="mt-5 text-xl font-bold text-ink-strong">No assessments yet</h3>
             <p className="mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
               Create a test or exam for one of your classes, and its mark sheet will open up here for
               you to fill in.
@@ -333,7 +333,7 @@ export default function MarksPage() {
               ) : null}
             </div>
             {!classHubs.length ? (
-              <p className="mt-5 rounded-full bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-700">
+              <p className="mt-5 rounded-full bg-amber-50 px-4 py-2 text-2xs font-semibold text-amber-700">
                 You have no classes assigned yet — ask your campus admin to assign one.
               </p>
             ) : null}
@@ -369,7 +369,7 @@ export default function MarksPage() {
               </FieldAction>
             ) : null}
           </InputGroup>
-          <span className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             {visibleExams.length} of {data.exams.length} assessment{data.exams.length === 1 ? "" : "s"}
           </span>
           {/* The grid caps at a readable number; without this the teacher had
@@ -402,17 +402,17 @@ export default function MarksPage() {
                 style={{ animationDelay: `${index * 80}ms` }}>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#1d1b20] truncate">{exam.title}</p>
-                    <p className="mt-0.5 text-[11px] text-ink-muted">{exam.subject ? `${exam.subject.name} · ` : ""}{classLabel(exam.class)}</p>
+                    <p className="text-sm font-bold text-ink-strong truncate">{exam.title}</p>
+                    <p className="mt-0.5 text-2xs text-ink-muted">{exam.subject ? `${exam.subject.name} · ` : ""}{classLabel(exam.class)}</p>
                   </div>
                   <StatusPill status={exam.status} />
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-2xs font-semibold text-emerald-700">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{exam.enteredMarks || 0} entered
                   </span>
                   {exam.missingMarks > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-2xs font-semibold text-rose-700">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{exam.missingMarks} missing
                     </span>
                   )}
@@ -422,7 +422,7 @@ export default function MarksPage() {
           })}
           {visibleExams.length === 0 ? (
             <div className="sk-panel col-span-full flex flex-col items-center gap-3 p-8 text-center">
-              <p className="text-sm font-bold text-[#1d1b20]">No assessment matches “{examQuery}”</p>
+              <p className="text-sm font-bold text-ink-strong">No assessment matches “{examQuery}”</p>
               <Button variant="secondary" type="button" onClick={() => setExamQuery("")}
                 className="items-center gap-1.5 justify-start">
                 <X className="h-3.5 w-3.5" /> Clear filter
@@ -434,8 +434,8 @@ export default function MarksPage() {
         {/* Progress bar */}
         {markSheet && totalCells > 0 && (
           <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-purple-500 transition-all duration-500" style={{ width: `${completion}%` }} />
+            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-500" style={{ width: `${completion}%` }} />
             </div>
             <span className="text-xs font-semibold text-ink-muted whitespace-nowrap">{filledCells}/{totalCells} cells ({completion}%)</span>
           </div>
@@ -445,22 +445,22 @@ export default function MarksPage() {
         <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "120ms" }}>
           {marksLoading ? (
             <div>
-              <div className="bg-[#f3f4f9]/45 px-5 py-4 flex gap-8">
-                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
-                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
-                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
+              <div className="bg-muted/45 px-5 py-4 flex gap-8">
+                <div className="skeleton-shimmer bg-border-subtle/60 h-3 w-20 rounded-2xl" />
+                <div className="skeleton-shimmer bg-border-subtle/60 h-3 w-16 rounded-2xl" />
+                <div className="skeleton-shimmer bg-border-subtle/60 h-3 w-16 rounded-2xl" />
               </div>
               {[...Array(4)].map((_, ri) => (
-                <div key={ri} className="flex items-center gap-4 px-5 py-4 border-t border-[#f3f4f9]">
+                <div key={ri} className="flex items-center gap-4 px-5 py-4 border-t border-muted">
                   <div className="flex items-center gap-3 flex-1">
-                    <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-10 w-10 rounded-xl shrink-0" />
+                    <div className="skeleton-shimmer bg-border-subtle/60 h-10 w-10 rounded-xl shrink-0" />
                     <div>
-                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-4 w-28 mb-1 rounded-2xl" />
-                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
+                      <div className="skeleton-shimmer bg-border-subtle/60 h-4 w-28 mb-1 rounded-2xl" />
+                      <div className="skeleton-shimmer bg-border-subtle/60 h-3 w-20 rounded-2xl" />
                     </div>
                   </div>
                   {[...Array(3)].map((_, ci) => (
-                    <div key={ci} className="skeleton-shimmer bg-[#e8e0ec]/60 h-11 w-20 rounded-2xl" />
+                    <div key={ci} className="skeleton-shimmer bg-border-subtle/60 h-11 w-20 rounded-2xl" />
                   ))}
                 </div>
               ))}
@@ -469,19 +469,19 @@ export default function MarksPage() {
 
               <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
                 <TableHeader>
-                  <TableRow className="bg-[#fbf0fe]/40 text-ink-muted">
+                  <TableRow className="bg-brand-50/40 text-ink-muted">
                     {/* The student column is frozen: past three subjects the
                         names scrolled out of view and the teacher was typing
                         into an anonymous grid. */}
-                    <TableHead className="sticky start-0 z-10 bg-[#fbf0fe]/95 px-5 py-4 backdrop-blur-sm">Student</TableHead>
+                    <TableHead className="sticky start-0 z-10 bg-brand-50/95 px-5 py-4 backdrop-blur-sm">Student</TableHead>
                     {markSheet.subjects.map((subject: any, col: number) => {
                       const entered = markSheet.students.filter(
                         (st: any) => (marksByKey[`${st.id}:${subject.id}`] ?? "") !== "",
                       ).length;
                       return (
                         <TableHead key={subject.id} className="px-3 py-3 text-center" title={`Max marks: ${subject.totalMarks || 100}`}>
-                          <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink-muted">{subject.name}</span>
-                          <span className="block text-[10px] font-normal text-ink-subtle">
+                          <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-muted">{subject.name}</span>
+                          <span className="block text-2xs font-normal text-ink-subtle">
                             / {subject.totalMarks || 100} · {entered}/{markSheet.students.length}
                           </span>
                           {!isLocked ? (
@@ -509,7 +509,7 @@ export default function MarksPage() {
                     <TableHead className="px-4 py-4 text-center">Total</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody ref={gridRef} className="divide-y divide-[#f3f4f9]">
+                <TableBody ref={gridRef} className="divide-y divide-muted">
                   {markSheet.students.map((student: any, row: number) => {
                     const rowMarks = markSheet.subjects.map((subject: any) => ({
                       subject,
@@ -522,7 +522,7 @@ export default function MarksPage() {
                     const rowIncomplete = scored.length < markSheet.subjects.length;
                     return (
                       <TableRow key={student.id} className={cn(
-                        "transition-colors hover:bg-[#fbf0fe]/20",
+                        "transition-colors hover:bg-brand-50/20",
                         rowIncomplete && !isLocked && "bg-amber-50/25",
                       )}>
                         <TableCell className="sticky start-0 z-10 bg-white px-5 py-3">
@@ -571,17 +571,17 @@ export default function MarksPage() {
                           {scored.length ? (
                             <span className="inline-flex flex-col items-center leading-tight">
                               <span className={cn(
-                                "text-sm font-black tabular-nums",
-                                pct !== null && pct >= 50 ? "text-[#8127cf]" : "text-rose-600",
+                                "text-sm font-bold tabular-nums",
+                                pct !== null && pct >= 50 ? "text-primary" : "text-rose-600",
                               )}>
                                 {obtained}/{outOf}
                               </span>
-                              <span className="text-[10px] font-bold tabular-nums text-ink-subtle">
+                              <span className="text-2xs font-bold tabular-nums text-ink-subtle">
                                 {pct}%{rowIncomplete ? " so far" : ""}
                               </span>
                             </span>
                           ) : (
-                            <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                            <span className="text-2xs font-semibold text-ink-subtle">—</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -624,8 +624,8 @@ export default function MarksPage() {
         </div>
 
         {shortcutsOpen && !isLocked ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-[#8127cf]/15 bg-[#fbf0fe]/60 px-4 py-2.5">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-primary/15 bg-brand-50/60 px-4 py-2.5">
+            <span className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-primary">
               <Command className="h-3 w-3" /> Mark sheet
             </span>
             {[
@@ -635,12 +635,12 @@ export default function MarksPage() {
               ["⌘D", "Fill this mark down the empty cells below"],
               ["⌘S", "Save"],
             ].map(([k, meaning]) => (
-              <span key={k} className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-muted">
-                <kbd className="rounded-md border border-[#cfc2d6]/50 bg-white px-1.5 py-0.5 text-[10px] font-black text-[#1d1b20]">{k}</kbd>
+              <span key={k} className="inline-flex items-center gap-1.5 text-2xs font-semibold text-ink-muted">
+                <kbd className="rounded-md border border-edge/50 bg-white px-1.5 py-0.5 text-2xs font-bold text-ink-strong">{k}</kbd>
                 {meaning}
               </span>
             ))}
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-subtle">
+            <span className="inline-flex items-center gap-1 text-2xs font-semibold text-ink-subtle">
               <ArrowDownToLine className="h-3 w-3" /> Fill-down never overwrites a mark that is already there.
             </span>
           </div>

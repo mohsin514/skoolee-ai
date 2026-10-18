@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { AlertCircle, CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ const STATUS_STYLES: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
   APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
-  CANCELLED: "bg-[#f3f4f9] text-ink-muted border-[#cfc2d6]/20",
+  CANCELLED: "bg-muted text-ink-muted border-edge/20",
 };
 
 const STATUS_ICONS: Record<string, any> = {
@@ -221,16 +221,16 @@ export default function LeavePage() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className={cn(
-                  "text-[10px] font-black uppercase tracking-wider",
+                  "text-2xs font-semibold uppercase tracking-wider",
                   nextLeave.status === "APPROVED" ? "text-emerald-700" : "text-amber-700",
                 )}>
                   {nextLeave.status === "APPROVED" ? "Your next leave" : "Awaiting approval"}
                 </p>
-                <p className="mt-0.5 text-sm font-black text-[#1f1a23]">
+                <p className="mt-0.5 text-sm font-bold text-ink-strong">
                   {nextLeave.leaveType?.name || "Leave"} · {formatDate(nextLeave.fromDate)}
                   {nextLeave.fromDate !== nextLeave.toDate ? ` → ${formatDate(nextLeave.toDate)}` : ""}
                 </p>
-                <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">
+                <p className="mt-0.5 text-2xs font-semibold text-ink-muted">
                   {daysLabel(nextLeave.days)}
                   {(() => {
                     const startOfToday = new Date();
@@ -254,15 +254,15 @@ export default function LeavePage() {
               return (
                 <div key={b.leaveTypeId} className="sk-panel sk-rise p-6">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-black text-[#1f1a23]">{b.name}</p>
-                    <span className={`rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${b.remaining > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-600"}`}>
+                    <p className="text-sm font-bold text-ink-strong">{b.name}</p>
+                    <span className={`rounded-full border px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider ${b.remaining > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-600"}`}>
                       {daysLabel(b.remaining)} left
                     </span>
                   </div>
-                  <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-[#fbf0fe]">
-                    <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#55208b]" style={{ width: `${pct}%` }} />
+                  <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-brand-50">
+                    <div className="h-full rounded-full bg-gradient-to-r from-primary to-[#55208b]" style={{ width: `${pct}%` }} />
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-[10px] font-bold text-ink-muted">
+                  <div className="mt-3 flex items-center justify-between text-2xs font-bold text-ink-muted">
                     <span>{daysLabel(b.allocated)} allocated</span>
                     <span>{daysLabel(b.approved)} approved{b.pending > 0 ? ` · ${daysLabel(b.pending)} pending` : ""}</span>
                   </div>
@@ -286,8 +286,8 @@ export default function LeavePage() {
 
           <div className="sk-panel p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="flex items-center gap-2 text-base font-black tracking-tight text-[#1f1a23]">
-                <Plane className="h-4 w-4 text-[#8127cf]" /> Request History
+              <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-ink-strong">
+                <Plane className="h-4 w-4 text-primary" /> Request History
               </h3>
               <div className="flex flex-wrap items-center gap-1.5">
                 {statuses.length > 1 ? (
@@ -306,7 +306,7 @@ export default function LeavePage() {
                     </Button>
                   ))
                 ) : (
-                  <span className="rounded-full border border-[#cfc2d6]/20 bg-[#fbf0fe]/60 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-ink-muted">
+                  <span className="rounded-full border border-edge/20 bg-brand-50/60 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                     {pendingCount} pending
                   </span>
                 )}
@@ -315,11 +315,11 @@ export default function LeavePage() {
 
             <div className="space-y-3">
               {requests.length === 0 ? (
-                <p className="rounded-2xl bg-[#fbf0fe]/40 px-5 py-8 text-center text-sm font-bold text-ink-subtle">
+                <p className="rounded-2xl bg-brand-50/40 px-5 py-8 text-center text-sm font-bold text-ink-subtle">
                   No leave requests yet — apply for leave and it will appear here.
                 </p>
               ) : visibleRequests.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-2xl bg-[#fbf0fe]/40 px-5 py-8 text-center">
+                <div className="flex flex-col items-center gap-3 rounded-2xl bg-brand-50/40 px-5 py-8 text-center">
                   <p className="text-sm font-bold text-ink-subtle">
                     No {String(statusFilter).toLowerCase()} requests.
                   </p>
@@ -333,11 +333,11 @@ export default function LeavePage() {
                   const Icon = STATUS_ICONS[r.status] || Clock;
                   return (
                     <div key={r.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-black text-[#1f1a23]">
+                        <p className="text-sm font-bold text-ink-strong">
                           {r.leaveType?.name || "Leave"} · {daysLabel(r.days)}
                         </p>
                         <p className="mt-0.5 text-xs font-semibold text-ink-muted">
@@ -345,10 +345,10 @@ export default function LeavePage() {
                           {r.reason ? ` · ${r.reason}` : ""}
                         </p>
                         {r.status === "REJECTED" && r.reviewNote ? (
-                          <p className="mt-1 text-[11px] font-semibold text-rose-500">Reviewer note: {r.reviewNote}</p>
+                          <p className="mt-1 text-2xs font-semibold text-rose-500">Reviewer note: {r.reviewNote}</p>
                         ) : null}
                       </div>
-                      <span className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-wider ${STATUS_STYLES[r.status] || STATUS_STYLES.PENDING}`}>
+                      <span className={`rounded-full border px-3 py-1 text-2xs font-semibold uppercase tracking-wider ${STATUS_STYLES[r.status] || STATUS_STYLES.PENDING}`}>
                         {r.status}
                       </span>
                       {r.status === "PENDING" ? (
@@ -399,7 +399,7 @@ export default function LeavePage() {
             onSubmit={(e) => { e.preventDefault(); if (!applyBlockedReason && !applying) applyLeave(); }}
           >
             <label className="block">
-              <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Leave Type</span>
+              <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Leave Type</span>
               <SystemSelect
                 value={applyForm.leaveTypeId}
                 onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
@@ -419,7 +419,7 @@ export default function LeavePage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">From Date</span>
+                <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">From Date</span>
                 <SystemInput
                   type="date"
                   value={applyForm.fromDate}
@@ -428,7 +428,7 @@ export default function LeavePage() {
                 />
               </label>
               <label className="block">
-                <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">To Date</span>
+                <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">To Date</span>
                 <SystemInput
                   type="date"
                   value={applyForm.toDate}
@@ -449,7 +449,7 @@ export default function LeavePage() {
               </p>
             ) : computedDays ? (
               <div className="space-y-2">
-                <p className="flex items-center gap-2 rounded-2xl bg-[#fbf0fe]/60 px-4 py-3 text-xs font-bold text-[#8127cf]">
+                <p className="flex items-center gap-2 rounded-2xl bg-brand-50/60 px-4 py-3 text-xs font-bold text-primary">
                   <CalendarDays className="h-4 w-4" /> {daysLabel(computedDays * 10)} requested
                   {remainingDays !== null ? (
                     <span className="ml-auto font-semibold text-ink-muted">
@@ -471,7 +471,7 @@ export default function LeavePage() {
             ) : null}
 
             <label className="block">
-              <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Reason (optional)</span>
+              <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Reason (optional)</span>
               <SystemTextarea
                 value={applyForm.reason}
                 onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}

@@ -1,0 +1,50 @@
+/**
+ * Copy owned by the shared design-system primitives (tooltips, alerts,
+ * empty/error states, field chrome, toasts). Spread first into the main
+ * catalogs, so a screen-specific translation of the same English key wins.
+ */
+export const arabicDesignSystemUi: Record<string, string> = {
+  "More information": "مزيد من المعلومات",
+  "Dismiss": "إخفاء",
+  "Try again": "حاول مرة أخرى",
+  "Something went wrong": "حدث خطأ ما",
+  "You're offline": "أنت غير متصل بالإنترنت",
+  "Check your connection and try again.": "تحقّق من اتصالك ثم حاول مرة أخرى.",
+  "We couldn't load this right now. Please try again.": "تعذّر تحميل هذا الآن. يُرجى المحاولة مرة أخرى.",
+  "Error reference": "مرجع الخطأ",
+  "optional": "اختياري",
+  "There is 1 problem with this form": "يوجد خطأ واحد في هذا النموذج",
+  "There are {0} problems with this form": "يوجد {0} أخطاء في هذا النموذج",
+  "Something went wrong. Please try again.": "حدث خطأ ما. يُرجى المحاولة مرة أخرى.",
+  "We couldn't reach Skoolee. Check your connection and try again.": "تعذّر الوصول إلى Skoolee. تحقّق من اتصالك ثم حاول مرة أخرى.",
+  "This page couldn't load": "تعذّر تحميل هذه الصفحة",
+  "Your data is safe. Try again, or go back to your dashboard.": "بياناتك آمنة. حاول مرة أخرى أو عُد إلى لوحة التحكم.",
+  "Back to dashboard": "العودة إلى لوحة التحكم",
+  "Page not found": "الصفحة غير موجودة",
+  "The page you're looking for doesn't exist or has been moved.": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
+  "Go to dashboard": "الانتقال إلى لوحة التحكم",
+  "Loading": "جارٍ التحميل",
+};
+
+export const urduDesignSystemUi: Record<string, string> = {
+  "More information": "مزید معلومات",
+  "Dismiss": "ہٹائیں",
+  "Try again": "دوبارہ کوشش کریں",
+  "Something went wrong": "کچھ غلط ہو گیا",
+  "You're offline": "آپ آف لائن ہیں",
+  "Check your connection and try again.": "اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔",
+  "We couldn't load this right now. Please try again.": "یہ ابھی لوڈ نہیں ہو سکا۔ براہِ کرم دوبارہ کوشش کریں۔",
+  "Error reference": "خرابی کا حوالہ",
+  "optional": "اختیاری",
+  "There is 1 problem with this form": "اس فارم میں 1 مسئلہ ہے",
+  "There are {0} problems with this form": "اس فارم میں {0} مسائل ہیں",
+  "Something went wrong. Please try again.": "کچھ غلط ہو گیا۔ براہِ کرم دوبارہ کوشش کریں۔",
+  "We couldn't reach Skoolee. Check your connection and try again.": "Skoolee سے رابطہ نہیں ہو سکا۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔",
+  "This page couldn't load": "یہ صفحہ لوڈ نہیں ہو سکا",
+  "Your data is safe. Try again, or go back to your dashboard.": "آپ کا ڈیٹا محفوظ ہے۔ دوبارہ کوشش کریں یا اپنے ڈیش بورڈ پر واپس جائیں۔",
+  "Back to dashboard": "ڈیش بورڈ پر واپس جائیں",
+  "Page not found": "صفحہ نہیں ملا",
+  "The page you're looking for doesn't exist or has been moved.": "جو صفحہ آپ تلاش کر رہے ہیں وہ موجود نہیں یا منتقل کر دیا گیا ہے۔",
+  "Go to dashboard": "ڈیش بورڈ پر جائیں",
+  "Loading": "لوڈ ہو رہا ہے",
+};

@@ -1,7 +1,7 @@
 "use client";
 
 import { MessageCircle } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
 import { useStudentData } from "./student-data-context";
 import { STUDENT_NAV } from "@/components/student/student-page";

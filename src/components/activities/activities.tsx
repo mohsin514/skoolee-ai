@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -42,10 +42,10 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
   const run = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { const r = await call("/api/family/activities", "POST", body); toast.success(ui(done)); await load(); return r; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return null; } finally { setBusy(false); } };
   if (denied || !data) return null;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-activities>
-    <header><h3 className="text-base font-black">{ui("Clubs, sports and trips")}</h3><p className="text-xs text-ink-muted">{ui("A place is confirmed only when its consent and fee rules are complete.")}</p></header>
-    {!data.activities.length ? <p className="text-sm text-ink-muted">{ui("No activities published for this age group yet.")}</p> : <ul className="space-y-2">{data.activities.map(a => <li key={a.id} className={cn("rounded-xl border p-3", a.place?.status === "OFFERED" ? "border-amber-300 bg-amber-50/40" : "border-[#cfc2d6]/40")} data-activity={a.id} data-activity-place={a.place?.status ?? "NONE"}>
+    <header><h3 className="text-base font-bold">{ui("Clubs, sports and trips")}</h3><p className="text-xs text-ink-muted">{ui("A place is confirmed only when its consent and fee rules are complete.")}</p></header>
+    {!data.activities.length ? <p className="text-sm text-ink-muted">{ui("No activities published for this age group yet.")}</p> : <ul className="space-y-2">{data.activities.map(a => <li key={a.id} className={cn("rounded-xl border p-3", a.place?.status === "OFFERED" ? "border-amber-300 bg-amber-50/40" : "border-edge/40")} data-activity={a.id} data-activity-place={a.place?.status ?? "NONE"}>
       <div className="flex flex-wrap items-start justify-between gap-2"><div>
-        <p className="text-sm font-black"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}</p>
+        <p className="text-sm font-bold"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}</p>
         <p className="text-xs text-ink-muted"><bdi>{dateTime(a.startsAt)}</bdi>–<bdi>{dateTime(a.endsAt)}</bdi> · <span dir="auto">{a.location}</span> · {a.costAmount ? <bdi>{money(a.costAmount, a.costCurrency)}</bdi> : ui("Free")} · {ui("{0} of {1} places left", [String(a.placesLeft), String(a.capacity)])}</p>
         {a.place ? <p className="text-xs font-bold" data-activity-status>{statusLabel(ui, a.place.status)}{a.place.waitlistPosition ? <> · {ui("Position {0}", [String(a.place.waitlistPosition)])}</> : null}{a.place.status === "OFFERED" && a.place.offerExpiresAt ? <> · {ui("Offer expires {0}", [dateTime(a.place.offerExpiresAt)])}</> : null}</p> : null}
         {a.place && ["RESERVED", "CONFIRMED"].includes(a.place.status) ? <p className="text-xs">{[reqLabel(ui, "consent", a.place.requirements.consent), reqLabel(ui, "fee", a.place.requirements.fee)].filter(Boolean).join(" · ")}</p> : null}
@@ -62,7 +62,7 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
         {review.description ? <p dir="auto">{review.description}</p> : null}
         <p><bdi>{dateTime(review.startsAt)}</bdi>–<bdi>{dateTime(review.endsAt)}</bdi> · <span dir="auto">{review.location}</span></p>
         <p className="font-bold">{review.costAmount ? <>{ui("Cost")}: <bdi>{money(review.costAmount, review.costCurrency)}</bdi></> : ui("Free")}</p>
-        <div className="rounded-lg bg-[#f6f2f8] p-2 text-xs"><p className="font-bold">{ui("Cancellation and refunds")}</p><p dir="auto">{review.cancellationTerms}</p></div>
+        <div className="rounded-lg bg-surface-sunken p-2 text-xs"><p className="font-bold">{ui("Cancellation and refunds")}</p><p dir="auto">{review.cancellationTerms}</p></div>
         {review.kind === "TRIP" ? <p className="text-xs">{ui("Trip consent is requested separately; the place stays conditional until it is given.")}</p> : null}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} onClick={async () => { const r = review.place?.status === "OFFERED" ? await run({ action: "answer", placeId: review.place.id, knownVersion: review.place.version, accept: true }, "Place reserved. One or more requirements remain.") : await run({ action: "request", activityId: review.id, studentId }, "Request recorded."); if (r) setReview(null); }} data-activity-confirm>{review.place?.status === "OFFERED" ? ui("Accept place") : review.placesLeft > 0 ? ui("Reserve the place") : ui("Join the waitlist")}</Button></div>
       </div>
@@ -85,14 +85,14 @@ export function ActivitiesDesk() {
   if (error) return <section className="sk-panel p-5" data-activities-desk><p className="text-sm text-rose-700">{error}</p></section>;
   if (!list) return <section className="sk-panel p-5" data-activities-desk aria-busy="true"><p className="text-sm text-ink-muted">{ui("Checking places before reserving.")}</p></section>;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-activities-desk>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-black">{ui("Clubs, sports and trips")}</h2><p className="text-xs text-ink-muted">{ui("Interest, reservation and confirmed participation are kept apart.")}</p></div><Button size="sm" onClick={() => setCreating(true)} data-activity-new>{ui("Publish activity")}</Button></header>
-    {!list.activities.length ? <p className="text-sm text-ink-muted">{ui("No activities yet.")}</p> : <ul className="space-y-2">{list.activities.map(a => <li key={a.id}><Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", open === a.id ? "border-primary" : "border-[#cfc2d6]/40")} onClick={() => void loadRoster(a.id)} data-activity-row={a.id}>
-      <span className="block text-sm font-black"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}{a.status === "CANCELLED" ? ` · ${ui("Cancelled")}` : ""}</span>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold">{ui("Clubs, sports and trips")}</h2><p className="text-xs text-ink-muted">{ui("Interest, reservation and confirmed participation are kept apart.")}</p></div><Button size="sm" onClick={() => setCreating(true)} data-activity-new>{ui("Publish activity")}</Button></header>
+    {!list.activities.length ? <p className="text-sm text-ink-muted">{ui("No activities yet.")}</p> : <ul className="space-y-2">{list.activities.map(a => <li key={a.id}><Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", open === a.id ? "border-primary" : "border-edge/40")} onClick={() => void loadRoster(a.id)} data-activity-row={a.id}>
+      <span className="block text-sm font-bold"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}{a.status === "CANCELLED" ? ` · ${ui("Cancelled")}` : ""}</span>
       <span className="block text-xs text-ink-muted"><bdi>{dateTime(a.startsAt)}</bdi> · {ui("{0} confirmed, {1} conditional, {2} waiting of {3}", [String(a.counts.CONFIRMED ?? 0), String((a.counts.RESERVED ?? 0) + (a.counts.OFFERED ?? 0)), String(a.counts.WAITLIST ?? 0), String(a.capacity)])}</span>
     </Button></li>)}</ul>}
 
     {roster ? <div className="space-y-3 rounded-2xl border p-3" data-activity-roster={roster.activity.id}>
-      <p className="text-sm font-black"><span dir="auto">{roster.activity.title}</span> · {ui("Places: {0} of {1}", [String(roster.activity.placesTaken), String(roster.activity.capacity)])}</p>
+      <p className="text-sm font-bold"><span dir="auto">{roster.activity.title}</span> · {ui("Places: {0} of {1}", [String(roster.activity.placesTaken), String(roster.activity.capacity)])}</p>
       <ul className="divide-y text-sm">{roster.places.map(p => <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5" data-roster-place={p.id} data-roster-status={p.status}>
         <span><bdi>{p.name}</bdi> · <bdi>{p.className}</bdi> · {statusLabel(ui, p.status)}{["RESERVED", "CONFIRMED"].includes(p.status) ? <> · {[reqLabel(ui, "consent", p.requirements.consent), reqLabel(ui, "fee", p.requirements.fee)].filter(Boolean).join(" · ")}</> : null}{p.refundState === "NEEDED" ? <> · <span className="font-bold text-amber-800">{ui("Refund request needed")}</span></> : p.refundState === "REQUESTED" ? <> · {ui("Refund requested")}</> : null}</span>
         <span className="flex flex-wrap gap-1">
@@ -101,12 +101,12 @@ export function ActivitiesDesk() {
           {["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"].includes(p.status) ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act({ action: "cancel-place", placeId: p.id, reason: "Cancelled by the coordinator" }, "Place cancelled.")} data-roster-cancel>{ui("Cancel place")}</Button> : null}
         </span>
       </li>)}</ul>
-      <div className="space-y-2" data-activity-sessions><p className="text-xs font-black uppercase text-ink-muted">{ui("Sessions")}</p>
+      <div className="space-y-2" data-activity-sessions><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Sessions")}</p>
         {roster.sessions.map(s => <div key={s.id} className="rounded-lg border p-2" data-session={s.id}><p className="text-xs font-bold"><bdi>{dateTime(s.startsAt)}</bdi></p><div className="mt-1 flex flex-wrap gap-2">{roster.places.filter(p => p.status === "CONFIRMED").map(p => { const mark = s.marks.find(m => m.studentId === p.studentId)?.status; return <span key={p.id} className="flex items-center gap-1 text-xs"><bdi>{p.name}</bdi>{["PRESENT", "ABSENT"].map(st => <Button key={st} size="sm" variant={mark === st ? "default" : "outline"} disabled={busy} onClick={() => void act({ action: "attend", sessionId: s.id, studentId: p.studentId, status: st }, "Attendance saved.")} data-attend={st}>{st === "PRESENT" ? ui("Present") : ui("Absent")}</Button>)}</span>; })}</div></div>)}
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void act({ action: "session", activityId: roster.activity.id, startsAt: roster.activity.startsAt, endsAt: new Date(new Date(roster.activity.startsAt).getTime() + 3_600_000).toISOString() }, "Session added.")} data-session-add>{ui("Add a session")}</Button>
       </div>
       {roster.activity.status !== "CANCELLED" ? <div className="flex justify-end"><Button size="sm" variant="secondary" disabled={busy} onClick={() => void act({ action: "cancel", activityId: roster.activity.id }, "Activity cancelled. Families were told.")} data-activity-cancel>{ui("Cancel activity")}</Button></div> : null}
-      <p className="text-[11px] text-ink-muted">{ui("Participant lists exclude private care narratives.")}{roster.activity.costAmount ? <> · {ui("Cost")}: <bdi>{money(roster.activity.costAmount, roster.activity.costCurrency)}</bdi></> : null}</p>
+      <p className="text-2xs text-ink-muted">{ui("Participant lists exclude private care narratives.")}{roster.activity.costAmount ? <> · {ui("Cost")}: <bdi>{money(roster.activity.costAmount, roster.activity.costCurrency)}</bdi></> : null}</p>
     </div> : null}
 
     {creating ? <ModalFrame title={ui("Publish activity")} onClose={() => setCreating(false)} wide>

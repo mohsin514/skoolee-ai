@@ -456,7 +456,7 @@ export function PlatformOverview({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <p className="mt-3 text-[10px] font-bold text-ink-subtle">
+              <p className="mt-3 text-2xs font-bold text-ink-subtle">
                 The vertical rule marks the platform average of {derived.averageRoll.toLocaleString()} students per school
                 {derived.breakdown.length > 12 ? `. Showing the twelve largest of ${derived.breakdown.length}.` : "."}
               </p>

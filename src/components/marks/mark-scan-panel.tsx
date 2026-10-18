@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -80,7 +80,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
   const conflicts = view?.cells.filter(c => c.status === "REVIEWED" && c.changedSinceScan) ?? [];
   const changes = view?.cells.filter(c => c.status === "REVIEWED" && (c.current?.marksObtained !== (c.reviewedAbsent ? 0 : c.reviewedValue) || (c.current?.isAbsent ?? false) !== c.reviewedAbsent)) ?? [];
   return <section className="sk-panel space-y-4 p-5" data-mark-scan data-scan-status={view?.batch.status ?? ""}>
-    <header><h3 className="text-base font-black">{ui("Scan a paper marks sheet")}</h3><p className="text-xs text-ink-muted">{ui("Print the sheet, write the marks, photograph each page. You check every mark before anything reaches the gradebook.")}</p></header>
+    <header><h3 className="text-base font-bold">{ui("Scan a paper marks sheet")}</h3><p className="text-xs text-ink-muted">{ui("Print the sheet, write the marks, photograph each page. You check every mark before anything reaches the gradebook.")}</p></header>
     <div className="flex flex-wrap items-end gap-2">
       <FormField name="scan-subject" label={ui("Subject")}><Select value={subjectId} onChange={e => setSubjectId(e.target.value)}>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></FormField>
       <Button variant="outline" disabled={busy || !examId || !subjectId} onClick={() => void printSheet()} data-scan-print>{ui("Print marks sheet")}</Button>
@@ -101,7 +101,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
       </div> : null}
       {view.cells.length ? <div className="space-y-2" data-scan-review>
         <p className="text-xs font-bold">{ui("Step 2 · Check every mark")}</p>
-        <ul className="divide-y divide-[#cfc2d6]/20">{view.cells.map(cell => <li key={cell.id} className="flex flex-wrap items-center gap-2 py-1.5" data-scan-cell={cell.studentId} data-cell-status={cell.status}>
+        <ul className="divide-y divide-edge/20">{view.cells.map(cell => <li key={cell.id} className="flex flex-wrap items-center gap-2 py-1.5" data-scan-cell={cell.studentId} data-cell-status={cell.status}>
           <span className="w-10 text-xs text-ink-muted"><bdi>{cell.rowNumber}</bdi></span>
           <span className="min-w-[160px] flex-1 text-sm font-bold"><bdi>{cell.name}</bdi>{!cell.enrolled ? <span className="ms-2 text-xs text-rose-700">{ui("No longer in the class")}</span> : null}</span>
           <span className="text-xs">{cell.status === "REVIEWED" ? <>{ui("Checked")}: <bdi>{cell.reviewedAbsent ? ui("Absent") : cell.reviewedValue}</bdi></> : cell.status === "EXCLUDED" ? ui("Left out") : cell.proposedValue !== null || cell.proposedAbsent ? <>{ui("Read as")} <bdi>{cell.proposedAbsent ? ui("Absent") : cell.proposedValue}</bdi>{cell.confidence !== null && cell.confidence < 0.9 ? <span className="ms-1 font-bold text-amber-800">{ui("uncertain")}</span> : null}</> : ui("Not read — type it")}</span>
@@ -140,7 +140,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
     {sheet ? <ModalFrame title={ui("Marks sheet")} eyebrow={`${sheet.examTitle} · ${sheet.subjectName}`} subtitle={ui("Sheet version {0} · {1}", [String(sheet.version), sheet.className])} onClose={() => setSheet(null)} wide>
       <div className="space-y-6" data-scan-sheet>
         {sheet.pages.map(page => <div key={page.page} className="space-y-2 break-after-page" data-sheet-page={page.page}>
-          <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-black">{ui("Page {0} of {1}", [String(page.page), String(sheet.pages.length)])}</p><p className="text-xs">{ui("Write a whole mark out of {0}, or A for absent.", [String(sheet.maxMarks)])}</p></div><div className="text-center"><img src={page.qr} alt={ui("Page code")} width={96} height={96} /><p className="font-mono text-[9px]" dir="ltr">{page.code}</p></div></div>
+          <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">{ui("Page {0} of {1}", [String(page.page), String(sheet.pages.length)])}</p><p className="text-xs">{ui("Write a whole mark out of {0}, or A for absent.", [String(sheet.maxMarks)])}</p></div><div className="text-center"><img src={page.qr} alt={ui("Page code")} width={96} height={96} /><p className="font-mono text-2xs" dir="ltr">{page.code}</p></div></div>
           <table className="w-full border-collapse text-sm"><thead><tr><th className="border p-1 text-start">#</th><th className="border p-1 text-start">{ui("Roll")}</th><th className="border p-1 text-start">{ui("Pupil")}</th><th className="border p-1 w-28">{ui("Mark")}</th></tr></thead>
             <tbody>{page.rows.map(r => <tr key={r.row}><td className="border p-1"><bdi>{r.row}</bdi></td><td className="border p-1"><bdi>{r.rollNo}</bdi></td><td className="border p-1"><bdi>{r.name}</bdi></td><td className="border p-1 h-9"></td></tr>)}</tbody></table>
         </div>)}

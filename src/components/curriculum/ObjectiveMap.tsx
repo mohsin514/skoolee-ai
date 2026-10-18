@@ -147,7 +147,7 @@ function ObjectiveRow({ t, objective, coverage, prerequisites, language, label }
   const taught = coverage.taught.sections.length, assessed = coverage.assessed.releases.length, planned = coverage.planned.topics.length;
   const line = taught && assessed ? t.statusLine.both : taught ? fill(t.statusLine.taughtOnly, { n: taught }) : assessed ? t.statusLine.assessedOnly : planned ? t.statusLine.plannedOnly : t.statusLine.nothing;
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(`${value}T00:00:00Z`));
-  const cell = (name: string, value: number, text: string) => <div className="rounded-lg bg-slate-50 px-2 py-1"><dt className="text-[11px] text-slate-500">{name}</dt><dd className={`text-sm font-semibold ${value ? "" : "text-slate-500"}`}>{value ? text : t.none}</dd></div>;
+  const cell = (name: string, value: number, text: string) => <div className="rounded-lg bg-slate-50 px-2 py-1"><dt className="text-2xs text-slate-500">{name}</dt><dd className={`text-sm font-semibold ${value ? "" : "text-slate-500"}`}>{value ? text : t.none}</dd></div>;
   return <li className="rounded-xl border bg-white p-4">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div className="min-w-0"><p className="font-semibold">{label(objective)}</p>

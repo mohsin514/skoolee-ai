@@ -50,7 +50,7 @@ import {
   Trophy,
   Network,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { userMessage } from "@/lib/errors";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
@@ -243,7 +243,7 @@ function RestrictedView({ onBack }: { onBack: () => void }) {
       <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
         <Shield className="h-6 w-6" />
       </span>
-      <h2 className="text-lg font-black tracking-tight text-[#1f1a23]">Not available for your role</h2>
+      <h2 className="text-lg font-bold tracking-tight text-ink-strong">Not available for your role</h2>
       <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">
         Billing is managed at the school level. Ask a school administrator if you need changes to the plan.
       </p>
@@ -1031,12 +1031,12 @@ export default function CampusAdminDashboard() {
   // with no way back other than guessing to reload.
   if (!data) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#faf7fc] p-6">
+      <div className="flex min-h-screen items-center justify-center bg-surface-subtle p-6">
         <div className="sk-panel w-full max-w-sm p-8 text-center">
           <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
             <AlertTriangle className="h-6 w-6" />
           </span>
-          <h1 className="text-lg font-black tracking-tight text-[#1f1a23]">Couldn&apos;t load your dashboard</h1>
+          <h1 className="text-lg font-bold tracking-tight text-ink-strong">Couldn&apos;t load your dashboard</h1>
           <p className="mt-2 text-xs font-semibold leading-relaxed text-ink-muted">
             The campus data didn&apos;t come back. This is usually temporary — try again in a moment.
           </p>
@@ -1068,7 +1068,7 @@ export default function CampusAdminDashboard() {
       headerActions={null}
     >
       <section className={cn(pageCardSurface, "p-0 sm:p-0", "flex-1 relative overflow-hidden flex flex-col")} >
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 bg-[#fbf0fe]/20">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 bg-brand-50/20">
           {/* Academics is ten screens deep. This keeps them one click from each
               other instead of one sidebar expansion away. */}
           {ACADEMIC_VIEWS.has(activeView) ? (
@@ -1110,8 +1110,8 @@ export default function CampusAdminDashboard() {
           {activeView === "institution" ? (
             <div className="space-y-5">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Institution record</p>
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-[#1f1a23]">School &amp; Campus</h2>
+                <p className="text-2xs font-semibold uppercase tracking-normal text-primary">Institution record</p>
+                <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink-strong">School &amp; Campus</h2>
                 <p className="mt-1.5 text-sm font-semibold text-ink-muted">
                   Name, branding and contact details. School-wide details are owned by the institution owner.
                 </p>
@@ -1292,8 +1292,8 @@ export default function CampusAdminDashboard() {
                 campusId={data.campusId}
                 onNavigate={(v) => setActiveView(v as AdminView)}
               />
-              <div className="border-t border-[#cfc2d6]/15 pt-6">
-                <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Year History & Student Promotion</h3>
+              <div className="border-t border-edge/15 pt-6">
+                <h3 className="text-sm font-bold text-ink-strong mb-4">Year History & Student Promotion</h3>
                 <AcademicYearPanel />
               </div>
             </div>

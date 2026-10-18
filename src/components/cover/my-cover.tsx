@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -45,14 +45,14 @@ export function MyCover() {
   const covering = data.duties.filter(d => d.role === "COVERING"), covered = data.duties.filter(d => d.role === "COVERED");
 
   return <section className="sk-panel space-y-4 p-5" data-my-cover>
-    <header><h3 className="text-base font-black">{ui("Cover and missed learning")}</h3><p className="text-xs text-ink-muted">{ui("Covering a room is not the same as teaching the planned lesson. Say what happened so missed learning is followed up.")}</p></header>
+    <header><h3 className="text-base font-bold">{ui("Cover and missed learning")}</h3><p className="text-xs text-ink-muted">{ui("Covering a room is not the same as teaching the planned lesson. Say what happened so missed learning is followed up.")}</p></header>
 
-    {covering.length ? <div className="space-y-2" data-cover-covering><p className="text-xs font-black uppercase text-ink-muted">{ui("Lessons you are covering")}</p>
-      {covering.map(d => <div key={d.id} className="rounded-xl border border-[#cfc2d6]/40 p-3" data-duty={d.id}>
+    {covering.length ? <div className="space-y-2" data-cover-covering><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Lessons you are covering")}</p>
+      {covering.map(d => <div key={d.id} className="rounded-xl border border-edge/40 p-3" data-duty={d.id}>
         <p className="text-sm font-bold">{lesson(d)}</p><p className="text-xs text-ink-muted">{ui("For {0}", [d.originalTeacher])}</p>
-        {d.handover?.objective ? <div className="mt-2 rounded-lg bg-[#f6f2f8] p-2 text-sm" data-handover><p><span className="font-bold">{ui("Objective")}:</span> <span dir="auto">{d.handover.objective}</span></p>{d.handover.instructions ? <p className="mt-1 text-xs" dir="auto">{d.handover.instructions}</p> : null}
+        {d.handover?.objective ? <div className="mt-2 rounded-lg bg-surface-sunken p-2 text-sm" data-handover><p><span className="font-bold">{ui("Objective")}:</span> <span dir="auto">{d.handover.objective}</span></p>{d.handover.instructions ? <p className="mt-1 text-xs" dir="auto">{d.handover.instructions}</p> : null}
           {d.resources.length ? <ul className="mt-1 text-xs">{d.resources.map(r => <li key={r.id}>{d.resourcesOpen ? <a className="underline" href={`/api/resources/${r.id}/file`} data-handover-resource={r.id} dir="auto">{r.title}</a> : <span dir="auto">{r.title}</span>}</li>)}</ul> : null}
-          {!d.resourcesOpen && d.resources.length ? <p className="text-[11px] text-ink-muted">{ui("Resources were available until the end of the lesson's day.")}</p> : null}
+          {!d.resourcesOpen && d.resources.length ? <p className="text-2xs text-ink-muted">{ui("Resources were available until the end of the lesson's day.")}</p> : null}
         </div> : <p className="mt-2 text-xs font-bold text-amber-800">{ui("No handover yet. Ask the class teacher or your coordinator.")}</p>}
         <div className="mt-2 flex flex-wrap gap-2">
           {!d.handover?.acknowledgedAt ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(() => call("POST", { action: "acknowledge", dutyId: d.id }), "Cover acknowledged.")} data-duty-ack>{ui("Acknowledge")}</Button> : <span className="text-xs font-bold text-emerald-700">{ui("Acknowledged")}</span>}
@@ -60,14 +60,14 @@ export function MyCover() {
         </div>
       </div>)}</div> : null}
 
-    {covered.length ? <div className="space-y-2" data-cover-covered><p className="text-xs font-black uppercase text-ink-muted">{ui("Your lessons being covered")}</p>
-      {covered.map(d => <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#cfc2d6]/40 p-3" data-duty={d.id}>
+    {covered.length ? <div className="space-y-2" data-cover-covered><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Your lessons being covered")}</p>
+      {covered.map(d => <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge/40 p-3" data-duty={d.id}>
         <div><p className="text-sm font-bold">{lesson(d)}</p><p className="text-xs text-ink-muted">{ui("Covered by {0}", [d.substitute])}{d.handover?.acknowledgedAt ? <> · {ui("Acknowledged")}</> : null}{d.handover?.outcome ? <> · {outcomeLabel(d.handover.outcome)}</> : null}</p></div>
         {d.date >= data.today ? <Button size="sm" variant={d.handover?.objective ? "outline" : "default"} onClick={() => { setEditing(d); setObjective(d.handover?.objective ?? ""); setInstructions(d.handover?.instructions ?? ""); setPicked(d.handover?.resourceIds ?? []); }} data-duty-handover>{d.handover?.objective ? ui("Edit handover") : ui("Write handover")}</Button> : null}
       </div>)}</div> : null}
 
-    {data.recoveries.length ? <div className="space-y-2" data-cover-recoveries><p className="text-xs font-black uppercase text-ink-muted">{ui("Missed learning to follow up")}</p>
-      {data.recoveries.map(r => <div key={r.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3", r.status === "DECISION_NEEDED" ? "border-amber-300 bg-amber-50/60" : "border-[#cfc2d6]/40")} data-recovery={r.id} data-recovery-status={r.status}>
+    {data.recoveries.length ? <div className="space-y-2" data-cover-recoveries><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Missed learning to follow up")}</p>
+      {data.recoveries.map(r => <div key={r.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3", r.status === "DECISION_NEEDED" ? "border-amber-300 bg-amber-50/60" : "border-edge/40")} data-recovery={r.id} data-recovery-status={r.status}>
         <div><p className="text-sm font-bold"><bdi>{date(r.date)}</bdi> · <bdi>{r.className}</bdi> · <span dir="auto">{r.subjectName}</span></p><p className="text-xs text-ink-muted">{r.source === "UNCOVERED" ? ui("No cover") : r.source === "SUPERVISED_ONLY" ? ui("Supervised only") : ui("Did not take place")} · {recStatus(r.status)}{r.title ? <> · <span dir="auto">{r.title}</span></> : null}{r.dueDate ? <> · {ui("Due")} <bdi>{date(r.dueDate)}</bdi></> : null}</p></div>
         {["DECISION_NEEDED", "PLANNED", "PUBLISHED"].includes(r.status) ? <Button size="sm" onClick={() => { setRec(r); setRecTitle(r.title ?? ""); setRecText(r.instructions ?? ""); setRecDue(r.dueDate ?? data.today); setRecNote(""); }} data-recovery-open>{ui("Follow up")}</Button> : null}
       </div>)}</div> : null}

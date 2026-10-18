@@ -33,7 +33,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
   };
 
   return (
-    <main className="min-h-screen bg-[#fff7fe] text-[#1f1a23] font-sans">
+    <main className="min-h-screen bg-brand-50 text-ink-strong font-sans">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -53,11 +53,11 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
       `}</style>
 
       {/* ─── HERO ─────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487]">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800">
         <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
-          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
-          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-brand-400 opacity-70 blur-[90px]" />
+          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-brand-300 opacity-45 blur-[100px]" />
+          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-brand-50 opacity-[0.14] blur-[110px]" />
           <div
             className="absolute inset-0 opacity-[0.07]"
             style={{
@@ -76,21 +76,21 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
             </Link>
 
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-              <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
-              <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
+              <Sparkles className="h-3.5 w-3.5 text-brand-200" />
+              <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">
                 Skoolee Trust
               </span>
             </span>
           </div>
 
-          <h1 className="mt-6 text-3xl font-black leading-tight tracking-[-0.03em] text-white lg:text-4xl">
+          <h1 className="mt-6 text-3xl font-extrabold leading-tight tracking-[-0.03em] text-white lg:text-4xl">
             {copy.title}
           </h1>
-          <p className="mt-3 max-w-2xl text-[15px] font-semibold leading-7 text-white/85 lg:text-base">
+          <p className="mt-3 max-w-2xl text-md font-semibold leading-7 text-white/85 lg:text-base">
             {copy.description}
           </p>
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-[11px] font-bold text-white/75">
+          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-2xs font-bold text-white/75">
             <span className="flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4" /> Encrypted at rest &amp; in transit
             </span>
@@ -103,7 +103,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
           </div>
         </div>
 
-        <div className="relative z-10 h-4 bg-gradient-to-b from-transparent to-[#fff7fe]" />
+        <div className="relative z-10 h-4 bg-gradient-to-b from-transparent to-brand-50" />
       </section>
 
       {/* ─── SECTIONS ─────────────────────────────────── */}
@@ -116,12 +116,12 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
                 key={section.title}
                 className="sk-panel flex flex-col gap-5 p-6 sm:flex-row"
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-white">
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black tracking-tight">{section.title}</h2>
-                  <p className="mt-1.5 text-[15px] leading-7 text-ink">{section.body}</p>
+                  <h2 className="text-lg font-bold tracking-tight">{section.title}</h2>
+                  <p className="mt-1.5 text-md leading-7 text-ink">{section.body}</p>
                 </div>
               </div>
             );
@@ -130,7 +130,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
 
         {/* Cross-navigation between the trust pages */}
         <div className="sk-panel mt-8 p-6">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8127cf]">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
             Continue reading
           </p>
           <nav aria-label="Trust policies" className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -141,7 +141,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
                 aria-current={nav.label === copy.title ? "page" : undefined}
                 className="sk-panel group p-4 aria-[current=page]:border-primary"
               >
-                <p className="text-sm font-black text-[#1f1a23] transition-colors group-hover:text-[#8127cf]">
+                <p className="text-sm font-bold text-ink-strong transition-colors group-hover:text-primary">
                   {nav.label}
                 </p>
                 <p className="mt-1 text-xs font-semibold leading-5 text-ink-muted">

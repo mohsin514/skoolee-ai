@@ -94,7 +94,7 @@ export function StickySaveBar({
           "shadow-[0_8px_24px_-8px_rgba(31,26,35,0.28),0_24px_60px_-24px_rgba(129,39,207,0.55)]",
           blocked
             ? "border-rose-200 bg-rose-50/95"
-            : "border-[#8127cf]/20 bg-[#1f1a23]/95",
+            : "border-primary/20 bg-ink-strong/95",
         )}
       >
         <span
@@ -108,13 +108,13 @@ export function StickySaveBar({
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className={cn("text-sm font-black leading-tight", blocked ? "text-rose-700" : "text-white")}>
+          <p className={cn("text-sm font-bold leading-tight", blocked ? "text-rose-700" : "text-white")}>
             {blocked
               ? blockedReason || "Fix the highlighted cells to save"
               : label || `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`}
           </p>
           {hint ? (
-            <p className={cn("truncate text-[11px] font-semibold", blocked ? "text-rose-600" : "text-white/55")}>
+            <p className={cn("truncate text-2xs font-semibold", blocked ? "text-rose-600" : "text-white/55")}>
               {hint}
             </p>
           ) : null}

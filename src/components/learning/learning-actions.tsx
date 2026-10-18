@@ -44,7 +44,7 @@ export function LearningActions() {
   if (!ctx) return <section className="sk-panel p-5" role="status" data-learning-actions>{ui("Loading learning actions…")}</section>;
   return <section className="sk-panel space-y-3 p-5" aria-labelledby="learning-actions-title" data-learning-actions>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 id="learning-actions-title" className="flex items-center gap-2 text-lg font-black"><ClipboardList className="size-5 text-primary" aria-hidden />{ui("Learning actions")}</h2>
+      <h2 id="learning-actions-title" className="flex items-center gap-2 text-lg font-bold"><ClipboardList className="size-5 text-primary" aria-hidden />{ui("Learning actions")}</h2>
       <Button size="sm" onClick={() => setCreating(v => !v)}>{creating ? ui("Close") : ui("New learning action")}</Button>
     </div>
     <p className="text-xs text-ink-muted">{ui("Specific support with a goal, a responsible adult and a review date. Describe skills and actions, not labels.")}</p>

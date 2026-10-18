@@ -125,17 +125,17 @@ export default function ApplyPage() {
 
   return <main className="mx-auto min-h-screen max-w-2xl space-y-5 px-4 py-6" data-apply-page>
     <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0"><p className="text-xs font-bold uppercase text-ink-subtle">{ui("Admission application")}</p><h1 className="text-xl font-black"><bdi>{form?.schoolName ?? ""}</bdi></h1>{form?.campusName ? <p className="text-sm text-ink-muted"><bdi>{form.campusName}</bdi></p> : null}</div>
+      <div className="min-w-0"><p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Admission application")}</p><h1 className="text-xl font-bold"><bdi>{form?.schoolName ?? ""}</bdi></h1>{form?.campusName ? <p className="text-sm text-ink-muted"><bdi>{form.campusName}</bdi></p> : null}</div>
       <FormField name="apply-language" label={ui("Language")}><Select value={language} onChange={event => setLanguage(event.target.value as Language)}><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></Select></FormField>
     </div>
     {loadError ? <p role="alert" className="rounded-2xl bg-rose-50 p-4 text-sm font-bold text-rose-700">{ui(loadError)}</p> : !form || !definition ? <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" aria-hidden="true" />{ui("Loading the application form…")}</p> : <>
       {view && !view.editable ? <section className="space-y-3 rounded-2xl border border-border bg-card p-4" aria-live="polite" data-apply-status={view.stage}>
-        <p className="flex items-center gap-2 text-base font-black"><CheckCircle2 className="size-5 text-emerald-600" aria-hidden="true" />{stageText[view.stage] ?? view.stage}</p>
-        <p className="text-sm">{ui("Your reference")}: <bdi dir="ltr" className="font-black" data-apply-reference>{view.reference}</bdi></p>
+        <p className="flex items-center gap-2 text-base font-bold"><CheckCircle2 className="size-5 text-emerald-600" aria-hidden="true" />{stageText[view.stage] ?? view.stage}</p>
+        <p className="text-sm">{ui("Your reference")}: <bdi dir="ltr" className="font-bold" data-apply-reference>{view.reference}</bdi></p>
         {saved ? <div className="space-y-1 text-xs"><p className="text-ink-muted">{ui("To check your application later or on another device, keep this link private:")}</p><p className="break-all"><bdi dir="ltr" data-apply-status-link>{continueLink}</bdi></p></div> : null}
       </section> : null}
       {view?.messages.length ? <section className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4" aria-label={ui("Messages from the school")}>
-        <p className="text-sm font-black">{ui("Messages from the school")}</p>
+        <p className="text-sm font-bold">{ui("Messages from the school")}</p>
         {view.messages.map((message, index) => <p key={index} className="whitespace-pre-wrap text-sm" data-family-message><bdi>{message.message}</bdi></p>)}
       </section> : null}
       {view?.stage === "OFFERED" ? <div className="flex flex-wrap gap-2"><Button onClick={() => void respond(true)} disabled={busy}>{ui("Accept the offered place")}</Button><Button variant="ghost" onClick={() => void respond(false)} disabled={busy}>{ui("Decline")}</Button></div> : null}
@@ -144,7 +144,7 @@ export default function ApplyPage() {
         {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700" data-apply-error>{error}</p> : null}
         {notice ? <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800" data-apply-notice>{notice}</p> : null}
         {visibleFields(definition, answers).map(field => <div key={field.key} className="space-y-3">
-          {field.section ? <h2 className="pt-2 text-base font-black">{label(field.section, lang)}</h2> : null}
+          {field.section ? <h2 className="pt-2 text-base font-bold">{label(field.section, lang)}</h2> : null}
           {field.type === "checkbox" ? <label className="flex items-start gap-2 text-sm"><Checkbox checked={answers[field.key] === true} onChange={event => set(field.key, event.target.checked)} aria-invalid={Boolean(problemFor(field.key))} />{label(field.label, lang)}{field.required ? " *" : ""}</label>
             : <FormField name={`apply-${field.key}`} label={label(field.label, lang)} required={field.required} error={problemFor(field.key) ? ui(problemFor(field.key)!) : undefined} hint={field.help ? label(field.help, lang) : undefined}>
               {field.type === "select" ? <Select value={String(answers[field.key] ?? "")} onChange={event => set(field.key, event.target.value)}><option value="">{ui("Choose…")}</option>{field.options?.map(option => <option key={option.value} value={option.value}>{label(option.label, lang)}</option>)}</Select>
@@ -153,7 +153,7 @@ export default function ApplyPage() {
             </FormField>}
         </div>)}
         {visibleDocuments(definition, answers).length ? <section className="space-y-3" aria-label={ui("Documents")}>
-          <h2 className="pt-2 text-base font-black">{ui("Documents")}</h2>
+          <h2 className="pt-2 text-base font-bold">{ui("Documents")}</h2>
           {visibleDocuments(definition, answers).map(document => {
             const files = (view?.documents ?? []).filter(file => file.key === document.key);
             return <div key={document.key} className="space-y-1 rounded-xl border border-border p-3" data-apply-document={document.key}>
@@ -164,13 +164,13 @@ export default function ApplyPage() {
                 <input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png" disabled={uploading[document.key] === "uploading"} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(document.key, file); }} data-apply-upload={document.key} />
               </label>
               {uploading[document.key] === "failed" ? <p className="text-xs text-rose-700">{ui("The upload did not finish. Choose the file again.")}</p> : null}
-              <p className="text-[11px] text-ink-muted">{ui("PDF, JPG or PNG, up to 5 MB.")}</p>
+              <p className="text-2xs text-ink-muted">{ui("PDF, JPG or PNG, up to 5 MB.")}</p>
             </div>;
           })}
         </section> : null}
         <label className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm"><Checkbox checked={consent} onChange={event => setConsent(event.target.checked)} data-apply-consent />{label(definition.consent, lang)}</label>
         {saved ? <div className="space-y-1 rounded-xl border border-dashed border-border p-3 text-xs" data-apply-continue>
-          <p>{ui("Your reference")}: <bdi dir="ltr" className="font-black">{saved.reference}</bdi></p>
+          <p>{ui("Your reference")}: <bdi dir="ltr" className="font-bold">{saved.reference}</bdi></p>
           <p>{ui("To continue on another device, keep this link private and open it there:")}</p>
           <p className="break-all"><bdi dir="ltr">{continueLink}</bdi></p>
         </div> : null}

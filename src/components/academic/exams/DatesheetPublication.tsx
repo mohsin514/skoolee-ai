@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, Send } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
@@ -70,7 +70,7 @@ export function DatesheetPublication({ sessionId }: { sessionId: string }) {
   return <section className="sk-panel space-y-4 p-5" aria-labelledby="publication-title" data-datesheet-publication data-latest-version={status.latest?.version ?? 0}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h3 id="publication-title" className="flex items-center gap-2 text-base font-black"><Send className="size-4 text-primary" aria-hidden />{ui("Publish datesheet and seating")}</h3>
+        <h3 id="publication-title" className="flex items-center gap-2 text-base font-bold"><Send className="size-4 text-primary" aria-hidden />{ui("Publish datesheet and seating")}</h3>
         <p className="text-xs text-ink-muted" data-publication-state>{status.latest
           ? ui("Version {0} published {1}. Families see this version until a new one is published.", [status.latest.version, dateTime(status.latest.publishedAt)])
           : ui("Not published yet. Families and students see nothing from this session until version 1 is published.")}</p>

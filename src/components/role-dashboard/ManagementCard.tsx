@@ -48,30 +48,30 @@ export function ManagementCard({
   return (
     <div className="sk-panel sk-rise relative overflow-hidden">
       <CornerSparkles />
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#8127cf] via-[#b876f0] to-[#8127cf] opacity-60" />
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-bl from-[#8127cf]/6 to-transparent rounded-full blur-[80px] pointer-events-none" />
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-brand-300 to-primary opacity-60" />
+      <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[80px] pointer-events-none" />
       <div className="relative p-8">
         <div className="flex items-center gap-4 mb-5">
           <div className="relative">
-            <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 flex items-center justify-center text-[#8127cf]">
+            <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/10 to-brand-300/10 flex items-center justify-center text-primary">
               <Icon className="w-5 h-5" />
             </div>
           </div>
           <div>
-            <h3 dir="auto" className="text-lg font-black text-[#1f1a23]">{title}</h3>
-            <p className="text-[10px] font-semibold text-ink-subtle leading-relaxed italic mt-0.5">{description}</p>
+            <h3 dir="auto" className="text-lg font-bold text-ink-strong">{title}</h3>
+            <p className="text-2xs font-semibold text-ink-subtle leading-relaxed italic mt-0.5">{description}</p>
           </div>
         </div>
 
         {user ? (
-          <div className="relative p-5 rounded-[24px] bg-gradient-to-br from-[#fbf0fe]/40 via-white to-[#fbf0fe]/20 border border-[#8127cf]/8 overflow-hidden">
-            <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-[#8127cf]/8 to-transparent rounded-full blur-[50px] pointer-events-none" />
+          <div className="relative p-5 rounded-[24px] bg-gradient-to-br from-brand-50/40 via-white to-brand-50/20 border border-primary/8 overflow-hidden">
+            <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-primary/8 to-transparent rounded-full blur-[50px] pointer-events-none" />
             <div className="relative flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
                 <div className="relative shrink-0">
-                  <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-[#8127cf]/10 shadow-sm flex items-center justify-center overflow-hidden">
+                  <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-primary/10 shadow-sm flex items-center justify-center overflow-hidden">
                     {isPendingInvite ? (
-                      <MailPlus className="w-6 h-6 text-[#8127cf]" />
+                      <MailPlus className="w-6 h-6 text-primary" />
                     ) : (
                       <AvatarImage
                         name={user.fullName || user.email}
@@ -85,15 +85,15 @@ export function ManagementCard({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-black text-[#1f1a23] truncate">{user.fullName || user.email.split("@")[0]}</p>
-                    <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[7px] font-black uppercase tracking-wider ${isPendingInvite ? (isExpired ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600") : "bg-emerald-50 text-emerald-600"}`}>
+                    <p className="text-sm font-bold text-ink-strong truncate">{user.fullName || user.email.split("@")[0]}</p>
+                    <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-3xs font-semibold uppercase tracking-wider ${isPendingInvite ? (isExpired ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600") : "bg-emerald-50 text-emerald-600"}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${isPendingInvite ? (isExpired ? "bg-rose-500" : "bg-amber-500") : "bg-emerald-500"}`} />
                       {statusLabel}
                     </span>
                   </div>
                   <p className="mt-0.5 truncate text-xs font-medium text-ink-muted"><bdi dir="ltr">{user.email}</bdi></p>
                   {isPendingInvite && inviteExpiry ? (
-                    <p className="mt-1.5 flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-ink-subtle">
+                    <p className="mt-1.5 flex items-center gap-1 text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
                       <Clock className="w-2.5 h-2.5" />
                       Expires {inviteExpiry}
                     </p>
@@ -143,8 +143,8 @@ export function ManagementCard({
             className="block w-full gap-3 group/empty"
           >
             <div className="relative">
-              <div className="absolute -inset-2 bg-[#8127cf]/8 rounded-full blur-md opacity-0 group-hover/empty:opacity-100 transition-opacity" />
-              <UserPlus className="relative w-5 h-5 text-[#8127cf]/60 group-hover/empty:text-[#8127cf]" />
+              <div className="absolute -inset-2 bg-primary/8 rounded-full blur-md opacity-0 group-hover/empty:opacity-100 transition-opacity" />
+              <UserPlus className="relative w-5 h-5 text-primary/60 group-hover/empty:text-primary" />
             </div>
             {emptyLabel}
           </Button>

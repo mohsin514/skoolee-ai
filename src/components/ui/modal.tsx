@@ -146,11 +146,11 @@ function unlockScroll() {
 
 export const MODAL_TONES = {
   violet: {
-    wash: "from-[#faf7fc] via-white to-[#f3eeff]",
-    tile: "from-[#8127cf] to-[#6a1fb0] shadow-[#8127cf]/25",
-    eyebrow: "text-[#8127cf]",
-    orb: "from-[#8127cf]/12",
-    rule: "border-[#cfc2d6]/20",
+    wash: "from-surface-subtle via-white to-brand-100",
+    tile: "from-primary to-brand-700 shadow-primary/25",
+    eyebrow: "text-primary",
+    orb: "from-primary/12",
+    rule: "border-edge/20",
   },
   emerald: {
     wash: "from-emerald-50/70 via-white to-emerald-50/40",
@@ -625,7 +625,7 @@ export function ModalSurface({
     >
       <div
         className={cn(
-          "pointer-events-none absolute inset-0 bg-[#1f1a23]/50 backdrop-blur-md",
+          "pointer-events-none absolute inset-0 bg-ink-strong/50 backdrop-blur-md",
           closing ? "animate-backdrop-exit" : "animate-backdrop-enter",
         )}
         aria-hidden
@@ -648,7 +648,7 @@ export function ModalSurface({
           "relative flex min-w-0 w-full max-w-full flex-col overflow-hidden bg-white",
           fullscreen
             ? "h-[100dvh] max-h-[100dvh] rounded-none"
-            : "max-h-[92dvh] rounded-t-[32px] border border-[#cfc2d6]/20 shadow-[0_-8px_60px_rgba(31,26,35,0.28)] sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
+            : "max-h-[92dvh] rounded-t-[32px] border border-edge/20 shadow-[0_-8px_60px_rgba(31,26,35,0.28)] sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
           !fullscreen && width,
           fullscreen
             ? closing ? "animate-modal-exit" : "animate-modal-enter"
@@ -689,14 +689,14 @@ function DiscardChangesPrompt({ message, onKeepEditing, onDiscard }: {
         <AlertTriangle className="h-5 w-5" aria-hidden />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] font-black uppercase tracking-wider text-amber-600">{copy.unsaved}</p>
-        <h3 className="text-base font-black leading-tight text-[#1f1a23]">{copy.discardHeading}</h3>
+        <p className="text-2xs font-semibold uppercase tracking-wider text-amber-600">{copy.unsaved}</p>
+        <h3 className="text-base font-bold leading-tight text-ink-strong">{copy.discardHeading}</h3>
       </div>
     </div>
     <p id={descriptionId} className="overflow-y-auto px-5 py-4 text-sm font-semibold leading-relaxed text-ink">{message}</p>
-    <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-5 py-3.5 pb-[max(.875rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
+    <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-edge/15 bg-surface-subtle px-5 py-3.5 pb-[max(.875rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
       <button ref={keepEditingRef} type="button" onClick={onKeepEditing}
-        className="min-h-11 rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98]">{copy.keepEditing}</button>
+        className="min-h-11 rounded-2xl border border-edge/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98]">{copy.keepEditing}</button>
       <button type="button" onClick={onDiscard}
         className={cn("min-h-11 rounded-2xl px-5 text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98]", dialogActionTones.rose)}>{copy.discard}</button>
     </div>
@@ -835,7 +835,7 @@ function ModalChrome({
             {/* The grab handle is the phone's affordance for "this can be pulled
                 away", and it is the drag target. Desktop has a cursor and a
                 close button, so it does not need one. */}
-            <div className="mx-auto mb-3 h-1.5 w-11 rounded-full bg-[#1f1a23]/15 sm:hidden" aria-hidden />
+            <div className="mx-auto mb-3 h-1.5 w-11 rounded-full bg-ink-strong/15 sm:hidden" aria-hidden />
 
             <div className="relative flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-3.5">
@@ -855,7 +855,7 @@ function ModalChrome({
                 ) : null}
                 <div className="min-w-0">
                   {eyebrow ? (
-                    <p className={cn("text-[11px] font-black uppercase tracking-wider", t.eyebrow)}>{eyebrow}</p>
+                    <p className={cn("text-2xs font-semibold uppercase tracking-wider", t.eyebrow)}>{eyebrow}</p>
                   ) : null}
                   {/* Wraps rather than truncates. `truncate` clipped the title
                       of any dialog whose question did not fit one line — the
@@ -864,7 +864,7 @@ function ModalChrome({
                       whose question is unreadable is the one place that cannot
                       happen. The header is not height-constrained, so a second
                       line costs nothing. */}
-                  <h2 id={titleId} className="text-balance text-xl font-black leading-tight tracking-tight text-[#1f1a23] sm:text-2xl">
+                  <h2 id={titleId} className="text-balance text-xl font-bold leading-tight tracking-tight text-ink-strong sm:text-2xl">
                     {title}
                   </h2>
                   {subtitle ? (
@@ -932,7 +932,7 @@ function ModalChrome({
 
           {/* ── Pinned footer ── */}
           {footer ? (
-            <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-4">
+            <div className="shrink-0 border-t border-edge/15 bg-surface-subtle px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-4">
               {footer}
             </div>
           ) : (
@@ -993,7 +993,7 @@ export function ModalActions({
           type="button"
           onClick={surface?.requestClose ?? onCancel}
           disabled={busy}
-          className="h-12 cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-12 cursor-pointer rounded-2xl border border-edge/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {cancelLabel ?? copy.cancel}
         </button>

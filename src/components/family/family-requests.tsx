@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,10 +41,10 @@ export function GuardianLeave({ studentId }: { studentId: string }) {
   };
   if (!rows) return null;
   return <section className="sk-panel space-y-3 p-5" data-guardian-leave>
-    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-black">{ui("Leave requests")}</h3><Button size="sm" variant="outline" onClick={() => { setOpen(true); setError(""); }} data-request-leave>{ui("Request leave")}</Button></div>
+    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Leave requests")}</h3><Button size="sm" variant="outline" onClick={() => { setOpen(true); setError(""); }} data-request-leave>{ui("Request leave")}</Button></div>
     <p className="text-xs text-ink-muted">{ui("The school reviews each request. Attendance is still marked by the school.")}</p>
     {error && !open ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
-    {rows.length ? <ul className="divide-y divide-[#cfc2d6]/20">{rows.map(row => <li key={row.id} className="space-y-1 py-2" data-leave={row.id} data-leave-status={row.status}>
+    {rows.length ? <ul className="divide-y divide-edge/20">{rows.map(row => <li key={row.id} className="space-y-1 py-2" data-leave={row.id} data-leave-status={row.status}>
       <p className="text-sm font-bold"><bdi>{date(row.fromDate)}</bdi>{row.toDate !== row.fromDate ? <> – <bdi>{date(row.toDate)}</bdi></> : null} · {leaveLabel(ui, row.status)}</p>
       {row.reviewNote ? <p className="text-xs text-ink-muted">{ui("School note: {0}", [row.reviewNote])}</p> : null}
       {row.status === "CLARIFICATION" ? <div className="flex flex-wrap items-end gap-2"><FormField name={`leave-reply-${row.id}`} label={ui("Your reply")} className="min-w-[220px] flex-1"><Input value={reply[row.id] ?? ""} onChange={e => setReply({ ...reply, [row.id]: e.target.value })} /></FormField><Button size="sm" disabled={busy || (reply[row.id] ?? "").trim().length < 3} onClick={async () => { if (await send("PATCH", { id: row.id, action: "reply", reason: reply[row.id] })) { toast.success(ui("Reply sent to the school")); void load(); } }} data-leave-reply>{ui("Send reply")}</Button></div> : null}
@@ -84,11 +84,11 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
   };
   if (!rows || !rows.length) return null;
   return <section className="sk-panel space-y-3 p-5" data-guardian-trips>
-    <h3 className="text-base font-black">{ui("Trips and permissions")}</h3>
+    <h3 className="text-base font-bold">{ui("Trips and permissions")}</h3>
     {receipt ? <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800" data-trip-receipt={receipt}>{ui("Your answer is recorded. Receipt {0}.", [receipt])}</p> : null}
     {error && !review ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700" data-trip-error>{error}</p> : null}
-    {rows.map(trip => { const v = trip.version; const answered = trip.myAnswer; return <article key={trip.tripId} className="space-y-2 rounded-2xl border border-[#cfc2d6]/30 p-4" data-trip={trip.tripId} data-trip-version={v.version} data-trip-status={trip.status}>
-      <header><p className="text-base font-black" dir="auto">{v.title}</p><p className="text-xs text-ink-muted">{ui("Version {0}", [String(v.version)])} · {childStatusLabel(ui, trip.status)}</p></header>
+    {rows.map(trip => { const v = trip.version; const answered = trip.myAnswer; return <article key={trip.tripId} className="space-y-2 rounded-2xl border border-edge/30 p-4" data-trip={trip.tripId} data-trip-version={v.version} data-trip-status={trip.status}>
+      <header><p className="text-base font-bold" dir="auto">{v.title}</p><p className="text-xs text-ink-muted">{ui("Version {0}", [String(v.version)])} · {childStatusLabel(ui, trip.status)}</p></header>
       {trip.earlierAnswer ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900" data-trip-changed>{ui("The details changed after your answer to version {0} ({1}, receipt {2}). Please read version {3} and answer again.", [String(trip.earlierAnswer.version), choiceLabel(ui, trip.earlierAnswer.choice), trip.earlierAnswer.receiptCode, String(v.version)])}{v.changeNote ? <> {ui("What changed: {0}", [v.changeNote])}</> : null}</p> : null}
       <dl className="grid gap-1 text-sm sm:grid-cols-2">
         <div><dt className="text-xs text-ink-muted">{ui("Destination")}</dt><dd dir="auto">{v.destination}</dd></div>

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Landmark, Scale } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -39,17 +39,17 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted }: { camp
   };
   if (!items || items.length === 0) return null;
   return <section className="sk-panel space-y-4 p-5" data-reconciliations>
-    <h3 className="flex items-center gap-2 text-sm font-black"><Landmark className="size-4 text-primary" aria-hidden="true" />{ui("Bank reconciliations")}</h3>
+    <h3 className="flex items-center gap-2 text-sm font-bold"><Landmark className="size-4 text-primary" aria-hidden="true" />{ui("Bank reconciliations")}</h3>
     {items.map(rec => {
       const currency = rec.matched[0]?.currency || rec.unmatched[0]?.currency || "PKR", fmt = (amount: number) => money(amount, currency), r = rec.report;
       return <article key={rec.id} className="space-y-3 rounded-2xl border border-border p-4" data-reconciliation={rec.id} data-reconciliation-status={rec.status}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-bold">{rec.bankAccount} · {rec.from ? date(rec.from) : ""} – {rec.to ? date(rec.to) : ""}</p>
-          <span className="rounded-lg bg-muted px-2 py-1 text-[10px] font-black uppercase">{rec.status === "posted" ? ui("Posted") : rec.status === "reversed" ? ui("Reversed") : ui("Awaiting review")}</span>
+          <span className="rounded-lg bg-muted px-2 py-1 text-2xs font-semibold uppercase">{rec.status === "posted" ? ui("Posted") : rec.status === "reversed" ? ui("Reversed") : ui("Awaiting review")}</span>
         </div>
         <p className={`flex flex-wrap items-center gap-2 text-xs ${r.balanced ? "text-ink-muted" : "font-bold text-destructive"}`} data-conservation={r.balanced ? "balanced" : "difference"}><Scale className="size-3.5" aria-hidden="true" />
           <bdi>{ui("Received {0} = allocated {1} + credit {2} + unallocated {3}", [fmt(r.received), fmt(r.allocated), fmt(r.credited), fmt(r.unallocated)])}</bdi>{r.balanced ? "" : ` · ${ui("Unexplained difference {0}", [fmt(r.difference)])}`}</p>
-        {rec.unmatched.length > 0 && <div className="space-y-1"><p className="text-[10px] font-black uppercase text-ink-subtle">{ui("Unallocated — stays visible until reviewed")}</p><ul className="space-y-1 text-xs" data-unallocated>{rec.unmatched.map(row => <li key={row.rowNumber} className="rounded-lg bg-amber-50 px-3 py-1.5">{date(row.date)} · <bdi>{fmt(row.amountMinor)}</bdi> · <bdi>{row.description}</bdi></li>)}</ul></div>}
+        {rec.unmatched.length > 0 && <div className="space-y-1"><p className="text-2xs font-semibold uppercase text-ink-subtle">{ui("Unallocated — stays visible until reviewed")}</p><ul className="space-y-1 text-xs" data-unallocated>{rec.unmatched.map(row => <li key={row.rowNumber} className="rounded-lg bg-amber-50 px-3 py-1.5">{date(row.date)} · <bdi>{fmt(row.amountMinor)}</bdi> · <bdi>{row.description}</bdi></li>)}</ul></div>}
         {(rec.posting?.exceptions ?? []).length > 0 && <ul className="space-y-1 text-xs" data-reconciliation-exceptions>{rec.posting!.exceptions!.map(item => <li key={item.rowNumber} className="rounded-lg bg-rose-50 px-3 py-1.5">{ui("Row {0}", [item.rowNumber])} · <bdi>{fmt(item.amountMinor)}</bdi> · {ui(item.reason)}</li>)}</ul>}
         {rec.matched.some(row => row.manualMatch) && <p className="text-xs text-ink-muted">{ui("{0} matched by hand with a recorded reason.", [rec.matched.filter(row => row.manualMatch).length])}</p>}
         {rec.status === "pending" && rec.matched.length > 0 && <Button onClick={() => setPosting(rec)} disabled={busy}>{ui("Post {0} matched payment(s)", [rec.matched.length])}</Button>}

@@ -70,7 +70,7 @@ export function FamilyFeeStatement({ studentId, onSummary }: { studentId?: strin
 
 function Figure({ icon: Icon, label, value, tone }: { icon: typeof Banknote; label: string; value: string; tone: "rose" | "amber" | "sky" | "muted" }) {
   const color = { rose: "text-rose-600", amber: "text-amber-600", sky: "text-sky-700", muted: "text-ink-muted" }[tone];
-  return <div className="sk-panel p-4"><Icon className={`mb-1 size-4 ${color}`} aria-hidden="true" /><p className={`text-lg font-black tabular-nums ${color}`}><bdi>{value}</bdi></p><p className="text-[10px] font-bold uppercase text-ink-subtle">{label}</p></div>;
+  return <div className="sk-panel p-4"><Icon className={`mb-1 size-4 ${color}`} aria-hidden="true" /><p className={`text-lg font-bold tabular-nums ${color}`}><bdi>{value}</bdi></p><p className="text-2xs font-semibold uppercase text-ink-subtle">{label}</p></div>;
 }
 
 function InvoiceCard({ invoice, focused, fmt, onPending }: { invoice: Statement["invoices"][number]; focused: boolean; fmt: (amount: number) => string; onPending: (ref: string) => void }) {
@@ -78,17 +78,17 @@ function InvoiceCard({ invoice, focused, fmt, onPending }: { invoice: Statement[
   const { date } = useLocaleFormat();
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focused) card.current?.scrollIntoView({ block: "center" }); }, [focused]);
-  return <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} data-due-state={invoice.dueState} className={`sk-panel p-4 ${focused ? "ring-2 ring-[#8127cf]" : ""}`}>
+  return <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} data-due-state={invoice.dueState} className={`sk-panel p-4 ${focused ? "ring-2 ring-primary" : ""}`}>
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <div><p className="text-sm font-black"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.installments ? ui("Paid in instalments") : invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
-      <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${STATE_STYLE[invoice.dueState]}`}>{ui(STATE_LABEL[invoice.dueState])}</span>
+      <div><p className="text-sm font-bold"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.installments ? ui("Paid in instalments") : invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
+      <span className={`rounded-lg px-2 py-1 text-2xs font-semibold uppercase ${STATE_STYLE[invoice.dueState]}`}>{ui(STATE_LABEL[invoice.dueState])}</span>
     </div>
     <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
-      <div><dt className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Total")}</dt><dd className="font-black tabular-nums"><bdi>{fmt(invoice.totalAmount)}</bdi></dd></div>
-      <div><dt className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Paid")}</dt><dd className="font-black tabular-nums text-emerald-600"><bdi>{fmt(invoice.paid)}</bdi></dd></div>
-      <div><dt className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Balance")}</dt><dd className={`font-black tabular-nums ${invoice.balance > 0 && invoice.dueState !== "CANCELLED" ? "text-rose-600" : "text-ink-muted"}`}><bdi>{fmt(invoice.balance)}</bdi></dd></div>
+      <div><dt className="text-2xs font-semibold uppercase text-ink-subtle">{ui("Total")}</dt><dd className="font-bold tabular-nums"><bdi>{fmt(invoice.totalAmount)}</bdi></dd></div>
+      <div><dt className="text-2xs font-semibold uppercase text-ink-subtle">{ui("Paid")}</dt><dd className="font-bold tabular-nums text-emerald-600"><bdi>{fmt(invoice.paid)}</bdi></dd></div>
+      <div><dt className="text-2xs font-semibold uppercase text-ink-subtle">{ui("Balance")}</dt><dd className={`font-bold tabular-nums ${invoice.balance > 0 && invoice.dueState !== "CANCELLED" ? "text-rose-600" : "text-ink-muted"}`}><bdi>{fmt(invoice.balance)}</bdi></dd></div>
     </dl>
-    {invoice.installments && <div className="mt-3 space-y-1"><p className="text-[10px] font-bold uppercase text-ink-subtle">{ui("Instalment plan")}</p><InstallmentSchedule installments={invoice.installments} currency={invoice.currency} /></div>}
+    {invoice.installments && <div className="mt-3 space-y-1"><p className="text-2xs font-semibold uppercase text-ink-subtle">{ui("Instalment plan")}</p><InstallmentSchedule installments={invoice.installments} currency={invoice.currency} /></div>}
     {(invoice.adjustments ?? []).length > 0 && <ul className="mt-3 space-y-1 text-xs" data-invoice-adjustments>{invoice.adjustments!.map(row => <li key={row.id} className="rounded-lg bg-sky-50 px-3 py-1.5" data-family-adjustment={row.status}>
       <span className="font-bold">{row.kind === "REFUND" ? (row.status === "DISBURSED" ? ui("Refund paid: {0}", [fmt(row.amount)]) : ui("Refund approved: {0} — waiting to be paid out", [fmt(row.amount)])) : row.kind === "WAIVER" ? ui("Waiver: {0} less owed (not a cash refund)", [fmt(row.amount)]) : ui("Credit note: {0} less owed (not a cash refund)", [fmt(row.amount)])}</span> · <bdi>{row.publicExplanation}</bdi></li>)}</ul>}
     {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <a className="font-bold text-primary underline-offset-2 hover:underline" href={`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`} data-receipt-download>{ui("Download receipt")}</a></li>)}</ul>}

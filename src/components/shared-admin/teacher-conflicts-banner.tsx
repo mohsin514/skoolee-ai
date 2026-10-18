@@ -42,8 +42,8 @@ export function TeacherConflictsBanner() {
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-black text-[#1f1a23]">{ui("Teacher scheduling conflicts")}</p>
-            <p className="mt-0.5 text-[10px] font-bold text-ink-muted">
+            <p className="text-sm font-bold text-ink-strong">{ui("Teacher scheduling conflicts")}</p>
+            <p className="mt-0.5 text-2xs font-bold text-ink-muted">
               {doubleBooked.length > 0
                 ? ui("{0} teacher(s) double-booked across {1} period(s)", [doubleBooked.length, totalClashes])
                 : null}
@@ -63,12 +63,12 @@ export function TeacherConflictsBanner() {
             <div key={`over-${t.id}`} className="rounded-2xl bg-white p-3">
               <div className="flex items-center gap-2">
                 <Users className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <p className="text-xs font-black text-[#1f1a23]">{t.fullName}</p>
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-600">
+                <p className="text-xs font-bold text-ink-strong">{t.fullName}</p>
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-amber-600">
                   {ui("Over-committed")}
                 </span>
               </div>
-              <p className="mt-1 pl-5 text-[10px] font-bold leading-relaxed text-ink-muted">
+              <p className="mt-1 pl-5 text-2xs font-bold leading-relaxed text-ink-muted">
                 {ui("Takes every period of {0} — only one is possible.", [t.wholeSectionClasses.map((c) => c.label).join(", ")])}
               </p>
             </div>
@@ -78,8 +78,8 @@ export function TeacherConflictsBanner() {
             <div key={`clash-${t.id}`} className="rounded-2xl bg-white p-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
-                <p className="text-xs font-black text-[#1f1a23]">{t.fullName}</p>
-                <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-rose-600">
+                <p className="text-xs font-bold text-ink-strong">{t.fullName}</p>
+                <span className="rounded-full bg-rose-50 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-rose-600">
                   {ui("{0} clash(es)", [t.conflicts.length])}
                 </span>
               </div>
@@ -88,18 +88,18 @@ export function TeacherConflictsBanner() {
                   <span
                     key={`${t.id}-${c.day}-${c.period}`}
                     title={c.classes.join(" & ")}
-                    className="rounded-lg bg-rose-50 px-2 py-1 text-[9px] font-black text-rose-700"
+                    className="rounded-lg bg-rose-50 px-2 py-1 text-2xs font-bold text-rose-700"
                   >
                     {c.label} · {c.classes.join(" / ")}
                   </span>
                 ))}
                 {t.conflicts.length > 8 ? (
-                  <span className="rounded-lg bg-[#f3f4f9] px-2 py-1 text-[9px] font-black text-ink-muted">
+                  <span className="rounded-lg bg-muted px-2 py-1 text-2xs font-bold text-ink-muted">
                     {ui("+{0} more", [t.conflicts.length - 8])}
                   </span>
                 ) : null}
               </div>
-              <p className="mt-2 pl-5 text-[9px] font-bold text-ink-muted">
+              <p className="mt-2 pl-5 text-2xs font-bold text-ink-muted">
                 {ui("Fix in Timetable — move one of the clashing periods to a free slot or a different teacher.")}
               </p>
             </div>

@@ -65,14 +65,14 @@ export default async function AnalyticsPage() {
       />
       <div className="p-6 space-y-6">
         {!billing.limits.analyticsEnabled && (
-          <Card className="sk-rise border-[#8127cf]/20 bg-[#fbf0fe]/50 shadow-none" style={{ animationDelay: "0ms" }}>
+          <Card className="sk-rise border-primary/20 bg-brand-50/50 shadow-none" style={{ animationDelay: "0ms" }}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-ink">
-                  Upgrade to <span className="font-bold text-[#8127cf]">Pro</span> for AI-powered insights, cohort trends, and intervention summaries.
+                  Upgrade to <span className="font-bold text-primary">Pro</span> for AI-powered insights, cohort trends, and intervention summaries.
                 </p>
                 <Link href="/dashboard/billing">
-                  <Button size="sm" variant="outline" className="border-[#8127cf]/30 text-[#8127cf] hover:bg-[#8127cf] hover:text-white">
+                  <Button size="sm" variant="outline" className="border-primary/30 text-primary hover:bg-primary hover:text-white">
                     Upgrade
                     <ArrowUpRight className="h-3 w-3 ml-1" />
                   </Button>

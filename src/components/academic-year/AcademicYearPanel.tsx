@@ -5,7 +5,7 @@ import {
   AlertTriangle, ArrowRight, Calendar, CheckCircle2, ChevronDown, ChevronRight,
   GraduationCap, History, Loader2, Lock, RefreshCw, Users, X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
@@ -282,19 +282,19 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
     return (
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-lg overflow-hidden animate-skeleton-in" style={{ animationDelay: `${i * 100}ms` }}>
+          <div key={i} className="rounded-[28px] border border-edge/10 bg-white shadow-lg overflow-hidden animate-skeleton-in" style={{ animationDelay: `${i * 100}ms` }}>
             <div className="flex items-center justify-between p-5">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-12 w-12 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
                 <div className="space-y-2">
-                  <div className="h-5 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                  <div className="h-5 w-40 rounded-full bg-border-subtle/50 skeleton-shimmer" />
                   <div className="flex items-center gap-3">
-                    <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                    <div className="h-4 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-20 rounded-full bg-border-subtle/30 skeleton-shimmer" />
                   </div>
                 </div>
               </div>
-              <div className="h-5 w-5 rounded bg-[#e8e0ec]/30 skeleton-shimmer" />
+              <div className="h-5 w-5 rounded bg-border-subtle/30 skeleton-shimmer" />
             </div>
           </div>
         ))}
@@ -320,20 +320,20 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 role="button" tabIndex={0}
                 onClick={() => setExpandedYear(expandedYear === yg.year ? null : yg.year)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedYear(expandedYear === yg.year ? null : yg.year); } }}
-                className="w-full flex items-center justify-between p-5 text-left cursor-pointer hover:bg-[#fbf0fe]/30 transition-colors"
+                className="w-full flex items-center justify-between p-5 text-left cursor-pointer hover:bg-brand-50/30 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
                     {yg.status === "COMPLETED" ? <CheckCircle2 className="h-6 w-6" /> : <Calendar className="h-6 w-6" />}
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-[#1d1b20]">Academic Year {yg.year}</h3>
+                    <h3 className="text-lg font-bold text-ink-strong">Academic Year {yg.year}</h3>
                     <div className="flex items-center gap-3 mt-0.5">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                      <span className={`text-2xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
                         {yearStatusLabel(yg.status)}
                       </span>
-                      <span className="text-[11px] font-semibold text-ink-muted">{yg.classes.length} classes</span>
-                      <span className="text-[11px] font-semibold text-ink-muted">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
+                      <span className="text-2xs font-semibold text-ink-muted">{yg.classes.length} classes</span>
+                      <span className="text-2xs font-semibold text-ink-muted">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
                     </div>
                   </div>
                 </div>
@@ -353,33 +353,33 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
               </div>
 
               {expandedYear === yg.year && (
-                <div className="border-t border-[#cfc2d6]/10 p-5 bg-[#fbf0fe]/10">
+                <div className="border-t border-edge/10 p-5 bg-brand-50/10">
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {yg.classes.map((cls) => (
                       <div key={cls.id} className="sk-panel p-4 transition-all">
                         <div className="flex items-start justify-between mb-3">
                           <div>
-                            <h4 className="text-sm font-bold text-[#1d1b20]">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
-                            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">
+                            <h4 className="text-sm font-bold text-ink-strong">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
+                            <p className="text-2xs font-semibold text-ink-subtle mt-0.5">
                               {cls.classTeacher?.fullName || "No class teacher"}
                             </p>
                           </div>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                          <span className={`text-2xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
                             {yearStatusLabel(cls.status)}
                           </span>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-3">
-                          <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
-                            <p className="text-sm font-bold text-[#8127cf]">{cls._count.students}</p>
-                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Students</p>
+                          <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
+                            <p className="text-sm font-bold text-primary">{cls._count.students}</p>
+                            <p className="text-3xs font-semibold uppercase text-ink-subtle">Students</p>
                           </div>
-                          <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
-                            <p className="text-sm font-bold text-[#1d1b20]">{cls._count.subjects}</p>
-                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Subjects</p>
+                          <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
+                            <p className="text-sm font-bold text-ink-strong">{cls._count.subjects}</p>
+                            <p className="text-3xs font-semibold uppercase text-ink-subtle">Subjects</p>
                           </div>
-                          <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
-                            <p className="text-sm font-bold text-[#1d1b20]">{cls._count.exams}</p>
-                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Exams</p>
+                          <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
+                            <p className="text-sm font-bold text-ink-strong">{cls._count.exams}</p>
+                            <p className="text-3xs font-semibold uppercase text-ink-subtle">Exams</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -426,51 +426,51 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
               <div className="space-y-2 py-4 animate-skeleton-in">
                 <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-2.5 w-12 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div key={i} className="h-2.5 w-12 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                   ))}
                 </div>
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
-                    <div className="h-3 w-5 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
-                    <div className="h-3.5 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                    <div className="h-3 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-10 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-5 w-14 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                    <div className="h-3 w-5 rounded-full bg-border-subtle/30 skeleton-shimmer" />
+                    <div className="h-3.5 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                    <div className="h-3 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-5 w-14 rounded-full bg-border-subtle/30 skeleton-shimmer" />
                   </div>
                 ))}
               </div>
             ) : historyRecords.length > 0 ? (
               <div className="space-y-2">
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   <span>#</span><span>Student</span><span>Admission No</span><span>Roll No</span><span>Grade</span><span>Status</span>
                 </div>
                 {historyRecords.map((record, i) => (
-                  <div key={record.id} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl hover:bg-[#fbf0fe]/30 transition-colors">
+                  <div key={record.id} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl hover:bg-brand-50/30 transition-colors">
                     <span className="text-xs font-bold text-ink-subtle">{i + 1}</span>
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-9 w-9 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
-                        <AvatarImage src={record.student.profileImageUrl} name={record.student.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-[11px]" />
+                      <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-50 overflow-hidden">
+                        <AvatarImage src={record.student.profileImageUrl} name={record.student.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-2xs" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#1d1b20] truncate">{record.student.fullName}</p>
+                        <p className="text-sm font-bold text-ink-strong truncate">{record.student.fullName}</p>
                         {record.student.class && (
-                          <p className="text-[10px] font-semibold text-ink-subtle">
+                          <p className="text-2xs font-semibold text-ink-subtle">
                             Now in: {record.student.class.name}{record.student.class.section ? ` - ${record.student.class.section}` : ""}
                           </p>
                         )}
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-[#8127cf]">{record.student.admissionNo || "—"}</span>
+                    <span className="text-xs font-bold text-primary">{record.student.admissionNo || "—"}</span>
                     <span className="text-xs font-semibold text-ink-muted">{record.rollNo}</span>
-                    <span className="text-sm font-bold text-[#1d1b20]">
+                    <span className="text-sm font-bold text-ink-strong">
                       {record.finalGrade || (record.finalPercentage ? `${Math.round(record.finalPercentage)}%` : "—")}
                     </span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                    <span className={`text-2xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
                       record.status === "PROMOTED" ? "bg-emerald-50 text-emerald-600" :
                       record.status === "GRADUATED" ? "bg-blue-50 text-blue-600" :
                       record.status === "DROPPED" ? "bg-rose-50 text-rose-600" :
-                      "bg-[#fbf0fe] text-[#8127cf]"
+                      "bg-brand-50 text-primary"
                     }`}>
                       {record.status}
                     </span>
@@ -507,14 +507,14 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   const isDone = idx < stepIdx;
                   return (
                     <div key={step} className="flex items-center gap-2">
-                      {idx > 0 && <div className={cn("h-0.5 w-8", isDone || isActive ? "bg-[#8127cf]" : "bg-[#e8e0ec]")} />}
-                      <div className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all",
-                        isActive ? "bg-[#8127cf] text-white" : isDone ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
+                      {idx > 0 && <div className={cn("h-0.5 w-8", isDone || isActive ? "bg-primary" : "bg-border-subtle")} />}
+                      <div className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all",
+                        isActive ? "bg-primary text-white" : isDone ? "bg-emerald-100 text-emerald-600" : "bg-muted text-ink-subtle"
                       )}>
                         {isDone ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
                       </div>
-                      <span className={cn("text-[10px] font-bold uppercase tracking-wider hidden sm:block",
-                        isActive ? "text-[#8127cf]" : isDone ? "text-emerald-600" : "text-ink-subtle"
+                      <span className={cn("text-2xs font-semibold uppercase tracking-wider hidden sm:block",
+                        isActive ? "text-primary" : isDone ? "text-emerald-600" : "text-ink-subtle"
                       )}>
                         {step === "source" ? "Select Class" : step === "review" ? "Review" : "Promote"}
                       </span>
@@ -535,12 +535,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <Button aria-pressed={promoteSourceId === cls.id} variant="choice" key={cls.id} type="button" onClick={() => setPromoteSourceId(cls.id)}
                       className="block text-left">
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="text-sm font-bold text-[#1d1b20]">{clsLabel(cls)}</h4>
-                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                        <h4 className="text-sm font-bold text-ink-strong">{clsLabel(cls)}</h4>
+                        <span className={`text-2xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
                           {yearStatusLabel(cls.status)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] font-semibold text-ink-muted">
+                      <div className="flex items-center gap-3 text-2xs font-semibold text-ink-muted">
                         <span>{cls._count.students} students</span>
                         <span>Year {cls.academicYear}</span>
                         <span>{cls.classTeacher?.fullName || "No teacher"}</span>
@@ -554,7 +554,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <p className="text-sm font-bold text-ink-subtle">No classes with students found</p>
                   </div>
                 )}
-                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[#cfc2d6]/10">
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={closePromotionWizard}>Cancel</BrandButton>
                   <BrandButton variant="dark" disabled={!promoteSourceId} onClick={() => {
                     const src = allClasses.find((c) => c.id === promoteSourceId);
@@ -571,11 +571,11 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {promoteStep === "review" && (
               <div className="space-y-5">
                 {sourceClass && (
-                  <div className="flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 px-4 py-3">
-                    <GraduationCap className="h-5 w-5 text-[#8127cf] shrink-0" />
+                  <div className="flex items-center gap-3 rounded-2xl bg-brand-50/50 border border-edge/10 px-4 py-3">
+                    <GraduationCap className="h-5 w-5 text-primary shrink-0" />
                     <div>
-                      <p className="text-sm font-bold text-[#1f1a23]">{clsLabel(sourceClass)}</p>
-                      <p className="text-[10px] font-semibold text-ink-muted">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
+                      <p className="text-sm font-bold text-ink-strong">{clsLabel(sourceClass)}</p>
+                      <p className="text-2xs font-semibold text-ink-muted">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
                     </div>
                   </div>
                 )}
@@ -584,12 +584,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   <div className="space-y-3 py-4 animate-skeleton-in">
                     {Array.from({ length: 4 }).map((_, i) => (
                       <div key={i} className="flex items-center gap-4 px-4 py-3 rounded-2xl animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
-                        <div className="h-8 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                        <div className="h-8 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                         <div className="flex-1 space-y-1.5">
-                          <div className="h-3.5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                          <div className="h-2.5 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                          <div className="h-3.5 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                          <div className="h-2.5 w-20 rounded-full bg-border-subtle/30 skeleton-shimmer" />
                         </div>
-                        <div className="h-5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                        <div className="h-5 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                       </div>
                     ))}
                   </div>
@@ -614,26 +614,26 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         {/* Summary stats */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           {[
-                            { label: "Total Students", value: gradeResults.length, tone: "bg-[#fbf0fe] text-[#8127cf]" },
+                            { label: "Total Students", value: gradeResults.length, tone: "bg-brand-50 text-primary" },
                             ...(gradeError ? [] : [
                               { label: "Passed", value: gradeResults.filter((g) => g.passed).length, tone: "bg-emerald-50 text-emerald-600" },
                               { label: "Failed", value: gradeResults.filter((g) => !g.passed).length, tone: "bg-rose-50 text-rose-500" },
                             ]),
-                            { label: "To Promote", value: studentsToPromote.length, tone: "bg-[#1f1a23] text-white" },
+                            { label: "To Promote", value: studentsToPromote.length, tone: "bg-ink-strong text-white" },
                           ].map((s) => (
                             <div key={s.label} className={cn("rounded-2xl px-4 py-3 text-center", s.tone)}>
-                              <p className="text-xl font-black">{s.value}</p>
-                              <p className="text-[9px] font-bold uppercase tracking-wider opacity-70">{s.label}</p>
+                              <p className="text-xl font-bold">{s.value}</p>
+                              <p className="text-2xs font-semibold uppercase tracking-wider opacity-70">{s.label}</p>
                             </div>
                           ))}
                         </div>
 
                         {/* Student list with checkboxes */}
-                        <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10">
+                        <div className="overflow-x-auto rounded-2xl border border-edge/10">
                           <table className="w-full text-left">
                             <thead>
-                              <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">
+                              <tr className="border-b border-edge/10 bg-brand-50/30">
+                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                                   <SystemCheckbox
                                     checked={gradeResults.length > 0 && gradeResults.every((g) => studentDecisions.get(g.studentId) === "promote")}
                                     onChange={(e) => {
@@ -641,28 +641,28 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                       gradeResults.forEach((g) => next.set(g.studentId, e.target.checked ? "promote" : "retain"));
                                       setStudentDecisions(next);
                                     }}
-                                    className="accent-[#8127cf] h-4 w-4 rounded cursor-pointer"
+                                    className="accent-primary h-4 w-4 rounded cursor-pointer"
                                   />
                                 </th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">#</th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Student</th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Roll No</th>
+                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">#</th>
+                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Student</th>
+                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Roll No</th>
                                 {!gradeError && (
                                   <>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">%</th>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Grade</th>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Status</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">%</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Grade</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Status</th>
                                   </>
                                 )}
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Decision</th>
+                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Decision</th>
                               </tr>
                             </thead>
                             <tbody>
                               {gradeResults.map((g) => {
                                 const decision = studentDecisions.get(g.studentId) || "promote";
                                 return (
-                                  <tr key={g.studentId} className={cn("border-b border-[#cfc2d6]/5 transition-colors",
-                                    !g.passed && !gradeError ? "bg-rose-50/30" : decision === "retain" ? "bg-amber-50/20" : "hover:bg-[#fbf0fe]/20"
+                                  <tr key={g.studentId} className={cn("border-b border-edge/5 transition-colors",
+                                    !g.passed && !gradeError ? "bg-rose-50/30" : decision === "retain" ? "bg-amber-50/20" : "hover:bg-brand-50/20"
                                   )}>
                                     <td className="px-4 py-3">
                                       <SystemCheckbox  checked={decision === "promote"}
@@ -671,22 +671,22 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                           next.set(g.studentId, e.target.checked ? "promote" : "retain");
                                           setStudentDecisions(next);
                                         }}
-                                        className="accent-[#8127cf] h-4 w-4 rounded cursor-pointer"
+                                        className="accent-primary h-4 w-4 rounded cursor-pointer"
                                       />
                                     </td>
                                     <td className="px-4 py-3 text-xs font-bold text-ink-subtle">{g.rank}</td>
-                                    <td className="px-4 py-3 text-sm font-bold text-[#1f1a23] truncate max-w-[200px]">{g.studentName}</td>
+                                    <td className="px-4 py-3 text-sm font-bold text-ink-strong truncate max-w-[200px]">{g.studentName}</td>
                                     <td className="px-4 py-3 text-xs font-semibold text-ink-muted">{g.rollNo || "—"}</td>
                                     {!gradeError && (
                                       <>
                                         <td className="px-4 py-3 text-center">
-                                          <span className={cn("text-sm font-black",
+                                          <span className={cn("text-sm font-bold",
                                             g.overallPercentage >= 80 ? "text-emerald-600" : g.overallPercentage >= 50 ? "text-amber-600" : "text-rose-500"
                                           )}>{Math.round(g.overallPercentage)}%</span>
                                         </td>
-                                        <td className="px-4 py-3 text-center text-sm font-bold text-[#1f1a23]">{g.overallGrade}</td>
+                                        <td className="px-4 py-3 text-center text-sm font-bold text-ink-strong">{g.overallGrade}</td>
                                         <td className="px-4 py-3 text-center">
-                                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider",
                                             g.passed ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-500"
                                           )}>
                                             {g.passed ? <CheckCircle2 className="h-3 w-3" /> : <X className="h-3 w-3" />}
@@ -725,7 +725,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   </>
                 )}
 
-                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-[#cfc2d6]/10">
+                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={() => setPromoteStep("source")}>
                     Back
                   </BrandButton>
@@ -743,7 +743,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   {/* Left: target selection */}
                   <div>
                     <label className="block mb-4">
-                      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
+                      <span className="mb-1.5 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
                       <SystemSelect value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
                         className="h-14 w-full px-4">
                         <option value="">Select target class</option>
@@ -761,44 +761,44 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                           <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
                           No class exists for {sourceClass ? sourceClass.academicYear + 1 : "next year"} yet.
                         </p>
-                        <p className="text-[11px] font-semibold text-amber-700/70 mt-1">
+                        <p className="text-2xs font-semibold text-amber-700/70 mt-1">
                           Create the destination class in the Academic Plan first, then promote into it.
                         </p>
                       </div>
                     ) : null}
 
-                    <div className="rounded-2xl border border-[#8127cf]/15 bg-[#fbf0fe]/60 p-4 mb-3">
-                      <p className="text-[11px] font-bold text-[#8127cf]">
+                    <div className="rounded-2xl border border-primary/15 bg-brand-50/60 p-4 mb-3">
+                      <p className="text-2xs font-bold text-primary">
                         <Lock className="h-3.5 w-3.5 inline mr-1" />
                         Class changes are only allowed via promotion
                       </p>
-                      <p className="text-[10px] font-semibold text-ink-muted mt-0.5">
+                      <p className="text-2xs font-semibold text-ink-muted mt-0.5">
                         Moving a student mid-year is possible from the student profile, but year-end promotion records history and final results.
                       </p>
                     </div>
 
                     {/* Summary */}
-                    <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 space-y-3">
+                    <div className="rounded-2xl bg-brand-50/50 border border-edge/10 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-ink-muted">Students to promote</span>
-                        <span className="text-sm font-black text-emerald-600">{studentsToPromote.length}</span>
+                        <span className="text-sm font-bold text-emerald-600">{studentsToPromote.length}</span>
                       </div>
                       {studentsToRetain.length > 0 && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-ink-muted">Students retained</span>
-                          <span className="text-sm font-black text-amber-600">{studentsToRetain.length}</span>
+                          <span className="text-sm font-bold text-amber-600">{studentsToRetain.length}</span>
                         </div>
                       )}
                       {sourceClass && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-ink-muted">From</span>
-                          <span className="text-sm font-bold text-[#1f1a23]">{clsLabel(sourceClass)} ({sourceClass.academicYear})</span>
+                          <span className="text-sm font-bold text-ink-strong">{clsLabel(sourceClass)} ({sourceClass.academicYear})</span>
                         </div>
                       )}
                       {targetClass && (
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-ink-muted">To</span>
-                          <span className="text-sm font-bold text-[#8127cf]">{clsLabel(targetClass)} ({targetClass.academicYear})</span>
+                          <span className="text-sm font-bold text-primary">{clsLabel(targetClass)} ({targetClass.academicYear})</span>
                         </div>
                       )}
                     </div>
@@ -806,25 +806,25 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                   {/* Right: roll number preview */}
                   <div>
-                    <p className="mb-1.5 pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">New Roll Number Preview</p>
+                    <p className="mb-1.5 pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">New Roll Number Preview</p>
                     {promoteTargetId && targetClass ? (
-                      <div className="max-h-[400px] overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 custom-scrollbar">
+                      <div className="max-h-[400px] overflow-y-auto rounded-2xl border border-edge/10 custom-scrollbar">
                         <table className="w-full text-left">
                           <thead>
-                            <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30 sticky top-0">
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted">Student</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted">Old Roll</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted text-center">→</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-[#8127cf]">New Roll</th>
+                            <tr className="border-b border-edge/10 bg-brand-50/30 sticky top-0">
+                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-ink-muted">Student</th>
+                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-ink-muted">Old Roll</th>
+                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-ink-muted text-center">→</th>
+                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-primary">New Roll</th>
                             </tr>
                           </thead>
                           <tbody>
                             {studentsToPromote.map((g, idx) => (
-                              <tr key={g.studentId} className="border-b border-[#cfc2d6]/5 hover:bg-[#fbf0fe]/20">
-                                <td className="px-3 py-2 text-xs font-bold text-[#1f1a23] truncate max-w-[160px]">{g.studentName}</td>
+                              <tr key={g.studentId} className="border-b border-edge/5 hover:bg-brand-50/20">
+                                <td className="px-3 py-2 text-xs font-bold text-ink-strong truncate max-w-[160px]">{g.studentName}</td>
                                 <td className="px-3 py-2 text-xs font-semibold text-ink-muted">{g.rollNo || "—"}</td>
-                                <td className="px-3 py-2 text-center"><ArrowRight className="h-3 w-3 text-[#8127cf] mx-auto" /></td>
-                                <td className="px-3 py-2 text-xs font-black text-[#8127cf]">
+                                <td className="px-3 py-2 text-center"><ArrowRight className="h-3 w-3 text-primary mx-auto" /></td>
+                                <td className="px-3 py-2 text-xs font-bold text-primary">
                                   {generateRollNoPreview(targetClass.name, targetClass.section, idx, targetClass._count.students)}
                                 </td>
                               </tr>
@@ -833,7 +833,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         </table>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center h-[200px] rounded-2xl border border-dashed border-[#cfc2d6]/20">
+                      <div className="flex items-center justify-center h-[200px] rounded-2xl border border-dashed border-edge/20">
                         <p className="text-xs font-bold text-ink-subtle">Select a target class to preview roll numbers</p>
                       </div>
                     )}
@@ -848,13 +848,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {studentsToRetain.map((g) => (
-                        <span key={g.studentId} className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-bold text-amber-700">{g.studentName}</span>
+                        <span key={g.studentId} className="rounded-full bg-amber-100 px-2.5 py-0.5 text-2xs font-bold text-amber-700">{g.studentName}</span>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-[#cfc2d6]/10">
+                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={() => setPromoteStep(gradeResults.length > 0 ? "review" : "source")}>
                     Back
                   </BrandButton>
@@ -873,7 +873,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <CheckCircle2 className="h-10 w-10 text-emerald-600" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-[#1f1a23]">Promotion Complete</h3>
+                    <h3 className="text-2xl font-bold text-ink-strong">Promotion Complete</h3>
                     <p className="text-sm font-semibold text-ink-muted mt-2">
                       {promotionResults.promoted} student{promotionResults.promoted !== 1 ? "s" : ""} promoted
                       {targetClass ? ` to ${clsLabel(targetClass)}` : ""}
@@ -884,12 +884,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                 <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
                   <div className="rounded-2xl bg-emerald-50 p-4 text-center">
-                    <p className="text-3xl font-black text-emerald-600">{promotionResults.promoted}</p>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600/70 mt-1">Promoted</p>
+                    <p className="text-3xl font-extrabold text-emerald-600">{promotionResults.promoted}</p>
+                    <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-600/70 mt-1">Promoted</p>
                   </div>
                   <div className="rounded-2xl bg-amber-50 p-4 text-center">
-                    <p className="text-3xl font-black text-amber-600">{promotionResults.retained}</p>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600/70 mt-1">Retained</p>
+                    <p className="text-3xl font-extrabold text-amber-600">{promotionResults.retained}</p>
+                    <p className="text-2xs font-semibold uppercase tracking-wider text-amber-600/70 mt-1">Retained</p>
                   </div>
                 </div>
 
@@ -897,7 +897,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   New roll numbers have been assigned automatically. Student history records have been saved.
                 </p>
 
-                <div className="flex justify-center gap-3 pt-4 border-t border-[#cfc2d6]/10">
+                <div className="flex justify-center gap-3 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={closePromotionWizard}>Done</BrandButton>
                   <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={() => {
                     setPromoteStep("source");

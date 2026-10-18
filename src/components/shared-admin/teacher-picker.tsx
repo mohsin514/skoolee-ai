@@ -3,7 +3,7 @@ import { Button as SystemButton } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { AlertTriangle, Ban, Search, Sparkles, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
@@ -161,14 +161,14 @@ export function TeacherPicker({
 
   return (
     <div className="group/picker">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/picker:text-[#8127cf]">
+      <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/picker:text-primary">
         {label}
       </span>
 
       {open ? (
-        <div className="relative z-20 rounded-2xl border border-[#8127cf]/30 bg-white shadow-[0_20px_50px_rgba(31,26,35,0.14)] transition-all">
+        <div className="relative z-20 rounded-2xl border border-primary/30 bg-white shadow-[0_20px_50px_rgba(31,26,35,0.14)] transition-all">
           <InputGroup className="my-2">
-            <Search data-field-affix="start" className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
+            <Search data-field-affix="start" className="h-3.5 w-3.5 shrink-0 text-primary" />
             <SystemInput
               autoFocus
               type="text"
@@ -185,16 +185,16 @@ export function TeacherPicker({
                 onClick={() => pick("")}
                 className={cn(
                   "flex w-full items-center gap-3 px-3 py-2.5 text-left justify-start",
-                  value === "" ? "bg-[#fbf0fe]" : "hover:bg-[#fbf0fe]/60"
+                  value === "" ? "bg-brand-50" : "hover:bg-brand-50/60"
                 )}
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-ink-muted">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-ink-muted">
                   <UserPlus className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-black text-[#1f1a23]">Unassigned</p>
+                  <p className="text-xs font-bold text-ink-strong">Unassigned</p>
                   {showUnassignedHint ? (
-                    <p className="mt-0.5 text-[9px] font-bold text-ink-subtle">No teacher assigned yet</p>
+                    <p className="mt-0.5 text-2xs font-bold text-ink-subtle">No teacher assigned yet</p>
                   ) : null}
                 </div>
               </SystemButton>
@@ -223,21 +223,21 @@ export function TeacherPicker({
                     blocked
                       ? "cursor-not-allowed opacity-55"
                       : value === t.id
-                        ? "cursor-pointer bg-[#fbf0fe]"
-                        : "cursor-pointer hover:bg-[#fbf0fe]/60"
+                        ? "cursor-pointer bg-brand-50"
+                        : "cursor-pointer hover:bg-brand-50/60"
                   )}
                 >
-                  <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                    <AvatarImage src={teacherAvatar({ ...t, id: t.id })} name={t.fullName} alt="Teacher photo" initialsClassName="text-[10px]" />
+                  <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-edge/20 bg-white">
+                    <AvatarImage src={teacherAvatar({ ...t, id: t.id })} name={t.fullName} alt="Teacher photo" initialsClassName="text-2xs" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <p className="truncate text-xs font-black text-[#1f1a23]">{t.fullName || "Unnamed teacher"}</p>
+                      <p className="truncate text-xs font-bold text-ink-strong">{t.fullName || "Unnamed teacher"}</p>
                       {specialtyLabel ? (
                         <span
                           className={cn(
-                            "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider",
-                            a?.teachesAllSubjects ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"
+                            "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-3xs font-semibold uppercase tracking-wider",
+                            a?.teachesAllSubjects ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"
                           )}
                         >
                           {a?.teachesAllSubjects ? <Sparkles className="h-2 w-2" /> : null}
@@ -245,25 +245,25 @@ export function TeacherPicker({
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-0.5 truncate text-[9px] font-bold text-ink-muted">
+                    <p className="mt-0.5 truncate text-2xs font-bold text-ink-muted">
                       {subjectLoad(t)} subject{subjectLoad(t) !== 1 ? "s" : ""} · {classLoad(t)} class{classLoad(t) !== 1 ? "es" : ""}
                     </p>
 
                     {blocked ? (
-                      <p className="mt-1 flex items-start gap-1 text-[9px] font-black leading-snug text-rose-600">
+                      <p className="mt-1 flex items-start gap-1 text-2xs font-bold leading-snug text-rose-600">
                         <Ban className="mt-px h-2.5 w-2.5 shrink-0" />
                         {blocked}
                       </p>
                     ) : null}
                     {!blocked && conflictCount > 0 ? (
-                      <p className="mt-1 flex items-start gap-1 text-[9px] font-black leading-snug text-rose-600">
+                      <p className="mt-1 flex items-start gap-1 text-2xs font-bold leading-snug text-rose-600">
                         <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
                         {conflictCount} timetable clash{conflictCount !== 1 ? "es" : ""} ({a!.conflicts.slice(0, 2).map((c) => c.label).join(", ")}
                         {conflictCount > 2 ? "…" : ""})
                       </p>
                     ) : null}
                     {!blocked && offSpecialty ? (
-                      <p className="mt-1 flex items-start gap-1 text-[9px] font-black leading-snug text-amber-600">
+                      <p className="mt-1 flex items-start gap-1 text-2xs font-bold leading-snug text-amber-600">
                         <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
                         Not their specialty{subjectName ? ` (${subjectName})` : ""}
                       </p>
@@ -273,7 +273,7 @@ export function TeacherPicker({
               );
             })}
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-center text-[10px] font-bold text-ink-subtle">No teachers match your search.</p>
+              <p className="px-3 py-4 text-center text-2xs font-bold text-ink-subtle">No teachers match your search.</p>
             ) : null}
           </div>
         </div>
@@ -286,13 +286,13 @@ export function TeacherPicker({
           >
             {value ? (
               <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                  {selected ? <AvatarImage src={teacherAvatar({ ...selected, id: selected.id })} name={selected.fullName} alt="Teacher photo" initialsClassName="text-[10px]" /> : null}
+                <span className="flex h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-edge/20 bg-white">
+                  {selected ? <AvatarImage src={teacherAvatar({ ...selected, id: selected.id })} name={selected.fullName} alt="Teacher photo" initialsClassName="text-2xs" /> : null}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-black text-[#1f1a23]">{selected?.fullName || "Assigned teacher"}</span>
+                  <span className="block truncate text-sm font-bold text-ink-strong">{selected?.fullName || "Assigned teacher"}</span>
                   {selected ? (
-                    <span className="block text-[9px] font-bold text-ink-muted">
+                    <span className="block text-2xs font-bold text-ink-muted">
                       {subjectLoad(selected)} subjects · {classLoad(selected)} classes
                       {selectedAvail?.teachesAllSubjects
                         ? " · All subjects"
@@ -306,7 +306,7 @@ export function TeacherPicker({
             ) : (
               <span className="text-sm font-bold text-ink-muted">{allowUnassigned ? "Assign / Unassigned" : "Select teacher"}</span>
             )}
-            <span className="ml-3 shrink-0 rounded-lg bg-[#8127cf]/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
+            <span className="ml-3 shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-primary">
               Change
             </span>
           </SystemButton>
@@ -314,14 +314,14 @@ export function TeacherPicker({
           {/* Warnings on the current selection stay visible while collapsed, so
               an existing bad assignment isn't hidden behind a closed dropdown. */}
           {selectedAvail && selectedAvail.conflicts.length > 0 ? (
-            <p className="mt-1.5 flex items-start gap-1 pl-2 text-[9px] font-black leading-snug text-rose-600">
+            <p className="mt-1.5 flex items-start gap-1 pl-2 text-2xs font-bold leading-snug text-rose-600">
               <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
               Double-booked at {selectedAvail.conflicts.slice(0, 3).map((c) => c.label).join(", ")}
               {selectedAvail.conflicts.length > 3 ? ` +${selectedAvail.conflicts.length - 3} more` : ""}
             </p>
           ) : null}
           {selectedOffSpecialty ? (
-            <p className="mt-1.5 flex items-start gap-1 pl-2 text-[9px] font-black leading-snug text-amber-600">
+            <p className="mt-1.5 flex items-start gap-1 pl-2 text-2xs font-bold leading-snug text-amber-600">
               <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
               {selected?.fullName} isn&apos;t a {subjectName} specialist
             </p>

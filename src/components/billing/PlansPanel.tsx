@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   ArrowUpRight,
   Building2,
@@ -200,7 +200,7 @@ export function PlansPanel() {
         <Card
           className={`sk-rise ${
             billing.isOperational
-              ? "border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              ? "border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               : "border-amber-200 bg-amber-50/70 shadow-none"
           }`}
           style={{ animationDelay: "0ms" }}
@@ -229,7 +229,7 @@ export function PlansPanel() {
             )}
           </CardHeader>
           <CardContent className="space-y-5">
-            <p className="rounded-lg border border-[#e8e0ed] bg-white p-3 text-xs leading-5 text-ink-muted">
+            <p className="rounded-lg border border-border-subtle bg-white p-3 text-xs leading-5 text-ink-muted">
               Regional default: <bdi>{billing.regionalCurrency || "USD"}</bdi>. Catalogue prices and configured checkout are in <bdi>{billing.priceCurrency || "PKR"}</bdi>; no currency conversion is applied.
               {billing.commercialContractVersion && <> Current terms: <bdi>{billing.commercialContractVersion}</bdi>.</>}
             </p>
@@ -273,12 +273,12 @@ export function PlansPanel() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-1">
               <div>
-                <p className="text-sm font-bold text-[#1f1a23]">Choose your billing period</p>
+                <p className="text-sm font-bold text-ink-strong">Choose your billing period</p>
                 <p className="text-xs font-semibold text-ink-muted">
                   Pay annually and save {Math.round(ANNUAL_DISCOUNT * 100)}% on every paid plan.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-1 rounded-full border border-[#cfc2d6]/25 bg-[#f3f4f9] p-1 self-start sm:self-auto">
+              <div className="inline-flex items-center gap-1 rounded-full border border-edge/25 bg-muted p-1 self-start sm:self-auto">
                 {(["monthly", "annual"] as const).map((period) => {
                   const label = period === "monthly" ? "Monthly" : "Annual";
                   const active = billingPeriod === period;
@@ -294,7 +294,7 @@ export function PlansPanel() {
                       {label}
                       {isAnnual && (
                         <span
-                          className={`rounded-full px-1.5 py-0.5 text-[9px] ${
+                          className={`rounded-full px-1.5 py-0.5 text-2xs ${
                             active ? "bg-white/25 text-white" : "bg-emerald-100 text-emerald-700"
                           }`}
                         >
@@ -317,29 +317,29 @@ export function PlansPanel() {
                   <div
                     key={plan.type}
                     className={`flex flex-col rounded-2xl border p-5 transition-all ${
-                      isCurrent ? "border-[#8127cf]/30 bg-[#fbf0fe]/40" : "border-[#cfc2d6]/25 bg-white hover:shadow-md"
+                      isCurrent ? "border-primary/30 bg-brand-50/40" : "border-edge/25 bg-white hover:shadow-md"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]">{plan.name}</p>
+                      <p className="text-2xs font-semibold uppercase tracking-normal text-primary">{plan.name}</p>
                       {isCurrent && <Badge>Current</Badge>}
                     </div>
 
                     <div className="mt-3 min-h-[3.5rem]">
                       {plan.isCustom ? (
                         <>
-                          <div className="text-2xl font-black text-[#1f1a23]">Custom</div>
+                          <div className="text-2xl font-bold text-ink-strong">Custom</div>
                           <p className="mt-1 text-xs font-bold text-ink-muted">Quoted for your group</p>
                         </>
                       ) : plan.price === 0 ? (
                         <>
-                          <div className="text-2xl font-black text-[#1f1a23]">Free</div>
+                          <div className="text-2xl font-bold text-ink-strong">Free</div>
                           <p className="mt-1 text-xs font-bold text-ink-muted">Forever at this tier</p>
                         </>
                       ) : (
                         <>
                           <div className="flex items-end gap-1.5">
-                            <span className="text-2xl font-black text-[#1f1a23]">PKR {displayPrice?.toLocaleString()}</span>
+                            <span className="text-2xl font-bold text-ink-strong">PKR {displayPrice?.toLocaleString()}</span>
                             <span className="mb-1 text-xs font-bold text-ink-muted">/mo</span>
                           </div>
                           <p className="mt-1 text-xs font-bold text-ink-muted">
@@ -353,7 +353,7 @@ export function PlansPanel() {
                       )}
                     </div>
 
-                    <div className="mt-4 space-y-1.5 rounded-2xl bg-[#fbf0fe]/50 p-3 text-xs font-semibold text-ink">
+                    <div className="mt-4 space-y-1.5 rounded-2xl bg-brand-50/50 p-3 text-xs font-semibold text-ink">
                       <p>{formatLimit(plan.maxStudents)} students</p>
                       <p>{formatLimit(plan.maxTeachers)} teachers</p>
                       <p>{formatLimit(plan.maxCampuses)} campuses</p>
@@ -368,7 +368,7 @@ export function PlansPanel() {
                       ) : plan.isCustom ? (
                         <a
                           href={`mailto:${SALES_EMAIL}?subject=${contactSubject}&body=${contactBody}`}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#8127cf]/30 bg-[#fbf0fe] px-4 py-2.5 text-sm font-black text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-brand-50 px-4 py-2.5 text-sm font-bold text-primary transition-all hover:bg-primary hover:text-white"
                         >
                           <Mail className="h-4 w-4" />
                           Contact us
@@ -433,17 +433,17 @@ export function PlansPanel() {
               Transfer <strong>{bankInfo?.amountLabel}</strong> to the account below, then submit your payment reference.
             </p>
             {bankInfo ? (
-              <div className="rounded-xl bg-[#f3f4f9] p-4 space-y-2 mb-4">
-                <p className="text-sm font-black text-[#1f1a23]">{bankInfo.bankName}</p>
+              <div className="rounded-xl bg-muted p-4 space-y-2 mb-4">
+                <p className="text-sm font-bold text-ink-strong">{bankInfo.bankName}</p>
                 <p className="text-xs font-semibold text-ink-muted">
-                  Account Title: <span className="text-[#1f1a23]">{bankInfo.accountTitle}</span>
+                  Account Title: <span className="text-ink-strong">{bankInfo.accountTitle}</span>
                 </p>
                 <p className="text-xs font-semibold text-ink-muted">
-                  Account #: <span className="text-[#1f1a23]">{bankInfo.accountNumber}</span>
+                  Account #: <span className="text-ink-strong">{bankInfo.accountNumber}</span>
                 </p>
                 {bankInfo.iban && (
                   <p className="text-xs font-semibold text-ink-muted">
-                    IBAN: <span className="text-[#1f1a23]">{bankInfo.iban}</span>
+                    IBAN: <span className="text-ink-strong">{bankInfo.iban}</span>
                   </p>
                 )}
               </div>
@@ -453,7 +453,7 @@ export function PlansPanel() {
               </p>
             )}
             <div className="space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block">Payment Reference (optional)</label>
+              <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block">Payment Reference (optional)</label>
               <SystemInput
                 value={receiptRef}
                 onChange={(e) => setReceiptRef(e.target.value)}

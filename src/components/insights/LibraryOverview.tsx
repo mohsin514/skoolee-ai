@@ -131,8 +131,8 @@ export function LibraryOverview({
             />
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
-              <Library className="h-7 w-7 text-[#cfc2d6]" aria-hidden />
-              <p className="mt-2 px-2 text-[10px] font-bold leading-tight text-ink-subtle">No copies catalogued</p>
+              <Library className="h-7 w-7 text-edge" aria-hidden />
+              <p className="mt-2 px-2 text-2xs font-bold leading-tight text-ink-subtle">No copies catalogued</p>
             </div>
           )
         }

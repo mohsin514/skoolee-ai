@@ -92,41 +92,41 @@ export function ExamTimelineView({
             className={cn(
               "overflow-hidden rounded-3xl border bg-white shadow-sm transition-opacity",
               rel.tone === "today"
-                ? "border-[#8127cf]/40 ring-2 ring-[#8127cf]/10"
-                : "border-[#cfc2d6]/15",
+                ? "border-primary/40 ring-2 ring-primary/10"
+                : "border-edge/15",
               rel.tone === "past" && "opacity-70",
             )}
           >
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#cfc2d6]/10 bg-[#faf7fc] px-5 py-3">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-edge/10 bg-surface-subtle px-5 py-3">
               <div className="flex items-center gap-2.5">
                 <span
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-2xl",
                     rel.tone === "today"
-                      ? "bg-[#8127cf] text-white"
+                      ? "bg-primary text-white"
                       : rel.tone === "past"
-                        ? "bg-[#f3f4f9] text-ink-subtle"
-                        : "bg-[#fbf0fe] text-[#8127cf]",
+                        ? "bg-muted text-ink-subtle"
+                        : "bg-brand-50 text-primary",
                   )}
                 >
                   <CalendarDays className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-sm font-black text-[#1d1b20]">{formatDayHeading(date)}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                  <p className="text-sm font-bold text-ink-strong">{formatDayHeading(date)}</p>
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     {papers.length} paper{papers.length > 1 ? "s" : ""}
                   </p>
                 </div>
               </div>
               <span
                 className={cn(
-                  "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider",
+                  "rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider",
                   rel.tone === "today"
-                    ? "bg-[#8127cf] text-white"
+                    ? "bg-primary text-white"
                     : rel.tone === "soon"
                       ? "bg-amber-50 text-amber-700"
                       : rel.tone === "past"
-                        ? "bg-[#f3f4f9] text-ink-subtle"
+                        ? "bg-muted text-ink-subtle"
                         : "bg-teal-50 text-teal-700",
                 )}
               >
@@ -134,7 +134,7 @@ export function ExamTimelineView({
               </span>
             </header>
 
-            <ul className="divide-y divide-[#cfc2d6]/8">
+            <ul className="divide-y divide-edge/8">
               {papers.map((p) => {
                 const roomNames =
                   p.rooms && p.rooms.length > 0
@@ -149,33 +149,33 @@ export function ExamTimelineView({
                       onClick={() => onOpen(p.examId, "schedule")}
                       className="justify-start flex w-full flex-wrap items-center gap-3 px-5 py-3 text-left"
                     >
-                      <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-black text-[#8127cf]">
+                      <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-bold text-primary">
                         <Clock className="h-3.5 w-3.5" />
                         {p.periodDefinition
                           ? `${p.periodDefinition.startTime}`
                           : "No time"}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black text-[#1d1b20]">
+                        <span className="block text-sm font-bold text-ink-strong">
                           {p.subject?.name || "Paper"}
                         </span>
-                        <span className="block text-[11px] font-semibold text-ink-muted">
+                        <span className="block text-2xs font-semibold text-ink-muted">
                           {classLabel(p.exam?.class)} · {p.exam?.title}
                         </span>
                       </span>
                       {p.periodDefinition ? (
-                        <span className="rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[10px] font-bold text-ink-muted">
+                        <span className="rounded-full bg-muted px-2.5 py-1 text-2xs font-bold text-ink-muted">
                           Period {p.periodDefinition.periodNumber} ·{" "}
                           {p.periodDefinition.startTime}–{p.periodDefinition.endTime}
                         </span>
                       ) : null}
                       {roomNames.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold text-teal-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-2xs font-bold text-teal-700">
                           <DoorOpen className="h-3 w-3" />
                           {roomNames.join(" + ")}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-bold text-amber-700">
                           <MapPin className="h-3 w-3" /> No room
                         </span>
                       )}
@@ -191,10 +191,10 @@ export function ExamTimelineView({
       {unscheduled.length > 0 ? (
         <section className="overflow-hidden rounded-3xl border border-dashed border-amber-200 bg-amber-50/40">
           <header className="border-b border-amber-200/60 px-5 py-3">
-            <p className="text-sm font-black text-amber-800">
+            <p className="text-sm font-bold text-amber-800">
               {unscheduled.length} exam{unscheduled.length > 1 ? "s" : ""} with no dates yet
             </p>
-            <p className="text-[11px] font-semibold text-amber-700">
+            <p className="text-2xs font-semibold text-amber-700">
               These will not appear on the datesheet families see.
             </p>
           </header>
@@ -207,12 +207,12 @@ export function ExamTimelineView({
                   className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left"
                 >
                   <span>
-                    <span className="block text-sm font-black text-[#1d1b20]">{e.title}</span>
-                    <span className="block text-[11px] font-semibold text-ink-muted">
+                    <span className="block text-sm font-bold text-ink-strong">{e.title}</span>
+                    <span className="block text-2xs font-semibold text-ink-muted">
                       {classLabel(e.class)} · {e.term} {e.academicYear}
                     </span>
                   </span>
-                  <span className="rounded-xl bg-amber-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white">
+                  <span className="rounded-xl bg-amber-500 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-white">
                     Set dates
                   </span>
                 </Button>

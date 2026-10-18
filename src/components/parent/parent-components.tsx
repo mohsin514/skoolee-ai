@@ -13,8 +13,8 @@ export function ParentErrorState({ error, onRetry }: { error?: string | null; on
         <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
           <AlertCircle className="h-8 w-8" />
         </div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
-        <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your portal</h2>
+        <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Something went wrong</p>
+        <h2 className="mt-2 text-2xl font-bold text-ink-strong tracking-tight">Couldn&apos;t load your portal</h2>
         <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
           {error || "This link may have expired. Please contact the school for a new access link."}
         </p>
@@ -48,10 +48,10 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
       aria-label="Loading the guardian portal"
       className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
     >
-      <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
+      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
           aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#8127cf] to-[#9c48ea] opacity-30"
+          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-primary to-brand-400 opacity-30"
         />
         <div className="relative flex items-center gap-3 px-4 py-3 sm:px-5">
           <SkeletonBlock className={avatar ? "h-10 w-10 shrink-0 rounded-xl" : "h-9 w-9 shrink-0 rounded-xl"} />
@@ -62,7 +62,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
         </div>
       </header>
       <ParentSubnav />
-      <div className="custom-scrollbar flex-1 overflow-y-auto bg-[#fbf0fe]/20 p-4 sm:p-5">{children}</div>
+      <div className="custom-scrollbar flex-1 overflow-y-auto bg-brand-50/20 p-4 sm:p-5">{children}</div>
     </section>
   );
 }
@@ -70,7 +70,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
 /** Matches the compact `ParentStat` the pages actually render. */
 function ParentStatSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
+    <div className="rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -96,7 +96,7 @@ export function ParentOverviewSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
+              className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
@@ -127,7 +127,7 @@ export function ParentListSkeleton({ rows = 3 }: { rows?: number }) {
         {[...Array(rows)].map((_, i) => (
           <div
             key={i}
-            className="space-y-3 rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
+            className="space-y-3 rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 space-y-2">
@@ -155,11 +155,11 @@ export function ParentListSkeleton({ rows = 3 }: { rows?: number }) {
 
 export function ParentEmptyState({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 px-[12px] py-[24px] sm:px-6 sm:py-12 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#fbf0fe]">
-        <Icon className="h-6 w-6 text-[#8127cf]/40" />
+    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-edge/25 bg-brand-50/15 px-[12px] py-[24px] sm:px-6 sm:py-12 text-center">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-brand-50">
+        <Icon className="h-6 w-6 text-primary/40" />
       </div>
-      <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">{title}</h3>
+      <h3 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
       <p className="mt-1 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">{description}</p>
     </div>
   );
@@ -187,7 +187,7 @@ export function ParentStat({
   tone?: "violet" | "green" | "rose" | "amber";
 }) {
   const tones = {
-    violet: { chip: "bg-[#fbf0fe] text-[#8127cf]", bar: "bg-[#8127cf]" },
+    violet: { chip: "bg-brand-50 text-primary", bar: "bg-primary" },
     green: { chip: "bg-emerald-50 text-emerald-600", bar: "bg-emerald-500" },
     rose: { chip: "bg-rose-50 text-rose-600", bar: "bg-rose-500" },
     amber: { chip: "bg-amber-50 text-amber-600", bar: "bg-amber-500" },
@@ -195,21 +195,21 @@ export function ParentStat({
   const t = tones[tone];
 
   return (
-    <div className="group relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
+    <div className="group relative overflow-hidden rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
       <span
         aria-hidden
         className={`absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.bar}`}
       />
       <div className="relative flex min-w-0 items-center justify-between gap-[10px]">
         <div className="min-w-0">
-          <p className="[overflow-wrap:anywhere] text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf] sm:text-[22px]">
+          <p className="[overflow-wrap:anywhere] text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong transition-colors group-hover:text-primary sm:text-[22px]">
             {value}
           </p>
-          <p className="mt-1.5 [overflow-wrap:anywhere] text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+          <p className="mt-1.5 [overflow-wrap:anywhere] text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-muted">
             {label}
           </p>
           {sub ? (
-            <p className="mt-0.5 [overflow-wrap:anywhere] text-[10px] font-semibold leading-tight text-ink-subtle">{sub}</p>
+            <p className="mt-0.5 [overflow-wrap:anywhere] text-2xs font-semibold leading-tight text-ink-subtle">{sub}</p>
           ) : null}
         </div>
         <span
@@ -239,7 +239,7 @@ export function ParentTimetableSkeleton({ weekendDays = [] }: { weekendDays?: nu
           <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
         ))}
       </div>
-      <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+      <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-16 shrink-0" />
@@ -281,7 +281,7 @@ export function ParentRouteSkeleton() {
             <ParentStatSkeleton key={i} />
           ))}
         </div>
-        <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
           <div className="mb-3 flex items-center gap-2.5">
             <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
             <SkeletonBlock className="h-4 w-36" />

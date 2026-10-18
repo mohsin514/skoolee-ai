@@ -26,7 +26,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -213,7 +213,7 @@ export function DepartmentManager({
         <div
           className={cn(
             "rounded-2xl border bg-white px-3.5 py-3",
-            unit.isActive ? "border-[#cfc2d6]/40" : "border-dashed border-[#cfc2d6]/60 opacity-60"
+            unit.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
           )}
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -228,18 +228,18 @@ export function DepartmentManager({
 
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-black text-ink">{unit.name}</span>
-                {unit.code ? <span className="text-[10px] font-bold text-ink-muted">{unit.code}</span> : null}
-                <span className="rounded-full bg-[#f3f4f9] px-2 py-0.5 text-[9px] font-black uppercase text-ink-subtle">
+                <span className="text-xs font-bold text-ink">{unit.name}</span>
+                {unit.code ? <span className="text-2xs font-bold text-ink-muted">{unit.code}</span> : null}
+                <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-semibold uppercase text-ink-subtle">
                   {DEPARTMENT_KIND_LABELS[unit.kind]}
                 </span>
                 {!unit.isActive ? (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-500">ARCHIVED</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs font-bold text-slate-500">ARCHIVED</span>
                 ) : null}
               </span>
-              <span className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-ink-muted">
+              <span className="mt-0.5 flex items-center gap-1.5 text-2xs font-semibold text-ink-muted">
                 {head ? (
-                  <span className="inline-flex items-center gap-1 text-[#8127cf]">
+                  <span className="inline-flex items-center gap-1 text-primary">
                     <Crown className="h-3 w-3" />
                     {head.isActing ? "Acting head" : "Head"}: {head.user.fullName}
                   </span>
@@ -291,31 +291,31 @@ export function DepartmentManager({
           </div>
 
           {isOpen ? (
-            <div className="mt-3 space-y-2 border-t border-[#cfc2d6]/30 pt-3">
-              {unit.description ? <p className="text-[11px] font-semibold text-ink-muted">{unit.description}</p> : null}
+            <div className="mt-3 space-y-2 border-t border-edge/30 pt-3">
+              {unit.description ? <p className="text-2xs font-semibold text-ink-muted">{unit.description}</p> : null}
               {unit.members.length === 0 ? (
-                <p className="text-[11px] font-semibold text-ink-muted">
+                <p className="text-2xs font-semibold text-ink-muted">
                   Nobody in this unit yet. Add people, then give one of them charge of it.
                 </p>
               ) : (
                 <ul className="space-y-1">
                   {unit.members.map((member) => (
-                    <li key={member.id} className="flex items-center gap-2 rounded-xl bg-[#f3f4f9]/60 px-2.5 py-1.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-[9px] font-black text-ink-muted">
+                    <li key={member.id} className="flex items-center gap-2 rounded-xl bg-muted/60 px-2.5 py-1.5">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-2xs font-bold text-ink-muted">
                         {member.user.profileImageUrl ? (
                           <AvatarImage src={member.user.profileImageUrl} name={member.user.fullName} />
                         ) : (
                           initialsOf(member.user.fullName)
                         )}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-ink">
+                      <span className="min-w-0 flex-1 truncate text-2xs font-bold text-ink">
                         {member.user.fullName}
                         {member.user.staffProfile?.designation ? (
                           <span className="font-semibold text-ink-muted"> · {member.user.staffProfile.designation}</span>
                         ) : null}
                       </span>
                       {member.isPrimary ? (
-                        <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-ink-muted" title="This is their home department">
+                        <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-2xs font-bold text-ink-muted" title="This is their home department">
                           HOME
                         </span>
                       ) : null}
@@ -360,7 +360,7 @@ export function DepartmentManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-black text-ink">Departments & units</h3>
+          <h3 className="text-sm font-bold text-ink">Departments & units</h3>
           <p className="mt-0.5 max-w-2xl text-xs font-semibold text-ink-muted">
             Faculties, departments, year sections and admin units. Nest them however your institution is
             organised — a school usually keeps one flat level, a university nests departments inside faculties.
@@ -372,9 +372,9 @@ export function DepartmentManager({
       </div>
 
       {roots.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#cfc2d6]/60 bg-[#fafaff] px-6 py-12 text-center">
+        <div className="rounded-2xl border border-dashed border-edge/60 bg-surface-subtle px-6 py-12 text-center">
           <Building2 className="mx-auto h-8 w-8 text-ink-muted" />
-          <p className="mt-3 text-sm font-black text-ink">No departments yet</p>
+          <p className="mt-3 text-sm font-bold text-ink">No departments yet</p>
           <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
             Applying a preset on the Rank ladder tab creates a starting set for your kind of institution, or add
             your own here.
@@ -525,8 +525,8 @@ function MemberPicker({
     >
       <div className="space-y-3">
         {head ? (
-          <div className="flex items-center gap-2 rounded-2xl bg-[#fbf0fe]/60 px-3.5 py-2.5">
-            <Crown className="h-4 w-4 shrink-0 text-[#8127cf]" />
+          <div className="flex items-center gap-2 rounded-2xl bg-brand-50/60 px-3.5 py-2.5">
+            <Crown className="h-4 w-4 shrink-0 text-primary" />
             <p className="min-w-0 flex-1 text-xs font-bold text-ink">
               {head.isActing ? "Acting head" : "Head"}: {head.user.fullName}
             </p>
@@ -562,20 +562,20 @@ function MemberPicker({
 
         {role === "HEAD" ? (
           <label className="flex cursor-pointer items-start gap-2.5">
-            <SystemCheckbox  checked={isActing} onChange={(e) => setIsActing(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
+            <SystemCheckbox  checked={isActing} onChange={(e) => setIsActing(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
             <span>
-              <span className="block text-xs font-black text-ink">Acting charge</span>
-              <span className="block text-[10px] font-semibold text-ink-muted">
+              <span className="block text-xs font-bold text-ink">Acting charge</span>
+              <span className="block text-2xs font-semibold text-ink-muted">
                 Covering the post without holding it permanently. Whoever heads it now steps back to member.
               </span>
             </span>
           </label>
         ) : (
           <label className="flex cursor-pointer items-start gap-2.5">
-            <SystemCheckbox  checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#8127cf]" />
+            <SystemCheckbox  checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
             <span>
-              <span className="block text-xs font-black text-ink">Make this their home department</span>
-              <span className="block text-[10px] font-semibold text-ink-muted">
+              <span className="block text-xs font-bold text-ink">Make this their home department</span>
+              <span className="block text-2xs font-semibold text-ink-muted">
                 The one the org chart files them under. Someone can belong to several; only one is home.
               </span>
             </span>
@@ -599,12 +599,12 @@ function Labelled({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-[11px] font-black text-ink">
+      <label className="block text-2xs font-bold text-ink">
         {label}
         {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-2xs font-semibold text-ink-muted">{hint}</p> : null}
     </div>
   );
 }

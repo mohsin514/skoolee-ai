@@ -13,7 +13,7 @@ import {
   Eye, EyeOff, AlertCircle, Phone, Check, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
-import { toast } from 'sonner';
+import { toast } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormField } from "@/components/ui/form-field";
@@ -480,7 +480,7 @@ export default function RegisterPage() {
     const score = formData.password ? Math.min(5, composition + lengthBonus) : 0;
     const labels = t.strength;
     const tones = [
-      "bg-[#cfc2d6]/30",
+      "bg-edge/30",
       "bg-rose-400",
       "bg-orange-400",
       "bg-amber-400",
@@ -617,7 +617,7 @@ export default function RegisterPage() {
     <main
       lang={language}
       dir={directionFor(language)}
-      className={`sk-shell w-full min-h-screen grid grid-cols-1 bg-[#fff7fe] font-sans ${
+      className={`sk-shell w-full min-h-screen grid grid-cols-1 bg-brand-50 font-sans ${
         wide
           ? "lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)]"
           : "lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]"
@@ -629,7 +629,7 @@ export default function RegisterPage() {
         ref={brandRef}
         onMouseMove={handleBrandMouseMove}
         onMouseLeave={resetBrandParallax}
-        className={`relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] ${
+        className={`relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 ${
           wide ? "p-10 xl:p-12" : "p-12 xl:p-14"
         }`}
       >
@@ -638,19 +638,19 @@ export default function RegisterPage() {
             className="sk-parallax absolute -top-1/4 -left-1/5 h-[72%] w-[72%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0)" }}
           >
-            <div className="sk-blob h-full w-full rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
+            <div className="sk-blob h-full w-full rounded-full bg-brand-400 opacity-70 blur-[90px]" />
           </div>
           <div
             className="sk-parallax absolute top-1/4 -right-1/4 h-[68%] w-[68%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * -34px), calc(var(--my, 0) * -34px), 0)" }}
           >
-            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
+            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-brand-300 opacity-45 blur-[100px]" />
           </div>
           <div
             className="sk-parallax absolute -bottom-1/3 left-1/5 h-[62%] w-[62%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * 16px), calc(var(--my, 0) * 16px), 0)" }}
           >
-            <div className="sk-blob sk-blob-3 h-full w-full rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
+            <div className="sk-blob sk-blob-3 h-full w-full rounded-full bg-brand-50 opacity-[0.14] blur-[110px]" />
           </div>
           <div
             className="absolute inset-0 opacity-[0.07]"
@@ -660,7 +660,7 @@ export default function RegisterPage() {
               backgroundSize: "56px 56px",
             }}
           />
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-brand-50/12 to-transparent" />
         </div>
 
         {/* Orbiting user avatars — echoes the "one login, every role" story
@@ -674,36 +674,36 @@ export default function RegisterPage() {
 
         <div className="relative z-10 flex items-center gap-2.5">
           <span className="h-8 w-1 rounded-full bg-white/70" />
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-white/80">
             Skoolee AI
           </p>
         </div>
 
         <div className="relative z-10 max-w-xl">
           <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
+            <Sparkles className="h-3.5 w-3.5 text-brand-200" />
+            <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">
               {t.eyebrow}
             </span>
           </div>
 
           <h1
             key={`${type}-headline`}
-            className={`sk-rise font-black leading-[1.04] tracking-[-0.035em] text-white text-balance ${
+            className={`sk-rise font-bold leading-[1.04] tracking-[-0.035em] text-white text-balance ${
               wide ? "mt-6 text-[2.1rem] xl:text-[2.5rem]" : "mt-7 text-[2.6rem] xl:text-[3.1rem]"
             }`}
             style={{ animationDelay: "80ms" }}
           >
             {panel.headline}
             <br />
-            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-200 to-fuchsia-300 bg-clip-text text-transparent">
               {panel.accent}
             </span>
           </h1>
 
           <div
             key={`${type}-card`}
-            className={`sk-rise rounded-3xl border border-white/25 bg-[#3d0f6b]/40 shadow-xl backdrop-blur-xl ${
+            className={`sk-rise rounded-3xl border border-white/25 bg-brand-900/40 shadow-xl backdrop-blur-xl ${
               wide ? "mt-7 p-5" : "mt-9 p-6"
             }`}
             style={{ animationDelay: "160ms" }}
@@ -715,10 +715,10 @@ export default function RegisterPage() {
                   : <Building2 className="h-5 w-5 text-white" />}
               </div>
               <div className="min-w-0">
-                <p className="text-[15px] font-semibold leading-relaxed text-white">
+                <p className="text-md font-semibold leading-relaxed text-white">
                   {panel.body}
                 </p>
-                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">
+                <p className="mt-2.5 text-xs font-bold text-brand-200">
                   {panel.caption}
                 </p>
               </div>
@@ -730,7 +730,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
+        <div className="relative z-10 flex items-center gap-6 text-2xs font-bold text-white/75">
           <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {t.encrypted}</span>
           <span className="flex items-center gap-1.5"><CheckCircle className="h-3.5 w-3.5" /> {t.humanReviewed}</span>
         </div>
@@ -752,14 +752,14 @@ export default function RegisterPage() {
                progress rail do not set a minimum page width above the viewport. */
             <div className="sk-rise mb-4 flex flex-col items-center gap-3 sm:flex-row sm:gap-7">
               <SkooleeLogo size="1.85rem" weight="heavy" />
-              <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[#cfc2d6]/50 sm:block" />
+              <span aria-hidden className="hidden h-6 w-px shrink-0 bg-edge/50 sm:block" />
               <StepRail step={step} labels={t.steps} label={t.progress} stepOf={t.stepOf} className="mb-0 w-full flex-1" />
             </div>
           ) : (
             <>
               <div className="sk-rise mb-7 flex flex-col items-center">
                 <SkooleeLogo size="2.35rem" weight="heavy" />
-                <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
+                <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
               </div>
 
               <StepRail step={step} labels={t.steps} label={t.progress} stepOf={t.stepOf} />
@@ -774,13 +774,13 @@ export default function RegisterPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
+                className="rounded-[30px] border border-edge/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
               >
                 <div className="mb-7 text-center">
-                  <h2 className="text-[1.75rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
+                  <h2 className="text-[1.75rem] font-bold leading-tight tracking-[-0.035em] text-ink-strong">
                     {t.setupTitle}
                   </h2>
-                  <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
+                  <p className="mt-2 text-md font-semibold text-ink-muted">
                     {t.setupIntro}
                   </p>
                 </div>
@@ -800,8 +800,8 @@ export default function RegisterPage() {
                   <TypeOption active={type === 'single_campus'} onClick={() => handleTypeChange('single_campus')} icon={Building2} title={t.singleTitle} desc={t.singleDesc} />
                 </div>
 
-                <p className="mb-5 flex items-start gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-[11.5px] font-bold leading-snug text-ink-muted">
-                  <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
+                <p className="mb-5 flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-2xs font-bold leading-snug text-ink-muted">
+                  <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                   {type === 'school_group' ? t.groupNote : t.singleNote}
                 </p>
 
@@ -813,10 +813,10 @@ export default function RegisterPage() {
                   {t.continue} <ArrowRight aria-hidden className="rtl:rotate-180" />
                 </Button>
 
-                <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5 text-center">
+                <div className="mt-6 border-t border-edge/20 pt-5 text-center">
                   <p className="text-sm font-semibold text-ink-muted">
                     {t.haveAccount}{" "}
-                    <Link href="/login" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
+                    <Link href="/login" className="font-bold text-primary transition-colors hover:text-brand-400">
                       {t.logIn}
                     </Link>
                   </p>
@@ -831,14 +831,14 @@ export default function RegisterPage() {
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
-                className="rounded-[30px] border border-[#cfc2d6]/30 bg-white p-6 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-7"
+                className="rounded-[30px] border border-edge/30 bg-white p-6 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-7"
               >
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                    <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
                       {type === 'school_group' ? t.kickerGroup : t.kickerSingle}
                     </p>
-                    <h2 className="text-[1.6rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23] mt-0.5 sm:text-[1.75rem]">{t.createTitle}</h2>
+                    <h2 className="text-[1.6rem] font-bold leading-tight tracking-[-0.035em] text-ink-strong mt-0.5 sm:text-[1.75rem]">{t.createTitle}</h2>
                   </div>
                   <Button
                     type="button"
@@ -921,9 +921,9 @@ export default function RegisterPage() {
                           {COUNTRIES.map((country) => <option key={country} value={country}>{t.countries[country]}</option>)}
                         </Select>
                       </FormField>
-                      <div className="space-y-1.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-3.5">
+                      <div className="space-y-1.5 rounded-2xl border border-edge/20 bg-brand-50 p-3.5">
                         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                          <Label htmlFor="regId" className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
+                          <Label htmlFor="regId" className="text-2xs font-semibold uppercase tracking-wider text-primary">
                             {type === 'school_group' ? t.groupId : t.schoolId}
                           </Label>
                           <div className="flex gap-1.5">
@@ -951,7 +951,7 @@ export default function RegisterPage() {
                         </div>
                         <FormField name="regId" id="regId" required error={regIdError} hint={t.regIdHint}>
                         <InputGroup surfaceClassName="bg-white">
-                          <Hash aria-hidden data-field-affix="start" className="h-4 w-4 text-[#8127cf]/40" />
+                          <Hash aria-hidden data-field-affix="start" className="h-4 w-4 text-primary/40" />
                           <Input
                             id="regId"
                             readOnly={formData.autoId}
@@ -1012,19 +1012,19 @@ export default function RegisterPage() {
                         the checklist is readable while the field is being typed
                         in instead of being pushed off the fold. */}
                     <FieldGroup id="grp-password-strength" icon={ShieldCheck} title={t.groupStrength}>
-                      <div className="space-y-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-4">
+                      <div className="space-y-3 rounded-2xl border border-edge/20 bg-brand-50 p-4">
                         <div className="flex items-center gap-3">
                           <div className="flex flex-1 gap-1.5" aria-hidden>
                             {[1, 2, 3, 4, 5].map((i) => (
                               <span
                                 key={i}
                                 className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                                  i <= strength.score ? strength.tone : "bg-[#cfc2d6]/30"
+                                  i <= strength.score ? strength.tone : "bg-edge/30"
                                 }`}
                               />
                             ))}
                           </div>
-                          <p className={`shrink-0 text-[10px] font-black uppercase tracking-wider ${
+                          <p className={`shrink-0 text-2xs font-semibold uppercase tracking-wider ${
                             strength.score >= 4 ? "text-emerald-600" : strength.score >= 3 ? "text-amber-600" : strength.score > 0 ? "text-rose-500" : "text-ink-subtle"
                           }`}>
                             {strength.label || "—"}
@@ -1032,7 +1032,7 @@ export default function RegisterPage() {
                         </div>
                         <div id="registration-password-rules" className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                           {passwordRequirements.map((r) => (
-                            <div key={r.label} className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
+                            <div key={r.label} className={`flex items-center gap-1.5 text-2xs font-bold transition-colors ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
                               {r.met ? <CheckCircle className="h-3.5 w-3.5 shrink-0" /> : <XCircle className="h-3.5 w-3.5 shrink-0 opacity-30" />} {r.label}
                             </div>
                           ))}
@@ -1042,7 +1042,7 @@ export default function RegisterPage() {
 
                     {/* Consent and the actions share the closing line — a full
                         row each was ~50px of height for one checkbox. */}
-                    <div className="flex flex-col gap-4 border-t border-[#cfc2d6]/20 pt-4 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-6 @2xl:col-span-2">
+                    <div className="flex flex-col gap-4 border-t border-edge/20 pt-4 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-6 @2xl:col-span-2">
                       {/* Explicit consent. Required — a school signing up is agreeing
                           on behalf of its pupils' data, so it cannot be implied. */}
                       <label className="group flex cursor-pointer items-start gap-2.5 px-1 select-none">
@@ -1058,8 +1058,8 @@ export default function RegisterPage() {
                             aria-hidden
                             className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                               formData.acceptedTerms
-                                ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
-                                : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
+                                ? "border-primary bg-gradient-to-br from-primary to-brand-400 shadow-sm shadow-primary/30"
+                                : "border-edge/70 bg-white group-hover:border-primary/50"
                             }`}
                           >
                             <Check
@@ -1070,11 +1070,11 @@ export default function RegisterPage() {
                             />
                           </span>
                         </span>
-                        <span className="text-[12px] font-semibold leading-snug text-ink-muted">
+                        <span className="text-xs font-semibold leading-snug text-ink-muted">
                           {t.agreePrefix}{" "}
-                          <Link href="/privacy" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">{t.privacyPolicy}</Link>
+                          <Link href="/privacy" target="_blank" className="font-bold text-primary hover:text-brand-400">{t.privacyPolicy}</Link>
                           {" "}{t.and}{" "}
-                          <Link href="/ai-governance" target="_blank" className="font-black text-[#8127cf] hover:text-[#9c48ea]">{t.aiPolicy}</Link>
+                          <Link href="/ai-governance" target="_blank" className="font-bold text-primary hover:text-brand-400">{t.aiPolicy}</Link>
                           {t.agreeSuffix}
                         </span>
                       </label>
@@ -1118,26 +1118,26 @@ export default function RegisterPage() {
                 <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-emerald-50 text-emerald-500 shadow-inner">
                   <CheckCircle className="h-8 w-8" />
                 </div>
-                <h2 className="mb-2 text-2xl font-black tracking-tight text-[#1f1a23]">{t.createdTitle}</h2>
+                <h2 className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{t.createdTitle}</h2>
                 <p className="mb-6 px-2 text-sm font-semibold leading-relaxed text-ink-muted">
                   {t.sentPrefix}{" "}
-                  <bdi className="font-black text-[#1f1a23]">{formData.email}</bdi>{t.sentMiddle}{" "}
-                  <bdi className="font-black text-[#1f1a23]">{formData.schoolName}</bdi>{t.sentEnd}
+                  <bdi className="font-bold text-ink-strong">{formData.email}</bdi>{t.sentMiddle}{" "}
+                  <bdi className="font-bold text-ink-strong">{formData.schoolName}</bdi>{t.sentEnd}
                 </p>
 
                 {/* What actually happens next, so the wait is not a black box. */}
-                <div className="mb-7 space-y-2.5 rounded-3xl border border-[#cfc2d6]/20 bg-[#fbf0fe] p-5 text-start">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">{t.nextTitle}</p>
+                <div className="mb-7 space-y-2.5 rounded-3xl border border-edge/20 bg-brand-50 p-5 text-start">
+                  <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-primary">{t.nextTitle}</p>
                   {[
                     t.nextVerify,
                     type === 'school_group' ? t.nextGroup : t.nextSingle,
                     t.nextInvite,
                   ].map((line, i) => (
                     <div key={line} className="flex items-center gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-black text-[#8127cf] shadow-sm">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-2xs font-bold text-primary shadow-sm">
                         {i + 1}
                       </span>
-                      <span className="text-[12px] font-bold text-ink-muted">{line}</span>
+                      <span className="text-xs font-bold text-ink-muted">{line}</span>
                     </div>
                   ))}
                 </div>
@@ -1149,12 +1149,12 @@ export default function RegisterPage() {
             )}
           </AnimatePresence>
 
-          <div className={`flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle ${wide ? "mt-4" : "mt-6"}`}>
-            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">{t.privacy}</Link>
-            <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/security" className="transition-colors hover:text-[#8127cf]">{t.security}</Link>
-            <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">{t.aiGovernance}</Link>
+          <div className={`flex items-center justify-center gap-5 text-2xs font-bold text-ink-subtle ${wide ? "mt-4" : "mt-6"}`}>
+            <Link href="/privacy" className="transition-colors hover:text-primary">{t.privacy}</Link>
+            <span className="h-3 w-px bg-edge/50" />
+            <Link href="/security" className="transition-colors hover:text-primary">{t.security}</Link>
+            <span className="h-3 w-px bg-edge/50" />
+            <Link href="/ai-governance" className="transition-colors hover:text-primary">{t.aiGovernance}</Link>
           </div>
         </div>
       </section>
@@ -1174,28 +1174,28 @@ function StepRail({ step, labels, label: railLabel, stepOf, className = "mb-6" }
           <React.Fragment key={i}>
             <div role="listitem" aria-current={active ? "step" : undefined} aria-label={fill(stepOf, num, labels.length, label)} className="flex items-center gap-2">
               <span
-                className={`flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black transition-all duration-300 ${
+                className={`flex h-6 w-6 items-center justify-center rounded-lg text-2xs font-bold transition-all duration-300 ${
                   done
                     ? "bg-emerald-500 text-white"
                     : active
-                    ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-md shadow-[#8127cf]/25"
-                    : "bg-[#cfc2d6]/25 text-ink-subtle"
+                    ? "bg-gradient-to-br from-primary to-brand-400 text-white shadow-md shadow-primary/25"
+                    : "bg-edge/25 text-ink-subtle"
                 }`}
               >
                 {done ? <Check className="h-3 w-3" strokeWidth={3.5} /> : num}
               </span>
               <span
-                className={`hidden text-[10px] font-black uppercase tracking-wider transition-colors sm:block ${
-                  active ? "text-[#1f1a23]" : done ? "text-emerald-600" : "text-ink-subtle"
+                className={`hidden text-2xs font-semibold uppercase tracking-wider transition-colors sm:block ${
+                  active ? "text-ink-strong" : done ? "text-emerald-600" : "text-ink-subtle"
                 }`}
               >
                 {label}
               </span>
             </div>
             {num < labels.length && (
-              <span className="h-px flex-1 rounded-full bg-[#cfc2d6]/30">
+              <span className="h-px flex-1 rounded-full bg-edge/30">
                 <span
-                  className={`block h-px rounded-full bg-gradient-to-r from-[#8127cf] to-emerald-500 transition-all duration-500 ${
+                  className={`block h-px rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all duration-500 ${
                     done ? "w-full" : "w-0"
                   }`}
                 />
@@ -1232,8 +1232,8 @@ function FieldGroup({
   return (
     <section role="group" aria-labelledby={headingId} className="@container space-y-4">
       <div className="flex items-center gap-2 px-1">
-        <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
-        <h3 id={headingId} className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8127cf]">{title}</h3>
+        <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <h3 id={headingId} className="text-2xs font-semibold uppercase tracking-wider text-primary">{title}</h3>
       </div>
       {children}
     </section>
@@ -1250,15 +1250,15 @@ function TypeOption({ active, onClick, icon: Icon, title, desc }: TypeOptionProp
       onClick={onClick}
       className="relative group flex w-full items-center justify-start gap-5 overflow-hidden p-5 text-start"
     >
-      <div className={`rounded-2xl p-3 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-lg shadow-[#8127cf]/20' : 'bg-white text-ink-subtle group-hover:bg-[#8127cf]/5 group-hover:text-[#8127cf]'}`}>
+      <div className={`rounded-2xl p-3 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-primary to-brand-400 text-white shadow-lg shadow-primary/20' : 'bg-white text-ink-subtle group-hover:bg-primary/5 group-hover:text-primary'}`}>
         <Icon className="h-6 w-6" />
       </div>
       <div className="flex-1">
-        <h3 className="text-start text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
-        <p className="mt-1 text-start text-[11px] font-semibold leading-tight text-ink-muted">{desc}</p>
+        <h3 className="text-start text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
+        <p className="mt-1 text-start text-2xs font-semibold leading-tight text-ink-muted">{desc}</p>
       </div>
       {active && (
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute end-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-[#8127cf] p-1 text-white shadow-md">
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute end-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-primary p-1 text-white shadow-md">
           <CheckCircle className="h-3 w-3" />
         </motion.div>
       )}

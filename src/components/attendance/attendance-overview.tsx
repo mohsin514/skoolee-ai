@@ -3,7 +3,7 @@ import { InputGroup } from "@/components/ui/input-group";
 
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import {
   CalendarCheck,
   ChevronLeft,
@@ -150,13 +150,13 @@ function pct(n: number, total: number): number {
 
 function StatSkeleton() {
   return (
-    <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 shadow-lg p-6 animate-skeleton-in">
+    <div className="bg-white rounded-[28px] border border-edge/10 shadow-lg p-6 animate-skeleton-in">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-3 flex-1">
-          <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-8 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-3 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+          <div className="h-8 w-16 rounded-full bg-border-subtle/50 skeleton-shimmer" />
         </div>
-        <div className="h-11 w-11 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+        <div className="h-11 w-11 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
       </div>
     </div>
   );
@@ -168,12 +168,12 @@ function TableSkeleton() {
       {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center gap-4 rounded-2xl bg-[#e8e0ec]/20 p-4 animate-skeleton-in"
+          className="flex items-center gap-4 rounded-2xl bg-border-subtle/20 p-4 animate-skeleton-in"
           style={{ animationDelay: `${i * 60}ms` }}
         >
-          <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-4 flex-1 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-4 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+          <div className="h-4 flex-1 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+          <div className="h-4 w-16 rounded-full bg-border-subtle/50 skeleton-shimmer" />
         </div>
       ))}
     </div>
@@ -183,7 +183,7 @@ function TableSkeleton() {
 function ChartSkeleton() {
   return (
     <div className="flex items-center justify-center animate-skeleton-in">
-      <div className="h-40 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+      <div className="h-40 w-40 rounded-full bg-border-subtle/50 skeleton-shimmer" />
     </div>
   );
 }
@@ -242,8 +242,8 @@ function AttendanceDonut({
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="text-2xl font-black text-[#1f1a23]">{total}</span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
+        <span className="text-2xl font-bold text-ink-strong">{total}</span>
+        <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           Records
         </span>
       </div>
@@ -270,10 +270,10 @@ function DonutLegend({
       {items.map((it) => (
         <div key={it.label} className="flex items-center gap-1.5">
           <span className={cn("h-2 w-2 rounded-full", it.color)} />
-          <span className="text-[10px] font-bold text-ink-muted">
+          <span className="text-2xs font-bold text-ink-muted">
             {it.label}
           </span>
-          <span className="text-[10px] font-black text-[#1f1a23]">
+          <span className="text-2xs font-bold text-ink-strong">
             {it.value}
           </span>
         </div>
@@ -286,12 +286,12 @@ function ProgressBar({ value, className }: { value: number; className?: string }
   return (
     <div
       className={cn(
-        "h-2 w-full rounded-full bg-[#e8e0ec]/40 overflow-hidden",
+        "h-2 w-full rounded-full bg-border-subtle/40 overflow-hidden",
         className
       )}
     >
       <div
-        className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500"
+        className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500"
         style={{ width: `${Math.min(value, 100)}%` }}
       />
     </div>
@@ -301,7 +301,7 @@ function ProgressBar({ value, className }: { value: number; className?: string }
 function StatusBadge({ percentage }: { percentage: number }) {
   if (percentage < 75) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-600">
+      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-600">
         <AlertTriangle className="h-3 w-3" />
         At Risk
       </span>
@@ -309,13 +309,13 @@ function StatusBadge({ percentage }: { percentage: number }) {
   }
   if (percentage < 85) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-600">
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-600">
         Warning
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
       Good
     </span>
   );
@@ -556,7 +556,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           {selectedClassId && classDetail ? (
-            <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight mt-1">
+            <h2 className="text-2xl font-bold text-ink-strong tracking-tight mt-1">
               {classDetail.className}
             </h2>
           ) : null}
@@ -585,7 +585,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
       {/* ===== Period tabs + month nav ===== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Period selector */}
-        <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+        <div className="flex items-center gap-1 rounded-2xl bg-muted p-1">
           {(["today", "week", "month"] as Period[]).map((p) => (
             <Button variant="ghost" size="sm"
               key={p}
@@ -610,7 +610,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-black text-[#1f1a23] min-w-[140px] text-center">
+          <span className="text-sm font-bold text-ink-strong min-w-[140px] text-center">
             {formatMonthLabel(selectedMonth)}
           </span>
           <Button variant="outline" size="icon"
@@ -703,8 +703,8 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           {/* Donut + Monthly Class Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Donut chart card */}
-            <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted mb-4">
+            <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-4">
                 Distribution
               </p>
               {loadingSummary ? (
@@ -726,12 +726,12 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
             </div>
 
             {/* Class Breakdown Table */}
-            <div className="lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="lg:col-span-2 bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
               <div className="flex items-center justify-between gap-4 mb-5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                   Class Breakdown &mdash; {formatMonthLabel(selectedMonth)}
                 </p>
-                <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
+                <InputGroup surfaceClassName="bg-muted" className="relative">
                   <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
                   <SystemInput
                     type="text"
@@ -755,7 +755,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               ) : (
                 <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                   {/* Header */}
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     <span className="col-span-3">Class</span>
                     <span className="col-span-1 text-center">Students</span>
                     <span className="col-span-1 text-center text-emerald-600">P</span>
@@ -773,7 +773,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         onClick={() => handleClassClick(cls.classId)}
                         className="w-full grid grid-cols-12 gap-2 items-center text-left group"
                       >
-                        <span className="col-span-3 text-sm font-bold text-[#1f1a23] group-hover:text-[#8127cf] transition-colors truncate">
+                        <span className="col-span-3 text-sm font-bold text-ink-strong group-hover:text-primary transition-colors truncate">
                           {cls.className}
                         </span>
                         <span className="col-span-1 text-xs font-bold text-ink-muted text-center">
@@ -793,7 +793,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         </span>
                         <span
                           className={cn(
-                            "col-span-2 text-right text-sm font-black",
+                            "col-span-2 text-right text-sm font-bold",
                             rate >= 85
                               ? "text-emerald-600"
                               : rate >= 75
@@ -813,16 +813,16 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
 
           {/* At-Risk Classes (campus-wide) */}
           {!loadingMonthly && campusAtRiskClasses.length > 0 && (
-            <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
                   <AlertTriangle className="h-4 w-4 text-rose-500" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                     Attention Required
                   </p>
-                  <p className="text-sm font-black text-[#1f1a23]">
+                  <p className="text-sm font-bold text-ink-strong">
                     Classes Below 75% Attendance
                   </p>
                 </div>
@@ -838,10 +838,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                       <BarChart3 className="h-4 w-4 text-rose-600" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-[#1f1a23] truncate">
+                      <p className="text-sm font-bold text-ink-strong truncate">
                         {cls.className}
                       </p>
-                      <p className="text-[10px] font-bold text-rose-500">
+                      <p className="text-2xs font-bold text-rose-500">
                         {cls.percentage}% attendance &middot; {cls.absent} absences
                       </p>
                     </div>
@@ -874,25 +874,25 @@ function SummaryStatCard({
   tone: "purple" | "green" | "rose" | "amber" | "dark";
 }) {
   const toneStyles: Record<string, string> = {
-    purple: "bg-[#fbf0fe] text-[#8127cf]",
+    purple: "bg-brand-50 text-primary",
     green: "bg-emerald-50 text-emerald-600",
     rose: "bg-rose-50 text-rose-500",
     amber: "bg-amber-50 text-amber-600",
-    dark: "bg-[#1f1a23] text-white",
+    dark: "bg-ink-strong text-white",
   };
 
   return (
-    <div className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
+    <div className="bg-white p-5 rounded-[28px] border border-edge/10 shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">
+          <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-2">
             {label}
           </p>
-          <p className="text-2xl md:text-3xl font-black text-[#1f1a23] leading-none">
+          <p className="text-2xl md:text-3xl font-extrabold text-ink-strong leading-none">
             {value}
           </p>
           {sub && (
-            <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mt-2">
+            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mt-2">
               {sub}
             </p>
           )}
@@ -939,7 +939,7 @@ function ClassDetailView({
             <StatSkeleton key={i} />
           ))}
         </div>
-        <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+        <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
           <TableSkeleton />
         </div>
       </div>
@@ -948,10 +948,10 @@ function ClassDetailView({
 
   if (!data) {
     return (
-      <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+      <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
         <div className="py-16 text-center">
           <CalendarCheck className="mx-auto h-12 w-12 text-ink-subtle mb-4" />
-          <p className="text-lg font-black text-[#1f1a23]">No attendance data</p>
+          <p className="text-lg font-bold text-ink-strong">No attendance data</p>
           <p className="text-sm font-semibold text-ink-muted mt-1">
             No records found for this class in {formatMonthLabel(month)}
           </p>
@@ -994,12 +994,12 @@ function ClassDetailView({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Student table */}
-        <div className="lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+        <div className="lg:col-span-2 bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
           <div className="flex items-center justify-between gap-4 mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
               Student Attendance &mdash; {formatMonthLabel(month)}
             </p>
-            <InputGroup surfaceClassName="bg-[#f3f4f9]" className="relative">
+            <InputGroup surfaceClassName="bg-muted" className="relative">
               <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
               <SystemInput
                 type="text"
@@ -1021,7 +1021,7 @@ function ClassDetailView({
           ) : (
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
               {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 <span className="col-span-1">Roll</span>
                 <span className="col-span-3">Name</span>
                 <span className="col-span-1 text-center text-emerald-600">P</span>
@@ -1038,14 +1038,14 @@ function ClassDetailView({
                     "grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-2xl transition-all",
                     student.percentage < 75
                       ? "bg-rose-50/50 border border-rose-100"
-                      : "bg-[#f3f4f9]/50 border border-transparent"
+                      : "bg-muted/50 border border-transparent"
                   )}
                 >
                   <span className="col-span-1 text-xs font-bold text-ink-muted">
                     {student.rollNo || "-"}
                   </span>
                   <div className="col-span-3 flex items-center gap-2 min-w-0">
-                    <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center shrink-0 text-[10px] font-black text-[#8127cf]">
+                    <div className="h-8 w-8 rounded-xl bg-brand-50 flex items-center justify-center shrink-0 text-2xs font-bold text-primary">
                       {(() => {
                         const imgSrc = resolveMediaUrl(student.profileImageUrl);
                         return imgSrc ? (
@@ -1065,7 +1065,7 @@ function ClassDetailView({
                           .slice(0, 2)
                       )}
                     </div>
-                    <span className="text-sm font-bold text-[#1f1a23] truncate">
+                    <span className="text-sm font-bold text-ink-strong truncate">
                       {student.name}
                     </span>
                   </div>
@@ -1091,16 +1091,16 @@ function ClassDetailView({
         </div>
 
         {/* At-Risk Sidebar */}
-        <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+        <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-5">
             <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
               <AlertTriangle className="h-4 w-4 text-rose-500" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                 Below 75%
               </p>
-              <p className="text-sm font-black text-[#1f1a23]">
+              <p className="text-sm font-bold text-ink-strong">
                 At-Risk Students ({atRiskStudents.length})
               </p>
             </div>
@@ -1122,7 +1122,7 @@ function ClassDetailView({
                   className="p-4 rounded-2xl bg-rose-50/50 border border-rose-100"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-[10px] font-black text-rose-600">
+                    <div className="h-9 w-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-2xs font-bold text-rose-600">
                       {(() => {
                         const imgSrc = resolveMediaUrl(student.profileImageUrl);
                         return imgSrc ? (
@@ -1143,18 +1143,18 @@ function ClassDetailView({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-[#1f1a23] truncate">
+                      <p className="text-sm font-bold text-ink-strong truncate">
                         {student.studentName}
                       </p>
-                      <p className="text-[10px] font-bold text-ink-subtle">
+                      <p className="text-2xs font-bold text-ink-subtle">
                         Roll: {student.rollNo || "-"}
                       </p>
                     </div>
-                    <span className="text-sm font-black text-rose-500 shrink-0">
+                    <span className="text-sm font-bold text-rose-500 shrink-0">
                       {student.percentage}%
                     </span>
                   </div>
-                  <div className="mt-3 flex items-center gap-4 text-[10px] font-bold">
+                  <div className="mt-3 flex items-center gap-4 text-2xs font-bold">
                     <span className="text-rose-500">
                       {student.absentDays} days absent
                     </span>

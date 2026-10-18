@@ -42,7 +42,7 @@ import {
   Network,
   ShieldCheck,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
 import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
@@ -85,12 +85,12 @@ function statusTone(status?: string) {
     return "bg-emerald-50 text-emerald-600";
   }
   if (["Onboarding", "Invited", "PENDING", "PARTIAL", "TRIAL", "REVIEW"].includes(status || "")) {
-    return "bg-[#fbf0fe] text-[#8127cf]";
+    return "bg-brand-50 text-primary";
   }
   if (["Expired", "FAILED", "BLOCKED", "SUSPENDED", "MISSING", "NO_REPORT"].includes(status || "")) {
     return "bg-rose-50 text-rose-600";
   }
-  return "bg-[#f3f4f9] text-ink";
+  return "bg-muted text-ink";
 }
 
 function classLabel(item: any) {
@@ -388,10 +388,10 @@ const bottomItems: RoleNavItem[] = [];
           <SupportApprovalsPanel />
         ) : activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-4 border-b border-muted p-6 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Owner billing control</p>
-                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Billing & plan</h2>
+                <p className="text-2xs font-semibold uppercase tracking-normal text-primary">Owner billing control</p>
+                <h2 className="mt-1 text-3xl font-extrabold tracking-normal text-ink-strong">Billing & plan</h2>
                 <p className="mt-2 text-sm font-semibold text-ink-muted">
                   SaaS plan, upgrades, and AI credit control.
                 </p>
@@ -408,10 +408,10 @@ const bottomItems: RoleNavItem[] = [];
           </div>
         ) : activeView === "settings" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-4 border-b border-muted p-6 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Institution record</p>
-                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">School Settings</h2>
+                <p className="text-2xs font-semibold uppercase tracking-normal text-primary">Institution record</p>
+                <h2 className="mt-1 text-3xl font-extrabold tracking-normal text-ink-strong">School Settings</h2>
                 <p className="mt-2 text-sm font-semibold text-ink-muted">
                   Name, branding and contact details for the institution and each of its campuses.
                 </p>
@@ -424,10 +424,10 @@ const bottomItems: RoleNavItem[] = [];
           </div>
         ) : activeView === "fees" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="flex flex-col gap-4 border-b border-[#f3f4f9] p-6 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-col gap-4 border-b border-muted p-6 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-normal text-[#8127cf]">Network fee control</p>
-                <h2 className="mt-1 text-3xl font-black tracking-normal text-[#1f1a23]">Fee Management</h2>
+                <p className="text-2xs font-semibold uppercase tracking-normal text-primary">Network fee control</p>
+                <h2 className="mt-1 text-3xl font-extrabold tracking-normal text-ink-strong">Fee Management</h2>
                 <p className="mt-2 text-sm font-semibold text-ink-muted">
                   Fee structures, invoices, challans, and payment recording across the network.
                 </p>
@@ -478,19 +478,19 @@ const bottomItems: RoleNavItem[] = [];
               />
             </div>
 
-            <div id="network-ai-panel" className="mb-8 bg-[#fbf0fe]/30 border border-[#cfc2d6]/25 rounded-[32px] p-6 scroll-mt-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+            <div id="network-ai-panel" className="mb-8 bg-brand-50/30 border border-edge/25 rounded-[32px] p-6 scroll-mt-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
               <div className="flex items-center gap-3 mb-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
                   <Sparkles className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-black text-[#1f1a23] tracking-normal">AI Network Insights</h3>
+                <h3 className="text-lg font-bold text-ink-strong tracking-normal">AI Network Insights</h3>
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5 mb-5">
                 <div className="sk-panel p-5 relative overflow-hidden"><CornerSparkles /><AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={refetch} /></div>
                 <div className="sk-panel p-5">
                   <div className="flex items-center gap-3 mb-4">
-                    <Shield className="w-5 h-5 text-[#8127cf]" />
-                    <p className="text-[10px] font-black text-ink-subtle uppercase tracking-normal">AI Review</p>
+                    <Shield className="w-5 h-5 text-primary" />
+                    <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-normal">AI Review</p>
                   </div>
                   <AIReviewQueue items={data.pendingAIReviewItems} onComplete={refetch} />
                 </div>
@@ -498,11 +498,11 @@ const bottomItems: RoleNavItem[] = [];
               {data.aiInsights?.length ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {data.aiInsights.slice(0, 4).map((insight: any) => (
-                    <div key={insight.id} className="bg-gradient-to-br from-white to-[#fbf0fe]/20 rounded-[20px] p-4 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
-                      <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal mb-1">
+                    <div key={insight.id} className="bg-gradient-to-br from-white to-brand-50/20 rounded-[20px] p-4 border border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
+                      <p className="text-2xs font-semibold text-primary uppercase tracking-normal mb-1">
                         {insight.feature.replaceAll("_", " ")}
                       </p>
-                      <p className="text-sm font-bold text-[#1f1a23] leading-snug">{insight.summary}</p>
+                      <p className="text-sm font-bold text-ink-strong leading-snug">{insight.summary}</p>
                     </div>
                   ))}
                 </div>
@@ -530,7 +530,7 @@ const bottomItems: RoleNavItem[] = [];
           </div>
         ) : showCampusFees ? (
           <div className="flex flex-col h-full">
-            <div className="p-8 border-b border-[#f3f4f9] flex items-center justify-between bg-white shrink-0">
+            <div className="p-8 border-b border-muted flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-5">
                 <Button aria-label="Close campus fees" size="icon" variant="ghost"
                   onClick={() => setShowCampusFees(false)}
@@ -539,10 +539,10 @@ const bottomItems: RoleNavItem[] = [];
                   <ChevronRight className="w-5 h-5 rotate-180" />
                 </Button>
                 <div>
-                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal leading-none mb-1">
+                  <h2 className="text-2xl font-bold text-ink-strong tracking-normal leading-none mb-1">
                     {selectedCampus.name}
                   </h2>
-                  <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal">Fee Management</p>
+                  <p className="text-2xs font-semibold text-primary uppercase tracking-normal">Fee Management</p>
                 </div>
               </div>
             </div>
@@ -552,7 +552,7 @@ const bottomItems: RoleNavItem[] = [];
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            <div className="p-8 border-b border-[#f3f4f9] flex items-center justify-between bg-white shrink-0">
+            <div className="p-8 border-b border-muted flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-5">
                 <Button aria-label="Close campus details" size="icon" variant="ghost"
                   onClick={() => setSelectedCampus(null)}
@@ -561,10 +561,10 @@ const bottomItems: RoleNavItem[] = [];
                   <ChevronRight className="w-5 h-5 rotate-180" />
                 </Button>
                 <div>
-                  <h2 className="text-2xl font-black text-[#1f1a23] tracking-normal leading-none mb-1">
+                  <h2 className="text-2xl font-bold text-ink-strong tracking-normal leading-none mb-1">
                     {selectedCampus.name}
                   </h2>
-                  <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal flex items-center gap-2">
+                  <p className="text-2xs font-semibold text-primary uppercase tracking-normal flex items-center gap-2">
                     <MapPin className="w-3 h-3" />
                     {selectedCampus.city} Campus Identity Hub
                   </p>
@@ -581,7 +581,7 @@ const bottomItems: RoleNavItem[] = [];
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#fbf0fe]/30">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-brand-50/30">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <ManagementCard
                   title="Campus Administrator"
@@ -624,21 +624,21 @@ const bottomItems: RoleNavItem[] = [];
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {selectedCampus.pendingInvitations.map((invite: any) => (
-                    <div key={invite.inviteId} className="rounded-[22px] bg-gradient-to-br from-[#fbf0fe]/60 to-white px-4 py-3 border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
-                      <p className="truncate text-sm font-black text-[#1f1a23]">{invite.email}</p>
+                    <div key={invite.inviteId} className="rounded-[22px] bg-gradient-to-br from-brand-50/60 to-white px-4 py-3 border border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
+                      <p className="truncate text-sm font-bold text-ink-strong">{invite.email}</p>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <div className="flex flex-wrap gap-2">
                           <SuperStatusPill status={invite.status} />
                           {invite.role ? <SuperStatusPill status={String(invite.role)} /> : null}
                         </div>
-                        <span className="text-[9px] font-bold uppercase tracking-normal text-ink-subtle">
+                        <span className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle">
                           {new Date(invite.expiresAt).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
                   ))}
                   {selectedCampus.pendingInvitations.length === 0 ? (
-                    <p className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/60 to-white border border-[#cfc2d6]/25 p-4 text-sm font-semibold text-ink-muted">
+                    <p className="rounded-2xl bg-gradient-to-br from-brand-50/60 to-white border border-edge/25 p-4 text-sm font-semibold text-ink-muted">
                       No pending invitations for this campus.
                     </p>
                   ) : null}
@@ -671,10 +671,10 @@ const bottomItems: RoleNavItem[] = [];
                 </div>
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Invitation Link</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-2">Invitation Link</p>
                 <p className="text-xs font-semibold text-ink-muted mb-2">Share this link manually if the email doesn&apos;t arrive. It expires in 48 hours.</p>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 p-3 rounded-xl bg-[#fbf0fe] border border-[#cfc2d6]/20 text-xs font-mono text-ink break-all select-all">{inviteLink}</div>
+                  <div className="flex-1 p-3 rounded-xl bg-brand-50 border border-edge/20 text-xs font-mono text-ink break-all select-all">{inviteLink}</div>
                   <BrandButton variant="soft" className="shrink-0 h-10" onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success("Link copied to clipboard"); }}>Copy</BrandButton>
                 </div>
               </div>
@@ -682,7 +682,7 @@ const bottomItems: RoleNavItem[] = [];
           ) : (
             <div className="space-y-6 mb-8">
               <InputGroup surfaceClassName="bg-indigo-50" className="my-2">
-                <Mail data-field-affix="start" className="w-6 h-6 text-[#8127cf]" />
+                <Mail data-field-affix="start" className="w-6 h-6 text-primary" />
                 <SystemInput
                   type="email"
                   placeholder="Enter official email..."
@@ -691,8 +691,8 @@ const bottomItems: RoleNavItem[] = [];
                   onChange={(event) => setInviteEmail(event.target.value)}
                 />
               </InputGroup>
-              <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#8127cf] mb-1">How it works</p>
+              <div className="rounded-2xl bg-brand-50/50 border border-edge/10 p-4">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-primary mb-1">How it works</p>
                 <p className="text-xs font-semibold text-ink-muted">An invitation email will be sent. The invited person will create their own secure password when they accept the invite link.</p>
               </div>
             </div>
@@ -768,7 +768,7 @@ const bottomItems: RoleNavItem[] = [];
             />
             <div>
               <label htmlFor="campus-board" className="sk-field-label">Board</label>
-              <InputGroup surfaceClassName="bg-[#f3f4f9]" className="min-w-0">
+              <InputGroup surfaceClassName="bg-muted" className="min-w-0">
                 <GraduationCap data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
                 <SystemSelect
                   id="campus-board"
@@ -788,9 +788,9 @@ const bottomItems: RoleNavItem[] = [];
               hint="An invitation is sent; they set their own password."
               onChange={(value) => setNewCampusData({ ...newCampusData, adminEmail: value })}
             />
-            <div className="md:col-span-2 p-6 bg-[#fbf0fe] rounded-[28px] border border-[#cfc2d6]/20">
+            <div className="md:col-span-2 p-6 bg-brand-50 rounded-[28px] border border-edge/20">
               <div className="flex items-center justify-between mb-4">
-                <label className="text-[9px] font-black text-[#8127cf] uppercase tracking-normal">Campus Key</label>
+                <label className="text-2xs font-semibold text-primary uppercase tracking-normal">Campus Key</label>
                 <Button aria-pressed={newCampusData.autoId} variant="choice"
                   onClick={() =>
                     setNewCampusData({
@@ -812,7 +812,7 @@ const bottomItems: RoleNavItem[] = [];
                 value={newCampusData.regId}
                 onChange={(event) => setNewCampusData({ ...newCampusData, regId: event.target.value.toUpperCase() })}
               />
-              <p className="mt-4 pl-1 text-[10px] font-bold leading-snug text-ink-subtle">
+              <p className="mt-4 pl-1 text-2xs font-bold leading-snug text-ink-subtle">
                 The new campus inherits the group&apos;s current academic session and working week.
                 Adjust either from Academic &rarr; Calendar.
               </p>
@@ -847,9 +847,9 @@ const bottomItems: RoleNavItem[] = [];
 
 function SuperStatusPill({ status }: { status?: string }) {
   const tone = statusTone(status);
-  const dotColor = tone.includes("emerald") ? "bg-emerald-500" : tone.includes("rose") ? "bg-rose-500" : tone.includes("amber") ? "bg-amber-500" : tone.includes("8127cf") ? "bg-[#8127cf]" : "bg-[#4d4354]/40";
+  const dotColor = tone.includes("emerald") ? "bg-emerald-500" : tone.includes("rose") ? "bg-rose-500" : tone.includes("amber") ? "bg-amber-500" : tone.includes("8127cf") ? "bg-primary" : "bg-ink/40";
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${tone}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-3xs font-semibold uppercase tracking-normal ${tone}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
       {formatStatus(status)}
     </span>
@@ -859,10 +859,10 @@ function SuperStatusPill({ status }: { status?: string }) {
 function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-lg font-black tracking-normal text-[#1f1a23]">{title}</h3>
+      <h3 className="text-lg font-bold tracking-normal text-ink-strong">{title}</h3>
     </div>
   );
 }
@@ -878,24 +878,24 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
       : `${creditsUsed.toLocaleString()} / ${creditsLimit.toLocaleString()}`;
 
   return (
-    <div className="mb-8 rounded-[32px] border border-[#8127cf]/10 bg-gradient-to-br from-[#1f1a23] via-[#1f1a23] to-[#2d2633] p-5 text-white shadow-2xl shadow-indigo-100">
+    <div className="mb-8 rounded-[32px] border border-primary/10 bg-gradient-to-br from-ink-strong via-ink-strong to-[#2d2633] p-5 text-white shadow-2xl shadow-indigo-100">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-white/10 text-white">
             <CreditCard className="h-7 w-7" />
           </div>
           <div>
-            <p className="text-[9px] font-black uppercase tracking-normal text-white/50">Billing & plan</p>
-            <h3 className="mt-1 text-2xl font-black tracking-normal">{plan} Plan</h3>
-            <p className="mt-1 text-xs font-bold uppercase tracking-normal text-[#cfc2d6]">Status: {status}</p>
+            <p className="text-2xs font-semibold uppercase tracking-normal text-white/50">Billing & plan</p>
+            <h3 className="mt-1 text-2xl font-bold tracking-normal">{plan} Plan</h3>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-normal text-edge">Status: {status}</p>
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="rounded-2xl bg-white/10 px-5 py-3 border border-white/5">
-            <p className="text-[9px] font-black uppercase tracking-normal text-white/45">AI Credits</p>
-            <p className="text-lg font-black">{creditsLabel}</p>
+            <p className="text-2xs font-semibold uppercase tracking-normal text-white/45">AI Credits</p>
+            <p className="text-lg font-bold">{creditsLabel}</p>
           </div>
-          <BrandButton variant="soft" icon={<CreditCard className="h-4 w-4" />} onClick={onOpen} className="bg-white text-[#8127cf]">
+          <BrandButton variant="soft" icon={<CreditCard className="h-4 w-4" />} onClick={onOpen} className="bg-white text-primary">
             Open Billing
           </BrandButton>
         </div>
@@ -912,12 +912,12 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
       <div className="absolute top-6 right-6 z-10">
         <SuperStatusPill status={hasLeadership ? "ACTIVE" : "MISSING"} />
       </div>
-      <div className="h-14 w-14 bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] rounded-[20px] flex items-center justify-center text-[#8127cf] mb-6 shadow-sm group-hover:shadow-md group-hover:scale-110 transition-all duration-300">
+      <div className="h-14 w-14 bg-gradient-to-br from-brand-50 to-brand-100 rounded-[20px] flex items-center justify-center text-primary mb-6 shadow-sm group-hover:shadow-md group-hover:scale-110 transition-all duration-300">
         {hasLeadership ? <CheckCircle2 className="w-7 h-7" /> : <AlertCircle className="w-7 h-7" />}
       </div>
-      <h3 className="text-xl font-black text-[#1f1a23] tracking-normal mb-1 pr-16">{campus.name}</h3>
-      <div className="flex items-center gap-2 text-ink-subtle text-[9px] font-bold uppercase tracking-normal mb-8">
-        <MapPin className="w-2.5 h-2.5 text-[#8127cf]" />
+      <h3 className="text-xl font-bold text-ink-strong tracking-normal mb-1 pr-16">{campus.name}</h3>
+      <div className="flex items-center gap-2 text-ink-subtle text-2xs font-semibold uppercase tracking-normal mb-8">
+        <MapPin className="w-2.5 h-2.5 text-primary" />
         {campus.city}
       </div>
 
@@ -928,18 +928,18 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
       </div>
 
       <div className="space-y-2 mb-5">
-        <div className="flex items-center justify-between rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-          <span className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Admin</span>
+        <div className="flex items-center justify-between rounded-2xl bg-brand-50/60 px-4 py-3">
+          <span className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle">Admin</span>
           <SuperStatusPill status={campus.admin ? campus.admin.status : "MISSING"} />
         </div>
-        <div className="flex items-center justify-between rounded-2xl bg-[#fbf0fe]/60 px-4 py-3">
-          <span className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Principal</span>
+        <div className="flex items-center justify-between rounded-2xl bg-brand-50/60 px-4 py-3">
+          <span className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle">Principal</span>
           <SuperStatusPill status={campus.principal ? campus.principal.status : "MISSING"} />
         </div>
       </div>
 
       <div className="mt-auto flex items-center justify-between">
-        <div className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">
+        <div className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle">
           {campus.reportCardCount} reports / {campus.aiUsage.runs} AI runs
         </div>
         <Button variant="link" onClick={onManage} className="items-center gap-1.5 justify-start">
@@ -952,9 +952,9 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
 
 function CampusMiniMetric({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
-    <div className={`rounded-2xl px-3 py-3 transition-all ${active ? "bg-gradient-to-br from-[#fbf0fe] via-[#fbf0fe]/80 to-white border border-[#8127cf]/10" : "bg-[#fbf0fe]/70"}`}>
-      <p className="text-[7px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
-      <p className={`mt-1 text-base font-black ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
+    <div className={`rounded-2xl px-3 py-3 transition-all ${active ? "bg-gradient-to-br from-brand-50 via-brand-50/80 to-white border border-primary/10" : "bg-brand-50/70"}`}>
+      <p className="text-3xs font-semibold uppercase tracking-normal text-ink-subtle">{label}</p>
+      <p className={`mt-1 text-base font-bold ${active ? "text-primary" : "text-ink-strong"}`}>{value}</p>
     </div>
   );
 }
@@ -962,8 +962,8 @@ function CampusMiniMetric({ label, value, active }: { label: string; value: any;
 function InfoPill({ label, value, active }: { label: string; value: any; active?: boolean }) {
   return (
     <div className="sk-panel p-5 transition-all duration-300 hover:-translate-y-0.5">
-      <p className="text-[8px] font-black text-ink-subtle uppercase tracking-normal mb-1">{label}</p>
-      <p className={`text-xl font-black italic tracking-normal ${active ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{value}</p>
+      <p className="text-3xs font-semibold text-ink-subtle uppercase tracking-normal mb-1">{label}</p>
+      <p className={`text-xl font-bold italic tracking-normal ${active ? "text-primary" : "text-ink-strong"}`}>{value}</p>
     </div>
   );
 }
@@ -1097,7 +1097,7 @@ function CampusInput({
       <label className="sk-field-label">
         {label} {required ? <span className="text-rose-500">*</span> : null}
       </label>
-      <InputGroup surfaceClassName="bg-[#f3f4f9]" className="my-2">
+      <InputGroup surfaceClassName="bg-muted" className="my-2">
         <Icon data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
         <SystemInput
           type="text"
@@ -1109,7 +1109,7 @@ function CampusInput({
           onChange={(event) => onChange(event.target.value)}
         />
       </InputGroup>
-      {hint ? <p className="mt-1.5 pl-2 text-[9px] font-bold text-ink-subtle">{hint}</p> : null}
+      {hint ? <p className="mt-1.5 pl-2 text-2xs font-bold text-ink-subtle">{hint}</p> : null}
     </div>
   );
 }

@@ -47,10 +47,10 @@ export function ScheduleConflictsBanner({
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-black text-[#1f1a23]">
+            <p className="text-sm font-bold text-ink-strong">
               You&apos;re double-booked {scopeLabel}
             </p>
-            <p className="mt-0.5 text-[10px] font-bold text-ink-muted">
+            <p className="mt-0.5 text-2xs font-bold text-ink-muted">
               {clashes.length} period{clashes.length !== 1 ? "s" : ""} put you in more than one
               class at the same time
             </p>
@@ -66,17 +66,17 @@ export function ScheduleConflictsBanner({
           {clashes.map((clash) => (
             <div key={clash.key} className="rounded-2xl bg-white p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-lg bg-rose-50 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-rose-700">
+                <span className="rounded-lg bg-rose-50 px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-rose-700">
                   {DAY_LABELS[clash.dayOfWeek] || `Day ${clash.dayOfWeek}`} · P{clash.periodNumber}
                 </span>
-                <span className="text-[10px] font-black text-ink-muted">{clash.startTime}</span>
+                <span className="text-2xs font-bold text-ink-muted">{clash.startTime}</span>
               </div>
-              <p className="mt-1.5 text-xs font-bold leading-relaxed text-[#1f1a23]">
+              <p className="mt-1.5 text-xs font-bold leading-relaxed text-ink-strong">
                 {clash.classes.join("  &  ")}
               </p>
             </div>
           ))}
-          <p className="pt-1 text-[10px] font-bold text-ink-muted">
+          <p className="pt-1 text-2xs font-bold text-ink-muted">
             You can&apos;t edit the timetable yourself — ask the office to move one of these periods.
           </p>
         </div>
