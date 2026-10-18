@@ -34,6 +34,7 @@ const PUBLIC_PATHS = [
   "/school-fee-management-software", "/ai-student-performance-analytics",
   "/privacy", "/ai-governance", "/security", "/human-review-policy",
   "/api/auth/login",
+  "/sso", "/api/auth/sso", // SKO-446: school sign-in; the routes verify state, PKCE and the provider's ID token.
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
   "/api/auth/signup-step1", "/api/auth/signup-step2",
   "/api/reports/download", // Route authenticates session or a single-child capability.

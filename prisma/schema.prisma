@@ -295,6 +295,12 @@ model School {
   integrationCommands IntegrationCommand[]
   integrationRequestLogs IntegrationRequestLog[]
   integrationExternalRefs IntegrationExternalRef[]
+  identityConnections IdentityConnection[]
+  identityLinks IdentityLink[]
+  identityLinkRequests IdentityLinkRequest[]
+  identityEvents IdentityEvent[]
+  rosterBatches RosterBatch[]
+  rosterExternalIds RosterExternalId[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -4755,6 +4761,131 @@ model IntegrationExternalRef {
 
   @@unique([connectionId, studentId, system])
   @@map("integration_external_refs")
+}
+
+/// SKO-446: school identity (OIDC) and roster exchange. Provider subjects and roster ids are namespaced by connection;
+/// names or emails alone never merge people. Local password sign-in stays available for recovery.
+
+model IdentityConnection {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name            String
+  protocol        String    @default("OIDC")
+  issuer          String
+  clientId        String    @map("client_id")
+  clientSecret    String?   @map("client_secret") // encrypted
+  discovery       Json?
+  verifiedDomains String[]  @default([]) @map("verified_domains")
+  pendingDomains  Json      @default("[]") @map("pending_domains")
+  roleClaim       String    @default("groups") @map("role_claim")
+  roleMap         Json      @default("{}") @map("role_map")
+  fieldOwnership  Json      @default("{}") @map("field_ownership")
+  status          String    @default("DRAFT") // DRAFT | TESTED | ENABLED | DISABLED
+  lastTestedAt    DateTime? @map("last_tested_at")
+  lastTestResult  String?   @map("last_test_result")
+  emergencyAdminIds String[] @default([]) @map("emergency_admin_ids")
+  createdById     String    @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  links    IdentityLink[]
+  requests IdentityLinkRequest[]
+  batches  RosterBatch[]
+
+  @@index([schoolId, status])
+  @@map("identity_connections")
+}
+
+model IdentityLink {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId String             @map("connection_id")
+  connection   IdentityConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  subject      String
+  userId       String             @map("user_id")
+  method       String // VERIFIED_EMAIL | ADMIN_DECISION
+  linkedById   String?            @map("linked_by_id")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  lastSignInAt DateTime?          @map("last_sign_in_at")
+
+  @@unique([connectionId, subject])
+  @@unique([connectionId, userId])
+  @@map("identity_links")
+}
+
+model IdentityLinkRequest {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId     String             @map("connection_id")
+  connection       IdentityConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  subject          String
+  email            String?
+  emailVerified    Boolean            @default(false) @map("email_verified")
+  name             String?
+  reason           String
+  candidateUserIds String[]           @default([]) @map("candidate_user_ids")
+  status           String             @default("PENDING") // PENDING | LINKED | REJECTED
+  decidedById      String?            @map("decided_by_id")
+  decidedAt        DateTime?          @map("decided_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  @@unique([connectionId, subject])
+  @@map("identity_link_requests")
+}
+
+model IdentityEvent {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId String?  @map("connection_id")
+  kind         String
+  actorId      String?  @map("actor_id")
+  detail       Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt])
+  @@map("identity_events")
+}
+
+model RosterBatch {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId    String             @map("connection_id")
+  connection      IdentityConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  campusId        String             @map("campus_id")
+  externalBatchId String             @map("external_batch_id")
+  payloadHash     String             @map("payload_hash")
+  rows            Json
+  preview         Json?
+  previewHash     String?            @map("preview_hash")
+  status          String             @default("DRY_RUN") // DRY_RUN | APPLIED
+  result          Json?
+  submittedById   String             @map("submitted_by_id")
+  appliedById     String?            @map("applied_by_id")
+  appliedAt       DateTime?          @map("applied_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  @@unique([connectionId, externalBatchId])
+  @@map("roster_batches")
+}
+
+model RosterExternalId {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  connectionId String   @map("connection_id")
+  kind         String // STUDENT | STAFF
+  externalId   String   @map("external_id")
+  localId      String   @map("local_id")
+  synced       Json     @default("{}")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([connectionId, kind, externalId])
+  @@unique([connectionId, kind, localId])
+  @@map("roster_external_ids")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
