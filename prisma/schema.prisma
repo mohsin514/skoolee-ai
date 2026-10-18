@@ -302,6 +302,7 @@ model School {
   rosterBatches RosterBatch[]
   rosterExternalIds RosterExternalId[]
   offlineOperations OfflineOperation[]
+  evidenceFrameworks EvidenceFramework[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -9070,4 +9071,132 @@ model MentoringRequest {
   @@unique([schoolId, reference])
   @@index([schoolId, alumniId, status])
   @@map("mentoring_requests")
+}
+
+// SKO-450: improvement and accreditation evidence. A framework is a school-configured reference (name + version);
+// evidence points at one source record and the version it had when linked; actions reference SKO-425 plans
+// without changing them; packs freeze a manifest with a digest. No accreditation outcome is ever stored.
+model EvidenceFramework {
+  id          String   @id @default(uuid())
+  schoolId    String   @default("") @map("school_id")
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId    String?  @map("campus_id")
+  name        String
+  version     String
+  status      String   @default("ACTIVE") // ACTIVE, RETIRED
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  criteria    EvidenceCriterion[]
+  items       EvidenceItem[]
+  actions     ImprovementAction[]
+  grants      EvidenceReviewerGrant[]
+  packs       EvidencePack[]
+
+  @@unique([schoolId, name, version])
+  @@map("evidence_frameworks")
+}
+
+model EvidenceCriterion {
+  id                         String            @id @default(uuid())
+  schoolId                   String            @default("") @map("school_id")
+  frameworkId                String            @map("framework_id")
+  framework                  EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  code                       String
+  title                      String
+  interpretation             String?           @db.Text
+  interpretationApprovedById String?           @map("interpretation_approved_by_id")
+  interpretationApprovedAt   DateTime?         @map("interpretation_approved_at")
+  sortOrder                  Int               @default(0) @map("sort_order")
+
+  @@unique([frameworkId, code])
+  @@index([schoolId])
+  @@map("evidence_criteria")
+}
+
+model EvidenceItem {
+  id            String            @id @default(uuid())
+  schoolId      String            @default("") @map("school_id")
+  frameworkId   String            @map("framework_id")
+  framework     EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  criterionIds  String[]          @map("criterion_ids")
+  sourceType    String            @map("source_type") // INTERVENTION, REPORT_CARD, CLINIC_VISIT, CARE_PLAN, DOCUMENT
+  sourceId      String?           @map("source_id")
+  sourceVersion String            @map("source_version")
+  sourceDate    DateTime          @map("source_date") @db.Date
+  title         String
+  note          String?           @db.Text
+  ownerId       String            @map("owner_id")
+  audience      String            @default("STAFF") // STAFF, REVIEWER, EXTERNAL
+  sensitivity   String            @default("NONE") // NONE, PUPIL, CLINIC
+  stance        String            @default("SUPPORTS") // SUPPORTS, CONTRADICTS
+  reviewBy      DateTime          @map("review_by") @db.Date
+  reviewState   String            @default("PENDING") @map("review_state") // PENDING, ACCEPTED, MORE_REQUESTED
+  reviewedById  String?           @map("reviewed_by_id")
+  reviewedAt    DateTime?         @map("reviewed_at")
+  reviewNote    String?           @map("review_note") @db.Text
+  createdById   String            @map("created_by_id")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  @@index([schoolId, frameworkId])
+  @@map("evidence_items")
+}
+
+model ImprovementAction {
+  id                   String            @id @default(uuid())
+  schoolId             String            @default("") @map("school_id")
+  frameworkId          String            @map("framework_id")
+  framework            EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  criterionIds         String[]          @map("criterion_ids")
+  title                String
+  ownerId              String            @map("owner_id")
+  dueDate              DateTime          @map("due_date") @db.Date
+  expectedMeasure      String            @map("expected_measure") @db.Text
+  interventionPlanId   String?           @map("intervention_plan_id")
+  milestones           Json              @default("[]")
+  reassessment         Json?
+  reflection           String?           @db.Text
+  status               String            @default("OPEN") // OPEN, COMPLETED
+  completionEvidenceId String?           @map("completion_evidence_id")
+  completedById        String?           @map("completed_by_id")
+  completedAt          DateTime?         @map("completed_at")
+  version              Int               @default(1)
+  createdById          String            @map("created_by_id")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @default(now()) @updatedAt @map("updated_at")
+
+  @@index([schoolId, frameworkId])
+  @@map("improvement_actions")
+}
+
+model EvidenceReviewerGrant {
+  id           String            @id @default(uuid())
+  schoolId     String            @default("") @map("school_id")
+  frameworkId  String            @map("framework_id")
+  framework    EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  userId       String            @map("user_id")
+  criterionIds String[]          @map("criterion_ids")
+  expiresAt    DateTime          @map("expires_at")
+  revokedAt    DateTime?         @map("revoked_at")
+  grantedById  String            @map("granted_by_id")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  @@index([schoolId, userId])
+  @@map("evidence_reviewer_grants")
+}
+
+model EvidencePack {
+  id          String            @id @default(uuid())
+  schoolId    String            @default("") @map("school_id")
+  frameworkId String            @map("framework_id")
+  framework   EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  version     Int
+  audience    String // STAFF, EXTERNAL
+  manifest    Json
+  digest      String
+  createdById String            @map("created_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  @@unique([frameworkId, version])
+  @@index([schoolId])
+  @@map("evidence_packs")
 }
