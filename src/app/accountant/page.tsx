@@ -130,8 +130,8 @@ export default function AccountantPage() {
 
   return (
     <RoleShell
-      tagline="Finance Console"
-      eyebrow="Finance Console"
+      tagline={tr("Finance Console")}
+      eyebrow={tr("Finance Console")}
       navItems={navItems}
       userName={data?.userName || "Accountant"}
       userRole="Accountant"

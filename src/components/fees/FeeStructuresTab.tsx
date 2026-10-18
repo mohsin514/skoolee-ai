@@ -42,6 +42,8 @@ const SUB_TABS: { key: StructureSubTab; label: string; icon: typeof Layers }[] =
 ];
 
 export function FeeStructuresTab({ campusId }: { campusId?: string }) {
+  // SKO-497: the sub-navigation is operational copy and follows the display language.
+  const tr = useUiText();
   const [subTab, setSubTab] = useState<StructureSubTab>("types");
 
   return (
@@ -60,7 +62,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
               } `)}
             >
               <Icon className="w-3.5 h-3.5" />
-              {tab.label}
+              {tr(tab.label)}
             </Button>
           );
         })}
