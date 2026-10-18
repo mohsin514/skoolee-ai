@@ -3,6 +3,7 @@
 import { ScenarioPlanner } from "@/components/planning/scenario-planner";
 import { QuestionNetwork } from "@/components/question-network/question-network";
 import { PathwayPanel } from "@/components/pathways/pathway-panel";
+import { BoardingOperations, CampusPackagesPanel, CanteenPanel, usePackageStates } from "@/components/campus-packages/campus-packages";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { PurchasingPanel } from "@/components/purchasing/purchasing-panel";
 import { LearningActions } from "@/components/learning/learning-actions";
@@ -71,6 +72,7 @@ import {
   X,
   type LucideIcon,
   Network,
+  UtensilsCrossed,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { toast } from "sonner";
@@ -198,6 +200,7 @@ type PrincipalView =
   | "engagement"
   | "transport"
   | "dormitory"
+  | "canteen"
   | "complaints"
   | "phone-calls"
   | "postal"
@@ -205,7 +208,7 @@ type PrincipalView =
   | "library"
   | "inventory"
 ;
-const WORKSPACE_VIEWS: readonly PrincipalView[] = ["overview", "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "applications", "student-setup", "promote-archive", "leave", "permissions", "attendance", "year-cycle", "academic-hub", "year-setup", "academic-model", "exam-cycles", "grading-rules", "fees", "timetable", "class-rooms", "period-setup", "school-calendar", "teacher-performance", "report-cards", "ai", "engagement", "transport", "dormitory", "complaints", "phone-calls", "postal", "certificates", "library", "inventory"];
+const WORKSPACE_VIEWS: readonly PrincipalView[] = ["overview", "leadership", "classes", "teachers", "staff-hierarchy", "students", "admission-queries", "applications", "student-setup", "promote-archive", "leave", "permissions", "attendance", "year-cycle", "academic-hub", "year-setup", "academic-model", "exam-cycles", "grading-rules", "fees", "timetable", "class-rooms", "period-setup", "school-calendar", "teacher-performance", "report-cards", "ai", "engagement", "transport", "dormitory", "canteen", "complaints", "phone-calls", "postal", "certificates", "library", "inventory"];
 type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
 
 const principalAIFeatures = [
@@ -221,6 +224,7 @@ export default function PrincipalDashboard() {
   // payload lands, and null is what the skeleton keys off.
   const { data, refetch } = usePrincipalData();
   const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "overview");
+  const packageNav = usePackageStates();
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editedRemarks, setEditedRemarks] = useState({ en: "", ur: "" });
@@ -562,6 +566,7 @@ export default function PrincipalDashboard() {
       icon: Wrench, label: "Operations", children: [
         { icon: Bus, label: "Transport", active: activeView === "transport", module: moduleForView("transport"), onClick: () => setActiveView("transport") },
         { icon: Building2, label: "Hostel", active: activeView === "dormitory", module: moduleForView("dormitory"), onClick: () => setActiveView("dormitory") },
+        ...(packageNav.canteen ? [{ icon: UtensilsCrossed, label: "Canteen", active: activeView === "canteen", onClick: () => setActiveView("canteen") }] : []),
         { icon: MessageSquare, label: "Complaints", active: activeView === "complaints", module: moduleForView("complaints"), onClick: () => setActiveView("complaints") },
         { icon: PhoneCall, label: "Phone Calls", active: activeView === "phone-calls", module: moduleForView("phone-calls"), onClick: () => setActiveView("phone-calls") },
         { icon: Mail, label: "Postal", active: activeView === "postal", module: moduleForView("postal"), onClick: () => setActiveView("postal") },
@@ -639,6 +644,7 @@ export default function PrincipalDashboard() {
             onActivityLog={() => setShowActivityLogModal(true)}
           />
         ) : null}
+        {activeView === "leadership" ? <CampusPackagesPanel /> : null}
         {activeView === "classes" ? (
           <>
           <TeacherConflictsBanner />
@@ -785,7 +791,8 @@ export default function PrincipalDashboard() {
         {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
 
         {activeView === "transport" ? <TransportPanel /> : null}
-        {activeView === "dormitory" ? <DormitoryPanel /> : null}
+        {activeView === "dormitory" ? <div className="space-y-6"><DormitoryPanel />{packageNav.boarding ? <BoardingOperations /> : null}</div> : null}
+        {activeView === "canteen" && packageNav.canteen ? <CanteenPanel /> : null}
           {activeView === "complaints" ? <ComplaintsPanel /> : null}
           {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
           {activeView === "postal" ? <PostalPanel /> : null}

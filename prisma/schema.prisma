@@ -9200,3 +9200,175 @@ model EvidencePack {
   @@index([schoolId])
   @@map("evidence_packs")
 }
+
+// ─── SKO-456: optional canteen, boarding and specialist packages per campus
+
+/// An optional package for one campus: named operators, a setup checklist, and enable, disable and
+/// archive steps. Disabled stops new transactions; archive needs every obligation closed.
+model CampusPackage {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  /// CANTEEN | BOARDING | SPECIALIST
+  package     String
+  /// SETUP | ENABLED | DISABLED | ARCHIVED
+  status      String    @default("SETUP")
+  /// { ROLE: [userId] }
+  operators   Json      @default("{}")
+  /// { itemKey: { by, at, note } }
+  checklist   Json      @default("{}")
+  settings    Json      @default("{}")
+  enabledById String?   @map("enabled_by_id")
+  enabledAt   DateTime? @map("enabled_at")
+  history     Json      @default("[]")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, package])
+  @@index([schoolId])
+  @@map("campus_packages")
+}
+
+/// One meal on one service date, with a fixed capacity and declared allergens.
+model CanteenItem {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  campusId    String   @map("campus_id")
+  serviceDate DateTime @map("service_date") @db.Date
+  name        String
+  price       Int
+  currency    String
+  capacity    Int
+  sold        Int      @default(0)
+  allergens   String[]
+  /// ACTIVE | WITHDRAWN
+  status      String   @default("ACTIVE")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, serviceDate])
+  @@map("canteen_items")
+}
+
+/// A meal order. HOLD means trained staff must check it against the student's dietary record first.
+model CanteenOrder {
+  id             String   @id @default(uuid())
+  schoolId       String   @map("school_id")
+  campusId       String   @map("campus_id")
+  itemId         String   @map("item_id")
+  studentId      String   @map("student_id")
+  quantity       Int
+  amount         Int
+  currency       String
+  /// PLACED | HOLD | CANCELLED | SERVED
+  status         String
+  holdReason     String?  @map("hold_reason")
+  idempotencyKey String   @map("idempotency_key")
+  orderedById    String   @map("ordered_by_id")
+  history        Json     @default("[]")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId, studentId])
+  @@index([itemId])
+  @@map("canteen_orders")
+}
+
+/// The charge and refund of an order, each at most once.
+model CanteenLedgerEntry {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  campusId    String   @map("campus_id")
+  studentId   String   @map("student_id")
+  orderId     String   @map("order_id")
+  /// CHARGE | REFUND
+  kind        String
+  amount      Int
+  currency    String
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([orderId, kind])
+  @@index([schoolId, studentId])
+  @@map("canteen_ledger_entries")
+}
+
+/// A guardian's daily canteen spending limit for a student.
+model CanteenSpendLimit {
+  id         String   @id @default(uuid())
+  schoolId   String   @map("school_id")
+  studentId  String   @map("student_id")
+  dailyLimit Int      @map("daily_limit")
+  setById    String   @map("set_by_id")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([schoolId, studentId])
+  @@map("canteen_spend_limits")
+}
+
+/// Dietary and allergen information with its source and date. Restricted to the campus dietary lead
+/// and the student's guardians; never a guarantee of allergen safety.
+model DietaryRecord {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  campusId      String    @map("campus_id")
+  studentId     String    @map("student_id")
+  allergens     String[]
+  diet          String?
+  /// GUARDIAN | CLINIC | DOCTOR_LETTER
+  source        String
+  sourceDate    DateTime  @map("source_date") @db.Date
+  /// NEEDS_CONFIRMATION | CONFIRMED | UNCERTAIN
+  status        String    @default("NEEDS_CONFIRMATION")
+  recordedById  String    @map("recorded_by_id")
+  confirmedById String?   @map("confirmed_by_id")
+  confirmedAt   DateTime? @map("confirmed_at")
+  history       Json      @default("[]")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([schoolId, studentId])
+  @@map("dietary_records")
+}
+
+/// Authorized boarding leave with departure and return handovers.
+model BoardingLeave {
+  id               String    @id @default(uuid())
+  schoolId         String    @map("school_id")
+  campusId         String    @map("campus_id")
+  studentId        String    @map("student_id")
+  departAt         DateTime  @map("depart_at")
+  expectedReturnAt DateTime  @map("expected_return_at")
+  destination      String
+  collectedBy      String    @map("collected_by")
+  approvedById     String    @map("approved_by_id")
+  /// PLANNED | OUT | RETURNED | CANCELLED
+  status           String    @default("PLANNED")
+  departedAt       DateTime? @map("departed_at")
+  returnedAt       DateTime? @map("returned_at")
+  returnedTo       String?   @map("returned_to")
+  receivedById     String?   @map("received_by_id")
+  lateReason       String?   @map("late_reason")
+  history          Json      @default("[]")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, status])
+  @@map("boarding_leaves")
+}
+
+/// A boarding roll call. Missing students and overdue returns become exceptions for designated staff.
+model BoardingRollCall {
+  id         String   @id @default(uuid())
+  schoolId   String   @map("school_id")
+  campusId   String   @map("campus_id")
+  label      String
+  takenAt    DateTime @default(now()) @map("taken_at")
+  takenById  String   @map("taken_by_id")
+  /// [{ studentId, status: PRESENT | ABSENT | ON_LEAVE }]
+  entries    Json
+  /// [{ studentId, kind: MISSING | LEAVE_OVERDUE, resolvedAt?, resolution?, resolvedById? }]
+  exceptions Json     @default("[]")
+
+  @@index([schoolId, campusId, takenAt])
+  @@map("boarding_roll_calls")
+}
