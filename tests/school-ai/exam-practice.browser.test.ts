@@ -130,7 +130,18 @@ test("the learner sees the approved practice beside their result feedback, witho
   await page.goto(`${base}/ai/exams/${earlierId}`);
   const section = page.locator("[data-learner-practice]");
   await section.getByText("Practice your teacher approved").waitFor();
+  // SKO-481: the set opens unstarted; the learner starts it, then sees the question and never the key.
+  const start = section.getByRole("button", { name: "Start practice", exact: true });
+  await start.waitFor();
+  assert.equal(await section.getByText("What is 2 + 2?").count(), 0, "no question before the session starts");
+  await shot(page, "practice-learner-unstarted-en-1440");
+  const started = page.waitForResponse(response => response.request().method() === "POST" && /practice/u.test(response.url()) && response.ok());
+  await start.click();
+  const payload = JSON.stringify(await (await started).json());
   await section.getByText("What is 2 + 2?").waitFor();
+  assert.doesNotMatch(payload, /correctOptionId|modelAnswer|rubric|"Four\."/u, "the session payload carries no answer key");
+  const text = await section.innerText();
+  for (const key of ["Four.", "Correct choice", "Combine the quantities and count the total."]) assert.ok(!text.includes(key), `no key on screen: ${key}`);
   await section.scrollIntoViewIfNeeded();
   await shot(page, "practice-learner-en-1440");
   await ctx.close();
