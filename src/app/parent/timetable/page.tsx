@@ -6,6 +6,7 @@ import { Clock } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentEmptyState, ParentTimetableSkeleton } from "@/components/parent/parent-components";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
+import { FamilyMeetings } from "@/components/meetings/family-meetings";
 import { useParentData } from "../parent-data-context";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,8 @@ const COLORS = [
 ];
 
 export default function ParentTimetablePage() {
-  const { token, selectedStudentId } = useParentData();
+  const { token, selectedStudentId, children } = useParentData();
+  const meetingChildId = selectedStudentId ?? children[0]?.id ?? null;
   const [timetableData, setTimetableData] = useState<any>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,6 +168,8 @@ export default function ParentTimetablePage() {
           <ParentEmptyState icon={Clock} title="No timetable published" description="The class timetable will appear here once published by the school." />
         )}
         <ExamDateSheet token={token || undefined} />
+        {/* SKO-420: book a teacher meeting (signed-in guardians; a link cannot book). */}
+        {!token && meetingChildId ? <div className="mt-6"><FamilyMeetings key={meetingChildId} studentId={meetingChildId} /></div> : null}
       </div>
     </ParentPage>
   );

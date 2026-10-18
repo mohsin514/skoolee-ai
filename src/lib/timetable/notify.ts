@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { deliverNotification } from "@/lib/notifications/in-app";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import { affectedTeacherIds } from "./versions";
+import { reconcileMeetings } from "@/lib/meetings/notify";
 
 // Kept apart from manual.ts so the timetable service (imported by School AI execution) does not load
 // notifications and their Redis connection.
@@ -28,5 +29,7 @@ export async function notifyTimetableVersion(user: AuthUser, timetableId: string
     await prisma.timetableVersion.updateMany({ where: { id: versionId, timetableId }, data: { notifiedAt: null } });
     throw error;
   }
+  // SKO-420: meetings that now clash with a lesson need a new time.
+  await reconcileMeetings(user.schoolId, affectedTeacherIds(changes), user.userId).catch(error => console.error("[timetable] meeting recheck failed", error));
   return { sent: true, recipients: recipients.length };
 }

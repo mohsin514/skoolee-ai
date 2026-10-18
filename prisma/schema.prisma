@@ -238,6 +238,12 @@ model School {
   markScanBatches         MarkScanBatch[]
   markScanPages           MarkScanPage[]
   markScanCells           MarkScanCell[]
+  meetingWindows MeetingWindow[]
+  meetingBookings MeetingBooking[]
+  meetingBookingEvents MeetingBookingEvent[]
+  meetingFollowUps MeetingFollowUp[]
+  meetingActions MeetingAction[]
+  meetingStaffNotes MeetingStaffNote[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3395,6 +3401,142 @@ model MarkScanCell {
   @@unique([batchId, studentId])
   @@index([schoolId])
   @@map("mark_scan_cells")
+}
+
+/// SKO-420: a teacher's bookable window in school-local time. Slots are computed from it; a booking holds
+/// the exact instant. Lessons on the published timetable and approved leave hide overlapping slots.
+model MeetingWindow {
+  id                 String   @id @default(uuid())
+  schoolId           String   @default("") @map("school_id")
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId           String   @map("campus_id")
+  teacherId          String   @map("teacher_id")
+  localDate          String   @map("local_date") // YYYY-MM-DD in the school timezone
+  startTime          String   @map("start_time") // HH:MM
+  endTime            String   @map("end_time")
+  timezone           String
+  slotMinutes        Int      @map("slot_minutes")
+  bufferMinutes      Int      @default(0) @map("buffer_minutes")
+  maxBookings        Int?     @map("max_bookings")
+  mode               String   @default("IN_PERSON") // IN_PERSON | REMOTE | EITHER
+  location           String?
+  cancellationPolicy String   @map("cancellation_policy")
+  status             String   @default("OPEN") // OPEN | WITHDRAWN
+  createdById        String   @map("created_by_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  bookings MeetingBooking[]
+
+  @@index([schoolId, teacherId, localDate])
+  @@map("meeting_windows")
+}
+
+/// SKO-420: one booked meeting for one child. A partial unique index keeps one live booking per teacher
+/// and start instant, so concurrent families cannot both hold the slot.
+model MeetingBooking {
+  id             String        @id @default(uuid())
+  schoolId       String        @default("") @map("school_id")
+  school         School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String        @map("campus_id")
+  windowId       String        @map("window_id")
+  window         MeetingWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  teacherId      String        @map("teacher_id")
+  studentId      String        @map("student_id")
+  guardianUserId String        @map("guardian_user_id")
+  relationshipId String        @map("relationship_id")
+  startsAt       DateTime      @map("starts_at")
+  endsAt         DateTime      @map("ends_at")
+  mode           String // IN_PERSON | REMOTE
+  agenda         String?
+  accessNeeds    String?       @map("access_needs")
+  status         String        @default("CONFIRMED") // CONFIRMED | RESCHEDULE_NEEDED | CANCELLED | HELD | NOT_HELD
+  conflictReason String?       @map("conflict_reason") // LEAVE | TIMETABLE | WINDOW_WITHDRAWN
+  version        Int           @default(1)
+  requestKey     String        @unique @map("request_key")
+  remindedAt     DateTime?     @map("reminded_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  events   MeetingBookingEvent[]
+  followUp MeetingFollowUp?
+  actions  MeetingAction[]
+  notes    MeetingStaffNote[]
+
+  @@index([schoolId, teacherId, startsAt])
+  @@index([schoolId, guardianUserId])
+  @@map("meeting_bookings")
+}
+
+/// SKO-420: versioned receipt of every booking change (book, reschedule, cancel, conflict, outcome).
+model MeetingBookingEvent {
+  id        String         @id @default(uuid())
+  schoolId  String         @default("") @map("school_id")
+  school    School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  bookingId String         @map("booking_id")
+  booking   MeetingBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  version   Int
+  action    String // BOOKED | RESCHEDULED | CANCELLED | CONFLICT | HELD | NOT_HELD
+  actorId   String?        @map("actor_id")
+  detail    Json
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@unique([bookingId, version])
+  @@index([schoolId])
+  @@map("meeting_booking_events")
+}
+
+/// SKO-420: the reviewed summary shared with the family. Staff notes live in MeetingStaffNote, never here.
+model MeetingFollowUp {
+  id          String         @id @default(uuid())
+  schoolId    String         @default("") @map("school_id")
+  school      School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  bookingId   String         @unique @map("booking_id")
+  booking     MeetingBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  summary     String
+  sharedAt    DateTime?      @map("shared_at")
+  sharedById  String?        @map("shared_by_id")
+  updatedById String         @map("updated_by_id")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("meeting_follow_ups")
+}
+
+/// SKO-420: an agreed action with one owner and a due date; visible to the family once shared.
+model MeetingAction {
+  id            String         @id @default(uuid())
+  schoolId      String         @default("") @map("school_id")
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  bookingId     String         @map("booking_id")
+  booking       MeetingBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  studentId     String         @map("student_id")
+  text          String
+  ownerRole     String         @map("owner_role") // FAMILY | STAFF
+  ownerUserId   String         @map("owner_user_id")
+  dueDate       String         @map("due_date") // YYYY-MM-DD, school-local
+  status        String         @default("OPEN") // OPEN | DONE
+  completedAt   DateTime?      @map("completed_at")
+  completedById String?        @map("completed_by_id")
+  createdById   String         @map("created_by_id")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  @@index([schoolId, ownerUserId, status])
+  @@map("meeting_actions")
+}
+
+/// SKO-420: restricted staff notes for a meeting. No family route reads this table.
+model MeetingStaffNote {
+  id        String         @id @default(uuid())
+  schoolId  String         @default("") @map("school_id")
+  school    School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  bookingId String         @map("booking_id")
+  booking   MeetingBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorId  String         @map("author_id")
+  body      String
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@index([schoolId, bookingId])
+  @@map("meeting_staff_notes")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

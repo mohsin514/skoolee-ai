@@ -23,6 +23,8 @@ const kindLabel = (ui: Ui, item: Item) => ({
   FEEDBACK_RETURNED: ui("Feedback returned"),
   REPORT_PUBLISHED: ui("Report card published"),
   TRIP_CONSENT: item.state === "UPDATE" ? ui("Trip notice (another guardian answers)") : item.detail?.includes("changed") ? ui("Trip details changed — answer again") : ui("Trip permission"),
+  MEETING_RESCHEDULE: ui("A meeting needs a new time"),
+  MEETING_ACTION: item.state === "COMPLETED" ? ui("Meeting action done") : ui("Meeting action"),
   LEAVE_REQUEST: item.state === "ACTION" ? ui("The school asked about a leave request") : item.title === "APPROVED" ? ui("Leave approved") : item.title === "DECLINED" ? ui("Leave declined") : ui("Leave requested"),
 } as Record<string, string>)[item.kind] ?? item.kind;
 const outcome = (ui: Ui, item: Item) => item.kind === "EXPLAIN_ABSENCE" && item.state === "COMPLETED" ? (item.title === "ACCEPTED" ? ui("Accepted by the school") : ui("Not accepted by the school")) : null;
@@ -67,11 +69,11 @@ export function FamilyInbox() {
       {shown.length === 0 ? <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted" data-inbox-empty>{view === "ACTION" ? ui("You are up to date. New school requests will appear here.") : ui("Nothing here.")}</p> : <ul className="space-y-2">
         {shown.map(item => <li key={item.id} className={cn("rounded-2xl border p-3", item.state === "ACTION" && item.overdue ? "border-rose-200 bg-rose-50/40" : "border-[#cfc2d6]/30 bg-white")} data-inbox-item={item.id} data-inbox-state={item.state} data-inbox-child-id={item.childId}>
           <p className="text-xs font-bold text-ink-muted"><bdi>{item.childName}</bdi> · <bdi>{item.schoolName}</bdi> · <bdi>{item.campusName}</bdi></p>
-          <p className="mt-1 text-sm font-black">{kindLabel(ui, item)}{item.kind === "PAY_FEE" && item.title ? <> · <bdi>{item.title}</bdi></> : item.kind === "FEEDBACK_RETURNED" || item.kind === "REPORT_PUBLISHED" || item.kind === "TRIP_CONSENT" ? <> · <bdi>{item.title}</bdi></> : null}</p>
+          <p className="mt-1 text-sm font-black">{kindLabel(ui, item)}{item.kind === "PAY_FEE" && item.title ? <> · <bdi>{item.title}</bdi></> : item.kind === "FEEDBACK_RETURNED" || item.kind === "REPORT_PUBLISHED" || item.kind === "TRIP_CONSENT" || item.kind === "MEETING_ACTION" ? <> · <bdi>{item.title}</bdi></> : null}</p>
           <p className="text-xs text-ink-muted">
             {item.kind === "EXPLAIN_ABSENCE" || item.kind === "CLARIFY_ABSENCE" ? <><bdi>{item.detail && /^\d{4}-\d{2}-\d{2}$/.test(item.detail) ? date(item.detail) : item.detail}</bdi></> : item.kind === "PAY_FEE" && item.detail ? <bdi>{item.detail}</bdi> : null}
             {item.kind === "LEAVE_REQUEST" || item.kind === "TRIP_CONSENT" ? <bdi>{item.detail}</bdi> : null}
-            {item.dueAt && item.state === "ACTION" ? <> · {item.kind === "PAY_FEE" ? ui("Due") : item.kind === "TRIP_CONSENT" ? ui("Answer by") : ui("Explain by")} <bdi>{item.kind === "TRIP_CONSENT" ? dateTime(item.dueAt) : date(item.dueAt)}</bdi></> : null}
+            {item.dueAt && item.state === "ACTION" ? <> · {item.kind === "PAY_FEE" || item.kind === "MEETING_ACTION" ? ui("Due") : item.kind === "TRIP_CONSENT" ? ui("Answer by") : item.kind === "MEETING_RESCHEDULE" ? ui("Booked for") : ui("Explain by")} <bdi>{item.kind === "TRIP_CONSENT" || item.kind === "MEETING_RESCHEDULE" ? dateTime(item.dueAt) : item.kind === "MEETING_ACTION" && item.detail ? date(item.detail) : date(item.dueAt)}</bdi></> : null}
             {item.state === "ACTION" && item.overdue ? <> · <span className="font-black text-rose-700">{ui("Overdue")}</span></> : null}
             {item.state === "EXPIRED" ? <> · <span className="font-black">{ui("The time to respond has passed")}</span></> : null}
             {item.state === "UPDATE" ? <> · <bdi>{dateTime(item.at)}</bdi></> : null}

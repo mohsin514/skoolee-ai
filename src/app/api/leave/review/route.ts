@@ -5,6 +5,7 @@ import { ApiError, assertPermission, canManageOperations, errorResponse, require
 import { getLeaveBalances, tenthsToDays } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
 import { resolveSourceActions } from "@/lib/notifications/actions";
+import { reconcileMeetings } from "@/lib/meetings/notify";
 
 // PATCH /api/leave/review
 // body: { id, status: APPROVED | REJECTED, reviewNote?, override? }
@@ -93,6 +94,9 @@ export async function PATCH(req: NextRequest) {
       toDate: request.toDate.toISOString().slice(0, 10),
       status,
     });
+
+    // SKO-420: meetings booked during approved leave need a new time; both sides are told.
+    if (status === "APPROVED") await reconcileMeetings(user.schoolId, [request.userId], user.userId).catch(error => console.error("[leave/review] meeting recheck failed", error));
 
     return Response.json({ success: true, data: updated });
   } catch (error) {
