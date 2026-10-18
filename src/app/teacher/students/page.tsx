@@ -1,5 +1,6 @@
 "use client";
 
+import { PathwayPanel } from "@/components/pathways/pathway-panel";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -448,6 +449,7 @@ export default function TeacherStudentsPage() {
           onClose={() => setSelectedStudent(null)}
         />
       ) : null}
+      <PathwayPanel />
     </TeacherPage>
   );
 }

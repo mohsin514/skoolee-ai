@@ -8903,3 +8903,171 @@ model QuestionNetworkStat {
   @@unique([shareKey, version, reporterSchoolId, context])
   @@map("question_network_stats")
 }
+
+// ─── SKO-455: careers, counselling and alumni pathways
+
+/// Staff designated by a school leader to hold counselling appointments and confidential notes.
+model PathwayCounsellor {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  userId      String    @map("user_id")
+  grantedById String    @map("granted_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  @@index([schoolId, userId])
+  @@map("pathway_counsellors")
+}
+
+/// A goal the student owns. `audience` lists who besides the student may see it: COUNSELLOR, GUARDIAN.
+model PathwayGoal {
+  id           String    @id @default(uuid())
+  schoolId     String    @map("school_id")
+  campusId     String    @map("campus_id")
+  studentId    String    @map("student_id")
+  title        String
+  detail       String?
+  audience     String[]
+  /// ACTIVE | ACHIEVED | ARCHIVED
+  status       String    @default("ACTIVE")
+  nextReviewOn DateTime? @map("next_review_on") @db.Date
+  createdById  String    @map("created_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, studentId])
+  @@map("pathway_goals")
+}
+
+/// A next action with a deadline and an owner. No likelihood or prediction is ever stored.
+model PathwayAction {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  goalId        String    @map("goal_id")
+  studentId     String    @map("student_id")
+  title         String
+  /// STUDENT | COUNSELLOR | GUARDIAN
+  owner         String
+  dueOn         DateTime  @map("due_on") @db.Date
+  opportunityId String?   @map("opportunity_id")
+  evidenceLink  String?   @map("evidence_link")
+  /// OPEN | DONE
+  status        String    @default("OPEN")
+  doneAt        DateTime? @map("done_at")
+  createdById   String    @map("created_by_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([goalId])
+  @@map("pathway_actions")
+}
+
+/// An opportunity with its source and when it was last checked.
+model PathwayOpportunity {
+  id             String    @id @default(uuid())
+  schoolId       String    @map("school_id")
+  campusId       String    @map("campus_id")
+  title          String
+  provider       String
+  /// UNIVERSITY | SCHOLARSHIP | INTERNSHIP | COURSE | OTHER
+  kind           String
+  sourceUrl      String    @map("source_url")
+  eligibility    String
+  deadline       DateTime? @map("deadline") @db.Date
+  lastVerifiedAt DateTime  @map("last_verified_at")
+  verifiedById   String    @map("verified_by_id")
+  /// ACTIVE | WITHDRAWN
+  status         String    @default("ACTIVE")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, status])
+  @@map("pathway_opportunities")
+}
+
+/// A counselling appointment. The general calendar shows only `publicLabel`.
+model CounsellingAppointment {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  campusId      String   @map("campus_id")
+  studentId     String   @map("student_id")
+  counsellorId  String   @map("counsellor_id")
+  startsAt      DateTime @map("starts_at")
+  minutes       Int
+  publicLabel   String   @map("public_label")
+  /// REQUESTED | CONFIRMED | HELD | CANCELLED
+  status        String   @default("REQUESTED")
+  requestedById String   @map("requested_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([schoolId, counsellorId, startsAt])
+  @@index([schoolId, studentId])
+  @@map("counselling_appointments")
+}
+
+/// Confidential counselling notes: designated counsellors only, every read logged, never exported.
+model CounsellingNote {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  campusId      String   @map("campus_id")
+  studentId     String   @map("student_id")
+  appointmentId String?  @map("appointment_id")
+  authorId      String   @map("author_id")
+  body          String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId])
+  @@map("counselling_notes")
+}
+
+/// An alumnus who opted in. Contact details stay with designated staff; mentoring is school-mediated.
+model AlumniProfile {
+  id                 String    @id @default(uuid())
+  schoolId           String    @map("school_id")
+  campusId           String    @map("campus_id")
+  studentId          String?   @map("student_id")
+  displayName        String    @map("display_name")
+  pathway            String
+  contactEmail       String    @map("contact_email")
+  dateOfBirth        DateTime  @map("date_of_birth") @db.Date
+  /// STAFF_ONLY | STUDENTS
+  visibility         String
+  mentoring          Boolean   @default(false)
+  consentEvidence    String    @map("consent_evidence")
+  consentGivenAt     DateTime  @map("consent_given_at")
+  consentWithdrawnAt DateTime? @map("consent_withdrawn_at")
+  reviewDueOn        DateTime  @map("review_due_on") @db.Date
+  recordedById       String    @map("recorded_by_id")
+  history            Json      @default("[]")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, campusId])
+  @@map("alumni_profiles")
+}
+
+/// A student's request to meet an alumnus, reviewed by a designated counsellor. Introductions are
+/// always school-mediated; no contact details reach the student.
+model MentoringRequest {
+  id                   String    @id @default(uuid())
+  schoolId             String    @map("school_id")
+  campusId             String    @map("campus_id")
+  reference            String
+  studentId            String    @map("student_id")
+  alumniId             String    @map("alumni_id")
+  purpose              String
+  /// REQUESTED | CLARIFY | APPROVED | DECLINED | CANCELLED
+  status               String    @default("REQUESTED")
+  requestedById        String    @map("requested_by_id")
+  reviewedById         String?   @map("reviewed_by_id")
+  reviewNote           String?   @map("review_note")
+  guardianConsent      Boolean   @default(false) @map("guardian_consent")
+  safeguardingChecked  Boolean   @default(false) @map("safeguarding_checked")
+  decidedAt            DateTime? @map("decided_at")
+  history              Json      @default("[]")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  @@unique([schoolId, reference])
+  @@index([schoolId, alumniId, status])
+  @@map("mentoring_requests")
+}

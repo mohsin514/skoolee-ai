@@ -2,6 +2,7 @@
 
 import { ScenarioPlanner } from "@/components/planning/scenario-planner";
 import { QuestionNetwork } from "@/components/question-network/question-network";
+import { PathwayPanel } from "@/components/pathways/pathway-panel";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { PurchasingPanel } from "@/components/purchasing/purchasing-panel";
 import { LearningActions } from "@/components/learning/learning-actions";
@@ -703,6 +704,7 @@ export default function PrincipalDashboard() {
             onRefresh={refetch}
           />
         ) : null}
+        {activeView === "students" ? <PathwayPanel /> : null}
         {activeView === "student-setup" ? <StudentSetupPanel
               studentCount={data.students?.length}
               onViewStudents={(filter) => {
