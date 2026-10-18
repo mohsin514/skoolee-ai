@@ -253,6 +253,7 @@ export const TENANT_MODELS = new Set<string>([
   "safeguardingConcern",
   "safeguardingDisclosure",
   "safeguardingEntry",
+  "schoolAiAssessmentRepair",
   "schoolAiConversation",
   "schoolAiDocumentJob",
   "schoolAiEvidencePack",

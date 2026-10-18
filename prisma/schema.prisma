@@ -2903,6 +2903,10 @@ model InterventionPlan {
   privateNotes    String?   @map("private_notes") @db.Text
   outcome         Json?
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+  // SKO-472: an approved assessment repair changed the evidence this action cites; it needs review.
+  staleRepairId   String?   @map("stale_repair_id")
+  staleReason     String?   @map("stale_reason") @db.Text
+  staleSince      DateTime? @map("stale_since")
 
   @@index([schoolId, campusId, status])
   @@index([studentId])
@@ -9413,4 +9417,37 @@ model PerformanceRun {
 
   @@index([createdAt])
   @@map("performance_runs")
+}
+
+// ─── SKO-472: assessment repair map. A flawed released question is repaired through the existing owners
+// (result revisions, gradebook marks, report successors, learning actions, family notices). The repair stores
+// the deterministic impact, a fingerprint of every record it read, the ordered plan and a durable per-step
+// receipt, so a stale preview is refused and an interrupted repair resumes without repeating a step.
+model SchoolAiAssessmentRepair {
+  id                String    @id @default(uuid())
+  schoolId          String    @map("school_id")
+  campusId          String    @map("campus_id")
+  assignmentId      String    @map("assignment_id")
+  paperVersion      Int       @map("paper_version")
+  questionId        String    @map("question_id")
+  correction        Json
+  reason            String    @db.Text
+  publicExplanation String    @map("public_explanation") @db.Text
+  status            String    @default("PENDING_REVIEW") // PENDING_REVIEW, APPLYING, APPLIED, PARTIAL, REJECTED, STALE
+  fingerprint       String
+  impact            Json
+  plan              Json
+  receipt           Json      @default("[]")
+  idempotencyKey    String    @map("idempotency_key")
+  proposedById      String    @map("proposed_by_id")
+  decidedById       String?   @map("decided_by_id")
+  decidedAt         DateTime? @map("decided_at")
+  decisionNote      String?   @map("decision_note") @db.Text
+  version           Int       @default(1)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId, campusId, assignmentId, status])
+  @@map("school_ai_assessment_repairs")
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { acknowledgeRepairedLearningAction } from "@/lib/school-ai/assessment-repair";
 import { activateLearningAction, getLearningAction, handOffLearningAction, recordCheckIn, rescheduleCheckIn, reviewLearningAction, shareLearningAction } from "@/lib/learning/actions";
 
 type Context = { params: Promise<{ id: string }> };
@@ -12,7 +13,7 @@ export async function GET(_req: NextRequest, context: Context) {
   } catch (error) { return errorResponse(error, "[learning-actions/:id] GET failed"); }
 }
 
-const Body = z.object({ action: z.enum(["activate", "share", "check-in", "reschedule", "handoff", "review"]), data: z.record(z.string(), z.unknown()) }).strict();
+const Body = z.object({ action: z.enum(["activate", "share", "check-in", "reschedule", "handoff", "review", "acknowledge-repair"]), data: z.record(z.string(), z.unknown()) }).strict();
 export async function POST(req: NextRequest, context: Context) {
   try {
     const user = await requireAuthUser();
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest, context: Context) {
       : action === "check-in" ? await recordCheckIn(user, id, data)
       : action === "reschedule" ? await rescheduleCheckIn(user, id, data)
       : action === "handoff" ? await handOffLearningAction(user, id, data)
+      : action === "acknowledge-repair" ? await acknowledgeRepairedLearningAction(user, id)
       : await reviewLearningAction(user, id, data);
     return Response.json({ success: true, data: result });
   } catch (error) { return errorResponse(error, "[learning-actions/:id] POST failed"); }

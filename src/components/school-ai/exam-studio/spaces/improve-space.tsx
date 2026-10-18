@@ -13,6 +13,7 @@ import type { StudioSpaceProps } from "../studio-space-registry";
 import { Isolated, SpaceStateRegion, type SpaceState } from "../space-state";
 import { OutcomeFeedbackList } from "../../outcome-feedback";
 import { ExamRemedyPanel } from "../../exam-remedy-panel";
+import { AssessmentRepairPanel } from "../../assessment-repair-panel";
 import { EvidencePackPanel } from "../evidence-pack-panel";
 import { ExamModerationPanel } from "../../exam-moderation-panel";
 import { PracticeProgressPanel } from "../../practice-progress-panel";
@@ -79,6 +80,7 @@ export default function ImproveSpace({ language, scope, capabilities, records, r
         </table></div>
       </section>
       <ExamRemedyPanel examId={data.exam.id} locale={language} canAuthorize={capabilities.canApprove} onApplied={() => void load()} />
+      {capabilities.canApprove || capabilities.canCreate ? <AssessmentRepairPanel examId={data.exam.id} /> : null}
       {capabilities.canApprove || capabilities.canCreate ? <EvidencePackPanel examId={data.exam.id} language={language} canIncludeKeys={capabilities.canApprove || capabilities.canCreate} /> : null}
       {capabilities.canApprove || capabilities.canCreate ? <ExamModerationPanel examId={data.exam.id} /> : null}
       <PracticeProgressPanel practice={records.filter(record => record.kind === "PRACTICE" && record.status === "APPROVED" && Array.isArray(record.data.sourceAssignmentIds) && (record.data.sourceAssignmentIds as string[]).includes(data.exam.id)).map(record => ({ id: record.id, title: record.title }))} />

@@ -12,7 +12,7 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 // first; AI text is only ever a draft; activation, sharing, check-ins and the
 // outcome review are stages of one record with a reason for every decision.
 
-type Row = { id: string; version: number; status: string; origin: string; title: string; learner: string; goal: string | null; owner: string | null; reviewDate: string | null; nextCheckInDate: string | null; checkInOverdue: boolean; reviewDue: boolean; shared: boolean };
+type Row = { id: string; version: number; status: string; origin: string; title: string; learner: string; goal: string | null; owner: string | null; reviewDate: string | null; nextCheckInDate: string | null; checkInOverdue: boolean; reviewDue: boolean; shared: boolean; staleSince?: string | null; staleReason?: string | null };
 type Ctx = { actions: Row[]; learners: { id: string; name: string; rollNo: string }[]; staff: { id: string; name: string }[]; leader: boolean; userId: string };
 type Detail = Row & { studentId: string; concern: string | null; evidenceState: string; evidenceRefs: { kind: string; refId: string; label: string }[]; baseline: { measure: string; value: number | null; denominator: number | null; takenOn: string; source: string } | null;
   ownerId: string | null; plannedActivity: string | null; minutesPerWeek: number | null; familyShare: { goal: string; action: string; sharedAt: string | null } | null; privateNotes: string | null;
@@ -64,6 +64,10 @@ export function LearningActions() {
               <Button size="sm" variant="secondary" aria-expanded={open === row.id} onClick={() => setOpen(open === row.id ? null : row.id)}>{open === row.id ? ui("Hide") : ui("Open")}</Button>
             </div>
           </div>
+          {row.staleSince ? <div role="status" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950" data-stale-action>
+            <p className="min-w-0"><span className="font-bold">{ui("Needs review after an assessment repair")}</span> · <bdi>{row.staleReason ?? ""}</bdi></p>
+            <Button size="sm" variant="secondary" onClick={async () => { const response = await fetch(`/api/learning-actions/${encodeURIComponent(row.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "acknowledge-repair", data: {} }) }).catch(() => null); if (response?.ok) await load(); }}>{ui("Mark as reviewed")}</Button>
+          </div> : null}
           {open === row.id ? <Panel id={row.id} ctx={ctx} onChanged={load} dateTime={dateTime} /> : null}
         </li>)}</ul>}
   </section>;

@@ -234,6 +234,8 @@ export async function listLearningActions(user: AuthUser, studentId?: string | n
     goal: r.goal, owner: r.ownerId ? people.get(r.ownerId) ?? "" : null, ownerId: r.ownerId, reviewDate: ymd(r.reviewDate), nextCheckInDate: ymd(r.nextCheckInDate),
     checkInOverdue: r.status === "ACTIVE" && Boolean(r.nextCheckInDate && ymd(r.nextCheckInDate)! < now), reviewDue: r.status === "ACTIVE" && Boolean(r.reviewDate && ymd(r.reviewDate)! <= now),
     shared: Boolean((r.familyShare as { sharedAt?: string | null } | null)?.sharedAt),
+    // SKO-472: an approved assessment repair changed evidence this action cites.
+    staleSince: r.staleSince?.toISOString() ?? null, staleReason: r.staleReason,
   }));
 }
 
