@@ -5,9 +5,10 @@ import { PrismaClient } from "@prisma/client";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { enrollmentLabels } from "../../src/lib/students/labels";
-const url=new URL(process.env.DATABASE_URL||"postgresql://invalid");if(url.hostname!=="127.0.0.1"||url.port!=="55417"||url.pathname!=="/sko217")throw new Error("Dedicated local SKO-217 database required");
-const db=new PrismaClient(),base="http://localhost:3217";
-async function token(role:string){const account=await db.user.findUniqueOrThrow({where:{id:`identity-${role}`}});const value = await new SignJWT({userId:`identity-${role}`,schoolId:"identity-school",role,mfaVerified:true,accessVersion:account.accessVersion,onboardingComplete:true,schoolStatus:"ACTIVE"}).setProtectedHeader({alg:"HS256"}).setExpirationTime("1h").sign(new TextEncoder().encode("local-sko217-fixture"));await db.loginSession.create({data:{schoolId:"identity-school",userId:`identity-${role}`,tokenHash:createHash("sha256").update(value).digest("hex"),expiresAt:new Date(Date.now()+3600000)}});return value;}
+const url=new URL(process.env.DATABASE_URL||"postgresql://invalid");if(url.hostname!=="127.0.0.1"||!(url.port==="55417"&&url.pathname==="/sko217"||url.port==="55438"&&url.pathname==="/postgres"))throw new Error("Dedicated local SKO-217 database required");
+const db=new PrismaClient(),base=process.env.ENROLLMENT_TEST_APP||"http://localhost:3217",secret=process.env.ENROLLMENT_AUTH_SECRET||"local-sko217-fixture";
+const appUrl=new URL(base);if(!["localhost","127.0.0.1"].includes(appUrl.hostname))throw new Error("Local app required");
+async function token(role:string){const account=await db.user.findUniqueOrThrow({where:{id:`identity-${role}`}});const value = await new SignJWT({userId:`identity-${role}`,schoolId:"identity-school",role,mfaVerified:true,accessVersion:account.accessVersion,onboardingComplete:true,schoolStatus:"ACTIVE"}).setProtectedHeader({alg:"HS256"}).setExpirationTime("1h").sign(new TextEncoder().encode(secret));await db.loginSession.create({data:{schoolId:"identity-school",userId:`identity-${role}`,tokenHash:createHash("sha256").update(value).digest("hex"),expiresAt:new Date(Date.now()+3600000)}});return value;}
 async function main(){
  const browser=await chromium.launch({headless:true});const results:string[]=[];await mkdir("/tmp/sko217-evidence",{recursive:true});
  try{
@@ -20,6 +21,8 @@ async function main(){
   assert.equal((await context.request.get(`${base}/api/students/enrollments?studentId=foreign-pupil`)).status(),404);
   if(!["SUPER_ADMIN","APP_OWNER"].includes(role))assert.equal((await context.request.get(`${base}/api/students/enrollments?studentId=other-campus-pupil`)).status(),404);
   if(["PARENT","STUDENT"].includes(role))assert.equal((await context.request.get(`${base}/api/students/enrollments?studentId=pupil-same-name`)).status(),404);
+  // SKO-488: the parent link alone grants nothing; a missing, revoked or expired guardian grant is refused.
+  if(role==="PARENT")for(const denied of ["pupil-ungranted","pupil-revoked","pupil-expired"])assert.equal((await context.request.get(`${base}/api/students/enrollments?studentId=${denied}`)).status(),404,`PARENT ${denied}`);
   const canManage=["SUPER_ADMIN","ADMIN","CAMPUS_ADMIN","PRINCIPAL"].includes(role);
   if(!canManage)assert.equal((await context.request.post(`${base}/api/students/enrollments`,{data:{action:"propose",studentId:pupil}})).status(),403);
   if(role!=="SUPER_ADMIN")assert.equal((await context.request.post(`${base}/api/students/consolidation`,{data:{action:"preview",sourceId:pupil,targetId:"pupil-survivor"}})).status(),403);
