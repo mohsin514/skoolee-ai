@@ -101,6 +101,8 @@ export const TENANT_MODELS = new Set<string>([
   "holiday",
   "importBatch",
   "institutionSetup",
+  "interventionCheckIn",
+  "interventionEvent",
   "interventionPlan",
   "invoice",
   "item",

@@ -17,6 +17,7 @@ import {
 } from "@/components/teacher/teacher-components";
 import { useTeacherData } from "../teacher-data-context";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
+import { LearningActions } from "@/components/learning/learning-actions";
 
 export default function TeacherInsightsPage() {
   const { data, loading, error, refetch } = useTeacherData();
@@ -364,6 +365,8 @@ export default function TeacherInsightsPage() {
         ) : null}
         {/* SKO-461: the teacher's own bounded evidence and a place to respond. */}
         <TeacherPerformancePanel self />
+        {/* SKO-425: learning actions the teacher owns or drafted. */}
+        <LearningActions />
       </div>
     </TeacherPage>
   );

@@ -2808,13 +2808,36 @@ model InterventionPlan {
   title           String
   summary         String    @db.Text
   recommendations Json?
-  status          String    @default("DRAFT")
+  status          String    @default("DRAFT") // DRAFT, ACTIVE, CLOSED, ESCALATED, REJECTED
   approvedBy      String?   @map("approved_by")
   approvedAt      DateTime? @map("approved_at")
   createdAt       DateTime  @default(now()) @map("created_at")
+  // SKO-425: the learning action. AI text stays a draft; a reviewer activates
+  // only a plan with evidence, goal, owner and dates. Private notes never
+  // leave staff; the family sees only the shared projection.
+  version         Int       @default(1)
+  origin          String    @default("TEACHER") // TEACHER, AI
+  classId         String?   @map("class_id")
+  subjectId       String?   @map("subject_id")
+  concern         String?   @db.Text
+  evidenceState   String    @default("NEEDS_OBSERVATION") @map("evidence_state") // CONFIRMED, NEEDS_OBSERVATION
+  evidenceRefs    Json      @default("[]") @map("evidence_refs")
+  baseline        Json?
+  goal            String?   @db.Text
+  ownerId         String?   @map("owner_id")
+  plannedActivity String?   @map("planned_activity") @db.Text
+  minutesPerWeek  Int?      @map("minutes_per_week")
+  lessonPlanRef   Json?     @map("lesson_plan_ref")
+  reviewDate      DateTime? @map("review_date") @db.Date
+  nextCheckInDate DateTime? @map("next_check_in_date") @db.Date
+  familyShare     Json?     @map("family_share")
+  privateNotes    String?   @map("private_notes") @db.Text
+  outcome         Json?
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
 
   @@index([schoolId, campusId, status])
   @@index([studentId])
+  @@index([ownerId, status])
   @@map("intervention_plans")
 }
 
@@ -6295,4 +6318,40 @@ model LessonPlanEvent {
   @@index([stateId, createdAt])
   @@index([schoolId])
   @@map("lesson_plan_events")
+}
+
+// ─── SKO-425: learning-action check-ins and history ─────────
+model InterventionCheckIn {
+  id            String   @id @default(uuid())
+  schoolId      String   @default("") @map("school_id")
+  planId        String   @map("plan_id")
+  planVersion   Int      @map("plan_version")
+  dueOn         DateTime @map("due_on") @db.Date
+  delivered     Boolean
+  minutes       Int?
+  participation String   // FULL, PARTIAL, ABSENT
+  adjustment    String?  @db.Text
+  pupilFeedback String?  @map("pupil_feedback") @db.Text
+  recordedById  String   @map("recorded_by_id")
+  recordedAt    DateTime @default(now()) @map("recorded_at")
+
+  @@index([planId, dueOn])
+  @@index([schoolId])
+  @@map("intervention_check_ins")
+}
+
+model InterventionEvent {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  planId    String   @map("plan_id")
+  version   Int
+  kind      String
+  actorId   String   @map("actor_id")
+  reason    String?  @db.Text
+  snapshot  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([planId, createdAt])
+  @@index([schoolId])
+  @@map("intervention_events")
 }

@@ -549,6 +549,7 @@ export async function POST(req: NextRequest) {
               summary,
               recommendations: jsonValue({ text: result.text }),
               status: "DRAFT",
+              origin: "AI",
             },
           });
           await tx.aIReviewItem.create({

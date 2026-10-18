@@ -86,14 +86,10 @@ export async function PATCH(
       }
 
       if (item.relatedType === "INTERVENTION_PLAN") {
-        await tx.interventionPlan.update({
-          where: { id: item.relatedId },
-          data: {
-            status,
-            approvedBy: action === "approve" ? user.userId : null,
-            approvedAt: action === "approve" ? now : null,
-          },
-        });
+        // SKO-425: approving AI text keeps the plan an editable draft; activation needs a
+        // leader, evidence, a goal, an owner and dates (src/lib/learning/actions.ts).
+        if (action === "reject") await tx.interventionPlan.updateMany({ where: { id: item.relatedId, status: "DRAFT" }, data: { status: "REJECTED" } });
+        await tx.interventionEvent.create({ data: { schoolId: user.schoolId, planId: item.relatedId, version: 1, kind: action === "approve" ? "SUGGESTION_REVIEWED" : "SUGGESTION_REJECTED", actorId: user.userId } });
       }
 
       await tx.aIUsageLog.updateMany({

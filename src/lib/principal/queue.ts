@@ -12,11 +12,11 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 // resolved, adjustment decided). Assignment, acknowledgement and a reasoned snooze are the only state it
 // stores (QueueItemState), with history (QueueItemEvent).
 
-export const QUEUE_TYPES = ["COMPLAINT", "ATTENDANCE_MISSING", "DELIVERY_FAILED", "LEAVE_PENDING", "REPORT_APPROVAL", "ADJUSTMENT_APPROVAL"] as const;
+export const QUEUE_TYPES = ["COMPLAINT", "ATTENDANCE_MISSING", "DELIVERY_FAILED", "LEAVE_PENDING", "REPORT_APPROVAL", "ADJUSTMENT_APPROVAL", "SUPPORT_CHECKIN"] as const;
 export type QueueType = typeof QUEUE_TYPES[number];
 /** Published ranking: overdue first, then this category order, then the earliest due time. */
-const RANK: Record<QueueType, number> = { COMPLAINT: 1, ATTENDANCE_MISSING: 2, DELIVERY_FAILED: 3, LEAVE_PENDING: 4, REPORT_APPROVAL: 5, ADJUSTMENT_APPROVAL: 6 };
-export const SORTING_RULE = "Overdue items first; then confidential and late complaints, missing attendance today, failed family messages, leave to decide, report versions to approve, and fee adjustments to decide; then the earliest due time. No pupil risk score is used.";
+const RANK: Record<QueueType, number> = { COMPLAINT: 1, ATTENDANCE_MISSING: 2, DELIVERY_FAILED: 3, LEAVE_PENDING: 4, REPORT_APPROVAL: 5, ADJUSTMENT_APPROVAL: 6, SUPPORT_CHECKIN: 7 };
+export const SORTING_RULE = "Overdue items first; then confidential and late complaints, missing attendance today, failed family messages, leave to decide, report versions to approve, fee adjustments to decide, and missed learning-action check-ins; then the earliest due time. No pupil risk score is used.";
 
 export type SourceItem = {
   key: string; type: QueueType; sourceId: string; title: string; trigger: string; nextAction: string;
@@ -89,6 +89,15 @@ export async function collectSources(user: AuthUser, campusId: string, db: TxCli
   await run("ADJUSTMENT_APPROVAL", async () => {
     const requested = await db.financialAdjustment.findMany({ where: { ...scope, status: "REQUESTED" }, select: { id: true, kind: true, createdAt: true } });
     for (const adjustment of requested) items.push({ key: `ADJUSTMENT_APPROVAL:${adjustment.id}`, type: "ADJUSTMENT_APPROVAL", sourceId: adjustment.id, title: `${adjustment.kind === "REFUND" ? "Refund" : adjustment.kind === "WAIVER" ? "Waiver" : "Credit note"} awaiting a decision`, trigger: `Requested on ${adjustment.createdAt.toISOString().slice(0, 10)}; a different approver must decide.`, nextAction: "Review the adjustment in Fees", sourceOwner: null, dueAt: new Date(adjustment.createdAt.getTime() + 3 * 86_400_000).toISOString(), link: `${base}?view=fees` });
+  });
+  // SKO-425: a missed learning-action check-in stays here until it is recorded or rescheduled.
+  await run("SUPPORT_CHECKIN", async () => {
+    const overdue = await db.interventionPlan.findMany({ where: { ...scope, status: "ACTIVE", nextCheckInDate: { lt: new Date(`${today}T00:00:00.000Z`) } }, select: { id: true, title: true, nextCheckInDate: true, ownerId: true } });
+    const owners = new Map((await db.user.findMany({ where: { id: { in: overdue.map(o => o.ownerId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName]));
+    for (const plan of overdue) {
+      const due = plan.nextCheckInDate!.toISOString().slice(0, 10);
+      items.push({ key: `SUPPORT_CHECKIN:${plan.id}:${due}`, type: "SUPPORT_CHECKIN", sourceId: plan.id, title: `Learning-action check-in missed: ${plan.title}`, trigger: `The check-in due on ${due} is not recorded or rescheduled.`, nextAction: "Ask the responsible adult to record or reschedule the check-in", sourceOwner: plan.ownerId ? { id: plan.ownerId, name: owners.get(plan.ownerId) ?? "" } : null, dueAt: endOfDay(due).toISOString(), link: `${base}?view=overview` });
+    }
   });
   return { items, failed, checkedAt: new Date().toISOString(), today };
 }

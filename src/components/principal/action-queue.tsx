@@ -17,7 +17,7 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 type Item = { key: string; type: string; title: string; trigger: string; nextAction: string; sourceOwner: { id: string; name: string } | null; dueAt: string | null; link: string; overdue: boolean; reason: string; assignee: { id: string; name: string } | null; acknowledgedAt: string | null; snoozedUntil: string | null; snoozeReason: string | null; snoozed: boolean };
 type Queue = { viewerId: string; items: Item[]; resolved: { key: string; title: string | null; resolvedAt: string }[]; counts: { active: number; overdue: number; snoozed: number; unassigned: number }; failedSources: string[]; checkedAt: string; sortingRule: string };
 type Staff = { id: string; fullName: string; role: string };
-const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments" };
+const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments" , SUPPORT_CHECKIN: "Learning actions" };
 
 export function ActionQueue({ campusId }: { campusId?: string }) {
   const ui = useUiText();
