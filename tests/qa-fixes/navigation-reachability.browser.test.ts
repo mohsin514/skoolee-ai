@@ -47,7 +47,7 @@ before(async () => {
   await db.academicCycle.create({ data: { schoolId, campusId, label: "2026", academicYear: 2026, status: "ACTIVE" } });
   const classId = (await db.class.create({ data: { schoolId, campusId, name: "Grade 5", section: "A", academicYear: 2026 } })).id;
   await db.student.create({ data: { schoolId, campusId, classId, fullName: "Synthetic Pupil Lina", rollNo: "L1", gender: "FEMALE", status: "active" } });
-  for (const role of ["LIBRARIAN", "RECEPTIONIST", "TEACHER", "ACCOUNTANT", "PRINCIPAL", "SUPER_ADMIN", "CAMPUS_ADMIN"]) await user(role);
+  for (const role of ["APP_OWNER", "LIBRARIAN", "RECEPTIONIST", "TEACHER", "ACCOUNTANT", "PRINCIPAL", "SUPER_ADMIN", "CAMPUS_ADMIN"]) await user(role);
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
   browser = await chromium.launch({ headless: true });
@@ -59,7 +59,7 @@ after(async () => {
 });
 
 test("SKO-482: Record corrections is offered only where a correction domain exists", async () => {
-  const expected: Record<string, boolean> = { LIBRARIAN: false, RECEPTIONIST: false, TEACHER: true, ACCOUNTANT: true, PRINCIPAL: true, SUPER_ADMIN: true, CAMPUS_ADMIN: true };
+  const expected: Record<string, boolean> = { APP_OWNER: false, LIBRARIAN: false, RECEPTIONIST: false, TEACHER: true, ACCOUNTANT: true, PRINCIPAL: true, SUPER_ADMIN: true, CAMPUS_ADMIN: true };
   for (const [role, allowed] of Object.entries(expected)) {
     const c = await signIn(role);
     const access = (await (await c.request.get(`${base}/api/navigation/access`)).json()).access;
@@ -73,6 +73,13 @@ test("SKO-482: Record corrections is offered only where a correction domain exis
   assert.equal(await page.getByRole("link", { name: "Record corrections" }).count(), 0, "the librarian is not offered the dead-end workspace");
   await page.screenshot({ path: `${evidence}/sko482-librarian-nav.png` });
   await page.close();
+  const owner = await (await signIn("APP_OWNER")).newPage();
+  await owner.goto(`${base}/owner`);
+  await owner.locator("nav").first().waitFor({ timeout: 60_000 });
+  await owner.waitForTimeout(1500);
+  assert.equal(await owner.getByRole("link", { name: "Record corrections" }).count(), 0, "the app owner is not offered the dead-end workspace");
+  await owner.screenshot({ path: `${evidence}/sko482-owner-nav.png` });
+  await owner.close();
   const teacher = await (await signIn("TEACHER")).newPage();
   await teacher.goto(`${base}/teacher`);
   await teacher.getByRole("link", { name: "Record corrections" }).first().waitFor({ state: "attached", timeout: 60_000 });
