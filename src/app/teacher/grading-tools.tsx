@@ -2,6 +2,7 @@
 
 import { BarChart3, FileText, Star } from "lucide-react";
 import { BrandButton } from "@/components/role-dashboard";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   CreateAssessmentModal,
   FinalGradesModal,
@@ -26,29 +27,38 @@ export function GradingToolbar({
   createLabel?: string;
 }) {
   const firstClassId = classHubs[0]?.id;
+  // The hints used to sit in native title attributes on an inner span, which
+  // never show for keyboard or touch users; the shared Tooltip shows them on
+  // hover, focus and long-press.
   return (
     <>
-      <BrandButton
-        variant="soft"
-        icon={<Star className="w-4 h-4" />}
-        onClick={() => grading.setShowExamModal(true)}
-      >
-        <span title="Create a new exam or test">{createLabel}</span>
-      </BrandButton>
-      <BrandButton
-        variant="soft"
-        icon={<FileText className="w-4 h-4" />}
-        onClick={() => grading.openGradeConfig(firstClassId)}
-      >
-        <span title="Configure grading weights and thresholds">Grade Config</span>
-      </BrandButton>
-      <BrandButton
-        variant="dark"
-        icon={<BarChart3 className="w-4 h-4" />}
-        onClick={() => grading.openFinalGrades(firstClassId)}
-      >
-        <span title="View weighted final grades">Final Grades</span>
-      </BrandButton>
+      <Tooltip content="Create a new exam or test">
+        <BrandButton
+          variant="soft"
+          icon={<Star aria-hidden="true" className="w-4 h-4" />}
+          onClick={() => grading.setShowExamModal(true)}
+        >
+          {createLabel}
+        </BrandButton>
+      </Tooltip>
+      <Tooltip content="Configure grading weights and thresholds">
+        <BrandButton
+          variant="soft"
+          icon={<FileText aria-hidden="true" className="w-4 h-4" />}
+          onClick={() => grading.openGradeConfig(firstClassId)}
+        >
+          Grade Config
+        </BrandButton>
+      </Tooltip>
+      <Tooltip content="View weighted final grades">
+        <BrandButton
+          variant="dark"
+          icon={<BarChart3 aria-hidden="true" className="w-4 h-4" />}
+          onClick={() => grading.openFinalGrades(firstClassId)}
+        >
+          Final Grades
+        </BrandButton>
+      </Tooltip>
     </>
   );
 }

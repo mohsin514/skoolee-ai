@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
@@ -55,6 +56,7 @@ const NAV: ConsoleNavItem<ReceptionistView>[] = [
 
 export default function ReceptionistPage() {
   const router = useRouter();
+  const tr = useUiText();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "dashboard");
@@ -68,12 +70,12 @@ export default function ReceptionistPage() {
       }
       setData(d);
     } catch {
-      toast.error("Failed to load dashboard");
+      toast.error(tr("We couldn't load the front desk console. Please sign in again."));
       router.replace("/login");
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, tr]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -131,7 +133,7 @@ export default function ReceptionistPage() {
                   onNavigate={(view) => setActiveView(view as ReceptionistView)}
                 />
               ) : null}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {NAV.filter((item) => item.id !== "dashboard").map((item) => (
                   <ConsoleQuickLink
                     key={item.id}

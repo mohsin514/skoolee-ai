@@ -77,7 +77,7 @@ export function ChatAvatar({
       </span>
 
       {online !== undefined && (
-        <span className={cn("absolute -bottom-0.5 -right-0.5 grid place-items-center", s.dot)}>
+        <span className={cn("absolute -bottom-0.5 -end-0.5 grid place-items-center", s.dot)}>
           {online && (
             <span
               className="sk-ping absolute inset-0 rounded-full bg-emerald-400"

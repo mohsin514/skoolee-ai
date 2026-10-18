@@ -70,6 +70,7 @@ import {
   ratio,
 } from "./metrics";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 
 interface AcademicOverviewProps {
@@ -580,26 +581,14 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent }:
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   {s.percentage !== null ? (
-                    <span
-                      className="rounded-full px-2 py-1 text-2xs font-semibold uppercase tracking-wider"
-                      style={{
-                        background: s.percentage < 40 ? `${STATUS.critical}1f` : `${STATUS.good}1f`,
-                        color: s.percentage < 40 ? "#a81231" : "#0f7a55",
-                      }}
-                    >
+                    <Badge variant={s.percentage < 40 ? "danger" : "success"} dot size="sm" className="tabular-nums">
                       {s.percentage}% marks
-                    </span>
+                    </Badge>
                   ) : null}
                   {s.attendance !== null ? (
-                    <span
-                      className="rounded-full px-2 py-1 text-2xs font-semibold uppercase tracking-wider"
-                      style={{
-                        background: s.attendance < 75 ? `${STATUS.warning}26` : `${STATUS.good}1f`,
-                        color: s.attendance < 75 ? "#8a6100" : "#0f7a55",
-                      }}
-                    >
+                    <Badge variant={s.attendance < 75 ? "warning" : "success"} dot size="sm" className="tabular-nums">
                       {s.attendance}% present
-                    </span>
+                    </Badge>
                   ) : null}
                 </div>
               </li>

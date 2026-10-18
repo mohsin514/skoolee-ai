@@ -52,6 +52,44 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { fill, isRtlLanguage, onboardingCopy, type OnboardingCopy } from "./copy";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { IconButton } from "@/components/ui/icon-button";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip } from "@/components/ui/tooltip";
+
+/** Wizard strings that the shared setup copy does not carry yet (English, Arabic, Urdu). */
+const LOCAL_COPY = {
+  en: {
+    loadFailedTitle: "Setup could not be loaded",
+    noCampusesHint: "Use the form to add your first campus. Each campus is saved as soon as you add it.",
+    sessionStartHint: "Leave empty to start the session on the day you activate setup.",
+    contactEmailHint: "Set when the institution was registered. It cannot be changed here.",
+    logoUploadFailed: "The logo could not be uploaded. Check your connection and try again.",
+  },
+  ar: {
+    loadFailedTitle: "تعذر تحميل الإعداد",
+    noCampusesHint: "استخدم النموذج لإضافة أول فرع. يُحفظ كل فرع فور إضافته.",
+    sessionStartHint: "اتركه فارغًا لتبدأ الجلسة يوم تفعيل الإعداد.",
+    contactEmailHint: "حُدد عند تسجيل المؤسسة ولا يمكن تغييره هنا.",
+    logoUploadFailed: "تعذر رفع الشعار. تحقق من اتصالك وحاول مرة أخرى.",
+  },
+  ur: {
+    loadFailedTitle: "سیٹ اپ لوڈ نہیں ہو سکا",
+    noCampusesHint: "پہلا کیمپس شامل کرنے کے لیے فارم استعمال کریں۔ ہر کیمپس شامل کرتے ہی محفوظ ہو جاتا ہے۔",
+    sessionStartHint: "خالی چھوڑ دیں تو سیشن سیٹ اپ فعال کرنے کے دن سے شروع ہو گا۔",
+    contactEmailHint: "یہ ادارے کی رجسٹریشن کے وقت طے ہوا تھا اور یہاں تبدیل نہیں ہو سکتا۔",
+    logoUploadFailed: "لوگو اپ لوڈ نہیں ہو سکا۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔",
+  },
+} as const;
+
+function localCopy(language: string | null | undefined) {
+  const code = (language || "en").slice(0, 2).toLowerCase();
+  return LOCAL_COPY[code === "ar" ? "ar" : code === "ur" ? "ur" : "en"];
+}
 
 // ─────────────────────────────────────────────────────────────────
 // The wizard renders the server's setup state (SKO-391). Every Continue
@@ -120,8 +158,11 @@ export default function OnboardingWizard() {
   const summaryRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
 
+  const [savingCampus, setSavingCampus] = useState(false);
+
   const language = view?.language || "en";
   const t = onboardingCopy(language);
+  const local = localCopy(language);
   const rtl = isRtlLanguage(language);
 
   const applyView = useCallback((next: SetupView, requested?: string | null) => {
@@ -265,8 +306,9 @@ export default function OnboardingWizard() {
       if (!putRes.ok) throw new Error("Upload failed");
       setSchool({ logoUrl: key });
       toast.success(t.logoUploaded);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } catch {
+      // The presign/storage reply is technical; say what happened and what to do.
+      toast.error(local.logoUploadFailed);
     } finally {
       setLogoUploading(false);
     }
@@ -282,7 +324,8 @@ export default function OnboardingWizard() {
     if (Object.keys(problems).length) return;
     const campuses = editingKey ? draft.campuses.map((c) => (c.key === editingKey ? candidate : c)) : [...draft.campuses, candidate];
     const nextDraft = { ...draft, campuses };
-    const saved = await persist({ step: "campuses", complete: false, draft: nextDraft });
+    setSavingCampus(true);
+    const saved = await persist({ step: "campuses", complete: false, draft: nextDraft }).finally(() => setSavingCampus(false));
     if (!saved) return;
     const index = campuses.findIndex((c) => c.key === key);
     const overLimitNow = saved.plan.maxCampuses >= 0 && index + 1 > saved.plan.maxCampuses;
@@ -339,24 +382,67 @@ export default function OnboardingWizard() {
 
   // ── Loading / no-access / error states ──
   if (load.kind === "loading" || (load.kind === "ready" && (!view || !draft))) {
+    // The wizard's own shape (step rail + step card), so nothing jumps when the saved setup lands.
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-brand-50 gap-4" role="status" aria-live="polite">
-        <Loader2 className="h-8 w-8 text-primary animate-spin" aria-hidden="true" />
-        <p className="text-xs font-bold text-ink">{t.loading}</p>
+      <div className="min-h-screen w-full bg-brand-50 lg:flex" role="status" aria-live="polite" aria-busy="true">
+        <span className="sr-only">{t.loading}</span>
+        <div aria-hidden="true" className="hidden w-72 shrink-0 flex-col gap-4 border-e border-edge/30 bg-white/50 p-8 lg:flex">
+          <Skeleton className="h-7 w-32" />
+          <Skeleton className="mb-4 h-3 w-20" />
+          <Skeleton className="h-1.5 w-full rounded-full" />
+          {[0, 1, 2, 3, 4, 5].map((index) => <Skeleton key={index} delay={index * 60} className="h-16 w-full rounded-2xl" />)}
+        </div>
+        <div aria-hidden="true" className="flex-1 p-4 md:p-10">
+          <div className="mx-auto w-full max-w-4xl space-y-5">
+            <Skeleton className="h-1.5 w-full rounded-full lg:hidden" />
+            <div className="sk-panel animate-skeleton-in p-5 md:p-10">
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-12 w-12 shrink-0 rounded-2xl md:h-14 md:w-14" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-7 w-2/3 max-w-xs" />
+                  <Skeleton className="h-4 w-full max-w-md" />
+                </div>
+              </div>
+              <div className="mt-8 grid gap-4 md:grid-cols-2">
+                {[0, 1, 2, 3].map((index) => <Skeleton key={index} delay={index * 60} className="h-24 w-full rounded-2xl" />)}
+              </div>
+              <div className="mt-8 flex justify-end">
+                <Skeleton className="h-11 w-36 rounded-2xl" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
   if (load.kind === "noAccess" || load.kind === "error") {
-    const copy = onboardingCopy(typeof document !== "undefined" ? document.documentElement.lang : "en");
+    const pageLanguage = typeof document !== "undefined" ? document.documentElement.lang : "en";
+    const copy = onboardingCopy(pageLanguage);
+    if (load.kind === "error") {
+      return (
+        <main className="min-h-screen bg-brand-50 flex items-center justify-center p-4 sm:p-6">
+          <ErrorState
+            variant="page"
+            className="sk-enter-scale shadow-lg"
+            title={localCopy(pageLanguage).loadFailedTitle}
+            description={copy.loadFailed}
+            onRetry={() => void reload()}
+            retryLabel={copy.retry}
+            action={<Button variant="outline" onClick={handleLogout}><LogOut aria-hidden="true" className="h-4 w-4" /> {copy.signOut}</Button>}
+          />
+        </main>
+      );
+    }
     return (
-      <main className="min-h-screen bg-brand-50 flex items-center justify-center p-6">
-        <div className="sk-panel max-w-md w-full p-8 space-y-4 text-center">
-          <Lock className="mx-auto h-8 w-8 text-primary" aria-hidden="true" />
-          <h1 className="text-xl font-bold text-ink">{load.kind === "noAccess" ? copy.noAccessTitle : copy.retry}</h1>
-          <p className="text-sm text-ink-muted">{load.kind === "noAccess" ? copy.noAccessBody : copy.loadFailed}</p>
-          <div className="flex flex-wrap justify-center gap-3">
-            {load.kind === "error" && <Button onClick={() => void reload()}>{copy.retry}</Button>}
-            <Button variant="outline" onClick={handleLogout}><LogOut className="h-4 w-4" /> {copy.signOut}</Button>
+      <main className="min-h-screen bg-brand-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="sk-panel sk-enter-scale max-w-md w-full px-6 py-10 sm:px-10 space-y-4 text-center shadow-lg">
+          <span aria-hidden="true" className="mx-auto grid size-14 place-items-center rounded-2xl border border-status-brand-border bg-status-brand-surface text-primary shadow-sm">
+            <Lock className="h-6 w-6" />
+          </span>
+          <h1 className="text-xl font-bold tracking-tight text-ink-strong">{copy.noAccessTitle}</h1>
+          <p className="text-sm leading-relaxed text-ink-muted">{copy.noAccessBody}</p>
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
+            <Button variant="outline" onClick={handleLogout}><LogOut aria-hidden="true" className="h-4 w-4" /> {copy.signOut}</Button>
           </div>
         </div>
       </main>
@@ -409,19 +495,17 @@ export default function OnboardingWizard() {
       <aside className="w-72 bg-white/50 backdrop-blur-md border-e border-edge/30 hidden lg:flex flex-col p-8 fixed h-full z-50 overflow-y-auto">
         <div className="mb-8">
           <SkooleeLogo size="1.4rem" />
-          <p className="text-2xs font-semibold text-ink-muted uppercase tracking-normal leading-none mt-1">{t.wizard}</p>
+          <p className="sk-eyebrow mt-1.5">{t.wizard}</p>
         </div>
         <div className="mb-8">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
-            <span className="text-2xs font-bold text-primary">{Math.round(progress)}%</span>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="sk-eyebrow">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
+            <span className="text-2xs font-bold tabular-nums text-primary" aria-hidden="true">{Math.round(progress)}%</span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-edge/25" aria-hidden="true">
-            <div className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500" style={{ width: `${progress}%` }} />
-          </div>
+          <Progress value={progress} size="sm" label={t.wizard} valueText={fill(t.stepOf, stepIndex + 1, flow.length)} />
         </div>
         <nav aria-label={t.wizard}>
-          <ol className="flex-1 space-y-3">
+          <ol className="flex-1 space-y-2">
             {flow.map((id, i) => (
               <li key={id}>
                 <StepNav
@@ -439,8 +523,8 @@ export default function OnboardingWizard() {
             ))}
           </ol>
         </nav>
-        <Button variant="destructive" onClick={handleLogout} className="mt-auto items-center gap-4 justify-start">
-          <LogOut className="w-5 h-5" /> <span>{t.signOut}</span>
+        <Button variant="ghost" onClick={handleLogout} className="mt-auto w-full justify-start gap-3 text-ink-muted">
+          <LogOut aria-hidden="true" className="w-5 h-5 rtl:rotate-180" /> <span>{t.signOut}</span>
         </Button>
       </aside>
 
@@ -449,11 +533,9 @@ export default function OnboardingWizard() {
         <div className="lg:hidden px-4 pt-5 pb-2">
           <div className="flex items-center justify-between gap-3 mb-3">
             <SkooleeLogo size="1.2rem" />
-            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
+            <span className="sk-eyebrow">{fill(t.stepOf, stepIndex + 1, flow.length)}</span>
           </div>
-          <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-edge/25" aria-hidden="true">
-            <div className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500" style={{ width: `${progress}%` }} />
-          </div>
+          <Progress value={progress} size="sm" label={t.wizard} valueText={fill(t.stepOf, stepIndex + 1, flow.length)} className="mb-3" />
           <nav aria-label={t.wizard}>
             <ol className="flex items-center gap-2 overflow-x-auto pb-1">
               {flow.map((id) => (
@@ -476,13 +558,13 @@ export default function OnboardingWizard() {
 
         <header className="px-4 md:px-10 py-4 flex flex-wrap items-center justify-between gap-3 bg-white/50 backdrop-blur-md sticky top-0 z-40 border-b border-edge/10">
           {/* Structure stays visible for the whole journey. */}
-          <div className="flex min-w-0 items-center gap-2 text-2xs font-bold text-primary" data-testid="structure-summary">
-            <School className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-primary" data-testid="structure-summary">
+            <School className="w-4 h-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{t.types[type].short}{mode ? ` · ${t.modes[mode].short}` : ""}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-2xs font-bold text-ink-muted" role="status" aria-live="polite">
-              {saving ? t.saving : !dirty ? <><CheckCircle2 className="inline h-3 w-3 text-emerald-600" aria-hidden="true" /> {t.savedAt}</> : null}
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-subtle" role="status" aria-live="polite">
+              {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden="true" /> {t.saving}</> : !dirty ? <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> {t.savedAt}</> : null}
             </span>
             <Button variant="outline" size="sm" onClick={() => void saveAndExit()} disabled={saving || activating}>{t.saveExit}</Button>
             <Button variant="ghost" size="sm" className="lg:hidden" onClick={handleLogout}>{t.signOut}</Button>
@@ -492,21 +574,20 @@ export default function OnboardingWizard() {
         <div className="p-4 md:p-10 flex-1 flex flex-col items-center">
           <div className="w-full max-w-4xl space-y-5">
             {v.actor.kind === "delegate" && (
-              <p role="note" className="rounded-2xl border border-edge/40 bg-white p-4 text-sm font-semibold text-ink">
-                <ShieldCheck className="me-2 inline h-4 w-4 text-primary" aria-hidden="true" />
+              <Alert tone="info" icon={ShieldCheck} live="off" role="note">
                 {t.delegateBanner} {v.actor.canPurchase ? t.delegateBannerBuy : t.delegateBannerNoBuy}
-              </p>
+              </Alert>
             )}
             {banner && (
-              <p role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">{banner}</p>
+              <Alert tone="warning" live="assertive">{banner}</Alert>
             )}
             {errorEntries.length > 0 && (
-              <div ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby="error-summary-title" className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text">
-                <p id="error-summary-title" className="flex items-center gap-1.5 text-sm font-bold"><AlertCircle aria-hidden="true" className="h-3.5 w-3.5" />{t.errorSummary(errorEntries.length)}</p>
+              <div ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby="error-summary-title" className="sk-enter rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text shadow-xs">
+                <p id="error-summary-title" className="flex items-center gap-2 text-sm font-semibold"><AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0" />{t.errorSummary(errorEntries.length)}</p>
                 <ul className="mt-1.5 flex flex-col gap-0.5">
                   {errorEntries.map(([field, code]) => (
                     <li key={field}>
-                      <Button variant="ghost" type="button" onClick={() => focusError(field)} className="min-h-6 text-start text-sm font-semibold underline underline-offset-2">
+                      <Button variant="ghost" type="button" onClick={() => focusError(field)} className="-mx-2 min-h-10 justify-start px-2 text-start text-sm font-medium text-status-error-text underline underline-offset-2">
                         {field.startsWith("campus:") ? `${d.campuses.find((c) => `campus:${c.key}` === field)?.name || t.campusName}: ` : ""}{t.errors[code] ?? code}
                       </Button>
                     </li>
@@ -520,7 +601,7 @@ export default function OnboardingWizard() {
               <section className="sk-panel sk-rise p-5 md:p-10 space-y-8" aria-labelledby="step-heading">
                 <StepHeading refEl={headingRef} icon={Layers} title={t.structureTitle} intro={t.structureIntro} />
                 <fieldset className="space-y-3" id="field-adoptionMode" tabIndex={-1}>
-                  <legend className="mb-3 text-sm font-bold text-ink">{t.modeQuestion}</legend>
+                  <legend className="mb-3 text-base font-bold text-ink-strong">{t.modeQuestion}</legend>
                   <div className="grid gap-3 md:grid-cols-2">
                     {(["EXAM_STUDIO", "FULL_OPERATIONS"] as const).map((option) => (
                       <ChoiceCard key={option} name="adoptionMode" checked={mode === option} onSelect={() => { setMode(option); setErrors({}); }}
@@ -529,7 +610,7 @@ export default function OnboardingWizard() {
                   </div>
                 </fieldset>
                 <fieldset className="space-y-3">
-                  <legend className="mb-3 text-sm font-bold text-ink">{t.typeQuestion}</legend>
+                  <legend className="mb-3 text-base font-bold text-ink-strong">{t.typeQuestion}</legend>
                   <div className="grid gap-3 md:grid-cols-2">
                     {(["STANDALONE", "GROUP"] as const).map((option) => (
                       <ChoiceCard key={option} name="institutionType" checked={type === option} onSelect={() => setType(option)}
@@ -538,12 +619,13 @@ export default function OnboardingWizard() {
                   </div>
                 </fieldset>
                 {typeChanged && (
-                  <div role="status" className="rounded-2xl border border-edge/50 bg-brand-50 p-4 text-sm text-ink space-y-1" data-testid="shape-preview">
-                    <p className="font-bold">{fill(t.shapePreviewTitle, t.types[type].label)}</p>
-                    <p>{type === "STANDALONE" ? fill(t.shapeToStandalone, d.campuses.length) : t.shapeToGroup}</p>
-                    <p>{fill(t.shapeCapacity, t.campusCount(limit))}</p>
-                    <p>{t.shapeReopen}</p>
-                  </div>
+                  <Alert tone="info" title={fill(t.shapePreviewTitle, t.types[type].label)} className="sk-enter" data-testid="shape-preview">
+                    <div className="space-y-1 text-ink-muted">
+                      <p>{type === "STANDALONE" ? fill(t.shapeToStandalone, d.campuses.length) : t.shapeToGroup}</p>
+                      <p>{fill(t.shapeCapacity, t.campusCount(limit))}</p>
+                      <p>{t.shapeReopen}</p>
+                    </div>
+                  </Alert>
                 )}
                 <StepActions t={t} onContinue={() => void continueFrom("structure")} busy={saving} />
               </section>
@@ -555,18 +637,18 @@ export default function OnboardingWizard() {
                 <StepHeading refEl={headingRef} icon={Building} title={isGroup ? t.identityTitleGroup : t.identityTitleSchool} intro={isGroup ? t.identityIntroGroup : t.identityIntroSchool} />
                 <div className="grid md:grid-cols-2 gap-8 mt-8">
                   <div className="space-y-5">
-                    <div className="bg-white rounded-[24px] border-2 border-dashed border-primary/25 p-5 flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-brand-50 overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="bg-white rounded-3xl border-2 border-dashed border-primary/25 p-5 flex flex-col items-start gap-4 transition-colors hover:border-primary/40 sm:flex-row sm:items-center">
+                      <div className="w-16 h-16 rounded-2xl bg-brand-50 overflow-hidden flex items-center justify-center shrink-0 shadow-xs ring-1 ring-border-subtle">
                         {resolveMediaUrl(s.logoUrl)
                           ? <Image src={resolveMediaUrl(s.logoUrl)!} alt={t.logo} width={64} height={64} className="w-full h-full object-cover" unoptimized />
                           : <ImageIcon className="w-7 h-7 text-primary/40" aria-hidden="true" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-2xs font-semibold text-ink-muted uppercase mb-1">{t.logo} <span className="font-semibold normal-case">({t.optional})</span></p>
-                        <p className="text-2xs font-semibold text-ink-subtle mb-3">{t.logoHint}</p>
+                        <p className="text-sm font-semibold text-ink-strong mb-1">{t.logo} <span className="text-xs font-normal text-ink-subtle">({t.optional})</span></p>
+                        <p className="text-xs leading-relaxed text-ink-subtle mb-3">{t.logoHint}</p>
                         <div className="flex flex-wrap items-center gap-2">
-                          <label className={buttonVariants({ size: "sm", className: logoUploading ? "cursor-wait opacity-60" : "cursor-pointer" })}>
-                            {logoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                          <label aria-busy={logoUploading || undefined} className={buttonVariants({ size: "sm", className: logoUploading ? "cursor-wait opacity-60" : "cursor-pointer" })}>
+                            {logoUploading ? <Loader2 aria-hidden="true" className="w-4 h-4 animate-spin" /> : <Upload aria-hidden="true" className="w-4 h-4" />}
                             {logoUploading ? t.uploading : t.chooseLogo}
                             <input type="file" accept="image/*" className="sr-only" onChange={(e) => handleLogoFile(e.target.files?.[0])} disabled={logoUploading} />
                           </label>
@@ -585,27 +667,25 @@ export default function OnboardingWizard() {
                       <InputField field="establishedYear" error={errors.establishedYear && t.errors[errors.establishedYear]} label={t.established} value={s.establishedYear} onChange={(val) => setSchool({ establishedYear: val.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="1998" icon={CalendarDays} inputMode="numeric" />
                     </div>
                     <InputField field="website" label={t.website} value={s.website} onChange={(val) => setSchool({ website: val })} placeholder="www.school.edu.pk" icon={Globe} type="url" />
-                    <InputField field="email" label={t.contactEmail} value={s.email} onChange={() => undefined} placeholder="" icon={Mail} type="email" readonly />
-                    <div className="bg-brand-50 p-5 rounded-[24px] border border-edge/20">
-                      <div className="flex items-center justify-between mb-4 gap-3">
-                        <Label htmlFor="field-regId" className="text-2xs font-semibold text-primary uppercase">{isGroup ? t.schoolId : t.campusId}</Label>
-                        <div className="bg-white rounded-lg p-1 flex gap-1 border border-edge/10" role="group" aria-label={isGroup ? t.schoolId : t.campusId}>
+                    <InputField field="email" label={t.contactEmail} value={s.email} onChange={() => undefined} placeholder="" icon={Mail} type="email" readonly hint={local.contactEmailHint} />
+                    <div className="bg-surface-subtle p-5 rounded-3xl border border-border-subtle">
+                      <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
+                        <Label htmlFor="field-regId" className="text-sm font-semibold text-ink-strong">{isGroup ? t.schoolId : t.campusId}</Label>
+                        <div className="bg-white rounded-xl p-1 flex gap-1 border border-border-subtle shadow-xs" role="group" aria-label={isGroup ? t.schoolId : t.campusId}>
                           <Button size="sm" aria-pressed={isGroup ? s.autoId : s.primaryCampusAutoId} variant="choice" onClick={() => isGroup ? setSchool({ autoId: true, regId: generateId('SKL') }) : setSchool({ primaryCampusAutoId: true, primaryCampusRegId: generateId('BR') })}>{t.auto}</Button>
                           <Button size="sm" aria-pressed={isGroup ? !s.autoId : !s.primaryCampusAutoId} variant="choice" onClick={() => isGroup ? setSchool({ autoId: false }) : setSchool({ primaryCampusAutoId: false })}>{t.manual}</Button>
                         </div>
                       </div>
-                      <Input id="field-regId" dir="ltr" aria-invalid={!!errors.regId} aria-describedby="regId-hint"
+                      <Input id="field-regId" dir="ltr" aria-invalid={!!errors.regId} aria-describedby={errors.regId ? "regId-hint field-regId-error" : "regId-hint"}
                         value={isGroup ? s.regId : s.primaryCampusRegId}
                         onChange={(e) => isGroup ? setSchool({ regId: e.target.value.toUpperCase() }) : setSchool({ primaryCampusRegId: e.target.value.toUpperCase() })}
                         readOnly={isGroup ? s.autoId : s.primaryCampusAutoId}
-                        className="text-center" />
-                      <p id="regId-hint" className="text-2xs text-ink-subtle mt-3 font-bold">{isGroup ? t.idHintGroup : t.idHintCampus}</p>
-                      {errors.regId && <p role="alert" className="text-sm text-destructive mt-1">{t.errors[errors.regId]}</p>}
+                        className="text-center font-mono tabular-nums" />
+                      <p id="regId-hint" className="text-xs leading-relaxed text-ink-subtle mt-3">{isGroup ? t.idHintGroup : t.idHintCampus}</p>
+                      {errors.regId && <FieldError id="field-regId-error">{t.errors[errors.regId]}</FieldError>}
                     </div>
                     {!isGroup && (
-                      <p className="flex items-start gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 p-4 text-xs font-bold text-emerald-900">
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" /> {t.primaryCampusNote}
-                      </p>
+                      <Alert tone="success" live="off">{t.primaryCampusNote}</Alert>
                     )}
                   </div>
                 </div>
@@ -623,17 +703,17 @@ export default function OnboardingWizard() {
                   <SummaryItem icon={Users} label={t.campuses} value={fill(t.planned, planned.length)} />
                 </div>
                 {overLimit && (
-                  <p role="status" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{fill(t.overLimit, split.drafts.length)}</p>
+                  <Alert tone="warning">{fill(t.overLimit, split.drafts.length)}</Alert>
                 )}
-                <p className="text-sm text-ink-muted">{v.actor.canPurchase ? t.noPaymentNeeded : t.purchaseNotDelegated}</p>
+                <p className="text-sm leading-relaxed text-ink-muted">{v.actor.canPurchase ? t.noPaymentNeeded : t.purchaseNotDelegated}</p>
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <Button variant="outline" onClick={goBack} className="gap-2"><ChevronLeft className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button>
+                  <Button variant="outline" onClick={goBack} className="gap-2"><ChevronLeft aria-hidden="true" className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     {v.actor.canPurchase && (
                       <Link href={comparePackagesHref} className={buttonVariants({ variant: "outline" })}>{t.comparePackages}</Link>
                     )}
-                    <Button variant="dark" onClick={() => void continueFrom("package")} disabled={saving} className="gap-2">
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{fill(t.continueWith, v.plan.name)} <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+                    <Button variant="dark" onClick={() => void continueFrom("package")} disabled={saving} loading={saving} className="sk-nudge-trigger gap-2">
+                      {fill(t.continueWith, v.plan.name)} <ForwardArrow />
                     </Button>
                   </div>
                 </div>
@@ -668,64 +748,65 @@ export default function OnboardingWizard() {
                           </InputGroup>
                         </div>
                         <div className="space-y-1.5">
-                          <div className="flex justify-between items-center gap-2">
+                          <div className="flex flex-wrap justify-between items-center gap-2">
                             <Label htmlFor="field-campusRegId" className="sk-field-label">{t.campusId}</Label>
                             <div className="flex gap-1" role="group" aria-label={t.campusId}>
                               <Button size="sm" aria-pressed={newCampus.autoId} variant="choice" onClick={() => setNewCampus({ ...newCampus, autoId: true, regId: generateId('BR') })}>{t.auto}</Button>
                               <Button size="sm" aria-pressed={!newCampus.autoId} variant="choice" onClick={() => setNewCampus({ ...newCampus, autoId: false })}>{t.manual}</Button>
                             </div>
                           </div>
-                          <Input id="field-campusRegId" dir="ltr" aria-invalid={!!campusErrors.campusRegId} value={newCampus.regId} readOnly={newCampus.autoId}
-                            onChange={(e) => setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() })} placeholder="BR-XXXX" className="text-center" />
-                          {campusErrors.campusRegId && <p role="alert" className="text-sm text-destructive">{t.errors[campusErrors.campusRegId]}</p>}
+                          <Input id="field-campusRegId" dir="ltr" aria-invalid={!!campusErrors.campusRegId} aria-describedby={campusErrors.campusRegId ? "field-campusRegId-error" : undefined} value={newCampus.regId} readOnly={newCampus.autoId}
+                            onChange={(e) => setNewCampus({ ...newCampus, regId: e.target.value.toUpperCase() })} placeholder="BR-XXXX" className="text-center font-mono tabular-nums" />
+                          {campusErrors.campusRegId && <FieldError id="field-campusRegId-error">{t.errors[campusErrors.campusRegId]}</FieldError>}
                         </div>
                       </div>
                       <div className="flex flex-wrap justify-end gap-2 pt-2">
                         {editingKey && <Button variant="secondary" onClick={() => { setEditingKey(null); setNewCampus(emptyCampus()); setCampusErrors({}); }}>{t.cancel}</Button>}
-                        <Button onClick={() => void saveCampus()} disabled={saving} className="gap-2">
-                          {editingKey ? <><CheckCircle2 className="w-4 h-4" /> {t.updateCampus}</> : <><Plus className="w-4 h-4" /> {t.addCampus}</>}
+                        <Button onClick={() => void saveCampus()} disabled={saving} loading={savingCampus} className="gap-2">
+                          {!savingCampus && (editingKey ? <CheckCircle2 aria-hidden="true" className="w-4 h-4" /> : <Plus aria-hidden="true" className="w-4 h-4" />)}
+                          {editingKey ? t.updateCampus : t.addCampus}
                         </Button>
                       </div>
                     </div>
                   </div>
-                  <StepActions t={t} onBack={goBack} onContinue={() => void continueFrom("campuses")} busy={saving} disabled={d.campuses.length === 0} />
+                  <StepActions t={t} onBack={goBack} onContinue={() => void continueFrom("campuses")} busy={saving} disabled={d.campuses.length === 0} disabledReason={t.errors["campuses.required"]} />
                 </div>
 
                 <div className="lg:col-span-2">
                   <div className="sk-panel sk-rise p-5 md:p-6 flex flex-col">
-                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-50 gap-2">
-                      <h3 className="text-2xs font-semibold uppercase flex items-center gap-2"><Users className="w-4 h-4 text-primary" aria-hidden="true" /> {t.yourCampuses}</h3>
-                      <span className="text-2xs font-bold text-primary bg-brand-50 px-3 py-1 rounded-full">{fill(t.added, d.campuses.length)}</span>
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-border-subtle gap-2">
+                      <h2 className="flex min-w-0 items-center gap-2 text-base font-bold text-ink-strong"><Users className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" /> {t.yourCampuses}</h2>
+                      <Badge variant="secondary" size="sm" className="shrink-0 tabular-nums">{fill(t.added, d.campuses.length)}</Badge>
                     </div>
                     {overLimit && (
-                      <div role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                        <p>{fill(t.overLimit, split.drafts.length)}</p>
-                        {v.actor.canPurchase && <Link href={comparePackagesHref} className={buttonVariants({ variant: "link", className: "mt-1 h-auto min-h-0 p-0" })}>{t.comparePackages}</Link>}
-                      </div>
+                      <Alert
+                        tone="warning"
+                        className="mb-4"
+                        actions={v.actor.canPurchase ? <Link href={comparePackagesHref} className="sk-link text-sm">{t.comparePackages}</Link> : undefined}
+                      >
+                        {fill(t.overLimit, split.drafts.length)}
+                      </Alert>
                     )}
                     <ul className="space-y-3" aria-label={t.yourCampuses}>
                       {d.campuses.map((c, i) => {
                         const isDraft = limit >= 0 && i >= limit;
                         return (
-                          <li key={c.key} id={`campus-${c.key}`} tabIndex={-1} className={`p-4 rounded-[18px] border flex items-start justify-between gap-3 ${editingKey === c.key ? 'bg-primary/10 border-primary/30' : 'bg-brand-50/50 border-transparent'} ${errors[`campus:${c.key}`] ? 'border-destructive' : ''}`}>
+                          <li key={c.key} id={`campus-${c.key}`} tabIndex={-1} className={`sk-enter p-4 rounded-2xl border flex items-start justify-between gap-3 transition-colors ${editingKey === c.key ? 'bg-surface-selected' : 'bg-surface-subtle'} ${errors[`campus:${c.key}`] ? 'border-destructive' : editingKey === c.key ? 'border-primary/30' : 'border-border-subtle'}`}>
                             <div className="min-w-0">
-                              <p className="text-sm font-bold text-ink leading-tight break-words">{c.name}</p>
-                              <p className="text-2xs font-bold text-ink-subtle mt-1"><span>{c.city}</span> · <bdi dir="ltr">{c.regId}</bdi></p>
-                              <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
+                              <p className="text-sm font-semibold text-ink-strong leading-snug break-words">{c.name}</p>
+                              <p className="text-xs text-ink-subtle mt-1 break-words"><span>{c.city}</span> · <bdi dir="ltr" className="font-mono">{c.regId}</bdi></p>
+                              <Badge variant={isDraft ? "warning" : "success"} size="sm" dot className="mt-2">{isDraft ? t.draftBadge : t.activateBadge}</Badge>
                             </div>
                             <div className="flex shrink-0 gap-1">
-                              <Button variant="secondary" size="icon" onClick={() => editCampus(c)} aria-label={`${t.editCampus}: ${c.name}`} disabled={editingKey === c.key}><Pencil className="w-4 h-4" /></Button>
-                              <Button variant="outline" size="icon" onClick={() => setCampusToDelete(c)} aria-label={`${t.deleteCampus}: ${c.name}`}><Trash2 className="w-4 h-4" /></Button>
+                              <IconButton variant="secondary" label={`${t.editCampus}: ${c.name}`} onClick={() => editCampus(c)} disabled={editingKey === c.key}><Pencil aria-hidden="true" /></IconButton>
+                              <IconButton variant="outline" label={`${t.deleteCampus}: ${c.name}`} onClick={() => setCampusToDelete(c)} className="actionable-hover:border-status-error-border actionable-hover:text-destructive"><Trash2 aria-hidden="true" /></IconButton>
                             </div>
                           </li>
                         );
                       })}
                     </ul>
                     {d.campuses.length === 0 && (
-                      <div className="flex flex-col items-center justify-center text-center text-ink-subtle py-12">
-                        <Building className="w-10 h-10 mb-2" aria-hidden="true" />
-                        <p className="text-xs font-bold">{t.noCampuses}</p>
-                      </div>
+                      <EmptyState size="sm" icon={Building} title={t.noCampuses} description={local.noCampusesHint} />
                     )}
                   </div>
                 </div>
@@ -738,27 +819,28 @@ export default function OnboardingWizard() {
                 <StepHeading refEl={headingRef} icon={CalendarRange} title={t.academicTitle} intro={t.academicIntro} />
                 <div className="grid md:grid-cols-2 gap-8 mt-8">
                   <div className="space-y-5">
-                    <p className="flex items-center gap-2 text-2xs font-semibold uppercase text-primary"><Sparkles className="w-3.5 h-3.5" aria-hidden="true" /> {t.currentSession}</p>
+                    <h2 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Sparkles className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" /> {t.currentSession}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <InputField field="academicYear" error={errors.academicYear && t.errors[errors.academicYear]} label={t.academicYear} value={s.academicYear} onChange={setAcademicYear} placeholder={String(thisYear)} icon={CalendarDays} inputMode="numeric" required />
                       <div className="space-y-1.5">
-                        <Label htmlFor="field-sessionLabel" className="sk-field-label">{t.sessionName} <span className="text-rose-500">*</span></Label>
+                        <Label htmlFor="field-sessionLabel" className="sk-field-label">{t.sessionName} <span className="text-destructive" aria-hidden="true">*</span></Label>
                         <InputGroup>
                           <Tag data-field-affix="start" className="h-4 w-4" />
-                          <Input id="field-sessionLabel" aria-required aria-invalid={!!errors.sessionLabel} value={s.sessionLabel} onChange={(e) => setSchool({ sessionLabel: e.target.value })} placeholder={sessionLabelFor(thisYear)} className="w-full" />
-                          <FieldAction data-field-affix="end" type="button" aria-label={t.resetSessionName} onClick={() => setSchool({ sessionLabel: sessionLabelFor(Number(s.academicYear) || thisYear) })}>
-                            <RefreshCw className="w-3.5 h-3.5" />
-                          </FieldAction>
+                          <Input id="field-sessionLabel" aria-required aria-invalid={!!errors.sessionLabel} aria-describedby={errors.sessionLabel ? "field-sessionLabel-error" : undefined} value={s.sessionLabel} onChange={(e) => setSchool({ sessionLabel: e.target.value })} placeholder={sessionLabelFor(thisYear)} className="w-full" />
+                          <Tooltip content={t.resetSessionName} describe={false}>
+                            <FieldAction data-field-affix="end" type="button" aria-label={t.resetSessionName} onClick={() => setSchool({ sessionLabel: sessionLabelFor(Number(s.academicYear) || thisYear) })}>
+                              <RefreshCw aria-hidden="true" className="w-3.5 h-3.5" />
+                            </FieldAction>
+                          </Tooltip>
                         </InputGroup>
-                        {errors.sessionLabel && <p role="alert" className="text-sm text-destructive">{t.errors[errors.sessionLabel]}</p>}
+                        {errors.sessionLabel && <FieldError id="field-sessionLabel-error">{t.errors[errors.sessionLabel]}</FieldError>}
                       </div>
                     </div>
-                    <p className="flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-2xs font-bold text-ink-muted">
-                      <AlertCircle className="mt-0.5 w-3.5 h-3.5 shrink-0 text-primary" aria-hidden="true" />
+                    <Alert tone="info" live="off" className="text-xs">
                       {fill(t.sessionHint, sessionLabelFor(Number(s.academicYear) || thisYear), Number(s.academicYear) || thisYear)}
-                    </p>
+                    </Alert>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <InputField field="sessionStart" label={t.sessionStarts} type="date" icon={CalendarDays} value={s.sessionStart} placeholder="" onChange={(val) => setSchool({ sessionStart: val })} />
+                      <InputField field="sessionStart" label={t.sessionStarts} type="date" icon={CalendarDays} value={s.sessionStart} placeholder="" onChange={(val) => setSchool({ sessionStart: val })} hint={local.sessionStartHint} />
                       <InputField field="sessionEnd" error={errors.sessionEnd && t.errors[errors.sessionEnd]} label={t.sessionEnds} type="date" icon={CalendarDays} value={s.sessionEnd} placeholder="" onChange={(val) => setSchool({ sessionEnd: val })} />
                     </div>
                     <div className="space-y-1.5">
@@ -769,30 +851,30 @@ export default function OnboardingWizard() {
                           {TIMEZONES.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
                         </SystemSelect>
                       </InputGroup>
-                      <p id="timezone-hint" className="text-2xs font-bold text-ink-subtle">{t.timezoneHint}</p>
+                      <p id="timezone-hint" className="text-xs leading-relaxed text-ink-subtle">{t.timezoneHint}</p>
                     </div>
                   </div>
                   <div className="space-y-5">
-                    <p className="flex items-center gap-2 text-2xs font-semibold uppercase text-primary"><CalendarRange className="w-3.5 h-3.5" aria-hidden="true" /> {t.workingWeek}</p>
-                    <p className="text-xs font-semibold text-ink-muted">{t.workingWeekHint}</p>
-                    <div className="grid grid-cols-7 gap-1.5" id="field-weekends" tabIndex={-1}>
+                    <h2 id="working-week-title" className="flex items-center gap-2 text-base font-bold text-ink-strong"><CalendarRange className="w-4 h-4 shrink-0 text-primary" aria-hidden="true" /> {t.workingWeek}</h2>
+                    <p id="working-week-hint" className="text-sm leading-relaxed text-ink-muted">{t.workingWeekHint}</p>
+                    <div className="grid grid-cols-7 gap-1.5" id="field-weekends" tabIndex={-1} role="group" aria-labelledby="working-week-title" aria-describedby="working-week-hint">
                       {WEEK_DAYS.map((day) => {
                         const off = s.weekends.includes(day);
                         return (
                           <Button variant="choice" key={day} type="button" onClick={() => toggleWorkingDay(day)} aria-pressed={!off}
                             aria-label={`${weekdayName(day, language, "long")} — ${off ? t.dayClosed : t.dayWorking}`}
                             className="min-w-0 flex-col px-0.5 py-3">
-                            <span className="text-2xs font-bold">{weekdayName(day, language, "short")}</span>
+                            <span className="max-w-full truncate text-2xs font-semibold">{weekdayName(day, language, "short")}</span>
                             <span className={`h-1.5 w-1.5 rounded-full ${off ? "bg-edge" : "bg-primary"}`} aria-hidden="true" />
                           </Button>
                         );
                       })}
                     </div>
-                    <div className="rounded-[24px] border border-edge/20 bg-brand-50 p-5 space-y-2">
-                      <p className="text-2xs font-bold text-primary">{t.workingDays(workingDays.length)}</p>
-                      <p className="text-xs font-bold text-ink">{t.open}: {workingDays.map((day) => weekdayName(day, language, "short")).join(listSeparator) || "—"}</p>
-                      <p className="text-xs font-bold text-ink-muted">{t.closed}: {offDays.map((day) => weekdayName(day, language, "long")).join(listSeparator) || t.noWeekend}</p>
-                      <p className="border-t border-edge/20 pt-2 text-2xs font-bold text-ink-subtle">{t.appliedTo}</p>
+                    <div className="rounded-3xl border border-border-subtle bg-surface-subtle p-5 space-y-2">
+                      <p className="text-sm font-semibold tabular-nums text-primary">{t.workingDays(workingDays.length)}</p>
+                      <p className="text-sm text-ink"><span className="font-semibold text-ink-strong">{t.open}:</span> {workingDays.map((day) => weekdayName(day, language, "short")).join(listSeparator) || "—"}</p>
+                      <p className="text-sm text-ink-muted"><span className="font-semibold text-ink">{t.closed}:</span> {offDays.map((day) => weekdayName(day, language, "long")).join(listSeparator) || t.noWeekend}</p>
+                      <p className="border-t border-border-subtle pt-2 text-xs leading-relaxed text-ink-subtle">{t.appliedTo}</p>
                     </div>
                   </div>
                 </div>
@@ -806,20 +888,22 @@ export default function OnboardingWizard() {
                 <div className="sk-panel sk-rise p-5 md:p-8 space-y-6">
                   <StepHeading refEl={headingRef} icon={ClipboardCheck} title={t.reviewTitle} intro={t.reviewIntro} />
                   {success && (
-                    <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-                      <p className="font-bold">{t.successTitle}</p>
-                      <p className="text-sm">{fill(t.successBody, success.activated, success.drafts)} {t.openingWorkspace}</p>
-                    </div>
+                    <Alert tone="success" title={t.successTitle} className="sk-enter">
+                      {fill(t.successBody, success.activated, success.drafts)} {t.openingWorkspace}
+                    </Alert>
                   )}
                   {failed && !success && (
-                    <div role="alert" className="rounded-2xl border border-status-error-border bg-status-error-surface p-4 text-status-error-text space-y-2" data-testid="setup-failure">
-                      <p className="font-bold">{t.failedTitle}</p>
-                      <p className="text-sm">{v.lastError}</p>
-                      <p className="text-sm">{t.failedBody}</p>
-                      {v.failedStep && v.failedStep !== "review" && flow.includes(v.failedStep as SetupStepId) && (
+                    <Alert
+                      tone="danger"
+                      title={t.failedTitle}
+                      data-testid="setup-failure"
+                      actions={v.failedStep && v.failedStep !== "review" && flow.includes(v.failedStep as SetupStepId) ? (
                         <Button variant="outline" size="sm" onClick={() => void goTo(v.failedStep as SetupStepId)}>{fill(t.goToStep, t.steps[v.failedStep as SetupStepId].title)}</Button>
-                      )}
-                    </div>
+                      ) : undefined}
+                    >
+                      <p>{v.lastError}</p>
+                      <p className="mt-1 text-ink-muted">{t.failedBody}</p>
+                    </Alert>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <SummaryItem icon={Layers} label={t.institutionType} value={t.types[type].label} />
@@ -828,7 +912,7 @@ export default function OnboardingWizard() {
                     <SummaryItem icon={Building} label={t.activatedCapacity} value={fill(t.capacityValue, split.activate.length, limit < 0 ? "∞" : limit)} />
                   </div>
                   <div>
-                    <h3 className="text-2xs font-semibold text-primary uppercase mb-3">{t.identity}</h3>
+                    <h2 className="mb-3 text-base font-bold text-ink-strong">{t.identity}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <SummaryItem icon={Building} label={isGroup ? t.groupName : t.schoolName} value={s.name} />
                       <SummaryItem icon={Hash} label={isGroup ? t.schoolId : t.campusId} value={isGroup ? s.regId : s.primaryCampusRegId} ltr />
@@ -837,7 +921,7 @@ export default function OnboardingWizard() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-2xs font-semibold text-primary uppercase mb-3">{t.academicDefaults}</h3>
+                    <h2 className="mb-3 text-base font-bold text-ink-strong">{t.academicDefaults}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <SummaryItem icon={CalendarRange} label={t.session} value={`${s.sessionLabel} (${s.academicYear})`} ltr />
                       <SummaryItem icon={Clock} label={t.timezone} value={s.timezone} ltr />
@@ -846,45 +930,45 @@ export default function OnboardingWizard() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-2xs font-semibold text-primary uppercase mb-3">{t.campuses}</h3>
+                    <h2 className="mb-3 text-base font-bold text-ink-strong">{t.campuses}</h2>
                     <ul className="grid gap-2 sm:grid-cols-2" data-testid="review-campuses">
                       {planned.map((c, i) => {
                         const isDraft = i >= split.activate.length;
                         return (
-                          <li key={c.key} className="flex items-start justify-between gap-3 rounded-xl bg-brand-50/60 p-3">
+                          <li key={c.key} className="flex items-start justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-3">
                             <div className="min-w-0">
-                              <p className="text-sm font-bold break-words">{isGroup ? c.name : t.primaryCampus}</p>
-                              <p className="text-2xs font-bold text-ink-subtle">{c.city} · <bdi dir="ltr">{c.regId}</bdi></p>
+                              <p className="text-sm font-semibold text-ink-strong break-words">{isGroup ? c.name : t.primaryCampus}</p>
+                              <p className="mt-0.5 text-xs text-ink-subtle break-words">{c.city} · <bdi dir="ltr" className="font-mono">{c.regId}</bdi></p>
                             </div>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold uppercase ${isDraft ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>{isDraft ? t.draftBadge : t.activateBadge}</span>
+                            <Badge variant={isDraft ? "warning" : "success"} size="sm" dot className="shrink-0">{isDraft ? t.draftBadge : t.activateBadge}</Badge>
                           </li>
                         );
                       })}
                     </ul>
                   </div>
-                  <div className="rounded-2xl border border-edge/30 p-4">
-                    <h3 className="text-2xs font-semibold text-primary uppercase mb-2">{t.authoritative}</h3>
-                    <p className="text-sm text-ink">{mode === "EXAM_STUDIO" ? t.authoritativeExam : t.authoritativeFull}</p>
+                  <div className="rounded-2xl border border-status-brand-border bg-status-brand-surface p-4">
+                    <h2 className="mb-1.5 flex items-center gap-2 text-base font-bold text-ink-strong"><ShieldCheck aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" /> {t.authoritative}</h2>
+                    <p className="text-sm leading-relaxed text-ink">{mode === "EXAM_STUDIO" ? t.authoritativeExam : t.authoritativeFull}</p>
                   </div>
                   <div>
-                    <h3 className="text-2xs font-semibold text-primary uppercase mb-2">{t.unresolved}</h3>
-                    <ul className="list-disc ps-5 text-sm text-ink-muted space-y-1" data-testid="optional-work">
+                    <h2 className="mb-2 text-base font-bold text-ink-strong">{t.unresolved}</h2>
+                    <ul className="list-disc ps-5 text-sm leading-relaxed text-ink-muted space-y-1 marker:text-primary" data-testid="optional-work">
                       {unresolvedOptionalWork(type, mode, d).map((key) => <li key={key}>{t.optionalWork[key]}</li>)}
                     </ul>
                   </div>
                 </div>
                 {overLimit && (
-                  <p id="launch-capacity-note" role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  <Alert id="launch-capacity-note" tone="warning">
                     {fill(t.activateNote, split.activate.length, split.drafts.length)}
-                  </p>
+                  </Alert>
                 )}
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
-                  <Button variant="outline" onClick={goBack} disabled={activating || Boolean(success)} className="gap-2"><ChevronLeft className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button>
+                  <Button variant="outline" onClick={goBack} disabled={activating || Boolean(success)} className="gap-2"><ChevronLeft aria-hidden="true" className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button>
                   {overLimit && v.actor.canPurchase && (
                     <Link href={comparePackagesHref} className={buttonVariants({ variant: "outline" })}>{t.changePackage}</Link>
                   )}
-                  <Button size="lg" onClick={() => void handleActivate()} disabled={activating || saving || Boolean(success)} aria-describedby={overLimit ? "launch-capacity-note" : undefined} className="flex-1 gap-3">
-                    {activating ? <><Loader2 className="w-5 h-5 animate-spin" /> {t.activating}</> : <>{overLimit ? t.activateEligible : t.activate} <ChevronRight className="w-5 h-5 rtl:rotate-180" /></>}
+                  <Button size="lg" onClick={() => void handleActivate()} disabled={activating || saving || Boolean(success)} loading={activating} aria-describedby={overLimit ? "launch-capacity-note" : undefined} className="sk-nudge-trigger flex-1 gap-3">
+                    {activating ? t.activating : <>{overLimit ? t.activateEligible : t.activate} <ForwardArrow className="w-5 h-5" /></>}
                   </Button>
                 </div>
               </section>
@@ -947,19 +1031,19 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
 
   return (
     <section className="sk-panel p-5 md:p-6 space-y-3" aria-labelledby="handover-title" data-testid="handover-panel">
-      <h2 id="handover-title" className="flex items-center gap-2 text-sm font-bold text-ink"><UserPlus className="h-4 w-4 text-primary" aria-hidden="true" /> {t.handoverTitle}</h2>
+      <h2 id="handover-title" className="flex items-center gap-2 text-base font-bold text-ink-strong"><UserPlus className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" /> {t.handoverTitle}</h2>
       {delegate ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ink">
-            <span className="font-bold">{t.delegateLabel}:</span> {delegate.fullName} (<bdi dir="ltr">{delegate.email}</bdi>) · {delegate.canPurchaseSubscription ? t.canBuy : t.cannotBuy}
-            {delegate.pendingFirstSignIn ? ` · ${t.pendingFirstSignIn}` : ""}
+          <p className="min-w-0 text-sm leading-relaxed text-ink break-words">
+            <span className="font-semibold text-ink-strong">{t.delegateLabel}:</span> {delegate.fullName} (<bdi dir="ltr">{delegate.email}</bdi>) · {delegate.canPurchaseSubscription ? t.canBuy : t.cannotBuy}
+            {delegate.pendingFirstSignIn ? <> · <Badge variant="warning" size="sm" dot className="align-middle">{t.pendingFirstSignIn}</Badge></> : ""}
           </p>
-          <Button variant="outline" size="sm" onClick={() => setConfirmRevoke(true)}>{t.revoke}</Button>
+          <Button variant="outline" size="sm" onClick={() => setConfirmRevoke(true)} className="shrink-0">{t.revoke}</Button>
         </div>
       ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ink-muted">{t.handoverIntro}</p>
-          <Button variant="outline" size="sm" onClick={() => setOpen(true)}><UserPlus className="h-4 w-4" /> {t.handover}</Button>
+          <p className="min-w-0 text-sm leading-relaxed text-ink-muted">{t.handoverIntro}</p>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="shrink-0"><UserPlus aria-hidden="true" className="h-4 w-4" /> {t.handover}</Button>
         </div>
       )}
 
@@ -972,14 +1056,14 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
           <div className="space-y-4">
             <InputField field="delegateName" error={formErrors.delegateName && t.errors[formErrors.delegateName]} label={t.delegateName} value={form.fullName} onChange={(val) => setForm({ ...form, fullName: val })} placeholder="" icon={UserRound} required />
             <InputField field="delegateEmail" error={formErrors.delegateEmail && t.errors[formErrors.delegateEmail]} label={t.delegateEmail} value={form.email} onChange={(val) => setForm({ ...form, email: val })} placeholder="name@school.edu" icon={Mail} type="email" required />
-            <label className="flex items-start gap-3 text-sm text-ink">
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-3 text-sm leading-relaxed text-ink transition-colors hover:border-border-subtle-hover">
               <Checkbox className="mt-1 h-4 w-4" checked={form.canPurchaseSubscription} onChange={(e) => setForm({ ...form, canPurchaseSubscription: e.target.checked })} />
               {t.allowPurchase}
             </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>{t.cancel}</Button>
-            <Button onClick={() => void submit()} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{t.sendHandover}</Button>
+            <Button onClick={() => void submit()} loading={busy}>{t.sendHandover}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -990,7 +1074,7 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
             <DialogTitle>{t.tempPasswordTitle}</DialogTitle>
             <DialogDescription>{fill(t.tempPasswordBody, issued?.email ?? "")}</DialogDescription>
           </DialogHeader>
-          <p dir="ltr" className="rounded-xl bg-brand-50 p-3 text-center font-mono text-base font-bold select-all" data-testid="temporary-password">{issued?.password}</p>
+          <p dir="ltr" className="break-all rounded-xl border border-border-subtle bg-surface-subtle p-3 text-center font-mono text-base font-bold tracking-wide text-ink-strong select-all" data-testid="temporary-password">{issued?.password}</p>
           <DialogFooter><Button onClick={() => setIssued(null)}>{t.done}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1003,7 +1087,7 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmRevoke(false)}>{t.cancel}</Button>
-            <Button variant="destructive" onClick={() => void revoke()} disabled={busy}>{t.revoke}</Button>
+            <Button variant="destructive" onClick={() => void revoke()} loading={busy}>{t.revoke}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1013,25 +1097,40 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
 
 function StepHeading({ refEl, icon: Icon, title, intro }: { refEl: React.RefObject<HTMLHeadingElement | null>; icon: LucideIcon; title: string; intro: string }) {
   return (
-    <div className="flex items-center gap-4">
-      <div className="w-12 h-12 md:w-14 md:h-14 bg-brand-50 rounded-2xl flex items-center justify-center text-primary shrink-0">
+    <div className="flex items-start gap-4 sm:items-center">
+      <div className="w-12 h-12 md:w-14 md:h-14 bg-brand-50 rounded-2xl flex items-center justify-center text-primary shrink-0 shadow-xs ring-1 ring-brand-200/70">
         <Icon className="w-6 h-6" aria-hidden="true" />
       </div>
       <div className="min-w-0">
-        <h1 id="step-heading" ref={refEl} tabIndex={-1} className="text-xl md:text-3xl font-extrabold text-ink leading-tight outline-none">{title}</h1>
-        <p className="text-ink-muted font-semibold text-sm mt-1">{intro}</p>
+        <h1 id="step-heading" ref={refEl} tabIndex={-1} className="text-2xl sm:text-3xl font-bold tracking-tight text-ink-strong leading-tight outline-none">{title}</h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{intro}</p>
       </div>
     </div>
   );
 }
 
-function StepActions({ t, onBack, onContinue, busy, disabled }: { t: OnboardingCopy; onBack?: () => void; onContinue: () => void; busy: boolean; disabled?: boolean }) {
+/** A forward chevron that leans ahead on hover and points the reading direction in RTL. */
+function ForwardArrow({ className = "w-4 h-4" }: { className?: string }) {
+  // The nudge (transform) sits on the wrapper so it never composes with the RTL rotation.
+  return (
+    <span aria-hidden="true" className="sk-nudge inline-flex shrink-0">
+      <ChevronRight className={`${className} rtl:rotate-180`} />
+    </span>
+  );
+}
+
+function StepActions({ t, onBack, onContinue, busy, disabled, disabledReason }: { t: OnboardingCopy; onBack?: () => void; onContinue: () => void; busy: boolean; disabled?: boolean; disabledReason?: string }) {
+  const reasonId = useId();
+  const showReason = Boolean(disabled && disabledReason && !busy);
   return (
     <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-      {onBack ? <Button variant="outline" onClick={onBack} disabled={busy} className="gap-2"><ChevronLeft className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button> : <span />}
-      <Button variant="dark" onClick={onContinue} disabled={busy || disabled} className="gap-2">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{t.continue} <ChevronRight className="w-4 h-4 rtl:rotate-180" />
-      </Button>
+      {onBack ? <Button variant="outline" onClick={onBack} disabled={busy} className="gap-2"><ChevronLeft aria-hidden="true" className="w-4 h-4 rtl:rotate-180" /> {t.back}</Button> : <span />}
+      <div className="flex flex-col gap-1.5 sm:items-end">
+        <Button variant="dark" onClick={onContinue} disabled={busy || disabled} loading={busy} aria-describedby={showReason ? reasonId : undefined} className="sk-nudge-trigger gap-2">
+          {t.continue} <ForwardArrow />
+        </Button>
+        {showReason && <p id={reasonId} className="text-xs text-ink-subtle sm:text-end">{disabledReason}</p>}
+      </div>
     </div>
   );
 }
@@ -1039,11 +1138,11 @@ function StepActions({ t, onBack, onContinue, busy, disabled }: { t: OnboardingC
 function ChoiceCard({ name, checked, onSelect, title, desc }: { name: string; checked: boolean; onSelect: () => void; title: string; desc: string }) {
   const id = useId();
   return (
-    <label htmlFor={id} className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${checked ? "border-primary bg-[#f6ecff]" : "border-brand-200 bg-white hover:border-[#cdb2e6]"}`}>
-      <input id={id} type="radio" name={name} checked={checked} onChange={onSelect} className="mt-1 h-4 w-4 accent-primary" />
+    <label htmlFor={id} className={`sk-press flex cursor-pointer gap-3 rounded-2xl border p-4 transition-[border-color,background-color,box-shadow] duration-200 ${checked ? "border-primary bg-surface-selected shadow-sm" : "border-brand-200 bg-white hover:border-border-subtle-hover hover:bg-surface-hover hover:shadow-xs"}`}>
+      <input id={id} type="radio" name={name} checked={checked} onChange={onSelect} className="mt-1 h-4 w-4 shrink-0 accent-primary" />
       <span className="min-w-0">
-        <span className="block text-sm font-bold text-ink">{title}</span>
-        <span className="mt-1 block text-xs font-semibold text-ink-muted">{desc}</span>
+        <span className="block text-sm font-semibold text-ink-strong">{title}</span>
+        <span className="mt-1 block text-sm leading-relaxed text-ink-muted">{desc}</span>
       </span>
     </label>
   );
@@ -1053,55 +1152,69 @@ function StepNav({ t, icon: Icon, active, done, num, title, desc, disabled, onCl
   t: OnboardingCopy; icon: LucideIcon; active: boolean; done: boolean; num: number; title: string; desc: string; disabled?: boolean; onClick?: () => void;
 }) {
   return (
-    <Button aria-current={active ? "step" : undefined} variant="choice" type="button" disabled={disabled} onClick={onClick} className="relative w-full justify-start gap-3 p-4 text-start">
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${active ? 'bg-primary text-white' : done ? 'bg-emerald-600 text-white' : 'bg-muted text-ink-subtle'}`} aria-hidden="true">
+    <Button aria-current={active ? "step" : undefined} variant="choice" type="button" disabled={disabled} onClick={onClick} className="relative w-full justify-start gap-3 p-3.5 text-start">
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${active ? 'bg-primary text-white shadow-sm' : done ? 'bg-emerald-600 text-white' : 'bg-muted text-ink-subtle'}`} aria-hidden="true">
         {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
       </div>
       <div className="min-w-0">
-        <span className="block text-sm font-bold text-ink leading-none mb-1 truncate">{num}. {title}</span>
-        <span className="block text-2xs font-bold text-ink-muted truncate">{desc}</span>
+        <span className="block truncate text-sm font-semibold leading-snug text-ink-strong">{num}. {title}</span>
+        <span className="mt-0.5 block truncate text-xs font-normal text-ink-subtle">{desc}</span>
         <span className="sr-only">({done ? t.stepState.done : active ? t.stepState.current : disabled ? t.stepState.locked : ""})</span>
       </div>
     </Button>
   );
 }
 
-function InputField({ field, error, label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode }: {
+/** A field's validation message: an icon and the text, linked to its control by id. */
+function FieldError({ id, live = true, children }: { id?: string; live?: boolean; children: React.ReactNode }) {
+  return (
+    <p id={id} role={live ? "alert" : undefined} className="sk-field-message flex items-start gap-1.5 text-sm font-medium leading-snug text-destructive">
+      <AlertCircle aria-hidden="true" className="mt-px h-4 w-4 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+function InputField({ field, error, label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode, hint }: {
   field: string; error?: string; label: string; value: string; onChange: (val: string) => void; placeholder: string; icon: LucideIcon;
   isArea?: boolean; required?: boolean; readonly?: boolean; type?: string;
   inputMode?: 'text' | 'numeric' | 'tel' | 'email' | 'url' | 'search' | 'none' | 'decimal';
+  /** Format, example or consequence, shown under the control and read after the error. */
+  hint?: string;
 }) {
   const id = `field-${field}`;
+  const describedBy = [error ? `${id}-error` : null, hint ? `${id}-hint` : null].filter(Boolean).join(" ") || undefined;
   return (
     <div className="space-y-1.5" data-form-field={field}>
       <Label htmlFor={id} className="sk-field-label">
-        {label} {required && <span className="text-rose-500" aria-hidden="true">*</span>}
+        {label} {required && <span className="text-destructive" aria-hidden="true">*</span>}
       </Label>
       <InputGroup>
         {type !== "date" && <Icon data-field-affix="start" className="h-4 w-4" />}
         {isArea ? (
-          <SystemTextarea id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}
+          <SystemTextarea id={id} aria-required={required} aria-invalid={!!error} aria-describedby={describedBy}
             value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full min-h-[90px] resize-none" />
         ) : (
-          <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined}
+          <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={describedBy}
             dir={["email", "tel", "url", "date"].includes(type) ? "ltr" : undefined}
             type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} readOnly={readonly} inputMode={inputMode} className="w-full" />
         )}
       </InputGroup>
-      {error && <p id={`${id}-error`} className="text-sm text-destructive">{error}</p>}
+      {error && <FieldError id={`${id}-error`} live={false}>{error}</FieldError>}
+      {hint && <p id={`${id}-hint`} className="text-xs leading-relaxed text-ink-subtle">{hint}</p>}
     </div>
   );
 }
 
 function SummaryItem({ icon: Icon, label, value, ltr }: { icon: LucideIcon; label: string; value: string; ltr?: boolean }) {
   return (
-    <div className="flex items-center gap-3 p-3 md:p-4 bg-brand-50/50 rounded-[20px] border border-white/50 min-w-0">
-      <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-primary shrink-0">
+    <div className="flex items-center gap-3 p-3 md:p-4 bg-surface-subtle rounded-2xl border border-border-subtle min-w-0">
+      <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-primary shrink-0 shadow-xs ring-1 ring-border-subtle">
         <Icon className="w-4 h-4" aria-hidden="true" />
       </div>
       <div className="min-w-0">
-        <p className="text-2xs font-semibold text-ink-subtle uppercase mb-0.5">{label}</p>
-        <p className="text-sm font-bold text-ink break-words">{ltr ? <bdi dir="ltr">{value || '—'}</bdi> : (value || '—')}</p>
+        <p className="sk-eyebrow mb-0.5">{label}</p>
+        <p className="text-sm font-semibold text-ink-strong break-words">{ltr ? <bdi dir="ltr">{value || '—'}</bdi> : (value || '—')}</p>
       </div>
     </div>
   );

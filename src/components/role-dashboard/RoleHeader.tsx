@@ -205,7 +205,7 @@ export function RoleHeader({
 
   return (
     <>
-      <header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white/40 backdrop-blur-xl border border-edge/25 rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
+      <header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white/40 backdrop-blur-xl border border-edge/25 rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
         <div className="hidden min-[400px]:flex items-center gap-4">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-brand-400 flex items-center justify-center shadow-md shadow-primary/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
@@ -244,7 +244,7 @@ export function RoleHeader({
           </Button>
 
           {notifOpen && (
-            <div className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+            <div className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(120,70,180,0.18)]">
               <div className="flex items-center justify-between px-5 py-4 border-b border-edge/10">
                 <h3 className="text-sm font-bold text-ink-strong tracking-tight"><UiText>{"Notifications"}</UiText></h3>
                 {unreadCount > 0 && (
@@ -291,7 +291,7 @@ export function RoleHeader({
           {menuOpen && (
             <div
               role="menu"
-              className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
+              className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(120,70,180,0.18)]"
             >
               <div className="border-b border-edge/10 bg-gradient-to-br from-brand-50/80 to-white p-4">
                 <div className="flex items-center gap-3">

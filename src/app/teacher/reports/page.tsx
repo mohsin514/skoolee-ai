@@ -1,23 +1,31 @@
 "use client";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormField } from "@/components/ui/form-field";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
-
+import { Tooltip } from "@/components/ui/tooltip";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "@/components/ui/toast";
-import { BrainCircuit, ChevronDown, FileText, Loader2, Search, X } from "lucide-react";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { ArrowRight, BrainCircuit, ChevronDown, FileText, Search, SearchX, X } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { FamilyDigestReview } from "@/components/family/family-digest";
-import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
-  classLabel, EmptyInline, MiniMetric, ReportCardDetailModal, ReportsSkeleton, StatusPill, TeacherErrorState, useTeacherData,
+  classLabel, ReportCardDetailModal, ReportsSkeleton, StatusPill, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { Input as SystemInput } from "@/components/ui/input";
+
+/** "PRINCIPAL_REVIEWED" → "Principal reviewed", for filter chips. */
+function statusLabel(status: string) {
+  const text = status.replaceAll("_", " ").toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export default function ReportsPage() {
   const { data, loading, error, loadData } = useTeacherData();
@@ -76,7 +84,7 @@ export default function ReportsPage() {
           } else {
             toast.error("Report card not found. Generate it from Final Grades first.");
           }
-        } catch { toast.error("Failed to load report card"); }
+        } catch { toast.error("Could not open this report card. Please try again."); }
       })();
     }
   }, [searchParams, data, academicYear]);
@@ -96,10 +104,10 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to generate remarks"));
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not draft remarks. Please try again."));
       toast.success("Remarks drafted for all students");
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, "Could not draft remarks. Please try again.")); }
     finally { setRemarkBusy(false); }
   }, [selectedReportExamId, loadData]);
 
@@ -112,10 +120,10 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to generate remarks"));
-      toast.success("Remarks generated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not draft remarks for this student. Please try again."));
+      toast.success("Remarks drafted for this student");
       setSelectedReportCard(null);
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, "Could not draft remarks for this student. Please try again.")); }
     finally { setRemarkGeneratingFor(null); }
   }, []);
 
@@ -125,10 +133,10 @@ export default function ReportsPage() {
       const res = await fetch(`/api/reports/${reportId}/send`, { method: "POST" });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to send"));
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not send this report card. Please try again."));
       if (result.jobId) { router.push(`/jobs?id=${result.jobId}`); return; }
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, "Could not send this report card. Please try again.")); }
     finally { setSendingReport(null); }
   }, [loadData, router]);
 
@@ -146,16 +154,24 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not save remarks"));
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not save remarks. Please try again."));
       toast.success("Remarks saved");
       setSelectedReportCard((prev: any) => ({ ...prev, ...result.reportCard }));
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, "Could not save remarks. Please try again.")); }
     finally { setSavingRemarks(false); }
   }, [selectedReportCard, loadData]);
 
   if (loading && !data) return <ReportsSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
+
+  const draftRemarksButton = (
+    <Button variant="secondary" type="button" onClick={handleGenerateRemarks}
+      loading={remarkBusy} disabled={!selectedReportExamId} className="w-full sm:w-auto">
+      {remarkBusy ? null : <BrainCircuit aria-hidden="true" />}
+      Draft remarks
+    </Button>
+  );
 
   return (
     <TeacherPage
@@ -168,84 +184,93 @@ export default function ReportsPage() {
       <div className="space-y-3">
 
         {/* Controls */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div>
-              <label className="block mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Locked Exam</label>
-              <Select value={selectedReportExamId} onChange={(e) => setSelectedReportExamId(e.target.value)} className={"min-w-[280px]"}>
-                {(data.lockedExams || []).map((exam: any) => (
-                  <option key={exam.id} value={exam.id}>{exam.title} &mdash; {classLabel(exam.class)}</option>
-                ))}
-                {!data.lockedExams?.length ? <option value="">No locked exams</option> : null}
-              </Select>
-            </div>
-            <BrandButton variant="soft" icon={remarkBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BrainCircuit className="w-4 h-4" />}
-              onClick={handleGenerateRemarks} disabled={remarkBusy || !selectedReportExamId}
-              title={!selectedReportExamId ? "Select a locked exam first" : "Draft AI-powered remarks for all students"}>
-              {remarkBusy ? "Drafting..." : "Draft Remarks"}
-            </BrandButton>
-          </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <FormField
+            name="reportExam"
+            label="Locked exam"
+            description="Only exams your principal or campus admin has locked are listed."
+            className="w-full min-w-0 sm:w-auto"
+          >
+            <Select value={selectedReportExamId} onChange={(e) => setSelectedReportExamId(e.target.value)} className="w-full sm:min-w-[280px]">
+              {(data.lockedExams || []).map((exam: any) => (
+                <option key={exam.id} value={exam.id}>{exam.title} &mdash; {classLabel(exam.class)}</option>
+              ))}
+              {!data.lockedExams?.length ? <option value="">No locked exams</option> : null}
+            </Select>
+          </FormField>
+          {selectedReportExamId ? (
+            <Tooltip content="Drafts a remark for every student in this exam. You can edit each one on the report card.">
+              {draftRemarksButton}
+            </Tooltip>
+          ) : (
+            /* A disabled button cannot show a tooltip of its own, so the reason
+               sits on a focusable wrapper instead. */
+            <Tooltip content="Pick a locked exam first">
+              <span tabIndex={0} className="inline-flex w-full sm:w-auto">{draftRemarksButton}</span>
+            </Tooltip>
+          )}
         </div>
 
         {/* Locked exam cards */}
-        <div>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-3">Locked Exams</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {(data.lockedExams || []).slice(0, 6).map((exam: any, index: number) => {
+        <section aria-labelledby="locked-exams-heading">
+          <h2 id="locked-exams-heading" className="mb-3 text-base font-bold text-ink-strong">Locked exams</h2>
+          <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {(data.lockedExams || []).slice(0, 6).map((exam: any) => {
               const rcCount = exam.reportCards || 0;
               return (
-                <div key={exam.id} className="sk-panel sk-rise group relative p-4 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden" style={{ animationDelay: `${index * 80}ms` }} title={`${exam.title} — ${rcCount} report card${rcCount !== 1 ? "s" : ""}`}>
-                  <div className="absolute inset-0 bg-gradient-to-br from-rose-500 to-rose-600 opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
-                  <div className="relative flex items-start justify-between gap-3">
+                <div key={exam.id} className="sk-panel p-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-ink-strong group-hover:text-primary transition-colors truncate">{exam.title}</p>
-                      <p className="mt-0.5 text-2xs text-ink-muted">{classLabel(exam.class)}</p>
+                      <p className="truncate text-sm font-semibold text-ink-strong">{exam.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-ink-subtle">{classLabel(exam.class)}</p>
                     </div>
                     <StatusPill status={exam.status} />
                   </div>
-                  <div className="relative mt-3 flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-primary group-hover:bg-primary group-hover:text-white transition-all">
-                      <FileText className="w-3 h-3" />{rcCount} card{rcCount !== 1 ? "s" : ""}
-                    </span>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Badge variant="secondary">
+                      <FileText aria-hidden="true" />
+                      <span data-numeric className="tabular-nums">{rcCount}</span> report card{rcCount !== 1 ? "s" : ""}
+                    </Badge>
                   </div>
                 </div>
               );
             })}
             {!data.lockedExams?.length && (
-              <div className="sk-panel col-span-full p-8 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-primary">
-                  <FileText className="h-7 w-7" />
-                </div>
-                <h3 className="mt-4 text-base font-bold text-ink-strong">No locked exams yet</h3>
-                {/* Teachers cannot lock an exam themselves — only a principal or
-                    campus admin can — so saying "locked exams will appear here"
-                    left them with no idea what to actually do next. */}
-                <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
-                  Finish entering marks for an assessment, then your principal or campus admin locks
-                  it. Once locked it appears here, ready for remarks and report cards.
-                </p>
-                <Button variant="secondary" type="button" onClick={() => router.push("/teacher/marks")}
-                  className="mt-5 items-center gap-1.5 justify-start">
-                  Go to Marks &amp; Tests
-                </Button>
+              /* Teachers cannot lock an exam themselves — only a principal or
+                 campus admin can — so saying "locked exams will appear here"
+                 left them with no idea what to actually do next. */
+              <div className="sk-panel col-span-full">
+                <EmptyState
+                  icon={FileText}
+                  title="No locked exams yet"
+                  description="Finish entering marks for an assessment, then your principal or campus admin locks it. Once locked it appears here, ready for remarks and report cards."
+                  action={
+                    <Button variant="secondary" type="button" onClick={() => router.push("/teacher/marks")} className="sk-nudge-trigger">
+                      Go to Marks &amp; Tests
+                      <ArrowRight aria-hidden="true" className="sk-nudge rtl:rotate-180" />
+                    </Button>
+                  }
+                />
               </div>
             )}
           </div>
-        </div>
+        </section>
 
         {/* Report cards list */}
-        <div>
+        <section aria-labelledby="report-cards-heading">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-              Report Cards
-              <span className="ml-2 normal-case text-primary">
-                {cardQuery || statusFilter ? `${visibleCards.length} of ${allCards.length}` : allCards.length}
-              </span>
-            </p>
+            <h2 id="report-cards-heading" className="flex items-center gap-2 text-base font-bold text-ink-strong">
+              Report cards
+              <Badge variant="secondary" size="sm" aria-live="polite">
+                <span data-numeric className="tabular-nums">
+                  {cardQuery || statusFilter ? `${visibleCards.length} of ${allCards.length}` : allCards.length}
+                </span>
+              </Badge>
+            </h2>
             {allCards.length > 0 ? (
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                <InputGroup surfaceClassName="bg-white" className="relative min-w-[190px]">
-                  <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+              <div className="flex w-full flex-wrap items-center gap-2 sm:ms-auto sm:w-auto">
+                <InputGroup surfaceClassName="bg-white" className="w-full sm:w-64">
+                  <Search aria-hidden="true" data-field-affix="start" className="pointer-events-none h-4 w-4 text-ink-subtle" />
                   <SystemInput
                     value={cardQuery}
                     onChange={(e) => setCardQuery(e.target.value)}
@@ -254,23 +279,21 @@ export default function ReportsPage() {
                     className={"w-full"}
                   />
                   {cardQuery ? (
-                    <FieldAction   data-field-affix="end" type="button" onClick={() => setCardQuery("")} aria-label="Clear report card search"
-                      >
-                      <X className="h-3 w-3" />
+                    <FieldAction data-field-affix="end" type="button" onClick={() => setCardQuery("")} label="Clear report card search">
+                      <X aria-hidden="true" />
                     </FieldAction>
                   ) : null}
                 </InputGroup>
                 {cardStatuses.length > 1 ? (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter report cards by status">
                     {["", ...cardStatuses].map((st) => (
-                      <Button variant="choice"
+                      <Button variant="choice" size="sm"
                         key={st || "all"}
                         type="button"
                         onClick={() => setStatusFilter(st)}
                         aria-pressed={statusFilter === st}
-
                       >
-                        {st ? String(st).replaceAll("_", " ") : "All"}
+                        {st ? statusLabel(String(st)) : "All"}
                       </Button>
                     ))}
                   </div>
@@ -278,20 +301,18 @@ export default function ReportsPage() {
               </div>
             ) : null}
           </div>
-          <div className="space-y-2">
-            {(showAllCards ? visibleCards : visibleCards.slice(0, 12)).map((report: any, index: number) => (
-              <Button variant="choice" key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
-                className="sk-rise group relative w-full flex-col items-start gap-2 overflow-hidden p-4 text-start sm:flex-row sm:items-center sm:justify-between"
-                style={{ animationDelay: `${index * 60}ms` }}>
-                <div className="absolute inset-0 bg-gradient-to-br from-primary to-brand-400 opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
-                <div className="min-w-0 relative">
-                  <p className="text-sm font-bold text-ink-strong group-hover:text-primary transition-colors">{report.student?.fullName || "Student"}</p>
-                  <p className="text-2xs text-ink-muted mt-0.5">{report.exam?.title || "Report"} &mdash; {classLabel(report.student?.class)}</p>
+          <div className="sk-stagger space-y-2">
+            {(showAllCards ? visibleCards : visibleCards.slice(0, 12)).map((report: any) => (
+              <Button variant="choice" key={report.id} type="button" onClick={() => openReportCard(report)}
+                className="group w-full flex-col items-start gap-2 p-4 text-start sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary">{report.student?.fullName || "Student"}</p>
+                  <p className="mt-0.5 text-xs font-normal text-ink-subtle">{report.exam?.title || "Report"} &mdash; {classLabel(report.student?.class)}</p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 relative">
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-white transition-all">
-                    {Math.round(report.percentage || 0)}%
-                  </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant="secondary">
+                    <span data-numeric className="tabular-nums">{Math.round(report.percentage || 0)}%</span>
+                  </Badge>
                   <StatusPill status={report.status} />
                 </div>
               </Button>
@@ -302,24 +323,38 @@ export default function ReportsPage() {
                 onClick={() => setShowAllCards((v) => !v)}
                 className="w-full items-center justify-center gap-1.5"
               >
-                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllCards && "rotate-180")} />
+                <ChevronDown aria-hidden="true" className={cn("h-4 w-4 transition-transform", showAllCards && "rotate-180")} />
                 {showAllCards ? "Show fewer" : `Show all ${visibleCards.length} report cards`}
               </Button>
             ) : null}
-            {allCards.length && !visibleCards.length ? (
-              <div className="sk-panel flex flex-col items-center gap-3 p-8 text-center">
-                <p className="text-sm font-bold text-ink-strong">No report card matches that</p>
-                <Button variant="secondary" type="button" onClick={() => { setCardQuery(""); setStatusFilter(""); }}
-                  className="items-center gap-1.5 justify-start">
-                  <X className="h-3.5 w-3.5" /> Clear filters
-                </Button>
+            {/* `allCards.length && …` rendered a stray "0" when there were no cards. */}
+            {allCards.length > 0 && visibleCards.length === 0 ? (
+              <div className="sk-panel">
+                <EmptyState
+                  size="sm"
+                  icon={SearchX}
+                  title="No report card matches that"
+                  description="Try another name, roll number or exam, or clear the filters."
+                  action={
+                    <Button variant="secondary" type="button" onClick={() => { setCardQuery(""); setStatusFilter(""); }}>
+                      <X aria-hidden="true" /> Clear filters
+                    </Button>
+                  }
+                />
               </div>
             ) : null}
             {!allCards.length && (
-              <EmptyInline text="Report cards will appear after exams are processed." />
+              <div className="sk-panel">
+                <EmptyState
+                  size="sm"
+                  icon={FileText}
+                  title="No report cards yet"
+                  description="Report cards will appear after exams are processed."
+                />
+              </div>
             )}
           </div>
-        </div>
+        </section>
       </div>
 
       {selectedReportCard ? (

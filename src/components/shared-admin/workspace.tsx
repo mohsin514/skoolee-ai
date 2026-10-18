@@ -1,6 +1,8 @@
 "use client";
 import { Button as SystemButton } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -18,6 +20,7 @@ import {
   ArrowUpWideNarrow,
   ChevronLeft,
   ChevronRight,
+  Inbox,
   Loader2,
   Search,
   X,
@@ -142,7 +145,7 @@ export function WorkspaceHeader({
           as decoration — and it costs no vertical space. */}
       <span
         aria-hidden
-        className={cn("absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b", t.rail)}
+        className={cn("absolute inset-y-0 start-0 w-[3px] bg-gradient-to-b", t.rail)}
       />
       <span
         aria-hidden
@@ -203,7 +206,7 @@ const TILE_TONES = {
   amber: { chip: "bg-amber-50 text-amber-600", ring: "rgba(245,158,11,0.9)", bar: "bg-amber-500" },
   emerald: { chip: "bg-emerald-50 text-emerald-600", ring: "rgba(16,185,129,0.9)", bar: "bg-emerald-500" },
   rose: { chip: "bg-rose-50 text-rose-600", ring: "rgba(225,29,72,0.9)", bar: "bg-rose-500" },
-  slate: { chip: "bg-muted text-ink-muted", ring: "rgba(107,114,128,0.9)", bar: "bg-[#9aa1ae]" },
+  slate: { chip: "bg-muted text-ink-muted", ring: "rgba(107,114,128,0.9)", bar: "bg-ink-faint" },
 } as const;
 
 /**
@@ -237,17 +240,17 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
               ? { type: "button" as const, onClick: t.onClick, "aria-pressed": Boolean(t.active) }
               : {})}
             className={cn(
-              "group relative flex items-center gap-3 overflow-hidden rounded-[18px] border bg-white px-3.5 py-2.5 text-left transition-all duration-200",
+              "group relative flex items-center gap-3 overflow-hidden rounded-[18px] border bg-white px-3.5 py-2.5 text-start transition-all duration-200",
               t.active
                 ? "border-transparent"
-                : "border-edge/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]",
+                : "border-edge/20 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_6px_16px_-10px_rgba(120,70,180,0.25)]",
               interactive &&
-                "cursor-pointer hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]",
+                "cursor-pointer hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(120,70,180,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]",
             )}
             style={t.active ? { boxShadow: `0 0 0 1.5px ${tone.ring}, 0 10px 24px -14px ${tone.ring}` } : undefined}
           >
             {/* A tinted edge keeps the tone readable without a coloured card. */}
-            <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px]", tone.bar, t.active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60")} />
+            <span aria-hidden className={cn("absolute inset-y-0 start-0 w-[3px]", tone.bar, t.active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60")} />
             {t.icon ? (
               <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105", tone.chip)}>
                 <t.icon className="h-4 w-4" />
@@ -333,21 +336,21 @@ export function SearchField({
 
   return (
     <InputGroup surfaceClassName="bg-surface-subtle" className={cn("relative min-w-[190px] flex-1", className)}>
-      <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
+      <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
       <SystemInput
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={autoFocusKey ? `${placeholder}   ( ${autoFocusKey} )` : placeholder}
         aria-label={label}
-        className="h-10 w-full pl-9 pr-9 transition-all"
+        className="h-10 w-full ps-9 pe-9 transition-all"
       />
       {value ? (
         <SystemButton variant="ghost" data-field-affix="end"
           type="button"
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className="absolute right-2.5 top-1/2 flex -translate-y-1/2 items-center justify-center"
+          className="absolute end-2.5 top-1/2 flex -translate-y-1/2 items-center justify-center"
         >
           <X className="h-3.5 w-3.5" />
         </SystemButton>
@@ -374,7 +377,7 @@ export function ToolbarSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="h-10 cursor-pointer appearance-none pl-3 pr-8 transition-all"
+        className="h-10 cursor-pointer appearance-none ps-3 pe-8 transition-all"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
@@ -440,22 +443,22 @@ export function ViewSwitch({
   return (
     <div className="flex h-10 items-center gap-0.5 rounded-xl border border-edge/20 bg-surface-subtle p-1">
       {options.map((o) => (
+        <Tooltip key={o.value} content={o.label}>
         <Button variant="outline"
-          key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          title={o.label}
           className={cn(
             "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-2xs font-semibold uppercase tracking-wider transition-all",
             value === o.value
-              ? "bg-white text-primary shadow-[0_1px_3px_rgba(31,26,35,0.12)]"
+              ? "bg-white text-primary shadow-[0_1px_3px_rgba(120,70,180,0.12)]"
               : "text-ink-muted hover:text-primary",
           )}
         >
           <o.icon className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{o.label}</span>
         </Button>
+        </Tooltip>
       ))}
     </div>
   );
@@ -463,11 +466,11 @@ export function ViewSwitch({
 
 export function SortDirButton({ dir, onToggle }: { dir: SortDir; onToggle: () => void }) {
   return (
+    <Tooltip content={dir === "asc" ? "Ascending" : "Descending"}>
     <Button variant="outline"
       type="button"
       onClick={onToggle}
       aria-label={dir === "asc" ? "Sort descending" : "Sort ascending"}
-      title={dir === "asc" ? "Ascending" : "Descending"}
       className="w-10"
     >
       {dir === "asc" ? (
@@ -476,6 +479,7 @@ export function SortDirButton({ dir, onToggle }: { dir: SortDir; onToggle: () =>
         <ArrowDownWideNarrow className="h-4 w-4" />
       )}
     </Button>
+    </Tooltip>
   );
 }
 
@@ -770,9 +774,13 @@ export function DataTable<T>({
             <tr>
               <td
                 colSpan={columns.length + (selectable ? 1 : 0)}
-                className="px-4 py-12 text-center text-sm font-semibold text-ink-muted"
+                className="px-4 py-8"
               >
-                {empty ?? "Nothing to show."}
+                {empty == null || typeof empty === "string" ? (
+                  <EmptyState size="sm" icon={Inbox} title={empty ?? "Nothing to show."} />
+                ) : (
+                  empty
+                )}
               </td>
             </tr>
           ) : null}
@@ -835,7 +843,7 @@ export function Pagination({
               aria-label="Previous page"
               className="w-10"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
             </Button>
             <span className="min-w-[64px] text-center text-2xs font-semibold uppercase tracking-wider text-ink-muted">
               {page} / {totalPages}
@@ -847,7 +855,7 @@ export function Pagination({
               aria-label="Next page"
               className="w-10"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
             </Button>
           </div>
         ) : null}
@@ -940,19 +948,20 @@ export function ModalPager({
         tone === "dark" ? "bg-white/12" : "bg-muted",
       )}
     >
+      <Tooltip content={prev ? `Previous ${noun}: ${prev.label}` : `First ${noun}`}>
       <Button variant="outline"
         type="button"
         disabled={!prev}
         onClick={() => prev && onNavigate(prev.id)}
-        title={prev ? `Previous ${noun}: ${prev.label}` : `First ${noun}`}
         aria-label={`Previous ${noun}`}
         className={cn(
           "flex h-7 w-7 items-center justify-center rounded-xl transition-colors enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-35",
           base,
         )}
       >
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
       </Button>
+      </Tooltip>
       <span
         className={cn(
           "px-1 text-2xs font-bold tabular-nums",
@@ -961,19 +970,20 @@ export function ModalPager({
       >
         {index + 1}/{sequence.length}
       </span>
+      <Tooltip content={next ? `Next ${noun}: ${next.label}` : `Last ${noun}`}>
       <Button variant="outline"
         type="button"
         disabled={!next}
         onClick={() => next && onNavigate(next.id)}
-        title={next ? `Next ${noun}: ${next.label}` : `Last ${noun}`}
         aria-label={`Next ${noun}`}
         className={cn(
           "flex h-7 w-7 items-center justify-center rounded-xl transition-colors enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-35",
           base,
         )}
       >
-        <ChevronRight className="h-4 w-4" />
+        <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
       </Button>
+      </Tooltip>
     </div>
   );
 }

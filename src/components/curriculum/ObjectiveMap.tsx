@@ -175,7 +175,7 @@ function ObjectiveRow({ t, objective, coverage, prerequisites, language, label }
 }
 
 function Evidence({ title, items, none }: { title: string; items: Array<{ key: string; text: string }>; none: string }) {
-  return <div><p className="text-xs font-semibold text-slate-600">{title}</p>{items.length ? <ul className="list-disc ps-5">{items.map(item => <li key={item.key} dir="auto">{item.text}</li>)}</ul> : <p className="text-slate-500">{none}</p>}</div>;
+  return <div><p className="text-xs font-semibold text-slate-600">{title}</p>{items.length ? <ul className="list-disc ps-5">{items.map(item => <li key={item.key} dir="auto">{item.text}</li>)}</ul> : <p className="text-xs text-ink-subtle">{none}</p>}</div>;
 }
 
 function MappingPanel({ t, view, label, onSaved, onError }: { t: ObjectiveMapCopy; view: MapView; label: (o?: Pick<Objective, "code" | "title">) => React.ReactNode; onSaved: () => Promise<void>; onError: (text: string) => void }) {

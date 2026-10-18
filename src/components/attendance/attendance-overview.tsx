@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { downloadCSV } from "@/lib/csv";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 
 /* ------------------------------------------------------------------ */
@@ -150,7 +152,7 @@ function pct(n: number, total: number): number {
 
 function StatSkeleton() {
   return (
-    <div className="bg-white rounded-[28px] border border-edge/10 shadow-lg p-6 animate-skeleton-in">
+    <div className="sk-panel p-6 animate-skeleton-in">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-3 flex-1">
           <div className="h-3 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
@@ -206,7 +208,7 @@ function AttendanceDonut({
   const total = present + absent + leave;
   if (total === 0) {
     return (
-      <div className="flex items-center justify-center h-44 text-sm font-semibold text-ink-subtle">
+      <div className="flex items-center justify-center h-44 text-sm text-ink-subtle">
         No data
       </div>
     );
@@ -356,7 +358,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setSummaryData(data);
       } catch {
         setSummaryData(null);
-        toast.error("Failed to load attendance summary");
+        toast.error("Could not load the attendance summary. Try again in a moment.");
       } finally {
         setLoadingSummary(false);
       }
@@ -376,7 +378,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setMonthlyData(data);
       } catch {
         setMonthlyData(null);
-        toast.error("Failed to load monthly attendance");
+        toast.error("Could not load this month's attendance. Try again in a moment.");
       } finally {
         setLoadingMonthly(false);
       }
@@ -396,7 +398,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setClassDetail(data);
       } catch {
         setClassDetail(null);
-        toast.error("Failed to load class attendance details");
+        toast.error("Could not load this class's attendance. Try again in a moment.");
       } finally {
         setLoadingClass(false);
       }
@@ -534,7 +536,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
       return;
     }
 
-    toast.error("Nothing to export yet");
+    toast.error("Nothing to export yet. Attendance appears here once registers are marked.");
   }
 
   function handlePrevMonth() {
@@ -566,7 +568,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           {selectedClassId && (
             <BrandButton
               variant="soft"
-              icon={<ChevronLeft className="h-4 w-4" />}
+              icon={<ChevronLeft className="h-4 w-4 rtl:rotate-180" />}
               onClick={handleBackToOverview}
             >
               Back
@@ -604,22 +606,18 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
 
         {/* Month navigator */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon"
-            onClick={handlePrevMonth}
-            className="flex items-center justify-center"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+          <IconButton variant="outline" size="sm" label="Previous month" onClick={handlePrevMonth}>
+            <ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
+          </IconButton>
           <span className="text-sm font-bold text-ink-strong min-w-[140px] text-center">
             {formatMonthLabel(selectedMonth)}
           </span>
-          <Button variant="outline" size="icon"
+          <IconButton variant="outline" size="sm" label="Next month"
             onClick={handleNextMonth}
             disabled={shiftMonth(selectedMonth, 1) > currentMonthStr()}
-            className="flex items-center justify-center"
           >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            <ChevronRight aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
+          </IconButton>
         </div>
       </div>
 
@@ -703,7 +701,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           {/* Donut + Monthly Class Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Donut chart card */}
-            <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
+            <div className="sk-panel min-w-0 p-5 sm:p-6">
               <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-4">
                 Distribution
               </p>
@@ -726,19 +724,19 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
             </div>
 
             {/* Class Breakdown Table */}
-            <div className="lg:col-span-2 bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
-              <div className="flex items-center justify-between gap-4 mb-5">
+            <div className="lg:col-span-2 sk-panel min-w-0 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
                 <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                   Class Breakdown &mdash; {formatMonthLabel(selectedMonth)}
                 </p>
                 <InputGroup surfaceClassName="bg-muted" className="relative">
-                  <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+                  <Search data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
                   <SystemInput
                     type="text"
                     placeholder="Search class..."
                     value={classSearch}
                     onChange={(e) => setClassSearch(e.target.value)}
-                    className="w-44 pl-9 pr-3"
+                    className="w-full ps-9 pe-3 sm:w-44"
                   />
                 </InputGroup>
               </div>
@@ -746,14 +744,9 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               {loadingMonthly ? (
                 <TableSkeleton />
               ) : filteredClasses.length === 0 ? (
-                <div className="py-12 text-center">
-                  <BarChart3 className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                  <p className="text-sm font-bold text-ink-subtle">
-                    No class data for this month
-                  </p>
-                </div>
+                <EmptyState size="sm" icon={BarChart3} title="No class data for this month" description={classSearch ? "No class matches your search." : "Classes appear here once their registers are marked."} />
               ) : (
-                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[420px] overflow-y-auto pe-1">
                   {/* Header */}
                   <div className="grid grid-cols-12 gap-2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     <span className="col-span-3">Class</span>
@@ -762,7 +755,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                     <span className="col-span-1 text-center text-rose-500">A</span>
                     <span className="col-span-1 text-center text-amber-500">L</span>
                     <span className="col-span-3">Progress</span>
-                    <span className="col-span-2 text-right">Rate</span>
+                    <span className="col-span-2 text-end">Rate</span>
                   </div>
 
                   {filteredClasses.map((cls) => {
@@ -771,7 +764,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                       <Button variant="outline"
                         key={cls.classId}
                         onClick={() => handleClassClick(cls.classId)}
-                        className="w-full grid grid-cols-12 gap-2 items-center text-left group"
+                        className="sk-row-interactive w-full grid grid-cols-12 gap-2 items-center text-start tabular-nums group"
                       >
                         <span className="col-span-3 text-sm font-bold text-ink-strong group-hover:text-primary transition-colors truncate">
                           {cls.className}
@@ -793,7 +786,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         </span>
                         <span
                           className={cn(
-                            "col-span-2 text-right text-sm font-bold",
+                            "col-span-2 text-end text-sm font-bold",
                             rate >= 85
                               ? "text-emerald-600"
                               : rate >= 75
@@ -813,7 +806,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
 
           {/* At-Risk Classes (campus-wide) */}
           {!loadingMonthly && campusAtRiskClasses.length > 0 && (
-            <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
+            <div className="sk-panel min-w-0 p-5 sm:p-6">
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
                   <AlertTriangle className="h-4 w-4 text-rose-500" />
@@ -832,7 +825,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                   <Button variant="outline"
                     key={cls.classId}
                     onClick={() => handleClassClick(cls.classId)}
-                    className="flex justify-start items-center gap-4 text-left"
+                    className="flex justify-start items-center gap-4 text-start"
                   >
                     <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
                       <BarChart3 className="h-4 w-4 text-rose-600" />
@@ -939,7 +932,7 @@ function ClassDetailView({
             <StatSkeleton key={i} />
           ))}
         </div>
-        <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
+        <div className="sk-panel min-w-0 p-5 sm:p-6">
           <TableSkeleton />
         </div>
       </div>
@@ -948,14 +941,8 @@ function ClassDetailView({
 
   if (!data) {
     return (
-      <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
-        <div className="py-16 text-center">
-          <CalendarCheck className="mx-auto h-12 w-12 text-ink-subtle mb-4" />
-          <p className="text-lg font-bold text-ink-strong">No attendance data</p>
-          <p className="text-sm font-semibold text-ink-muted mt-1">
-            No records found for this class in {formatMonthLabel(month)}
-          </p>
-        </div>
+      <div className="sk-panel min-w-0 p-5 sm:p-6">
+        <EmptyState icon={CalendarCheck} title="No attendance data" description={`No records found for this class in ${formatMonthLabel(month)}`} />
       </div>
     );
   }
@@ -994,32 +981,27 @@ function ClassDetailView({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Student table */}
-        <div className="lg:col-span-2 bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
-          <div className="flex items-center justify-between gap-4 mb-5">
+        <div className="lg:col-span-2 sk-panel min-w-0 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
             <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
               Student Attendance &mdash; {formatMonthLabel(month)}
             </p>
             <InputGroup surfaceClassName="bg-muted" className="relative">
-              <Search data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+              <Search data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
               <SystemInput
                 type="text"
                 placeholder="Search student..."
                 value={studentSearch}
                 onChange={(e) => onStudentSearch(e.target.value)}
-                className="w-44 pl-9 pr-3"
+                className="w-full ps-9 pe-3 sm:w-44"
               />
             </InputGroup>
           </div>
 
           {filteredStudents.length === 0 ? (
-            <div className="py-12 text-center">
-              <User className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-              <p className="text-sm font-bold text-ink-subtle">
-                No students found
-              </p>
-            </div>
+            <EmptyState size="sm" icon={User} title="No students found" description="Try a different name or roll number." />
           ) : (
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pe-1">
               {/* Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 <span className="col-span-1">Roll</span>
@@ -1028,7 +1010,7 @@ function ClassDetailView({
                 <span className="col-span-1 text-center text-rose-500">A</span>
                 <span className="col-span-1 text-center text-amber-500">L</span>
                 <span className="col-span-3">Progress</span>
-                <span className="col-span-2 text-right">Status</span>
+                <span className="col-span-2 text-end">Status</span>
               </div>
 
               {filteredStudents.map((student) => (
@@ -1091,7 +1073,7 @@ function ClassDetailView({
         </div>
 
         {/* At-Risk Sidebar */}
-        <div className="bg-white rounded-[30px] border border-edge/10 p-6 shadow-lg">
+        <div className="sk-panel min-w-0 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-5">
             <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
               <AlertTriangle className="h-4 w-4 text-rose-500" />
@@ -1107,15 +1089,9 @@ function ClassDetailView({
           </div>
 
           {atRiskStudents.length === 0 ? (
-            <div className="py-10 text-center">
-              <CalendarCheck className="mx-auto h-8 w-8 text-emerald-300 mb-3" />
-              <p className="text-sm font-bold text-emerald-600">All good!</p>
-              <p className="text-xs font-semibold text-ink-subtle mt-1">
-                No at-risk students this month
-              </p>
-            </div>
+            <EmptyState size="sm" icon={CalendarCheck} title="All good!" description="No at-risk students this month" />
           ) : (
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[460px] overflow-y-auto pe-1">
               {atRiskStudents.map((student) => (
                 <div
                   key={student.studentId}

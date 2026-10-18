@@ -101,7 +101,7 @@ export function ParentPage({
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full blur-2xl"
+          className="pointer-events-none absolute -end-20 -top-20 h-48 w-48 rounded-full blur-2xl"
           style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
         />
         <div className="relative flex flex-wrap items-center justify-between gap-x-[12px] gap-y-[8px] px-[12px] py-[12px] sm:px-5">

@@ -161,12 +161,12 @@ export function TeacherPicker({
 
   return (
     <div className="group/picker">
-      <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/picker:text-primary">
+      <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/picker:text-primary">
         {label}
       </span>
 
       {open ? (
-        <div className="relative z-20 rounded-2xl border border-primary/30 bg-white shadow-[0_20px_50px_rgba(31,26,35,0.14)] transition-all">
+        <div className="relative z-20 rounded-2xl border border-primary/30 bg-white shadow-xl transition-all">
           <InputGroup className="my-2">
             <Search data-field-affix="start" className="h-3.5 w-3.5 shrink-0 text-primary" />
             <SystemInput
@@ -184,7 +184,7 @@ export function TeacherPicker({
                 type="button"
                 onClick={() => pick("")}
                 className={cn(
-                  "flex w-full items-center gap-3 px-3 py-2.5 text-left justify-start",
+                  "flex w-full items-center gap-3 px-3 py-2.5 text-start justify-start",
                   value === "" ? "bg-brand-50" : "hover:bg-brand-50/60"
                 )}
               >
@@ -219,7 +219,7 @@ export function TeacherPicker({
                   title={blocked || undefined}
                   onClick={() => pick(t.id)}
                   className={cn(
-                    "flex w-full items-start gap-3 px-3 py-2.5 text-left justify-start",
+                    "flex w-full items-start gap-3 px-3 py-2.5 text-start justify-start",
                     blocked
                       ? "cursor-not-allowed opacity-55"
                       : value === t.id
@@ -250,20 +250,20 @@ export function TeacherPicker({
                     </p>
 
                     {blocked ? (
-                      <p className="mt-1 flex items-start gap-1 text-2xs font-bold leading-snug text-rose-600">
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-rose-600">
                         <Ban className="mt-px h-2.5 w-2.5 shrink-0" />
                         {blocked}
                       </p>
                     ) : null}
                     {!blocked && conflictCount > 0 ? (
-                      <p className="mt-1 flex items-start gap-1 text-2xs font-bold leading-snug text-rose-600">
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-rose-600">
                         <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
                         {conflictCount} timetable clash{conflictCount !== 1 ? "es" : ""} ({a!.conflicts.slice(0, 2).map((c) => c.label).join(", ")}
                         {conflictCount > 2 ? "…" : ""})
                       </p>
                     ) : null}
                     {!blocked && offSpecialty ? (
-                      <p className="mt-1 flex items-start gap-1 text-2xs font-bold leading-snug text-amber-600">
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-amber-600">
                         <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
                         Not their specialty{subjectName ? ` (${subjectName})` : ""}
                       </p>
@@ -282,7 +282,7 @@ export function TeacherPicker({
           <SystemButton variant="outline"
             type="button"
             onClick={() => setOpen(true)}
-            className="sk-field-trigger flex h-14 w-full items-center justify-between px-4 text-left"
+            className="sk-field-trigger flex h-14 w-full items-center justify-between px-4 text-start"
           >
             {value ? (
               <span className="flex min-w-0 items-center gap-3">
@@ -306,7 +306,7 @@ export function TeacherPicker({
             ) : (
               <span className="text-sm font-bold text-ink-muted">{allowUnassigned ? "Assign / Unassigned" : "Select teacher"}</span>
             )}
-            <span className="ml-3 shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-primary">
+            <span className="ms-3 shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-primary">
               Change
             </span>
           </SystemButton>
@@ -314,14 +314,14 @@ export function TeacherPicker({
           {/* Warnings on the current selection stay visible while collapsed, so
               an existing bad assignment isn't hidden behind a closed dropdown. */}
           {selectedAvail && selectedAvail.conflicts.length > 0 ? (
-            <p className="mt-1.5 flex items-start gap-1 pl-2 text-2xs font-bold leading-snug text-rose-600">
+            <p className="mt-1.5 flex items-start gap-1 ps-2 text-xs font-medium leading-relaxed text-rose-600">
               <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
               Double-booked at {selectedAvail.conflicts.slice(0, 3).map((c) => c.label).join(", ")}
               {selectedAvail.conflicts.length > 3 ? ` +${selectedAvail.conflicts.length - 3} more` : ""}
             </p>
           ) : null}
           {selectedOffSpecialty ? (
-            <p className="mt-1.5 flex items-start gap-1 pl-2 text-2xs font-bold leading-snug text-amber-600">
+            <p className="mt-1.5 flex items-start gap-1 ps-2 text-xs font-medium leading-relaxed text-amber-600">
               <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
               {selected?.fullName} isn&apos;t a {subjectName} specialist
             </p>

@@ -25,6 +25,7 @@ import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { EmptyState as EmptyStateUi } from "@/components/ui/empty-state";
 
 
 /* ── Pure helpers ── */
@@ -108,7 +109,7 @@ export function StatusPill({ status }: { status?: string }) {
 }
 
 export function EmptyInline({ text }: { text: string }) {
-  return <p className="rounded-2xl bg-brand-50/60 border border-primary/10 p-4 text-sm font-semibold text-ink-muted">{text}</p>;
+  return <EmptyStateUi size="sm" title={text} />;
 }
 
 export function TeacherErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
@@ -194,7 +195,7 @@ export function DetailRow({ label, value }: { label: string; value: ReactNode })
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/70 px-4 py-3 transition-colors hover:bg-white">
       <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
-      <span className="min-w-0 truncate text-right text-sm font-bold text-ink-strong">{value}</span>
+      <span className="min-w-0 truncate text-end text-sm font-bold text-ink-strong">{value}</span>
     </div>
   );
 }
@@ -203,7 +204,7 @@ export function FormInput({ label, value, placeholder, type = "text", required, 
   return (
     <label className="block">
       <span className="sk-field-label">
-        {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
+        {label}{required ? <span className="ms-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <SystemInput type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full px-4" />
@@ -215,7 +216,7 @@ export function FormSelect({ label, value, children, required, onChange }: { lab
   return (
     <label className="block">
       <span className="sk-field-label">
-        {label}{required ? <span className="ml-1 text-rose-500" aria-hidden>*</span> : null}
+        {label}{required ? <span className="ms-1 text-rose-500" aria-hidden>*</span> : null}
       </span>
       <SystemSelect value={value} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full px-4">
@@ -234,10 +235,11 @@ export function ModalActions({ busy, busyLabel, actionLabel, onClose, onSave, bl
   blockedReason?: string | null;
 }) {
   const blocked = Boolean(blockedReason);
+  const blockedId = useId();
   return (
     <div className="space-y-2.5">
       {blocked ? (
-        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-800">
+        <p id={blockedId} className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-800">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           {blockedReason}
         </p>
@@ -249,9 +251,10 @@ export function ModalActions({ busy, busyLabel, actionLabel, onClose, onSave, bl
           className="flex-[2] h-14"
           onClick={onSave}
           disabled={busy || blocked}
-          title={blockedReason || actionLabel}
+          loading={busy}
+          aria-describedby={blocked ? blockedId : undefined}
         >
-          {busy ? (<><Loader2 className="w-5 h-5 animate-spin" />{busyLabel}</>) : actionLabel}
+          {busy ? busyLabel : actionLabel}
         </BrandButton>
       </div>
     </div>
@@ -357,7 +360,7 @@ export function CreateAssessmentModal({ open, classHubs, examForm, creatingExam,
           </FormSelect>
           {/* This list is empty until a class is picked. Left unexplained it
               reads as "this class has no subjects". */}
-          <p className="mt-1.5 pl-2 text-2xs font-semibold text-ink-subtle">
+          <p className="mt-1.5 ps-2 text-2xs font-semibold text-ink-subtle">
             {!examForm.classId
               ? "Pick a class first to choose one of its subjects."
               : subjects.length === 0
@@ -497,7 +500,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
               {WEIGHTS.map(([key], i) => {
                 const v = Number(gradeConfig[key]) || 0;
                 if (!v) return null;
-                const shades = ["bg-primary", "bg-brand-400", "bg-brand-300", "bg-[#d2aef7]"];
+                const shades = ["bg-primary", "bg-brand-400", "bg-brand-300", "bg-brand-200"];
                 return (
                   <span key={key} className={cn("h-full transition-all duration-300", shades[i])}
                     style={{ width: `${Math.min(v, 100)}%` }} />
@@ -581,12 +584,11 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
               {weightedGradeResult.length} student{weightedGradeResult.length === 1 ? "" : "s"}
             </p>
             <div className="flex flex-wrap gap-3">
-              <BrandButton variant="soft" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
+              <BrandButton variant="soft" icon={downloadingPdf ? undefined : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf} loading={downloadingPdf}>
                 {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
               </BrandButton>
-              <BrandButton variant="dark" icon={generatingReportCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                onClick={onGenerateReportCards} disabled={generatingReportCards || reportCardsGenerated}
-                title={reportCardsGenerated ? "These grades have already been saved" : "Write these weighted grades to each student's report card"}>
+              <BrandButton variant="dark" icon={generatingReportCards ? undefined : <FileText className="w-4 h-4" />}
+                onClick={onGenerateReportCards} disabled={generatingReportCards || reportCardsGenerated} loading={generatingReportCards}>
                 {generatingReportCards ? "Saving..." : reportCardsGenerated ? "Grades Saved" : "Generate & Save Grades"}
               </BrandButton>
             </div>
@@ -631,7 +633,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
             </div>
           ) : null}
           <div className="overflow-x-auto rounded-2xl border border-muted">
-            <table className="w-full min-w-[600px] text-left">
+            <table className="w-full min-w-[600px] text-start">
               <thead>
                 <tr className="bg-brand-50/40 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                   <th className="px-5 py-4">Rank</th>
@@ -661,7 +663,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                       }}>
                       <td className="px-5 py-4"><span className="text-sm font-bold text-ink-muted">#{grade.rank || i + 1}</span></td>
                       <td className="px-5 py-4"><p className="text-sm font-bold text-ink-strong">{grade.studentName}</p></td>
-                      <td className="px-4 py-4 text-center text-sm font-semibold text-ink-muted">{grade.rollNo || "—"}</td>
+                      <td className="px-4 py-4 text-center text-sm font-medium tabular-nums text-ink-muted">{grade.rollNo || "—"}</td>
                       <td className="px-4 py-4 text-center"><span className="text-lg font-bold text-primary">{grade.overallPercentage}%</span></td>
                       <td className="px-4 py-4 text-center"><span className="rounded-full bg-white border border-edge/10 px-3 py-1 text-2xs font-bold text-ink-strong">{grade.overallGrade}</span></td>
                       <td className="px-4 py-4 text-center">
@@ -750,7 +752,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
         <div className="min-w-0 flex-1">
           <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Student Record</p>
           <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-ink-strong">{student.fullName}</h3>
-          <p className="mt-2 text-sm font-semibold text-ink-muted">
+          <p className="mt-2 text-sm font-medium text-ink-muted">
             {student.rollNo || "No roll number"} &mdash; {classLabel(student.class)}
           </p>
           {student.todayAttendance !== undefined ? (
@@ -966,7 +968,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           {remarksDirty && onSaveRemarks ? (
-            <span className="mr-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-800">
+            <span className="me-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-800">
               <AlertCircle className="h-3.5 w-3.5" /> Unsaved remarks
             </span>
           ) : null}
@@ -974,11 +976,11 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             <BrandButton variant="soft" icon={<BrainCircuit className="w-4 h-4" />}
               onClick={() => onGenerateRemarks(viewReport.student.id, viewReport.exam.id)}
               disabled={remarkBusy === viewReport.student.id}
-              title="Draft remarks for this student with AI">
+              loading={remarkBusy === viewReport.student.id}>
               {remarkBusy === viewReport.student.id ? "Generating..." : "Generate Remarks"}
             </BrandButton>
           ) : null}
-          <BrandButton variant="soft" icon={downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf}>
+          <BrandButton variant="soft" icon={downloadingPdf ? undefined : <Download className="w-4 h-4" />} onClick={handleDownloadPdf} disabled={downloadingPdf} loading={downloadingPdf}>
             {downloadingPdf ? "Preparing PDF..." : "Download PDF"}
           </BrandButton>
           {viewReport.isSent ? (
@@ -988,9 +990,8 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           ) : (
             /* Sending mails a family. It fired on a single click with no
                confirmation, and there is no way to unsend it afterwards. */
-            <BrandButton variant="dark" icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              onClick={() => setConfirmSend(true)} disabled={busy}
-              title="Email this report card to the student's guardian">
+            <BrandButton variant="dark" icon={busy ? undefined : <Send className="w-4 h-4" />}
+              onClick={() => setConfirmSend(true)} disabled={busy} loading={busy}>
               {busy ? "Sending..." : "Send to Guardian"}
             </BrandButton>
           )}
@@ -1016,7 +1017,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           <div className="min-w-0 flex-1">
             <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>
             <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-ink-strong">{viewReport.student?.fullName || "Student"}</h3>
-            <p className="mt-2 text-sm font-semibold text-ink-muted">
+            <p className="mt-2 text-sm font-medium text-ink-muted">
               {viewReport.student?.rollNo ? `Roll No: ${viewReport.student.rollNo}` : ""} &middot; {classLabel(viewReport.student?.class)}
             </p>
             <p className="mt-1 text-2xs font-medium text-ink-muted">Generated {formatDate(viewReport.generatedAt)}</p>
@@ -1097,7 +1098,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                   </div>
                   {subject.exams?.length ? (
                     <div className="overflow-x-auto rounded-2xl border border-edge/10 bg-white">
-                      <table className="w-full min-w-[520px] text-left">
+                      <table className="w-full min-w-[520px] text-start">
                         <thead>
                           <tr className="bg-brand-50/40 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                             <th className="px-4 py-2.5">Exam</th>
@@ -1247,7 +1248,7 @@ function SkeletonFrame({ children }: { children: ReactNode }) {
       role="status"
       aria-busy="true"
       aria-label="Loading the teacher console"
-      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
+      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(120,70,180,0.06),0_24px_60px_-24px_rgba(120,70,180,0.35)]"
     >
       <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
@@ -1271,7 +1272,7 @@ function SkeletonFrame({ children }: { children: ReactNode }) {
 /** Matches the compact stat tile the teacher pages actually render. */
 function StatCardSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-edge/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
+    <div className="rounded-[18px] border border-edge/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_6px_16px_-10px_rgba(120,70,180,0.25)]">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -1667,7 +1668,7 @@ export function StudentsSkeleton() {
         {/* Student cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+            <div key={i} className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
               <div className="flex items-start gap-4 mb-4">
                 <SkeletonBlock className="h-14 w-14 rounded-2xl shrink-0" />
                 <div className="flex-1 min-w-0 space-y-2">
@@ -1774,7 +1775,7 @@ export function TeacherRouteSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className={`rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
+              className={`rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />

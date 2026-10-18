@@ -10,7 +10,6 @@ import {
   Clock,
   DoorOpen,
   GraduationCap,
-  Loader2,
   Pencil,
   Plus,
   Printer,
@@ -25,6 +24,8 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
@@ -128,7 +129,7 @@ function TimetableGridSkeleton({ periods, visibleDays }: { periods: GridPeriod[]
           <div className="h-4 w-4 rounded bg-border-subtle/50 skeleton-shimmer" />
         </div>
         {visibleDays.map((day) => (
-          <div key={day.num} className="flex flex-col items-center justify-center py-3 border-l border-muted">
+          <div key={day.num} className="flex flex-col items-center justify-center py-3 border-s border-muted">
             <div className="h-3 w-10 rounded bg-border-subtle/50 skeleton-shimmer" />
             <div className="h-2 w-12 mt-1 rounded bg-border-subtle/40 skeleton-shimmer" />
           </div>
@@ -136,12 +137,12 @@ function TimetableGridSkeleton({ periods, visibleDays }: { periods: GridPeriod[]
       </div>
       {periods.map((p) => (
         <div key={p.num} className="grid border-b border-muted last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
-          <div className="flex flex-col items-center justify-center p-2 border-r border-muted">
+          <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
             <div className="h-3 w-6 rounded bg-border-subtle/50 skeleton-shimmer" />
             <div className="h-2 w-10 mt-1 rounded bg-border-subtle/40 skeleton-shimmer" />
           </div>
           {visibleDays.map((day) => (
-            <div key={day.num} className="border-l border-muted p-1">
+            <div key={day.num} className="border-s border-muted p-1">
               <div className="h-full min-h-[48px] rounded-xl bg-border-subtle/30 skeleton-shimmer" />
             </div>
           ))}
@@ -516,14 +517,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           onClick={() => setViewMode("class")}
           className="class"
         >
-          <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Class View
+          <Calendar className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Class View
         </Button>
         <Button aria-pressed={viewMode === "teacher"} variant="choice" size="sm"
           type="button"
           onClick={() => setViewMode("teacher")}
           className="teacher"
         >
-          <User className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Teacher View
+          <User className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Teacher View
         </Button>
       </div>
 
@@ -534,7 +535,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               <SystemSelect
                 value={selectedTeacherId}
                 onChange={(e) => setSelectedTeacherId(e.target.value)}
-                className="px-4 pr-10 appearance-none"
+                className="px-4 pe-10 appearance-none"
               >
                 <option value="">— Select teacher —</option>
                 {teachers.map((t) => (
@@ -575,9 +576,9 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     <Clock className="w-4 h-4 text-ink-subtle" />
                   </div>
                   {visibleDays.map((day) => (
-                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-muted ${weekendDays.includes(day.num) ? "opacity-50 bg-muted/70" : ""}`}>
+                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-s border-muted ${weekendDays.includes(day.num) ? "opacity-50 bg-muted/70" : ""}`}>
                       <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                      <span className="text-3xs font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                      <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {weekendDays.includes(day.num) && (
                         <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-3xs font-semibold uppercase text-rose-500">Off</span>
                       )}
@@ -587,26 +588,26 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
                 {periods.length > 0 ? periods.map((period) => (
                   <div key={period.num} className="grid border-b border-muted last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
-                    <div className="flex flex-col items-center justify-center p-2 border-r border-muted">
+                    <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
                       <span className="text-2xs font-bold text-primary">P{period.num}</span>
-                      <span className="text-3xs font-bold text-ink-subtle mt-0.5">{period.start}</span>
+                      <span className="text-2xs font-medium tabular-nums text-ink-subtle mt-0.5">{period.start}</span>
                     </div>
                     {visibleDays.map((day) => {
                       const isOff = weekendDays.includes(day.num);
                       const slotInfo = selectedTeacherSlots.find((s) => s.day === day.num && s.period === period.num);
                       const isConflict = selectedTeacherSlots.filter((s) => s.day === day.num && s.period === period.num).length > 1;
                       return (
-                        <div key={day.num} className={`border-l border-muted p-1 ${isOff ? "opacity-40 bg-muted/70" : ""}`}>
+                        <div key={day.num} className={`border-s border-muted p-1 ${isOff ? "opacity-40 bg-muted/70" : ""}`}>
                           {slotInfo ? (
-                            <div className={`h-full rounded-xl p-2 flex flex-col justify-center ${isConflict ? "bg-rose-100 border border-rose-300" : "bg-emerald-50 border border-emerald-200"}`}>
-                              <p className={`text-2xs font-bold leading-tight ${isConflict ? "text-rose-700" : "text-emerald-700"}`}>
+                            <div className={`h-full rounded-xl p-2 flex flex-col justify-center ${isConflict ? "bg-status-error-surface border border-status-error-border" : "bg-status-success-surface border border-status-success-border"}`}>
+                              <p className={`text-2xs font-bold leading-tight ${isConflict ? "text-status-error-text" : "text-status-success-text"}`}>
                                 {slotInfo.subject}
                               </p>
                               <p className="text-3xs font-semibold text-ink-muted mt-0.5">
                                 {slotInfo.classLabel}
                               </p>
                               {isConflict && (
-                                <span className="text-3xs font-semibold uppercase text-rose-600 mt-0.5">CONFLICT</span>
+                                <span className="text-3xs font-semibold uppercase text-status-error-text mt-0.5">CONFLICT</span>
                               )}
                             </div>
                           ) : (
@@ -619,9 +620,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     })}
                   </div>
                 )) : (
-                  <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
-                    No timetable periods found. Create timetables for classes first.
-                  </div>
+                  <EmptyState size="sm" icon={Clock} title="No timetable periods found" description="Create timetables for classes first." />
                 )}
               </div>
             </div>
@@ -645,7 +644,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               >
                 {cls.name}{cls.section ? ` - ${cls.section}` : ""}
                 {hasTimetable && (
-                  <span className={`ml-1 h-1.5 w-1.5 rounded-full ${isPublished ? "bg-emerald-500" : "bg-amber-400"}`} />
+                  <span className={`ms-1 h-1.5 w-1.5 rounded-full ${isPublished ? "bg-status-success-text" : "bg-status-warning-text"}`} />
                 )}
               </Button>
             );
@@ -662,34 +661,34 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       )}
 
       {selectedClassId && !activeTimetable && (
-        <div className="sk-rise flex flex-col items-center justify-center py-16" style={{ animationDelay: "120ms" }}>
-          <div className="h-20 w-20 rounded-[32px] bg-gradient-to-br from-primary/10 to-brand-50 flex items-center justify-center mb-6">
-            <Calendar className="w-10 h-10 text-primary/40" />
-          </div>
-          <h3 className="text-lg font-bold text-ink-strong mb-2">No Timetable Yet</h3>
-          <p className="text-sm text-ink-muted mb-8 max-w-sm text-center">
-            Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
-          </p>
-          <div className="flex items-center gap-3">
+        <EmptyState
+          className="sk-enter"
+          icon={Calendar}
+          title="No Timetable Yet"
+          description={`Create a weekly schedule for this class with configurable period timings (${visibleDays.map((d) => d.short).join("–")})`}
+          secondaryAction={
             <Button variant="outline"
               type="button"
               onClick={() => { setCustomPeriods(defaultPeriods.map((p) => ({ ...p }))); setShowPeriodConfig(true); }}
               className="flex justify-start items-center gap-2"
             >
-              <Clock className="w-4 h-4" />
+              <Clock className="w-4 h-4" aria-hidden="true" />
               Configure Periods
             </Button>
+          }
+          action={
             <Button variant="default"
               type="button"
               onClick={() => handleCreateTimetable()}
               disabled={creating}
+              loading={creating}
               className="flex justify-start items-center gap-2"
             >
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {!creating && <Plus className="h-4 w-4" aria-hidden="true" />}
               Quick Create (Default)
             </Button>
-          </div>
-        </div>
+          }
+        />
       )}
 
       {selectedClassId && activeTimetable && (
@@ -714,7 +713,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled={activeTimetable.status !== "DRAFT" || changing || pendingChanges.size > 0} title={addCopy.draftOnly} onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button>
+              {(() => {
+                const addDisabled = activeTimetable.status !== "DRAFT" || changing || pendingChanges.size > 0;
+                const addButton = <Button variant="outline" size="sm" disabled={addDisabled} onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button>;
+                return addDisabled ? <Tooltip content={addCopy.draftOnly}><span tabIndex={0} className="inline-flex">{addButton}</span></Tooltip> : addButton;
+              })()}
               <Button variant="secondary" size="sm"
                 type="button"
                 disabled={changing || pendingChanges.size > 0}
@@ -746,9 +749,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   type="button"
                   onClick={handleSaveAll}
                   disabled={saving}
+                  loading={saving}
                   className="flex justify-start items-center gap-1.5"
                 >
-                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  {!saving && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
                   Save Changes
                 </Button>
               )}
@@ -756,9 +760,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 type="button"
                 onClick={handlePublish}
                 disabled={changing || pendingChanges.size > 0}
+                loading={publishing}
                 className="flex justify-start items-center gap-1.5"
               >
-                {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {!publishing && <Send className="h-3.5 w-3.5" aria-hidden="true" />}
                 {activeTimetable.status === "PUBLISHED" ? "Unpublish" : "Publish"}
               </Button>
             </div>
@@ -769,11 +774,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
             {subjects.map((s) => {
               const c = subjectColorMap.get(s.id);
               return (
-                <div key={s.id} className={`flex items-center gap-1.5 rounded-xl ${c?.bg || "bg-gray-100"} px-3 py-1.5`}>
-                  <span className={`h-2 w-2 rounded-full ${c?.dot || "bg-gray-400"}`} />
-                  <span className={`text-2xs font-bold ${c?.text || "text-gray-600"}`}>{s.name}</span>
+                <div key={s.id} className={`flex items-center gap-1.5 rounded-xl ${c?.bg || "bg-surface-subtle"} px-3 py-1.5`}>
+                  <span className={`h-2 w-2 rounded-full ${c?.dot || "bg-ink-faint"}`} />
+                  <span className={`text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{s.name}</span>
                   {s.teacher && (
-                    <span className="text-2xs font-semibold text-ink-subtle ml-1">({s.teacher.fullName})</span>
+                    <span className="text-2xs font-semibold text-ink-subtle ms-1">({s.teacher.fullName})</span>
                   )}
                 </div>
               );
@@ -796,9 +801,9 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 {visibleDays.map((day) => {
                   const isOff = weekendDays.includes(day.num);
                   return (
-                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-muted ${isOff ? "opacity-50 bg-muted/70" : ""}`}>
+                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-s border-muted ${isOff ? "opacity-50 bg-muted/70" : ""}`}>
                       <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                      <span className="text-3xs font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                      <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {isOff && (
                         <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-3xs font-semibold uppercase text-rose-500">Off</span>
                       )}
@@ -821,9 +826,9 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}
                   >
                     {/* Time column */}
-                    <div className="flex flex-col items-center justify-center p-2 border-r border-muted">
+                    <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
                       <span className="text-2xs font-bold text-primary">P{period.num}</span>
-                      <span className="text-3xs font-bold text-ink-subtle mt-0.5">
+                      <span className="text-2xs font-medium tabular-nums text-ink-subtle mt-0.5">
                         {period.start}
                       </span>
                       <span className="text-3xs font-semibold text-ink-subtle">
@@ -836,7 +841,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       const isOff = weekendDays.includes(day.num);
                       const offCls = isOff ? "opacity-40 bg-muted/70" : "";
                       const slot = getSlot(day.num, period.num);
-                      if (!slot) return <div key={day.num} className={`border-l border-muted p-1 ${offCls}`} />;
+                      if (!slot) return <div key={day.num} className={`border-s border-muted p-1 ${offCls}`} />;
 
                       const effectiveType = pendingChanges.get(slot.id)?.slotType || slot.slotType;
 
@@ -845,8 +850,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                         return (
                           <div
                             key={day.num}
-                            className={`border-l border-muted flex items-center justify-center p-1 cursor-pointer ${offCls}`}
-                            onClick={() => setEditingSlot(slot)}
+                            className={`border-s border-muted flex items-center justify-center p-1 cursor-pointer hover:bg-surface-hover transition-colors ${offCls}`}
+                            onClick={() => setEditingSlot(slot)} role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingSlot(slot); } }}
                           >
                             <span className={`text-2xs font-bold ${style?.text || "text-ink-subtle"}`}>
                               {style?.label || effectiveType}
@@ -880,13 +887,15 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       return (
                         <div
                           key={day.num}
-                          className={`border-l border-muted p-1 cursor-pointer group transition-all ${offCls}`}
-                          onClick={() => setEditingSlot(slot)}
+                          className={`border-s border-muted p-1 cursor-pointer group transition-all hover:bg-surface-hover ${offCls}`}
+                          onClick={() => setEditingSlot(slot)} role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingSlot(slot); } }}
                         >
                           {subjectName ? (
-                            <div className={`h-full rounded-xl ${color?.bg || "bg-gray-50"}  ${color?.border || "border-gray-200"} border p-2 flex flex-col justify-between transition-all group-hover:shadow-md group-hover:scale-[1.02] ${hasChange ? "ring-2 ring-amber-300" : ""}`}>
+                            <div className={`h-full rounded-xl ${color?.bg || "bg-surface-subtle"}  ${color?.border || "border-border-subtle"} border p-2 flex flex-col justify-between transition-all group-hover:shadow-md group-hover:scale-[1.02] ${hasChange ? "ring-2 ring-amber-300" : ""}`}>
                               <div>
-                                <p className={`text-2xs font-bold leading-tight ${color?.text || "text-gray-600"}`}>
+                                <p className={`text-2xs font-bold leading-tight ${color?.text || "text-ink-muted"}`}>
                                   {subjectName}
                                 </p>
                                 {teacherName && (
@@ -1065,7 +1074,7 @@ function PeriodConfigModal({
             nested a scroller inside the dialog's scroller — two scrollbars, and
             a wheel gesture that stalled at the inner edge. The dialog body is
             the only thing that scrolls now. */}
-        <div className="space-y-3 pr-1">
+        <div className="space-y-3 pe-1">
           {localPeriods.map((p, i) => (
             <div key={i} className="flex items-center gap-2 rounded-2xl bg-muted p-3">
               <span className="w-6 text-center text-2xs font-bold text-primary">P{p.period}</span>
@@ -1427,9 +1436,9 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
         {subjectNames.map((name) => {
           const c = subjectColorMap.get(name);
           return (
-            <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg || "bg-gray-100"} px-2 py-1`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${c?.dot || "bg-gray-400"}`} />
-              <span className={`text-2xs font-bold ${c?.text || "text-gray-600"}`}>{name}</span>
+            <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg || "bg-surface-subtle"} px-2 py-1`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${c?.dot || "bg-ink-faint"}`} />
+              <span className={`text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{name}</span>
             </span>
           );
         })}
@@ -1442,7 +1451,7 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
               <Clock className="w-3.5 h-3.5 text-ink-subtle" />
             </div>
             {visibleDays.map((day) => (
-              <div key={day.num} className="flex items-center justify-center py-2.5 border-l border-muted">
+              <div key={day.num} className="flex items-center justify-center py-2.5 border-s border-muted">
                 <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
               </div>
             ))}
@@ -1458,18 +1467,18 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                 className={`grid border-b border-muted last:border-b-0 ${isSpecial ? specialStyle?.bg || "bg-muted" : ""}`}
                 style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}
               >
-                <div className="flex flex-col items-center justify-center p-1.5 border-r border-muted">
+                <div className="flex flex-col items-center justify-center p-1.5 border-e border-muted">
                   <span className="text-2xs font-bold text-primary">P{period.num}</span>
-                  <span className="text-3xs font-bold text-ink-subtle">{period.start}</span>
+                  <span className="text-2xs font-medium tabular-nums text-ink-subtle">{period.start}</span>
                 </div>
                 {visibleDays.map((day) => {
                   const slot = getSlot(day.num, period.num);
-                  if (!slot) return <div key={day.num} className="border-l border-muted p-1" />;
+                  if (!slot) return <div key={day.num} className="border-s border-muted p-1" />;
 
                   if (slot.slotType !== "CLASS") {
                     const style = SLOT_TYPE_STYLES[slot.slotType];
                     return (
-                      <div key={day.num} className="border-l border-muted flex items-center justify-center p-1">
+                      <div key={day.num} className="border-s border-muted flex items-center justify-center p-1">
                         <span className={`text-3xs font-bold ${style?.text || "text-ink-subtle"}`}>
                           {style?.label || slot.slotType}
                         </span>
@@ -1480,10 +1489,10 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                   const color = slot.subject?.name ? subjectColorMap.get(slot.subject.name) : null;
 
                   return (
-                    <div key={day.num} className="border-l border-muted p-1">
+                    <div key={day.num} className="border-s border-muted p-1">
                       {slot.subject ? (
-                        <div className={`h-full rounded-lg ${color?.bg || "bg-gray-50"}  ${color?.border || "border-gray-200"} border p-1.5`}>
-                          <p className={`text-2xs font-bold leading-tight ${color?.text || "text-gray-600"}`}>
+                        <div className={`h-full rounded-lg ${color?.bg || "bg-surface-subtle"}  ${color?.border || "border-border-subtle"} border p-1.5`}>
+                          <p className={`text-2xs font-bold leading-tight ${color?.text || "text-ink-muted"}`}>
                             {slot.subject.name}
                           </p>
                           {slot.className && (

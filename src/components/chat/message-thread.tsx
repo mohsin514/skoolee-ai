@@ -33,6 +33,10 @@ import { ChatAvatar } from "./chat-avatar";
 import { Composer } from "./composer";
 import type { ChatMessageView } from "@/lib/chat/types";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
@@ -210,13 +214,14 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           </div>
 
           {detail.isLocked && (
-            <span
-              className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-2xs font-bold text-amber-700 ring-1 ring-amber-200/70"
-              title={ui("Closed to new messages")}
-            >
-              <Lock className="h-3 w-3" />
-              <span className="hidden sm:inline">{ui("Closed")}</span>
-            </span>
+            <Tooltip content={ui("Closed to new messages")}>
+              <span tabIndex={0} className="inline-flex shrink-0 rounded-full">
+                <Badge variant="warning" size="sm" className="gap-1">
+                  <Lock className="h-3 w-3" aria-hidden="true" />
+                  <span className="hidden sm:inline">{ui("Closed")}</span>
+                </Badge>
+              </span>
+            </Tooltip>
           )}
 
           {detail.kind !== "DIRECT" && (
@@ -257,7 +262,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96, y: -4 }}
                     transition={{ type: "spring", stiffness: 460, damping: 30 }}
-                    className="absolute end-0 top-full z-20 mt-1.5 w-48 origin-top-right rtl:origin-top-left overflow-hidden rounded-2xl border border-edge/30 bg-white/95 p-1 shadow-[0_20px_50px_-14px_rgba(31,26,35,0.35)] backdrop-blur-xl"
+                    className="absolute end-0 top-full z-20 mt-1.5 w-48 origin-top-right rtl:origin-top-left overflow-hidden rounded-2xl border border-edge/30 bg-white/95 p-1 shadow-[0_20px_50px_-14px_rgba(120,70,180,0.35)] backdrop-blur-xl"
                   >
                     <MenuItem
                       icon={detail.isMuted ? Bell : BellOff}
@@ -319,7 +324,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                 {detail.members.map((m) => (
                   <li
                     key={m.userId}
-                    className="flex items-center gap-1.5 rounded-full bg-white py-1 ps-1 pe-2.5 text-2xs font-bold text-ink shadow-[0_2px_8px_-2px_rgba(31,26,35,0.12)] ring-1 ring-edge/25"
+                    className="flex items-center gap-1.5 rounded-full bg-white py-1 ps-1 pe-2.5 text-2xs font-bold text-ink shadow-[0_2px_8px_-2px_rgba(120,70,180,0.12)] ring-1 ring-edge/25"
                   >
                     <ChatAvatar name={m.fullName} seed={m.userId} imageUrl={m.profileImageUrl} size="sm" online={m.isOnline} />
                     <bdi className="max-w-[120px] truncate">{m.fullName}</bdi>
@@ -349,9 +354,9 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           )}
 
           {!isConnected && lastSyncedAt && (
-            <p role="status" className="mb-2 rounded-xl bg-amber-50 px-3 py-2 text-center text-2xs font-bold text-amber-900" data-chat-offline>
+            <Alert tone="warning" compact live="polite" className="mb-2 text-xs font-normal" data-chat-offline>
               {fill(ui("Reconnecting. Showing messages up to {0}; anything sent meanwhile appears when the connection returns."), [clockTime(lastSyncedAt, tag)])}
-            </p>
+            </Alert>
           )}
           {isLoadingThread ? (
             <ThreadSkeleton />
@@ -413,7 +418,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
           {others.length > 0 && (
             <div className="mt-2 flex justify-start ps-1">
-              <span className="flex items-center gap-1.5 rounded-2xl rounded-es-md bg-white px-3 py-2.5 shadow-[0_4px_14px_-6px_rgba(31,26,35,0.2)] ring-1 ring-edge/25">
+              <span className="flex items-center gap-1.5 rounded-2xl rounded-es-md bg-white px-3 py-2.5 shadow-[0_4px_14px_-6px_rgba(120,70,180,0.2)] ring-1 ring-edge/25">
                 <TypingDots />
               </span>
             </div>
@@ -466,7 +471,7 @@ function DaySeparator({ label }: { label: string }) {
   return (
     <div className="my-4 flex items-center gap-3">
       <span className="h-px flex-1 bg-gradient-to-r from-transparent to-edge/50" aria-hidden />
-      <span className="rounded-full bg-white/90 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle shadow-[0_2px_10px_-4px_rgba(31,26,35,0.18)] ring-1 ring-edge/25">
+      <span className="rounded-full bg-white/90 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle shadow-[0_2px_10px_-4px_rgba(120,70,180,0.18)] ring-1 ring-edge/25">
         {label}
       </span>
       <span className="h-px flex-1 bg-gradient-to-l from-transparent to-edge/50" aria-hidden />
@@ -559,9 +564,9 @@ function MessageBubble({
 
       <div className={cn("min-w-0 max-w-[85%] sm:max-w-[72%]", isMine && "order-2")}>
         {showSender && message.sender && (
-          <p className="mb-1 px-1 text-2xs font-bold text-primary">
+          <p className="mb-1 px-1 text-2xs font-semibold text-primary">
             <bdi>{message.sender.fullName}</bdi>
-            <span className="ms-1.5 font-bold text-ink-faint">{roleLabel(message.sender.role, language)}</span>
+            <span className="ms-1.5 font-medium text-ink-subtle">{roleLabel(message.sender.role, language)}</span>
           </p>
         )}
 
@@ -598,12 +603,12 @@ function MessageBubble({
                 isMine ? "border-white/50 bg-white/10" : "border-primary/50 bg-brand-50"
               )}
             >
-              <p className={cn("text-2xs font-bold", isMine ? "text-white/90" : "text-primary")}>
+              <p className={cn("text-2xs font-semibold", isMine ? "text-white/90" : "text-primary")}>
                 {message.replyTo.senderName ? <bdi>{message.replyTo.senderName}</bdi> : ui("Message")}
               </p>
               <p
                 className={cn(
-                  "truncate text-2xs font-semibold",
+                  "truncate text-2xs font-medium",
                   isMine ? "text-white/75" : "text-ink-muted"
                 )}
               >
@@ -615,7 +620,7 @@ function MessageBubble({
           {message.isDeleted ? (
             <p
               className={cn(
-                "flex items-center gap-1.5 text-xs font-semibold italic",
+                "flex items-center gap-1.5 text-xs font-medium italic",
                 isMine ? "text-white/70" : "text-ink-faint"
               )}
             >
@@ -641,7 +646,7 @@ function MessageBubble({
                           src={a.url}
                           alt={a.fileName}
                           loading="lazy"
-                          className="max-h-72 w-auto rounded-xl shadow-[0_6px_18px_-8px_rgba(31,26,35,0.4)]"
+                          className="max-h-72 w-auto rounded-xl shadow-[0_6px_18px_-8px_rgba(120,70,180,0.4)]"
                         />
                       </li>
                     ) : (
@@ -654,7 +659,7 @@ function MessageBubble({
                             "group/file flex items-center gap-2 rounded-xl px-2.5 py-2 text-2xs font-bold transition-all",
                             isMine
                               ? "bg-white/15 text-white hover:bg-white/25"
-                              : "bg-brand-50 text-primary hover:bg-[#f0e2f8]"
+                              : "bg-brand-50 text-primary hover:bg-brand-100"
                           )}
                         >
                           <FileText className="h-4 w-4 shrink-0" />
@@ -672,7 +677,7 @@ function MessageBubble({
 
           <p
             className={cn(
-              "mt-1 flex items-center justify-end gap-1 text-2xs font-bold",
+              "mt-1 flex items-center justify-end gap-1 text-2xs font-medium tabular-nums",
               isMine ? "text-white/70" : "text-ink-faint"
             )}
           >
@@ -685,9 +690,9 @@ function MessageBubble({
               (isPending ? (
                 sendState?.status === "sending" || !sendState ? <span className="inline-flex items-center gap-0.5" data-send-state="sending"><Clock className="h-2.5 w-2.5" aria-hidden />{ui("Sending…")}</span> : null
               ) : seen ? (
-                <span className="inline-flex items-center" data-send-state="seen" title={ui("Seen")}><CheckCheck className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">{ui("Seen")}</span></span>
+                <span className="inline-flex items-center" data-send-state="seen"><CheckCheck className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">{ui("Seen")}</span></span>
               ) : (
-                <span className="inline-flex items-center" data-send-state="sent" title={ui("Sent")}><Check className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">{ui("Sent")}</span></span>
+                <span className="inline-flex items-center" data-send-state="sent"><Check className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">{ui("Sent")}</span></span>
               ))}
           </p>
         </div>
@@ -704,7 +709,7 @@ function MessageBubble({
       {!message.isDeleted && !isPending && (
         <div
           className={cn(
-            "flex shrink-0 items-center gap-0.5 self-center rounded-full bg-white/90 p-0.5 opacity-0 shadow-[0_4px_14px_-6px_rgba(31,26,35,0.3)] ring-1 ring-edge/25 backdrop-blur transition-all",
+            "flex shrink-0 items-center gap-0.5 self-center rounded-full bg-white/90 p-0.5 opacity-0 shadow-[0_4px_14px_-6px_rgba(120,70,180,0.3)] ring-1 ring-edge/25 backdrop-blur transition-all",
             "focus-within:opacity-100 group-hover:opacity-100",
             isMine && "order-1"
           )}
@@ -732,11 +737,11 @@ function IconAction({
   destructive?: boolean;
 }) {
   return (
-    <Button variant="ghost" size="icon"
-      type="button"
+    <IconButton
+      variant="ghost"
+      size="sm"
       onClick={onClick}
-      aria-label={label}
-      title={label}
+      label={label}
       className={cn(
         "",
         destructive
@@ -744,8 +749,8 @@ function IconAction({
           : "text-ink-faint hover:bg-brand-50"
       )}
     >
-      <Icon className="h-3 w-3" />
-    </Button>
+      <Icon className="h-3 w-3" aria-hidden="true" />
+    </IconButton>
   );
 }
 
@@ -774,8 +779,8 @@ function EmptyThread({ title }: { title: string }) {
         <Sparkles className="h-6 w-6" />
       </span>
       <div>
-        <p className="text-xs font-bold text-ink-strong">{ui("No messages yet")}</p>
-        <p className="mt-1 text-2xs font-semibold text-ink-muted">
+        <p className="text-sm font-semibold text-ink-strong">{ui("No messages yet")}</p>
+        <p className="mt-1 text-xs text-ink-muted">
           {fill(ui("Say hello to {0}."), [title.split(" ")[0]])}
         </p>
       </div>
@@ -799,7 +804,7 @@ function ThreadSkeleton() {
             className={cn(
               "skeleton-shimmer h-11 rounded-2xl",
               row.w,
-              row.mine ? "rounded-ee-sm bg-[#e6d6f5]" : "rounded-es-sm bg-border-subtle"
+              row.mine ? "rounded-ee-sm bg-brand-100" : "rounded-es-sm bg-border-subtle"
             )}
           />
         </div>

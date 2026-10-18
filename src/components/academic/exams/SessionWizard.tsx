@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Field, inputClass, selectClass } from "@/components/academic/exams/shared";
@@ -228,7 +229,7 @@ export function SessionWizard({
       <div className="space-y-5">
         {/* ── What kind of exam ─────────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <p className="mb-2 ps-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             What kind of exam
           </p>
           <div className="grid gap-2.5 sm:grid-cols-2">
@@ -241,7 +242,7 @@ export function SessionWizard({
                   onClick={() => setExamType(t.value)}
                   aria-pressed={active}
                   className={"justify-start " + (cn(
-                    "group relative flex items-start gap-3 overflow-hidden p-3.5 text-left",
+                    "group relative flex items-start gap-3 overflow-hidden p-3.5 text-start",
                     active
                       ? ""
                       : "hover:-translate-y-0.5",
@@ -268,7 +269,7 @@ export function SessionWizard({
               );
             })}
           </div>
-          <p className="mt-2 pl-0.5 text-2xs font-semibold text-ink-subtle">
+          <p className="mt-2 ps-0.5 text-2xs font-semibold text-ink-subtle">
             Quizzes and class tests are created by teachers for their own subjects — they
             never need a date sheet or a seating plan.
           </p>
@@ -318,10 +319,10 @@ export function SessionWizard({
         {/* ── Which classes ─────────────────────────────────────────────── */}
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <p className="pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+            <p className="ps-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Which classes sit it
             </p>
-            <div className="ml-auto flex gap-1.5">
+            <div className="ms-auto flex gap-1.5">
               <Button variant="secondary"
                 type="button"
                 onClick={() => setSelected(new Set(classes.map((c) => c.id)))}
@@ -346,9 +347,12 @@ export function SessionWizard({
               ))}
             </div>
           ) : grouped.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-edge/35 p-6 text-center text-xs font-bold text-ink-muted">
-              No classes for {academicYear} yet. Create classes first.
-            </p>
+            <EmptyState
+              size="sm"
+              icon={School}
+              title={`No classes for ${academicYear} yet`}
+              description="Create classes for this academic year first, then schedule the exam."
+            />
           ) : (
             <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-edge/20 bg-surface-subtle p-2.5 custom-scrollbar">
               {grouped.map(([name, rows]) => {
@@ -380,7 +384,7 @@ export function SessionWizard({
                         {rows.length} section{rows.length === 1 ? "" : "s"}
                       </span>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5 pl-7">
+                    <div className="mt-2 flex flex-wrap gap-1.5 ps-7">
                       {rows.map((row) => {
                         const on = selected.has(row.id);
                         const n = countsOf(row);
@@ -390,7 +394,6 @@ export function SessionWizard({
                             type="button"
                             onClick={() => toggle(row.id)}
                             aria-pressed={on}
-                            title={`${n.students} students · ${n.subjects} subjects`}
                             className={"justify-start " + (cn(
                               "flex items-center gap-1.5 px-2.5 py-1",
                               "",
@@ -398,6 +401,9 @@ export function SessionWizard({
                             ))}
                           >
                             {labelOf(row)}
+                            <span className="text-xs font-normal text-ink-subtle tabular-nums">
+                              {n.students} students · {n.subjects} subjects
+                            </span>
                             <span className="flex items-center gap-0.5 text-2xs font-bold opacity-70">
                               <Users className="h-2.5 w-2.5" />
                               {n.students}

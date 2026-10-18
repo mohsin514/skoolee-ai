@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Pause, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { SkeletonBar } from "@/components/ui/skeleton";
 import { ACADEMIC_CYCLE_CHANGED } from "@/lib/cycleEvents";
 
 type CycleStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | null;
@@ -81,14 +83,14 @@ export function CycleBadge() {
     };
   }, [tr]);
 
-  if (loading) return <div className="h-7 w-32 animate-pulse rounded-xl bg-edge/20" />;
+  if (loading) return <SkeletonBar className="h-7 w-32 rounded-xl" />;
 
   if (!cycle) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-rose-200/50 bg-rose-50 px-3 py-1.5">
-        <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-        <span className="text-2xs font-semibold text-rose-600 uppercase tracking-wide">{tr("No Cycle")}</span>
-      </div>
+      <Badge variant="danger" dot>
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+        {tr("No Cycle")}
+      </Badge>
     );
   }
 

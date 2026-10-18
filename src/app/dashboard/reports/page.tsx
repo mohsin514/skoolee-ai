@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { toast } from "@/components/ui/toast";
 import {
   AlertCircle,
   BarChart3,
   Check,
+  CheckCircle2,
+  ClipboardList,
   Eye,
   FileText,
-  Globe,
-  Loader2,
+  Lock,
   Mail,
   MessageCircle,
   Pencil,
@@ -18,10 +20,11 @@ import {
   Sparkles,
   Trophy,
   Upload,
+  type LucideIcon,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -29,9 +32,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { FormField } from "@/components/ui/form-field";
+import { IconButton } from "@/components/ui/icon-button";
+import { InfoTip, Tooltip } from "@/components/ui/tooltip";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { SkeletonCards } from "@/components/ui/skeleton";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/role-dashboard/StatCard";
+import { cn } from "@/lib/utils";
 
 interface ReportCard {
   id: string;
@@ -81,12 +92,25 @@ interface Analytics {
   campusSummary: { lockedExams: number; publishedExams: number; reportCardsGenerated: number; reportsSent: number };
 }
 
-const deliveryMeta: Record<string, { label: string; className: string }> = {
-  NOT_SENT: { label: "Not sent", className: "bg-slate-100 text-slate-700" },
-  NO_CONTACT: { label: "No contact", className: "bg-amber-100 text-amber-700" },
-  SENT: { label: "Sent", className: "bg-emerald-100 text-emerald-700" },
-  FAILED: { label: "Failed", className: "bg-red-100 text-red-700" },
-  BLOCKED: { label: "Blocked", className: "bg-violet-100 text-violet-700" },
+type BadgeVariant = NonNullable<BadgeProps["variant"]>;
+type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
+type ConfirmKind = "publish" | "send" | "remarks";
+
+const deliveryMeta: Record<string, { label: string; variant: BadgeVariant }> = {
+  NOT_SENT: { label: "Not sent", variant: "neutral" },
+  NO_CONTACT: { label: "No contact", variant: "warning" },
+  SENT: { label: "Sent", variant: "success" },
+  FAILED: { label: "Failed", variant: "danger" },
+  BLOCKED: { label: "Blocked", variant: "secondary" },
+};
+
+const examStatusLabel: Record<Exam["status"], string> = {
+  DRAFT: "Draft",
+  ACTIVE: "Active",
+  MARKS_ENTRY: "Marks entry",
+  LOCKED: "Locked",
+  PRINCIPAL_REVIEWED: "Principal reviewed",
+  PUBLISHED: "Published",
 };
 
 function classLabel(exam: Exam) {
@@ -94,12 +118,35 @@ function classLabel(exam: Exam) {
   return [exam.class.name, exam.class.section].filter(Boolean).join(" - ");
 }
 
-function statusBadge(status: Exam["status"]) {
-  if (status === "PUBLISHED") return "bg-violet-100 text-violet-700";
-  if (status === "PRINCIPAL_REVIEWED") return "bg-emerald-100 text-emerald-700";
-  if (status === "LOCKED") return "bg-red-100 text-red-700";
-  return "bg-slate-100 text-slate-700";
+function statusVariant(status: Exam["status"]): BadgeVariant {
+  if (status === "PUBLISHED") return "secondary";
+  if (status === "PRINCIPAL_REVIEWED") return "success";
+  if (status === "LOCKED") return "warning";
+  return "neutral";
 }
+
+const delay = (ms: number) => ({ "--sk-delay": `${ms}ms` }) as CSSProperties;
+
+const CONFIRM_COPY: Record<ConfirmKind, { title: string; description: string; confirmLabel: string; tone: "primary" | "warning" }> = {
+  publish: {
+    title: "Publish report cards?",
+    description: "This publishes the current approved version of every report card in this exam. Sending them to guardians is a separate step.",
+    confirmLabel: "Publish",
+    tone: "primary",
+  },
+  send: {
+    title: "Send report cards to guardians?",
+    description: "Each guardian is notified that their child's report card is ready. Messages that have gone out cannot be recalled.",
+    confirmLabel: "Send to guardians",
+    tone: "primary",
+  },
+  remarks: {
+    title: "Replace existing remarks?",
+    description: "New AI drafts replace the current remarks of every student with marks in this exam. Their approvals are cleared and their PDFs must be generated again.",
+    confirmLabel: "Replace remarks",
+    tone: "warning",
+  },
+};
 
 export default function ReportsPage() {
   const [exams, setExams] = useState<Exam[]>([]);
@@ -112,16 +159,38 @@ export default function ReportsPage() {
   const [tone, setTone] = useState<"formal" | "encouraging" | "constructive">("encouraging");
   const [language, setLanguage] = useState<"en" | "ur" | "both">("both");
   const [loadingExams, setLoadingExams] = useState(true);
+  const [examsError, setExamsError] = useState(false);
+  const [reportsError, setReportsError] = useState(false);
+  const [approvingRemark, setApprovingRemark] = useState(false);
+  const [confirming, setConfirming] = useState<ConfirmKind | null>(null);
 
-  useEffect(() => {
-    fetch("/api/exams")
-      .then((res) => res.json())
+  const fetchExams = useCallback(() => {
+    return fetch("/api/exams")
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not load exams");
+        return data;
+      })
       .then((data) => {
         setExams((data.exams || []).filter((exam: Exam) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status)));
+        setExamsError(false);
       })
-      .catch(() => toast.error("Could not load locked exams"))
+      .catch(() => {
+        setExamsError(true);
+        toast.error("Could not load exams. Please try again.");
+      })
       .finally(() => setLoadingExams(false));
   }, []);
+
+  useEffect(() => {
+    void fetchExams();
+  }, [fetchExams]);
+
+  const retryExams = () => {
+    setLoadingExams(true);
+    setExamsError(false);
+    void fetchExams();
+  };
 
   const loadReportCards = async (exam: Exam) => {
     setSelectedExam(exam);
@@ -129,18 +198,20 @@ export default function ReportsPage() {
     try {
       const res = await fetch(`/api/reports?examId=${exam.id}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not load reports");
+      if (!res.ok) throw new Error(data.error || "Could not load the report cards for this exam.");
       setSelectedExam(data.exam || exam);
       setReportCards(data.reportCards || []);
       setAnalytics(data.analytics || null);
+      setReportsError(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load reports");
+      setReportsError(true);
+      toast.error(error instanceof Error ? error.message : "Could not load the report cards for this exam.");
     } finally {
       setBusyAction(null);
     }
   };
 
-  const runReportAction = async (action: "generate" | "pdf" | "review" | "publish" | "send", successMessage: string) => {
+  const runReportAction = async (action: ReportAction, successMessage: string) => {
     if (!selectedExam) return;
     setBusyAction(action);
     try {
@@ -150,12 +221,12 @@ export default function ReportsPage() {
         body: JSON.stringify({ examId: selectedExam.id, action }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Report action failed");
+      if (!res.ok) throw new Error(data.error || "Could not complete this action. Please try again.");
       if (data.jobId) { window.location.assign(`/jobs?id=${data.jobId}`); return; }
       toast.success(successMessage);
       await loadReportCards(selectedExam);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Report action failed");
+      toast.error(error instanceof Error ? error.message : "Could not complete this action. Please try again.");
     } finally {
       setBusyAction(null);
     }
@@ -171,11 +242,16 @@ export default function ReportsPage() {
         body: JSON.stringify({ batch: true, examId: selectedExam.id, language, tone }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "AI generation failed");
-      toast.success(`Generated remarks for ${data.succeeded} students`);
+      if (!res.ok) throw new Error(data.error || "Could not draft remarks right now. Please try again.");
+      toast.success(typeof data.total === "number"
+        ? `Drafted remarks for ${data.succeeded} of ${data.total} students`
+        : `Drafted remarks for ${data.succeeded} students`);
+      if (Array.isArray(data.failed) && data.failed.length > 0) {
+        toast.warning(`${data.failed.length} remarks could not be drafted. Write those by hand.`);
+      }
       await loadReportCards(selectedExam);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "AI generation failed");
+      toast.error(error instanceof Error ? error.message : "Could not draft remarks right now. Please try again.");
     } finally {
       setBusyAction(null);
     }
@@ -183,6 +259,7 @@ export default function ReportsPage() {
 
   const saveEditedRemark = async (reportCardId: string, approve = false) => {
     setBusyAction(`remark-${reportCardId}`);
+    setApprovingRemark(approve);
     try {
       const res = await fetch(`/api/reports/${reportCardId}`, {
         method: "PATCH",
@@ -190,12 +267,12 @@ export default function ReportsPage() {
         body: JSON.stringify({ remarksEn: editedRemarks.en, remarksUr: editedRemarks.ur, approve }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save remarks");
+      if (!res.ok) throw new Error(data.error || "Could not save the remarks. Please try again.");
       setReportCards((prev) => prev.map((report) => (report.id === reportCardId ? { ...report, ...data.reportCard, student: report.student } : report)));
       setEditingId(null);
-      toast.success(approve ? "Remarks approved" : "Remarks saved");
+      toast.success(approve ? "Remarks saved and approved" : "Remarks saved");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save remarks");
+      toast.error(error instanceof Error ? error.message : "Could not save the remarks. Please try again.");
     } finally {
       setBusyAction(null);
     }
@@ -205,6 +282,23 @@ export default function ReportsPage() {
   const pdfCount = reportCards.filter((report) => report.pdfUrl).length;
   const sentCount = reportCards.filter((report) => report.isSent).length;
   const withRemarks = reportCards.filter((report) => report.remarksEn || report.remarksUr).length;
+  const loadingReports = busyAction === "load";
+
+  const actionIcon = (action: string, Icon: LucideIcon) => (busyAction === action ? null : <Icon aria-hidden="true" />);
+
+  const confirmCurrent = async () => {
+    if (confirming === "remarks") await generateBatchRemarks();
+    else if (confirming === "publish") await runReportAction("publish", "Report cards published");
+    else if (confirming === "send") await runReportAction("send", "Delivery started");
+    setConfirming(null);
+  };
+
+  const requestRemarks = () => {
+    if (withRemarks > 0) setConfirming("remarks");
+    else void generateBatchRemarks();
+  };
+
+  const confirmCopy = confirming ? CONFIRM_COPY[confirming] : null;
 
   return (
     <div className="flex-1 flex flex-col">
@@ -213,116 +307,128 @@ export default function ReportsPage() {
         description="Review remarks, generate PDFs, publish results, and track parent delivery"
         actions={
           selectedExam ? (
-            <div className="flex items-center gap-2">
-              <Button onClick={() => runReportAction("pdf", "PDFs generated")} disabled={busyAction === "pdf"} variant="outline" size="sm">
-                {busyAction === "pdf" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                PDFs
-              </Button>
-              <Button onClick={() => runReportAction("review", "Exam marked as principal reviewed")} disabled={busyAction === "review"} variant="outline" size="sm">
-                {busyAction === "review" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-                Review
-              </Button>
-              <Button onClick={() => runReportAction("publish", "Reports published")} disabled={busyAction === "publish"} variant="outline" size="sm">
-                {busyAction === "publish" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                Publish
-              </Button>
-              <Button onClick={() => runReportAction("send", "Delivery attempted")} disabled={busyAction === "send"} size="sm">
-                {busyAction === "send" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                Send
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Tooltip content="Creates a PDF of every report card in this exam. You follow its progress on the Jobs page.">
+                <Button onClick={() => runReportAction("pdf", "PDF generation started")} loading={busyAction === "pdf"} variant="outline" size="sm">
+                  {actionIcon("pdf", FileText)}
+                  Generate PDFs
+                </Button>
+              </Tooltip>
+              <Tooltip content="Records the principal's review of this exam. Every report card must be approved first.">
+                <Button onClick={() => runReportAction("review", "Exam marked as principal reviewed")} loading={busyAction === "review"} variant="outline" size="sm">
+                  {actionIcon("review", ShieldCheck)}
+                  Mark reviewed
+                </Button>
+              </Tooltip>
+              <Tooltip content="Publishes the approved report cards. The exam needs principal review first.">
+                <Button onClick={() => setConfirming("publish")} loading={busyAction === "publish"} variant="outline" size="sm">
+                  {actionIcon("publish", Upload)}
+                  Publish
+                </Button>
+              </Tooltip>
+              <Tooltip content="Notifies each guardian that the report card is ready. Publish the exam first.">
+                <Button onClick={() => setConfirming("send")} loading={busyAction === "send"} size="sm">
+                  {actionIcon("send", Send)}
+                  Send to guardians
+                </Button>
+              </Tooltip>
             </div>
           ) : undefined
         }
       />
 
-      <div className="p-6 space-y-6">
-        <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "0ms" }}>
+      <div className="space-y-6 p-4 sm:p-6">
+        <Card className="sk-enter">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Locked Exams</CardTitle>
-            <CardDescription>Report cards are generated from locked exams only</CardDescription>
+            <CardDescription>Report cards are generated from locked exams only. Choose one to review it.</CardDescription>
           </CardHeader>
           <CardContent>
             {loadingExams ? (
               <SkeletonCards count={4} label="Loading exams" />
+            ) : examsError ? (
+              <ErrorState
+                title="Could not load exams"
+                description="The list of locked exams did not load. Check your connection and try again."
+                onRetry={retryExams}
+              />
+            ) : exams.length === 0 ? (
+              <EmptyState
+                size="sm"
+                icon={Lock}
+                title="No locked exams yet"
+                description="Report cards are built from locked exams. Lock an exam in Academic Engine once its marks are final."
+                action={
+                  <Link href="/dashboard/marks" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                    <ClipboardList aria-hidden="true" />
+                    Open Academic Engine
+                  </Link>
+                }
+              />
             ) : (
-            <div className="flex flex-wrap gap-3">
-              {exams.map((exam) => (
-                <Button aria-pressed={selectedExam?.id === exam.id} variant="choice"
-                  key={exam.id}
-                  onClick={() => loadReportCards(exam)}
-                  className="block p-4 text-start"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{exam.title}</span>
-                    <Badge className={`text-xs ${statusBadge(exam.status)}`}>{exam.status.replaceAll("_", " ")}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {exam.term} {exam.academicYear} {classLabel(exam) ? `| ${classLabel(exam)}` : ""}
-                  </p>
-                </Button>
-              ))}
-              {exams.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No locked exams yet. Lock an exam from Academic Engine first.</p>
-              ) : null}
-            </div>
+              <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {exams.map((exam) => (
+                  <Button aria-pressed={selectedExam?.id === exam.id} variant="choice"
+                    key={exam.id}
+                    onClick={() => loadReportCards(exam)}
+                    className="block h-auto w-full p-4 text-start"
+                  >
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 text-sm font-semibold text-ink-strong">{exam.title}</span>
+                      <Badge size="sm" variant={statusVariant(exam.status)} dot>{examStatusLabel[exam.status] ?? exam.status.replaceAll("_", " ")}</Badge>
+                    </span>
+                    <span className="mt-1 block text-xs font-normal text-ink-muted">
+                      <span data-numeric>{exam.term} {exam.academicYear}</span>
+                      {classLabel(exam) ? ` · ${classLabel(exam)}` : ""}
+                    </span>
+                  </Button>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
 
         {selectedExam ? (
           <>
-            <div className="grid gap-3 md:grid-cols-4">
-              <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "0ms" }}>
-                <CardContent className="pt-5">
-                  <p className="text-xs text-muted-foreground">Class Average</p>
-                  <p className="text-2xl font-semibold">{analytics?.classAverage || 0}%</p>
-                </CardContent>
-              </Card>
-              <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "60ms" }}>
-                <CardContent className="pt-5">
-                  <p className="text-xs text-muted-foreground">Pass / Fail</p>
-                  <p className="text-2xl font-semibold">{analytics?.passCount || 0} / {analytics?.failCount || 0}</p>
-                </CardContent>
-              </Card>
-              <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
-                <CardContent className="pt-5">
-                  <p className="text-xs text-muted-foreground">Approved Remarks</p>
-                  <p className="text-2xl font-semibold">{approvedCount}/{reportCards.length}</p>
-                </CardContent>
-              </Card>
-              <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "180ms" }}>
-                <CardContent className="pt-5">
-                  <p className="text-xs text-muted-foreground">PDFs / Sent</p>
-                  <p className="text-2xl font-semibold">{pdfCount}/{sentCount}</p>
-                </CardContent>
-              </Card>
+            <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard icon={BarChart3} label="Class Average" value={`${analytics?.classAverage || 0}%`} sub="Mean percentage across report cards" />
+              <StatCard icon={CheckCircle2} tone="green" label="Pass / Fail" value={`${analytics?.passCount || 0} / ${analytics?.failCount || 0}`} sub="Pass mark is 50%" />
+              <StatCard icon={Check} label="Approved Remarks" value={`${approvedCount}/${reportCards.length}`} sub="Report cards with approved remarks" />
+              <StatCard icon={FileText} tone="dark" label="PDFs / Sent" value={`${pdfCount}/${sentCount}`} sub="PDFs generated / sent to guardians" />
             </div>
 
-            <Card className="sk-rise border-primary/20 bg-primary/5" style={{ animationDelay: "200ms" }}>
-              <CardContent className="pt-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-                  <div className="flex-1">
-                    <h3 className="font-semibold flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      AI Remarks
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {withRemarks}/{reportCards.length} drafted, {approvedCount} approved
+            <Card variant="featured" className="sk-enter" style={delay(120)}>
+              <CardContent className="p-5 sm:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="flex items-center gap-2 text-base font-bold text-ink-strong">
+                        <Sparkles aria-hidden="true" className="h-4 w-4 text-primary" />
+                        AI Remarks
+                      </h2>
+                      <InfoTip content="Drafts a remark for each student with marks in this exam. Review and approve every draft before the exam is published." />
+                    </div>
+                    <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                      <span data-numeric>{withRemarks}/{reportCards.length}</span> drafted · <span data-numeric>{approvedCount}</span> approved
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Select value={tone} onChange={(event) => setTone(event.target.value as typeof tone)} className={"w-[150px]"}>
-                      <option value="encouraging">Encouraging</option>
-                      <option value="formal">Formal</option>
-                      <option value="constructive">Constructive</option>
-                    </Select>
-                    <Select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className={"w-[160px]"}>
-                      <option value="both">English + Urdu</option>
-                      <option value="en">English only</option>
-                      <option value="ur">Urdu only</option>
-                    </Select>
-                    <Button onClick={generateBatchRemarks} disabled={busyAction === "remarks"} size="sm">
-                      {busyAction === "remarks" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end lg:w-auto">
+                    <FormField name="remark-tone" label="Tone" className="min-w-0 sm:w-40">
+                      <Select value={tone} onChange={(event) => setTone(event.target.value as typeof tone)}>
+                        <option value="encouraging">Encouraging</option>
+                        <option value="formal">Formal</option>
+                        <option value="constructive">Constructive</option>
+                      </Select>
+                    </FormField>
+                    <FormField name="remark-language" label="Language" className="min-w-0 sm:w-44">
+                      <Select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)}>
+                        <option value="both">English + Urdu</option>
+                        <option value="en">English only</option>
+                        <option value="ur">Urdu only</option>
+                      </Select>
+                    </FormField>
+                    <Button onClick={requestRemarks} loading={busyAction === "remarks"} className="w-full sm:w-auto">
+                      {actionIcon("remarks", Sparkles)}
                       Generate
                     </Button>
                   </div>
@@ -331,227 +437,257 @@ export default function ReportsPage() {
             </Card>
 
             <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
-              <div className="space-y-3">
-                {busyAction === "load" ? (
+              <div className="min-w-0 space-y-3">
+                {loadingReports ? (
+                  <SkeletonList rows={4} label="Loading report cards" />
+                ) : reportsError ? (
                   <Card>
-                    <CardContent className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </CardContent>
+                    <ErrorState
+                      title="Could not load report cards"
+                      description="The report cards for this exam did not load. Check your connection and try again."
+                      onRetry={() => { void loadReportCards(selectedExam); }}
+                    />
                   </Card>
-                ) : null}
+                ) : reportCards.length === 0 ? (
+                  <Card>
+                    <EmptyState
+                      icon={FileText}
+                      title="No report cards for this exam yet"
+                      description="Generate them from the exam's locked marks. Locking an exam normally does this for you."
+                      action={
+                        <Button onClick={() => runReportAction("generate", "Report cards generated for this exam")} loading={busyAction === "generate"}>
+                          {actionIcon("generate", FileText)}
+                          Generate report cards
+                        </Button>
+                      }
+                    />
+                  </Card>
+                ) : (
+                  reportCards.map((report, index) => {
+                    const delivery = deliveryMeta[report.deliveryStatus] || deliveryMeta.NOT_SENT;
+                    const attendance = report.attendanceTotal ? `${report.attendancePresent}/${report.attendanceTotal}` : "Not recorded";
+                    const remarkBusy = busyAction === `remark-${report.id}`;
+                    return (
+                      <Card
+                        key={report.id}
+                        className={cn("sk-enter overflow-hidden", report.isSent && "border-status-success-border")}
+                        style={delay(Math.min(index, 8) * 40)}
+                      >
+                        <CardContent className="p-4 sm:p-5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-3 flex flex-wrap items-center gap-2">
+                                <h3 className="min-w-0 break-words text-base font-semibold text-ink-strong">{report.student.fullName}</h3>
+                                <span data-numeric className="text-xs text-ink-subtle">#{report.student.rollNo}</span>
+                                <Badge variant="secondary" size="sm"><span data-numeric>Rank {report.rank || "-"}</span></Badge>
+                                <Badge variant="secondary" size="sm"><span data-numeric>{report.percentage.toFixed(1)}% - {report.grade || "-"}</span></Badge>
+                                <Badge variant={delivery.variant} size="sm" dot>{delivery.label}</Badge>
+                                {report.remarksApproved ? (
+                                  <Badge variant="success" size="sm">
+                                    <Check aria-hidden="true" /> Approved
+                                  </Badge>
+                                ) : null}
+                              </div>
 
-                {reportCards.map((report, index) => {
-                  const delivery = deliveryMeta[report.deliveryStatus] || deliveryMeta.NOT_SENT;
-                  const attendance = report.attendanceTotal ? `${report.attendancePresent}/${report.attendanceTotal}` : "Not recorded";
-                  return (
-                    <Card
-                      key={report.id}
-                      className={`sk-rise overflow-hidden border border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] ${report.isSent ? "border-green-200 bg-green-50/30" : ""}`}
-                      style={{ animationDelay: `${index * 60}ms` }}
-                    >
-                      <CardContent className="pt-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex flex-wrap items-center gap-2 mb-3">
-                              <span className="font-semibold">{report.student.fullName}</span>
-                              <span className="text-xs text-muted-foreground">#{report.student.rollNo}</span>
-                              <Badge variant="secondary" className="text-xs">Rank {report.rank || "-"}</Badge>
-                              <Badge variant="secondary" className="text-xs">{report.percentage.toFixed(1)}% - {report.grade || "-"}</Badge>
-                              <Badge className={`text-xs ${delivery.className}`}>{delivery.label}</Badge>
-                              {report.remarksApproved ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 text-xs">
-                                  <Check className="h-3 w-3 mr-1" /> Approved
-                                </Badge>
+                              <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-ink-muted sm:grid-cols-4">
+                                <span>Total: <span data-numeric>{report.obtainedMarks}/{report.totalMarks}</span></span>
+                                <span>Attendance: <span data-numeric>{attendance}</span></span>
+                                <span className="flex items-center gap-1">
+                                  <MessageCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /> {report.student.guardianWhatsapp ? "WhatsApp" : "No WhatsApp"}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Mail aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /> {report.student.guardianEmail ? "Email" : "No email"}
+                                </span>
+                              </div>
+
+                              {editingId === report.id ? (
+                                <div className="space-y-3">
+                                  <FormField name={`remarks-en-${report.id}`} label="English remarks">
+                                    <Textarea
+                                      value={editedRemarks.en}
+                                      onChange={(event) => setEditedRemarks((prev) => ({ ...prev, en: event.target.value }))}
+                                      rows={3}
+                                    />
+                                  </FormField>
+                                  <FormField name={`remarks-ur-${report.id}`} label="Urdu remarks">
+                                    <Textarea
+                                      value={editedRemarks.ur}
+                                      onChange={(event) => setEditedRemarks((prev) => ({ ...prev, ur: event.target.value }))}
+                                      rows={3}
+                                      dir="rtl"
+                                      lang="ur"
+                                    />
+                                  </FormField>
+                                  <div className="flex flex-wrap justify-end gap-2">
+                                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                                    <Button size="sm" variant="outline" onClick={() => saveEditedRemark(report.id)} loading={remarkBusy && !approvingRemark} disabled={remarkBusy}>Save</Button>
+                                    <Button size="sm" onClick={() => saveEditedRemark(report.id, true)} loading={remarkBusy && approvingRemark} disabled={remarkBusy}>
+                                      {remarkBusy && approvingRemark ? null : <Check aria-hidden="true" />}
+                                      Save and approve
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {report.remarksEn ? (
+                                    <div className="rounded-xl border border-status-info-border bg-status-info-surface px-3 py-2">
+                                      <p className="mb-0.5 text-2xs font-semibold text-status-info-text">English</p>
+                                      <p className="text-sm leading-relaxed text-ink">{report.remarksEn}</p>
+                                    </div>
+                                  ) : null}
+                                  {report.remarksUr ? (
+                                    <div className="rounded-xl border border-status-success-border bg-status-success-surface px-3 py-2">
+                                      <p className="mb-0.5 text-2xs font-semibold text-status-success-text">Urdu</p>
+                                      <p className="text-sm leading-relaxed text-ink" dir="rtl" lang="ur">{report.remarksUr}</p>
+                                    </div>
+                                  ) : null}
+                                  {!report.remarksEn && !report.remarksUr ? (
+                                    <p className="text-sm text-ink-subtle">No remarks yet. Generate AI drafts above or write them with Edit remarks.</p>
+                                  ) : null}
+                                  {report.deliveryError ? (
+                                    <p className="flex items-start gap-2 text-xs leading-relaxed text-status-error-text">
+                                      <AlertCircle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
+                                      {report.deliveryError}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex shrink-0 flex-col gap-1">
+                              {editingId !== report.id ? (
+                                <IconButton
+                                  label="Edit remarks"
+                                  onClick={() => {
+                                    setEditingId(report.id);
+                                    setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" });
+                                  }}
+                                >
+                                  <Pencil aria-hidden="true" />
+                                </IconButton>
+                              ) : null}
+                              {report.pdfUrl ? (
+                                <Tooltip content="Open PDF" describe={false}>
+                                  <a
+                                    href={report.pdfUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    aria-label="Open PDF"
+                                    className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "min-h-10 min-w-10 p-0")}
+                                  >
+                                    <Eye aria-hidden="true" />
+                                  </a>
+                                </Tooltip>
                               ) : null}
                             </div>
-
-                            <div className="mb-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-4">
-                              <span>Total: {report.obtainedMarks}/{report.totalMarks}</span>
-                              <span>Attendance: {attendance}</span>
-                              <span className="flex items-center gap-1">
-                                <MessageCircle className="h-3.5 w-3.5" /> {report.student.guardianWhatsapp ? "WhatsApp" : "No WhatsApp"}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Mail className="h-3.5 w-3.5" /> {report.student.guardianEmail ? "Email" : "No email"}
-                              </span>
-                            </div>
-
-                            {editingId === report.id ? (
-                              <div className="space-y-3">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Globe className="h-3.5 w-3.5 text-blue-500" />
-                                    <span className="text-xs font-medium text-blue-600">English Remarks</span>
-                                  </div>
-                                  <Textarea
-                                    value={editedRemarks.en}
-                                    onChange={(event) => setEditedRemarks((prev) => ({ ...prev, en: event.target.value }))}
-                                    rows={3}
-
-                                  />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Globe className="h-3.5 w-3.5 text-green-500" />
-                                    <span className="text-xs font-medium text-green-600">Urdu Remarks</span>
-                                  </div>
-                                  <Textarea
-                                    value={editedRemarks.ur}
-                                    onChange={(event) => setEditedRemarks((prev) => ({ ...prev, ur: event.target.value }))}
-                                    rows={3}
-                                    dir="rtl"
-
-                                  />
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button size="sm" onClick={() => saveEditedRemark(report.id)} disabled={busyAction === `remark-${report.id}`}>Save</Button>
-                                  <Button size="sm" onClick={() => saveEditedRemark(report.id, true)} disabled={busyAction === `remark-${report.id}`}>
-                                    Approve
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {report.remarksEn ? (
-                                  <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
-                                    <p className="text-xs text-blue-500 mb-0.5">English</p>
-                                    <p className="text-sm">{report.remarksEn}</p>
-                                  </div>
-                                ) : null}
-                                {report.remarksUr ? (
-                                  <div className="rounded-lg bg-green-50 border border-green-100 px-3 py-2">
-                                    <p className="text-xs text-green-500 mb-0.5">Urdu</p>
-                                    <p className="text-sm" dir="rtl">{report.remarksUr}</p>
-                                  </div>
-                                ) : null}
-                                {!report.remarksEn && !report.remarksUr ? (
-                                  <p className="text-sm text-muted-foreground italic">No remarks generated yet</p>
-                                ) : null}
-                                {report.deliveryError ? (
-                                  <p className="flex items-center gap-2 text-xs text-red-600">
-                                    <AlertCircle className="h-3.5 w-3.5" />
-                                    {report.deliveryError}
-                                  </p>
-                                ) : null}
-                              </div>
-                            )}
                           </div>
-
-                          <div className="flex flex-col gap-2">
-                            {editingId !== report.id ? (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8"
-                                onClick={() => {
-                                  setEditingId(report.id);
-                                  setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" });
-                                }}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            ) : null}
-                            {report.pdfUrl ? (
-                              <a href={report.pdfUrl} target="_blank" rel="noreferrer">
-                                <Button size="icon" variant="ghost" className="h-8 w-8">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-
-                {reportCards.length === 0 && busyAction !== "load" ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="mx-auto h-10 w-10 mb-3 opacity-30" />
-                    <p>No report cards yet. Select a locked exam above.</p>
-                  </div>
-                ) : null}
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
               </div>
 
-              <div className="space-y-3">
-                <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "80ms" }}>
+              <div className="min-w-0 space-y-3">
+                <Card className="sk-enter" style={delay(80)}>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Trophy className="h-4 w-4" />
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Trophy aria-hidden="true" className="h-4 w-4 text-primary" />
                       Top Students
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    {(analytics?.topStudents || []).map((student) => (
-                      <div key={student.studentId} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                        <span>{student.rank}. {student.name}</span>
-                        <span className="font-semibold">{student.percentage}%</span>
-                      </div>
-                    ))}
+                  <CardContent>
+                    {(analytics?.topStudents || []).length === 0 ? (
+                      <EmptyState size="sm" icon={Trophy} className="py-6" title="No rankings yet" description="The top five appear once report cards are generated." />
+                    ) : (
+                      <ol className="space-y-2">
+                        {(analytics?.topStudents || []).map((student) => (
+                          <li key={student.studentId} className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle px-3 py-2 text-sm">
+                            <span className="min-w-0 truncate text-ink">
+                              <span data-numeric className="me-1.5 font-semibold text-ink-subtle">{student.rank ?? "-"}.</span>
+                              {student.name}
+                            </span>
+                            <span data-numeric className="shrink-0 font-semibold text-ink-strong">{student.percentage}%</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                   </CardContent>
                 </Card>
 
-                <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
+                <Card className="sk-enter" style={delay(160)}>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4" />
-                      Needs Attention
-                    </CardTitle>
+                    <div className="flex items-center gap-1.5">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <AlertCircle aria-hidden="true" className="h-4 w-4 text-status-warning-text" />
+                        Needs Attention
+                      </CardTitle>
+                      <InfoTip content="Students below 50% overall, or with attendance under 75%. Shows up to eight." />
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    {(analytics?.studentsNeedingAttention || []).map((student) => (
-                      <div key={student.studentId} className="rounded-lg border px-3 py-2 text-sm">
-                        <div className="flex items-center justify-between">
-                          <span>{student.name}</span>
-                          <span className="font-semibold">{student.percentage}%</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Attendance: {student.attendancePercentage === null ? "Not recorded" : `${student.attendancePercentage}%`}
-                        </p>
-                      </div>
-                    ))}
+                  <CardContent>
+                    {(analytics?.studentsNeedingAttention || []).length === 0 ? (
+                      <EmptyState size="sm" icon={CheckCircle2} className="py-6" title="Nobody flagged" description="No student is below 50% or under 75% attendance in this exam." />
+                    ) : (
+                      <ul className="space-y-2">
+                        {(analytics?.studentsNeedingAttention || []).map((student) => (
+                          <li key={student.studentId} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="min-w-0 truncate text-ink">{student.name}</span>
+                              <span data-numeric className="shrink-0 font-semibold text-ink-strong">{student.percentage}%</span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-ink-subtle">
+                              Attendance: <span data-numeric>{student.attendancePercentage === null ? "Not recorded" : `${student.attendancePercentage}%`}</span>
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </CardContent>
                 </Card>
 
-                <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "240ms" }}>
+                <Card className="sk-enter" style={delay(240)}>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4" />
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <BarChart3 aria-hidden="true" className="h-4 w-4 text-primary" />
                       Subject Averages
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    {(analytics?.subjectAverages || []).map((subject) => (
-                      <div key={subject.subjectId} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                        <span>{subject.subject}</span>
-                        <span className="font-semibold">{subject.average}%</span>
-                      </div>
-                    ))}
+                  <CardContent>
+                    {(analytics?.subjectAverages || []).length === 0 ? (
+                      <EmptyState size="sm" icon={BarChart3} className="py-6" title="No subject marks yet" description="Averages appear once marks are entered for this exam." />
+                    ) : (
+                      <ul className="space-y-2">
+                        {(analytics?.subjectAverages || []).map((subject) => (
+                          <li key={subject.subjectId} className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle px-3 py-2 text-sm">
+                            <span className="min-w-0 truncate text-ink">{subject.subject}</span>
+                            <span data-numeric className="shrink-0 font-semibold text-ink-strong">{subject.average}%</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </CardContent>
                 </Card>
 
-                <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "320ms" }}>
+                <Card className="sk-enter" style={delay(320)}>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Campus Summary</CardTitle>
+                    <div className="flex items-center gap-1.5">
+                      <CardTitle className="text-base">Campus Summary</CardTitle>
+                      <InfoTip content="Exam counts cover this academic year. Report counts cover every year on this campus." />
+                    </div>
                   </CardHeader>
                   <CardContent className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Locked Exams</p>
-                      <p className="text-xl font-semibold">{analytics?.campusSummary.lockedExams || 0}</p>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Published</p>
-                      <p className="text-xl font-semibold">{analytics?.campusSummary.publishedExams || 0}</p>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Reports</p>
-                      <p className="text-xl font-semibold">{analytics?.campusSummary.reportCardsGenerated || 0}</p>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Sent</p>
-                      <p className="text-xl font-semibold">{analytics?.campusSummary.reportsSent || 0}</p>
-                    </div>
+                    {[
+                      { label: "Locked Exams", value: analytics?.campusSummary.lockedExams || 0 },
+                      { label: "Published", value: analytics?.campusSummary.publishedExams || 0 },
+                      { label: "Reports", value: analytics?.campusSummary.reportCardsGenerated || 0 },
+                      { label: "Sent", value: analytics?.campusSummary.reportsSent || 0 },
+                    ].map((item) => (
+                      <div key={item.label} className="min-w-0 rounded-xl border border-border-subtle bg-surface-subtle p-3">
+                        <p className="truncate text-xs text-ink-muted">{item.label}</p>
+                        <p data-numeric className="text-xl font-bold text-ink-strong">{item.value}</p>
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
               </div>
@@ -559,6 +695,20 @@ export default function ReportsPage() {
           </>
         ) : null}
       </div>
+
+      {confirmCopy ? (
+        <ConfirmAction
+          open
+          title={confirmCopy.title}
+          description={confirmCopy.description}
+          confirmLabel={confirmCopy.confirmLabel}
+          tone={confirmCopy.tone}
+          busy={busyAction === confirming}
+          detail={selectedExam ? [selectedExam.title, classLabel(selectedExam)].filter(Boolean).join(" · ") : undefined}
+          onConfirm={() => { void confirmCurrent(); }}
+          onCancel={() => setConfirming(null)}
+        />
+      ) : null}
     </div>
   );
 }

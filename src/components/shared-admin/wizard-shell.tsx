@@ -2,8 +2,9 @@
 
 import { Button as SystemButton } from "@/components/ui/button";
 import React, { useEffect, useId } from "react";
-import { ArrowLeft, ArrowRight, Check, Loader2, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, X, type LucideIcon } from "lucide-react";
 import { FormField } from "@/components/ui/form-field";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
 import { ModalSurface, useModalSurface } from "@/components/ui/modal";
 
@@ -90,31 +91,31 @@ function WizardChrome({
           {...dragHandleProps}
           className="relative shrink-0 touch-none overflow-hidden border-b border-edge/20 bg-gradient-to-br from-surface-subtle via-white to-brand-100 px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
         >
-          <div className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl from-primary/12 to-transparent blur-3xl" />
+          <div className="pointer-events-none absolute -top-16 -end-10 h-40 w-40 rounded-full bg-gradient-to-bl from-primary/12 to-transparent blur-3xl" />
           <div className="relative flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3.5">
               <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
                 <Icon className="h-6 w-6" />
               </span>
               <div className="min-w-0">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
+                <p className="sk-eyebrow text-primary">
                   {eyebrow} · Step {step + 1} of {steps.length}
                 </p>
                 <h3 id={titleId} className="break-words text-xl sm:text-2xl font-bold tracking-tight text-ink-strong">
                   {current.label}
                 </h3>
-                <p className="mt-0.5 text-xs font-semibold leading-snug text-ink-muted">{current.blurb}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">{current.blurb}</p>
               </div>
             </div>
-            <SystemButton variant="ghost"
-              type="button"
+            <IconButton
+              label="Close"
+              variant="ghost"
               onClick={requestClose}
               disabled={submitting}
-              aria-label="Close"
-              className="group/x flex shrink-0 items-center justify-center"
+              className="group/x"
             >
-              <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
-            </SystemButton>
+              <X aria-hidden="true" className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
+            </IconButton>
           </div>
 
           {/* Step rail. Completed steps carry a tick and stay clickable so you
@@ -169,20 +170,20 @@ function WizardChrome({
               disabled={submitting}
               className="flex h-12 items-center gap-1.5 px-5 justify-start"
             >
-              {step === 0 ? "Cancel" : (<><ArrowLeft className="h-4 w-4" />Back</>)}
+              {step === 0 ? "Cancel" : (<><ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />Back</>)}
             </SystemButton>
 
             {isLast ? (
               <SystemButton variant="default"
                 type="button"
                 onClick={onSubmit}
-                disabled={submitting}
+                loading={submitting}
                 className="flex h-12 items-center gap-2 px-6 justify-start"
               >
                 {submitting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />{submittingLabel}</>
+                  submittingLabel
                 ) : (
-                  <>{submitIcon ?? <Check className="h-4 w-4" />}{submitLabel}</>
+                  <>{submitIcon ?? <Check className="h-4 w-4" aria-hidden="true" />}{submitLabel}</>
                 )}
               </SystemButton>
             ) : (
@@ -193,7 +194,7 @@ function WizardChrome({
                 className="flex h-12 items-center gap-2 px-6 justify-start"
               >
                 Next
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
               </SystemButton>
             )}
           </div>
@@ -227,14 +228,14 @@ export function FormSection({
     sky: "bg-sky-50 text-sky-600",
   } as const;
   return (
-    <section className="sk-panel p-3 sm:p-5 transition-shadow duration-300 hover:shadow-[0_6px_20px_-8px_rgba(129,39,207,0.20)]">
+    <section className="sk-panel p-3 sm:p-5 transition-shadow duration-300 hover:shadow-md">
       <div className="mb-4 flex items-start gap-3">
         <span className={cn("hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex", tones[tone])}>
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0">
           <h3 className="break-words text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
-          {hint ? <p className="mt-0.5 text-2xs font-semibold leading-snug text-ink-muted">{hint}</p> : null}
+          {hint ? <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{hint}</p> : null}
         </div>
       </div>
       {children}
@@ -278,15 +279,15 @@ export function ReviewHero({
   meta: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-primary/20 bg-gradient-to-br from-white via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(129,39,207,0.18)]">
+    <div className="rounded-[24px] border border-primary/20 bg-gradient-to-br from-white via-white to-brand-100 p-5 shadow-sm">
       <div className="flex items-start gap-4">
         <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
           <Icon className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{eyebrow}</p>
+          <p className="sk-eyebrow text-primary">{eyebrow}</p>
           <h3 className="truncate text-lg font-bold tracking-tight text-ink-strong">{title}</h3>
-          <p className="mt-0.5 truncate text-xs font-semibold text-ink-muted">{meta}</p>
+          <p className="mt-0.5 truncate text-xs text-ink-muted">{meta}</p>
         </div>
       </div>
     </div>
@@ -314,7 +315,7 @@ export function ReviewSection({
           </span>
           <h3 className="break-words text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
         </div>
-        <SystemButton variant="default"
+        <SystemButton variant="outline" size="sm"
           type="button"
           onClick={onEdit}
           className="px-3 py-1.5"
@@ -322,7 +323,7 @@ export function ReviewSection({
           Edit
         </SystemButton>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-muted pt-3">{children}</div>
+      <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 gap-y-2 border-t border-muted pt-3">{children}</div>
     </div>
   );
 }
@@ -344,7 +345,7 @@ export function ReviewRow({
   return (
     <div>
       <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
-      <p className={cn("truncate text-sm font-bold", missing ? "text-rose-500" : "text-ink-strong")} dir={dir}>
+      <p className={cn("truncate text-sm font-bold", missing ? "text-status-error-text" : "text-ink-strong")} dir={dir}>
         {value || (required ? "Required — not set" : "—")}
       </p>
     </div>

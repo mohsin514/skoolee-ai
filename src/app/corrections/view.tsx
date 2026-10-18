@@ -6,10 +6,23 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { datePickerMessages } from "@/lib/locale/date-picker-messages";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { friendlyErrorMessage } from "@/components/ui/toast";
+import { ArrowLeft, Download, FileText, History, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { correctionCopy } from "@/lib/corrections/copy";
 import { type LocalePackage, formatMoney, parseMoney, localeTag } from "@/lib/locale/package";
 type Data = Record<string, any>;
+type Tone = "info" | "success" | "danger";
+/** Field guidance and fallback messages for this screen; the shared labels stay in correctionCopy. */
+const guidance = {
+    en: { reasonHint: "Seen by staff reviewers only. Families never see it.", explanationHint: "Families see this once the correction is applied and released.", noteHint: "Optional. Staff only; families never see private notes.", outOf: (max: number) => `Out of ${max}.`, submitNeeds: "Add a reason and a public explanation, then confirm your review, to request this correction.", noneFromDate: "No corrections from this date", clearDate: "Clear date", loadFailed: "Could not load corrections. Try again.", requestFailed: "Could not complete this request. Try again." },
+    ar: { reasonHint: "يراه المراجعون من الموظفين فقط، ولا تراه العائلات.", explanationHint: "تراه العائلات بعد تطبيق التصحيح ونشره.", noteHint: "اختياري. للموظفين فقط، ولا ترى العائلات الملاحظات الخاصة.", outOf: (max: number) => `من أصل ${max}.`, submitNeeds: "أضف السبب والتوضيح العام، ثم أكد مراجعتك، لطلب هذا التصحيح.", noneFromDate: "لا توجد تصحيحات من هذا التاريخ", clearDate: "مسح التاريخ", loadFailed: "تعذر تحميل التصحيحات. حاول مرة أخرى.", requestFailed: "تعذر إكمال هذا الطلب. حاول مرة أخرى." },
+    ur: { reasonHint: "صرف عملے کے جائزہ لینے والے دیکھتے ہیں؛ خاندان اسے کبھی نہیں دیکھتے۔", explanationHint: "تصحیح لاگو اور شائع ہونے کے بعد خاندان یہ دیکھتے ہیں۔", noteHint: "اختیاری۔ صرف عملے کے لیے؛ خاندان نجی نوٹس کبھی نہیں دیکھتے۔", outOf: (max: number) => `کل ${max} میں سے۔`, submitNeeds: "یہ تصحیح طلب کرنے کے لیے وجہ اور عوامی وضاحت شامل کریں، پھر اپنے جائزے کی تصدیق کریں۔", noneFromDate: "اس تاریخ سے کوئی تصحیح نہیں", clearDate: "تاریخ صاف کریں", loadFailed: "تصحیحات لوڈ نہیں ہو سکیں۔ دوبارہ کوشش کریں۔", requestFailed: "یہ درخواست مکمل نہیں ہو سکی۔ دوبارہ کوشش کریں۔" },
+};
 export default function CorrectionClient({ actorId, schoolId, initialLanguage, initialKind, initialLocale }: {
     initialLocale: LocalePackage;
     actorId: string;
@@ -19,12 +32,16 @@ export default function CorrectionClient({ actorId, schoolId, initialLanguage, i
 }) {
     const [lang, setLang] = useState(initialLanguage in correctionCopy ? initialLanguage : "en");
     const t = correctionCopy[lang as keyof typeof correctionCopy];
+    const g = guidance[lang as keyof typeof guidance] ?? guidance.en;
     const [kind, setKind] = useState(initialKind), [data, setData] = useState<Data>({ records: [], history: [] }), [selected, setSelected] = useState(""), [form, setForm] = useState<Data>({ score: "", absent: false, reason: "", publicExplanation: "", privateNote: "", allocations: {}, credit: "" }), [preview, setPreview] = useState<Data | null>(null), [reviewed, setReviewed] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [date, setDate] = useState("");
-    const feedback = useRef<HTMLParagraphElement>(null);
+    // Presentation only: which request is running (for its button's spinner) and how the feedback reads.
+    const [pending, setPending] = useState(""), [tone, setTone] = useState<Tone>("info");
+    const feedback = useRef<HTMLDivElement>(null);
     const key = `skoolee:draft:v1:correction:${schoolId}:${actorId}:${kind}`;
     const record = data.records.find((r: Data) => r.id === selected);
     const policy = { ...initialLocale, language: lang as "en" | "ar" | "ur" };
     const money = (minor: number, currency: string) => formatMoney({ minor, currency }, policy);
+    const notify = (text: string, next: Tone) => { setMessage(text); setTone(next); };
     async function load() { setBusy(true); try {
         const r = await fetch(`/api/corrections?kind=${kind}`, { cache: "no-store" });
         const d = await r.json();
@@ -34,7 +51,7 @@ export default function CorrectionClient({ actorId, schoolId, initialLanguage, i
     }
     catch (e) {
         setData({ records: [], history: [] });
-        setMessage(String(e instanceof Error ? e.message : e));
+        notify(friendlyErrorMessage(e, g.loadFailed), "danger");
     }
     finally {
         setBusy(false);
@@ -51,57 +68,62 @@ export default function CorrectionClient({ actorId, schoolId, initialLanguage, i
     catch { } }, [kind]);
     const change = (k: string, v: any) => { setForm(f => ({ ...f, [k]: v })); setPreview(null); setReviewed(false); };
     function proposal() { const original = record.original; return { kind, sourceId: selected, expectedVersion: record.version, ...(kind === "MARK" ? { marksObtained: Number(form.score), isAbsent: form.absent } : { allocations: original.allocations.map((a: Data) => ({ invoiceId: a.invoiceId, minor: parseMoney(form.allocations[a.invoiceId] || "0", original.currency).minor })), unappliedMinor: parseMoney(form.credit || "0", original.currency).minor }) }; }
-    async function post(payload: Data) { setBusy(true); setMessage(""); try {
+    async function post(payload: Data) { setBusy(true); setPending(`${payload.action}:${payload.id ?? ""}`); setMessage(""); try {
         const r = await fetch("/api/corrections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const d = await r.json();
         if (!r.ok)
-            throw new Error(d.error ?? "Request failed");
+            throw new Error(d.error ?? g.requestFailed);
         return d;
     }
     catch (e) {
-        setMessage(e instanceof Error ? e.message : String(e));
+        notify(friendlyErrorMessage(e, g.requestFailed), "danger");
         return null;
     }
     finally {
         setBusy(false);
+        setPending("");
         setTimeout(() => feedback.current?.focus(), 0);
     } }
+    const running = (name: string, id = "") => busy && pending === `${name}:${id}`;
     function evidence(value: Data) {
         if ("marksObtained" in value)
-            return <p><bdi>{value.marksObtained} / {value.maximum} · {value.grade}</bdi> {value.isAbsent ? t.absent : ""}</p>;
+            return <p className="text-sm text-ink tabular-nums"><bdi className="font-semibold text-ink-strong">{value.marksObtained} / {value.maximum} · {value.grade}</bdi> {value.isAbsent ? <Badge variant="warning" size="sm">{t.absent}</Badge> : ""}</p>;
         const currency = value.reversal?.currency ?? value.currency;
-        return <div className="space-y-2"><p><bdi>{money(value.reversal?.minor ?? value.amount, currency)}</bdi> · <bdi>{value.receiptNo}</bdi></p>{value.remaining && <p>{t.proposed}: <bdi>{money(value.remaining.minor, currency)}</bdi></p>}{value.invoices?.map((i: Data) => <div key={i.id} className="border-t pt-2"><bdi className="block break-all text-xs">{i.id}</bdi><p>{t.paid}: <bdi>{money(i.paidMinor ?? i.paid, currency)}</bdi></p><p>{t.balance}: <bdi>{money(i.balanceMinor ?? i.balance, currency)}</bdi></p></div>)}<p>{t.credit}: <bdi>{money(value.unappliedMinor ?? 0, currency)}</bdi></p></div>;
+        return <div className="space-y-2 text-sm text-ink tabular-nums"><p><bdi className="font-semibold text-ink-strong">{money(value.reversal?.minor ?? value.amount, currency)}</bdi> · <bdi>{value.receiptNo}</bdi></p>{value.remaining && <p>{t.proposed}: <bdi>{money(value.remaining.minor, currency)}</bdi></p>}{value.invoices?.map((i: Data) => <div key={i.id} className="space-y-0.5 border-t border-border-subtle pt-2"><bdi className="block break-all text-xs text-ink-subtle">{i.id}</bdi><p>{t.paid}: <bdi>{money(i.paidMinor ?? i.paid, currency)}</bdi></p><p>{t.balance}: <bdi>{money(i.balanceMinor ?? i.balance, currency)}</bdi></p></div>)}<p>{t.credit}: <bdi>{money(value.unappliedMinor ?? 0, currency)}</bdi></p></div>;
     }
-    const button = buttonVariants({ variant: "outline" });
-    return <main dir={lang === "en" ? "ltr" : "rtl"} lang={lang} className="mx-auto max-w-5xl space-y-6 p-4 pb-16 sm:p-8">
-  <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-bold">{t.title}</h1><p>{t.intro}</p></div><Select aria-label="Language" value={lang} onChange={e => setLang(e.target.value)} ><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></Select></header>
-  <nav className="flex gap-2">{["MARK", "PAYMENT"].map(k => <Button variant="choice" key={k}  aria-pressed={kind === k} onClick={() => setKind(k)}>{k === "MARK" ? t.marks : t.payment}</Button>)}<Button variant="outline"  onClick={() => history.back()}>{t.back}</Button></nav>
-  <p ref={feedback} tabIndex={-1} role="status" aria-live="polite" className="break-words text-purple-800">{message}</p>
-  {!data.family && <section className="sk-panel space-y-4 p-4" aria-label={t.review}>
-  <label className="block">{t.record}<Select className={"mt-1 w-full"} value={selected} onChange={e => { setSelected(e.target.value); setPreview(null); setReviewed(false); }}><option value="">{t.reviewFirst}</option>{data.records.map((r: Data) => <option key={r.id} value={r.id}>{r.label}</option>)}</Select></label>
-  {record && <><div className="grid gap-4 sm:grid-cols-2"><div className="min-w-0 rounded-lg bg-slate-50 p-4"><h2 className="font-semibold">{t.original}</h2>{evidence(record.original)}<details><summary>{t.version}</summary><bdi className="break-all text-xs">{record.version}</bdi></details></div><div className="sk-panel space-y-3 p-4"><h2 className="font-semibold">{t.proposed}</h2>{kind === "MARK" ? <><label className="block">{t.value}<Input className={"block w-full"} type="number" min="0" max={record.original.maximum} value={form.score} onChange={e => change("score", e.target.value)}/></label><label><Checkbox checked={form.absent} onChange={e => { change("absent", e.target.checked); if (e.target.checked)
-                change("score", "0"); }}/> {t.absent}</label></> : <>{record.original.allocations.map((a: Data) => <label key={a.invoiceId} className="block break-all">{t.amount}: <bdi>{money(a.minor, record.original.currency)}</bdi><small className="block"><bdi>{a.invoiceId}</bdi></small><Input aria-label={`${t.amount} ${a.invoiceId}`} inputMode="decimal" className={"block w-full"} value={form.allocations[a.invoiceId] ?? ""} onChange={e => change("allocations", { ...form.allocations, [a.invoiceId]: e.target.value })}/></label>)}<label className="block">{t.credit}: <bdi>{money(record.original.unappliedMinor, record.original.currency)}</bdi><Input inputMode="decimal" className={"block w-full"} value={form.credit} onChange={e => change("credit", e.target.value)}/></label></>}</div></div>
-  {["reason", "publicExplanation", "privateNote"].map((field, i) => <label key={field} className="block">{[t.reason, t.explanation, t.note][i]}<Textarea className={"mt-1 block w-full"} required={i < 2} maxLength={i < 2 ? 2000 : 4000} value={form[field]} onChange={e => change(field, e.target.value)}/></label>)}</>}
-  <div className="flex flex-wrap gap-2"><Button variant="outline"  disabled={busy || !record} onClick={async () => { try {
+    const button = buttonVariants({ variant: "outline", size: "sm" });
+    const visibleHistory = data.history.filter((c: Data) => !date || c.requestedAt >= date);
+    const statusBadge = (status: string) => status === "APPLIED" ? <Badge variant="success" dot>{t.applied}</Badge> : status === "REJECTED" ? <Badge variant="danger" dot>{t.rejected}</Badge> : <Badge variant="warning" dot>{t.pending}</Badge>;
+    const missingText = !form.reason.trim() || !form.publicExplanation.trim();
+    return <main dir={lang === "en" ? "ltr" : "rtl"} lang={lang} className="mx-auto w-full min-w-0 max-w-5xl space-y-6 p-4 pb-16 sm:p-8">
+  <header className="sk-enter flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 flex-1"><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{t.title}</h1><p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted">{t.intro}</p></div><Select aria-label="Language" className="w-auto min-w-36" value={lang} onChange={e => setLang(e.target.value)} ><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></Select></header>
+  <nav className="flex flex-wrap gap-2">{["MARK", "PAYMENT"].map(k => <Button variant="choice" key={k}  aria-pressed={kind === k} onClick={() => setKind(k)}>{k === "MARK" ? t.marks : t.payment}</Button>)}<Button variant="ghost" className="ms-auto" onClick={() => history.back()}><ArrowLeft aria-hidden="true" className="rtl:rotate-180" />{t.back}</Button></nav>
+  <div ref={feedback} tabIndex={-1} role="status" aria-live="polite" className="break-words">{message ? <Alert tone={tone} live="off">{message}</Alert> : null}</div>
+  {!data.family && <section className="sk-panel space-y-5 p-4 sm:p-6" aria-label={t.review}>
+  <FormField name="record" label={t.record}><Select className="w-full" value={selected} onChange={e => { setSelected(e.target.value); setPreview(null); setReviewed(false); }}><option value="">{t.reviewFirst}</option>{data.records.map((r: Data) => <option key={r.id} value={r.id}>{r.label}</option>)}</Select></FormField>
+  {record && <><div className="grid gap-4 sm:grid-cols-2"><div className="min-w-0 space-y-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4"><h2 className="text-sm font-semibold text-ink-strong">{t.original}</h2>{evidence(record.original)}<details className="text-xs text-ink-subtle"><summary className="cursor-pointer font-medium text-ink-muted">{t.version}</summary><bdi className="mt-1 block break-all">{record.version}</bdi></details></div><div className="min-w-0 space-y-4 rounded-2xl border border-status-brand-border bg-white p-4 shadow-xs"><h2 className="text-sm font-semibold text-ink-strong">{t.proposed}</h2>{kind === "MARK" ? <><FormField name="score" label={t.value} hint={record.original.maximum != null ? g.outOf(record.original.maximum) : undefined}><Input className="block w-full tabular-nums" type="number" min="0" max={record.original.maximum} value={form.score} onChange={e => change("score", e.target.value)}/></FormField><label className="flex min-h-11 items-center gap-2 text-sm font-medium text-ink"><Checkbox checked={form.absent} onChange={e => { change("absent", e.target.checked); if (e.target.checked)
+                change("score", "0"); }}/> {t.absent}</label></> : <>{record.original.allocations.map((a: Data) => <label key={a.invoiceId} className="block min-w-0 space-y-1.5 break-all text-sm font-semibold text-ink"><span>{t.amount}: <bdi className="tabular-nums">{money(a.minor, record.original.currency)}</bdi></span><small className="block text-xs font-normal text-ink-subtle"><bdi>{a.invoiceId}</bdi></small><Input aria-label={`${t.amount} ${a.invoiceId}`} inputMode="decimal" className={"block w-full tabular-nums"} value={form.allocations[a.invoiceId] ?? ""} onChange={e => change("allocations", { ...form.allocations, [a.invoiceId]: e.target.value })}/></label>)}<FormField name="credit" label={<>{t.credit}: <bdi className="tabular-nums">{money(record.original.unappliedMinor, record.original.currency)}</bdi></>}><Input inputMode="decimal" className={"block w-full tabular-nums"} value={form.credit} onChange={e => change("credit", e.target.value)}/></FormField></>}</div></div>
+  {["reason", "publicExplanation", "privateNote"].map((field, i) => <FormField key={field} name={field} label={[t.reason, t.explanation, t.note][i]} required={i < 2} hint={[g.reasonHint, g.explanationHint, g.noteHint][i]} showCount><Textarea className={"block w-full"} required={i < 2} maxLength={i < 2 ? 2000 : 4000} value={form[field]} onChange={e => change(field, e.target.value)}/></FormField>)}</>}
+  <div className="flex flex-wrap gap-2 border-t border-border-subtle pt-4"><Button variant={preview ? "outline" : "default"} disabled={busy || !record} loading={running("preview")} onClick={async () => { try {
             const d = await post({ action: "preview", proposal: proposal() });
             if (d)
                 setPreview(d);
         }
         catch (e) {
-            setMessage(String(e));
-        } }}>{t.review}</Button><Button variant="outline"  onClick={() => { sessionStorage.setItem(key, JSON.stringify({ selected, form, expiresAt: Date.now() + 86400000 })); setMessage(t.saved); }}>{t.save}</Button><Button variant="outline"  onClick={() => { sessionStorage.removeItem(key); setForm({ score: "", absent: false, reason: "", publicExplanation: "", privateNote: "", allocations: {}, credit: "" }); setPreview(null); }}>{t.clear}</Button><Button variant="outline"  disabled={busy} onClick={() => { setPreview(null); setReviewed(false); void load(); }}>{t.refresh}</Button></div>
-  {preview && <div className="space-y-3 rounded-lg bg-purple-50 p-4" aria-live="polite"><div className="grid gap-4 sm:grid-cols-2"><div><h3>{t.original}</h3>{evidence(preview.before)}</div><div><h3>{t.proposed}</h3>{evidence(preview.after)}</div></div><p>{kind === "MARK" ? t.report : t.finance}</p>{preview.separateApprover && <p>{t.separation}</p>}<label className="flex items-start gap-2"><Checkbox checked={reviewed} onChange={e => setReviewed(e.target.checked)}/>{t.confirm}</label><Button variant="default" disabled={busy || !reviewed || !form.reason.trim() || !form.publicExplanation.trim()} onClick={async () => { const d = await post({ action: "request", proposal: proposal(), reviewHash: preview.hash, reason: form.reason, publicExplanation: form.publicExplanation, privateNote: form.privateNote }); if (d) {
-            setMessage(t.success);
+            notify(friendlyErrorMessage(e, g.requestFailed), "danger");
+        } }}>{t.review}</Button><Button variant="outline"  onClick={() => { sessionStorage.setItem(key, JSON.stringify({ selected, form, expiresAt: Date.now() + 86400000 })); notify(t.saved, "success"); }}>{t.save}</Button><Button variant="ghost"  onClick={() => { sessionStorage.removeItem(key); setForm({ score: "", absent: false, reason: "", publicExplanation: "", privateNote: "", allocations: {}, credit: "" }); setPreview(null); }}>{t.clear}</Button><Button variant="ghost" className="sm:ms-auto" disabled={busy} onClick={() => { setPreview(null); setReviewed(false); void load(); }}><RefreshCw aria-hidden="true" className={busy && !pending ? "animate-spin motion-reduce:animate-none" : undefined} />{t.refresh}</Button></div>
+  {preview && <div className="sk-enter space-y-4 rounded-2xl border border-status-brand-border bg-status-brand-surface p-4 sm:p-5" aria-live="polite"><div className="grid gap-4 sm:grid-cols-2"><div className="min-w-0 space-y-2"><h3 className="text-sm font-semibold text-ink-strong">{t.original}</h3>{evidence(preview.before)}</div><div className="min-w-0 space-y-2"><h3 className="text-sm font-semibold text-ink-strong">{t.proposed}</h3>{evidence(preview.after)}</div></div><Alert tone="info" live="off" compact>{kind === "MARK" ? t.report : t.finance}</Alert>{preview.separateApprover && <Alert tone="warning" live="off" compact>{t.separation}</Alert>}<label className="flex items-start gap-3 text-sm font-medium leading-relaxed text-ink"><Checkbox className="mt-0.5" checked={reviewed} onChange={e => setReviewed(e.target.checked)}/>{t.confirm}</label>{(!reviewed || missingText) && <p className="text-xs leading-relaxed text-ink-subtle">{g.submitNeeds}</p>}<Button variant="default" disabled={busy || !reviewed || !form.reason.trim() || !form.publicExplanation.trim()} loading={running("request")} onClick={async () => { const d = await post({ action: "request", proposal: proposal(), reviewHash: preview.hash, reason: form.reason, publicExplanation: form.publicExplanation, privateNote: form.privateNote }); if (d) {
+            notify(t.success, "success");
             setPreview(null);
             sessionStorage.removeItem(key);
             await load();
         } }}>{t.submit}</Button></div>}
   </section>}
-  <section className="space-y-4" aria-label={t.history}><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">{t.history}</h2><a className={button} href={`/api/corrections?kind=${kind}&export=1`}>{t.export}</a><label>{t.date}<DatePicker className="ms-2" label={t.date} locale={localeTag(policy)} messages={datePickerMessages[policy.language]} dir={lang === "en" ? "ltr" : "rtl"} weekStartsOn={policy.weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6} todayDate={new Intl.DateTimeFormat("en-CA", { timeZone: policy.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())} value={date} onChange={e => setDate(e.target.value)}/></label></div><p>{t.restricted}</p>{!data.history.length && <p>{t.empty}</p>}
-  <ol className="space-y-4 border-s-2 ps-4">{data.history.filter((c: Data) => !date || c.requestedAt >= date).map((c: Data) => <li key={c.id} className="sk-panel space-y-3 p-4"><div className="flex flex-wrap justify-between gap-2"><bdi className="break-all font-mono text-xs">{c.id}</bdi><strong>{c.status === "APPLIED" ? t.applied : c.status === "REJECTED" ? t.rejected : t.pending}</strong></div><div className="grid gap-4 sm:grid-cols-2"><div><h3>{t.original}</h3>{evidence(c.before)}</div><div><h3>{t.proposed}</h3>{evidence(c.after)}</div></div><p>{c.publicExplanation}</p><p>{c.requesterName} · <time>{new Date(c.requestedAt).toLocaleString(lang, { timeZone: policy.timezone })}</time>{c.approverName && ` · ${c.approverName}`}</p>{c.reason && <p>{t.reason}: {c.reason}</p>}{c.privateNote && <p>{t.note}: {c.privateNote}</p>}{c.status === "APPLIED" && !c.released && <p>{t.awaitingReport}</p>}<div className="flex flex-wrap gap-2"><a className={button} href={`/api/corrections?kind=${kind}&receipt=${c.id}`}>{t.receipt}</a>{kind === "PAYMENT" ? <a className={button} href={`/api/corrections?kind=PAYMENT&original=${c.sourceId}`}>{t.source}</a> : c.before.reports?.filter((r: Data) => r.publishedVersionId).map((r: Data) => <a key={r.id} className={button} href={`/api/reports/download?reportCardId=${r.id}&versionId=${r.publishedVersionId}&redirect=1`}>{t.source}</a>)}{c.status === "PENDING" && c.canApprove && <><Button variant="outline"  disabled={busy} onClick={async () => { const d = await post({ action: "approve", id: c.id, reviewHash: c.previewHash }); if (d) {
-        setMessage(t.success);
+  <section className="space-y-4" aria-label={t.history}><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold text-ink-strong">{t.history}</h2><div className="flex flex-wrap items-center gap-2"><a className={button} href={`/api/corrections?kind=${kind}&export=1`}><Download aria-hidden="true" />{t.export}</a><label className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">{t.date}<DatePicker label={t.date} locale={localeTag(policy)} messages={datePickerMessages[policy.language]} dir={lang === "en" ? "ltr" : "rtl"} weekStartsOn={policy.weekStartsOn as 0 | 1 | 2 | 3 | 4 | 5 | 6} todayDate={new Intl.DateTimeFormat("en-CA", { timeZone: policy.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())} value={date} onChange={e => setDate(e.target.value)}/></label></div></div><Alert tone="neutral" live="off" compact>{t.restricted}</Alert>{!data.history.length && <div className="sk-panel"><EmptyState size="sm" icon={History} title={t.empty} /></div>}{data.history.length > 0 && !visibleHistory.length && <div className="sk-panel"><EmptyState size="sm" icon={History} title={g.noneFromDate} secondaryAction={<Button variant="outline" size="sm" onClick={() => setDate("")}>{g.clearDate}</Button>} /></div>}
+  <ol className="space-y-4 border-s-2 border-border-subtle ps-4">{visibleHistory.map((c: Data) => <li key={c.id} className="sk-panel space-y-4 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-2"><bdi className="min-w-0 break-all font-mono text-xs text-ink-subtle">{c.id}</bdi>{statusBadge(c.status)}</div><div className="grid gap-4 sm:grid-cols-2"><div className="min-w-0 space-y-2 rounded-xl bg-surface-subtle p-3"><h3 className="text-xs font-semibold text-ink-muted">{t.original}</h3>{evidence(c.before)}</div><div className="min-w-0 space-y-2 rounded-xl bg-surface-subtle p-3"><h3 className="text-xs font-semibold text-ink-muted">{t.proposed}</h3>{evidence(c.after)}</div></div><p className="text-sm leading-relaxed text-ink">{c.publicExplanation}</p><p className="text-xs text-ink-subtle">{c.requesterName} · <time className="tabular-nums">{new Date(c.requestedAt).toLocaleString(lang, { timeZone: policy.timezone })}</time>{c.approverName && ` · ${c.approverName}`}</p>{c.reason && <p className="text-sm leading-relaxed text-ink-muted"><span className="font-semibold text-ink">{t.reason}:</span> {c.reason}</p>}{c.privateNote && <p className="text-sm leading-relaxed text-ink-muted"><span className="font-semibold text-ink">{t.note}:</span> {c.privateNote}</p>}{c.status === "APPLIED" && !c.released && <Badge variant="info" dot>{t.awaitingReport}</Badge>}<div className="flex flex-wrap gap-2 border-t border-border-subtle pt-3"><a className={button} href={`/api/corrections?kind=${kind}&receipt=${c.id}`}><FileText aria-hidden="true" />{t.receipt}</a>{kind === "PAYMENT" ? <a className={button} href={`/api/corrections?kind=PAYMENT&original=${c.sourceId}`}>{t.source}</a> : c.before.reports?.filter((r: Data) => r.publishedVersionId).map((r: Data) => <a key={r.id} className={button} href={`/api/reports/download?reportCardId=${r.id}&versionId=${r.publishedVersionId}&redirect=1`}>{t.source}</a>)}{c.status === "PENDING" && c.canApprove && <><Button variant="outline" size="sm" disabled={busy} loading={running("reject", c.id)} onClick={async () => { if (await post({ action: "reject", id: c.id, reviewHash: c.previewHash }))
+        await load(); }}>{t.reject}</Button><Button size="sm" disabled={busy} loading={running("approve", c.id)} onClick={async () => { const d = await post({ action: "approve", id: c.id, reviewHash: c.previewHash }); if (d) {
+        notify(t.success, "success");
         await load();
-    } }}>{t.approve}</Button><Button variant="outline"  disabled={busy} onClick={async () => { if (await post({ action: "reject", id: c.id, reviewHash: c.previewHash }))
-        await load(); }}>{t.reject}</Button></>}{c.status === "PENDING" && !c.canApprove && !data.family && <p>{t.separation}</p>}</div></li>)}</ol></section>
+    } }}>{t.approve}</Button></>}{c.status === "PENDING" && !c.canApprove && !data.family && <p className="basis-full text-xs leading-relaxed text-ink-subtle">{t.separation}</p>}</div></li>)}</ol></section>
  </main>;
 }

@@ -18,6 +18,8 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { Progress } from "@/components/ui/progress";
+import { EmptyState } from "@/components/ui/empty-state";
 import { BrandButton, StatCard } from "@/components/role-dashboard";
 import { CornerSparkles } from "@/components/CornerSparkles";
 import type { FeeTab, FeeSummary, RecentPayment } from "./fee-types";
@@ -77,7 +79,7 @@ export function FeeOverviewTab({
 
   return (
     <div className="space-y-6"><CurrencySelect value={currency} onChange={setCurrency} />
-      <div className="sk-rise relative overflow-hidden rounded-[32px] border border-edge/25 bg-gradient-to-br from-brand-50/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+      <div className="sk-rise relative overflow-hidden rounded-[32px] border border-edge/25 bg-gradient-to-br from-brand-50/35 to-white p-6 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
         <CornerSparkles />
         <div className="flex items-center justify-between gap-4 mb-5">
           <div className="flex items-center gap-3">
@@ -146,25 +148,31 @@ export function FeeOverviewTab({
                     <p className="truncate text-sm font-bold text-ink-strong">
                       {cls.className}
                     </p>
-                    <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-primary to-[#a855f7] transition-all"
-                        style={{ width: `${Math.min(100, cls.collectionRate)}%` }}
-                      />
-                    </div>
+                    <Progress
+                      className="mt-1"
+                      value={Math.min(100, cls.collectionRate)}
+                      max={100}
+                      label={tr("Collection Rate")}
+                      size="sm"
+                    />
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-bold text-ink-muted">
+                  <div className="text-end shrink-0">
+                    <p className="text-xs font-bold tabular-nums text-ink-muted">
                       {cls.collectionRate}%
                     </p>
-                    <p className="text-2xs font-bold text-ink-subtle">
+                    <p className="text-2xs font-medium tabular-nums text-ink-subtle">
                       {formatPKR(cls.totalPaid, summary?.currency)} / {formatPKR(cls.totalDue, summary?.currency)}
                     </p>
                   </div>
                 </div>
               ))}
               {(!summary?.byClass || summary.byClass.length === 0) && (
-                <p className="text-xs font-semibold text-ink-subtle italic"><UiText>{"No fee data yet"}</UiText></p>
+                <EmptyState
+                  size="sm"
+                  icon={BookOpen}
+                  title={tr("No fee data yet")}
+                  description={tr("Class collection rates appear here once invoices are issued.")}
+                />
               )}
             </div>
           </div>
@@ -184,7 +192,7 @@ export function FeeOverviewTab({
               {summary?.atRiskStudents.map((s) => (
                 <div
                   key={s.studentId}
-                  className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 border border-edge/10 hover:border-rose-200 transition-colors"
+                  className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 border border-edge/10 hover:border-status-error-border transition-colors"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-ink-strong">
@@ -196,9 +204,9 @@ export function FeeOverviewTab({
                   <p
                     className={`text-xs font-bold whitespace-nowrap ${
                       s.paymentStatus === "critical"
-                        ? "text-rose-600"
+                        ? "text-status-error-text"
                         : s.paymentStatus === "warning"
-                        ? "text-amber-600"
+                        ? "text-status-warning-text"
                         : "text-ink-muted"
                     }`}
                   >
@@ -219,7 +227,7 @@ export function FeeOverviewTab({
         <div className="sk-panel sk-rise p-6" style={{ animationDelay: "80ms" }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-status-success-surface text-status-success-text">
                 <TrendingUp className="h-4 w-4" />
               </div>
               <h4 className="text-sm font-bold text-ink-strong"><UiText>{"Recent Payments"}</UiText></h4>
@@ -242,15 +250,15 @@ export function FeeOverviewTab({
                   <p className="text-sm font-bold text-ink-strong truncate">
                     {p.studentName}
                   </p>
-                  <p className="text-2xs font-bold text-ink-subtle">
+                  <p className="text-2xs font-medium text-ink-subtle">
                     {p.invoiceNumber} · {tr(paymentMethodLabel(p.paymentMethod))}
                   </p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-emerald-600">
+                <div className="text-end shrink-0">
+                  <p className="text-sm font-bold tabular-nums text-status-success-text">
                     {formatPKR(p.amount, summary?.currency)}
                   </p>
-                  <p className="text-2xs font-bold text-ink-subtle">
+                  <p className="text-2xs font-medium text-ink-subtle">
                     {p.receiptNo}
                   </p>
                 </div>

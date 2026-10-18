@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock, Loader2,
+  Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock,
   Pause, Play, Plus, XCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
@@ -12,6 +12,7 @@ import { emitCycleChanged } from "@/lib/cycleEvents";
 import { YearClosureChecklist } from "@/components/academic/YearClosureChecklist";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
 
 
 interface Cycle {
@@ -149,7 +150,7 @@ export function CycleManagementPanel({
     <div className="space-y-6">
       {/* Active cycle highlight */}
       {activeCycle && (
-        <div className="sk-rise rounded-[28px] border border-emerald-200/30 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+        <div className="sk-rise rounded-[28px] border border-emerald-200/30 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 shadow-sm">
@@ -166,11 +167,12 @@ export function CycleManagementPanel({
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm"
+                loading={acting === `pause-${activeCycle.id}`}
                 onClick={() => doAction("pause", activeCycle.id)}
                 disabled={acting !== null}
                 className="flex justify-start items-center gap-2"
               >
-                {acting === `pause-${activeCycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
+                {acting === `pause-${activeCycle.id}` ? null : <Pause className="h-3.5 w-3.5" />}
                 Pause
               </Button>
             </div>
@@ -194,7 +196,7 @@ export function CycleManagementPanel({
       )}
 
       {!activeCycle && (
-        <div className="sk-rise rounded-[28px] border border-rose-200/30 bg-gradient-to-br from-rose-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+        <div className="sk-rise rounded-[28px] border border-rose-200/30 bg-gradient-to-br from-rose-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-500 shadow-sm">
               <AlertTriangle className="h-7 w-7" />
@@ -220,9 +222,8 @@ export function CycleManagementPanel({
 
       {showCreate && (
         <div className="sk-rise rounded-[24px] border border-edge/20 bg-white p-5 shadow-sm space-y-4" style={{ animationDelay: "240ms" }}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Cycle Label</label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField name="cycle-label" label="Cycle Label">
               <SystemInput
                 type="text"
                 value={newLabel}
@@ -230,16 +231,15 @@ export function CycleManagementPanel({
                 placeholder="e.g. Session 2026-27"
                 className="w-full px-4"
               />
-            </div>
-            <div>
-              <label className="mb-1.5 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Academic Year</label>
+            </FormField>
+            <FormField name="cycle-year" label="Academic Year">
               <SystemInput
                 type="number"
                 value={newYear}
                 onChange={(e) => setNewYear(Number(e.target.value))}
                 className="w-full px-4"
               />
-            </div>
+            </FormField>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm"
@@ -248,9 +248,8 @@ export function CycleManagementPanel({
             >
               Cancel
             </Button>
-            <BrandButton onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {creating ? "Creating..." : "Create Cycle"}
+            <BrandButton onClick={handleCreate} disabled={creating} loading={creating}>
+              Create Cycle
             </BrandButton>
           </div>
         </div>
@@ -301,22 +300,24 @@ export function CycleManagementPanel({
 
                   {cycle.status === "DRAFT" && (
                     <Button variant="default" size="sm"
+                      loading={acting === `activate-${cycle.id}`}
                       onClick={() => doAction("activate", cycle.id)}
                       disabled={acting !== null}
                       className="flex justify-start items-center gap-1.5"
                     >
-                      {acting === `activate-${cycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                      {acting === `activate-${cycle.id}` ? null : <Play className="h-3.5 w-3.5" />}
                       Activate
                     </Button>
                   )}
 
                   {cycle.status === "PAUSED" && (
                     <Button variant="default" size="sm"
+                      loading={acting === `resume-${cycle.id}`}
                       onClick={() => doAction("resume", cycle.id)}
                       disabled={acting !== null}
                       className="flex justify-start items-center gap-1.5"
                     >
-                      {acting === `resume-${cycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                      {acting === `resume-${cycle.id}` ? null : <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />}
                       Resume
                     </Button>
                   )}

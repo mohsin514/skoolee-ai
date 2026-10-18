@@ -80,7 +80,7 @@ export function MeetingDesk() {
     </li>)}</ul> : null}
 
     <div className="space-y-2" data-meeting-bookings>
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{ui("Booked meetings")}</p>
+      <p className="sk-eyebrow">{ui("Booked meetings")}</p>
       {!upcoming.length && !recent.length ? <p className="text-sm text-ink-muted">{ui("No meetings booked yet.")}</p> : null}
       {[...upcoming, ...recent].map(b => <div key={b.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3", b.status === "RESCHEDULE_NEEDED" ? "border-amber-300 bg-amber-50/60" : "border-edge/40")} data-booking={b.id} data-booking-status={b.status}>
         <div><p className="text-sm font-bold"><bdi>{b.studentName}</bdi> · <bdi>{b.guardianName}</bdi></p><p className="text-xs text-ink-muted"><bdi>{when(b)}</bdi> · {status(b)}{b.status === "RESCHEDULE_NEEDED" ? <> · {b.conflictReason === "LEAVE" ? ui("You are on leave at this time.") : b.conflictReason === "TIMETABLE" ? ui("You now teach at this time.") : ui("You withdrew this time.")}</> : null}</p></div>

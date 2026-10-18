@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ShieldCheck } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -213,8 +215,8 @@ function ClinicWorkspace() {
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-queue>
     <header><h2 className="text-base font-bold">{ui("Clinic workspace")}</h2><p className="text-xs text-ink-muted">{ui("Only clinic members can open these records. Safeguarding uses a separately authorized workspace.")} · {roleLabel(ui, queue.role)}</p></header>
     <StudentPicker value={null} onChange={setPick} label={ui("Open a student's clinic record")} />
-    <div><h3 className="text-sm font-bold">{ui("Recent visits")}</h3>{queue.visits.length ? <ul className="mt-1 space-y-1">{queue.visits.map(v => <li key={v.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><bdi>{v.studentName}</bdi> · <bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No records assigned to you in this confidential workspace.")}</p>}</div>
-    <div><h3 className="text-sm font-bold">{ui("Medication in effect")}</h3>{queue.instructions.length ? <ul className="mt-1 space-y-1">{queue.instructions.map(i => <li key={i.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><bdi>{i.studentName}</bdi> · <span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
+    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Recent visits")}</h3>{queue.visits.length ? <ul className="mt-1 space-y-1">{queue.visits.map(v => <li key={v.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><bdi>{v.studentName}</bdi> · <bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)}</Button></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}</div>
+    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Medication in effect")}</h3>{queue.instructions.length ? <ul className="mt-1 space-y-1">{queue.instructions.map(i => <li key={i.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><bdi>{i.studentName}</bdi> · <span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
   </section>;
 }
 
@@ -325,7 +327,7 @@ function SafeguardingWorkspace() {
     {rows.length ? <ul className="space-y-1">{rows.map(c => <li key={c.id}><Button variant="ghost" className="h-auto w-full flex-wrap justify-start gap-x-2 py-2 text-start" onClick={() => setOpen(c.id)} data-safeguarding-row={c.reference}>
       <bdi className="font-bold">{c.reference}</bdi><span>{statusLabel(ui, c.status)}</span><span className="text-ink-muted">{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}</span><span className="text-ink-muted"><bdi>{dateTime(c.createdAt)}</bdi></span>
       {c.pendingDisclosures ? <span className="text-amber-700 dark:text-amber-300">{ui("Disclosure awaiting review")}</span> : null}{c.retentionDue ? <span className="text-ink-muted">{ui("Retention review due")}</span> : null}
-    </Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No records assigned to you in this confidential workspace.")}</p>}
+    </Button></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}
   </section>;
 }
 
@@ -342,7 +344,7 @@ function Oversight({ domain }: { domain: Domain }) {
   const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
     <h2 className="text-base font-bold">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
-    <h3 className="text-sm font-bold">{ui("Emergency access")}</h3>
+    <h3 className="text-base font-semibold text-ink-strong">{ui("Emergency access")}</h3>
     {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className="rounded-xl border px-3 py-2 text-sm" data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
       <p><bdi>{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
       <p className="text-xs text-ink-muted"><bdi>{dateTime(g.createdAt)}</bdi>–<bdi>{dateTime(g.revokedAt ?? g.expiresAt)}</bdi> · {g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")} · {ui("{0} records opened", [String(g.uses)])}</p>
@@ -405,7 +407,7 @@ function CareSettings() {
     const members = data.members.filter(m => m.domain === s.domain), leads = members.filter(m => m.role === "LEAD");
     return <div key={s.domain} className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-setting={s.domain} data-enabled={s.enabled}>
       <header><h2 className="text-base font-bold">{ui("{0} workspace", [domainLabel(ui, s.domain)])} · {s.enabled ? ui("Enabled") : ui("Not enabled")}</h2>{s.confirmedAt ? <p className="text-xs text-ink-muted">{ui("Procedures confirmed by {0} on {1}", [s.confirmedBy, dateTime(s.confirmedAt)])}</p> : <p className="text-xs text-ink-muted">{ui("Add the members and responsible lead, record the local procedure and retention, then enable.")}</p>}</header>
-      <div><h3 className="text-sm font-bold">{ui("Members")}</h3>{members.length ? <ul className="mt-1 space-y-1">{members.map(m => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm" data-care-member={m.userId}><span><bdi>{m.name}</bdi> · {roleLabel(ui, m.role)}</span><Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "revoke-member", id: m.id }), "Access removed.")} data-care-member-remove>{ui("Remove")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No members yet.")}</p>}
+      <div><h3 className="text-base font-semibold text-ink-strong">{ui("Members")}</h3>{members.length ? <ul className="mt-1 space-y-1">{members.map(m => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm" data-care-member={m.userId}><span><bdi>{m.name}</bdi> · {roleLabel(ui, m.role)}</span><Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "revoke-member", id: m.id }), "Access removed.")} data-care-member-remove>{ui("Remove")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No members yet.")}</p>}
         <div className="mt-2 flex flex-col gap-2 sm:flex-row"><Select value={a.userId} onChange={e => setAdd({ ...add, [s.domain]: { ...a, userId: e.target.value } })} aria-label={ui("Staff member")} data-care-member-user><option value="">{ui("Choose staff member")}</option>{data.staff.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}</Select><Select value={a.role} onChange={e => setAdd({ ...add, [s.domain]: { ...a, role: e.target.value } })} aria-label={ui("Role")} data-care-member-role>{(s.domain === "CLINIC" ? ["NURSE", "CLINIC_STAFF", "LEAD"] : ["LEAD", "DEPUTY"]).map(r => <option key={r} value={r}>{roleLabel(ui, r)}</option>)}</Select><Button size="sm" disabled={busy || !a.userId} onClick={() => void run(() => call("/api/care", "POST", { action: "add-member", domain: s.domain, ...a }), "Member added.")} data-care-member-add>{ui("Add member")}</Button></div>
       </div>
       <FormField name={`cs-proc-${s.domain}`} label={ui("Local procedure reference")}><Input value={d.procedureReference} onChange={e => setDrafts({ ...drafts, [s.domain]: { ...d, procedureReference: e.target.value } })} dir="auto" data-care-procedure /></FormField>

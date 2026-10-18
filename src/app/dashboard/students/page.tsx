@@ -7,7 +7,7 @@ import { Header } from "@/components/layout/header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableHeader,
@@ -28,16 +28,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Loader2,
   Plus,
+  School,
   Search,
+  SearchX,
   Upload,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { AdmissionForm } from "./admission-form";
 import { BulkImportDialog } from "./bulk-import-dialog";
-import { SkeletonList } from "@/components/ui/skeleton";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { InfoTip, Tooltip } from "@/components/ui/tooltip";
 import { localToday } from "@/lib/date-only";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -113,6 +118,11 @@ function statusBadgeVariant(status?: string): "success" | "secondary" | "warning
   return "success";
 }
 
+/** Interface words for the stored enums; the stored values never change. */
+const GENDER_LABELS: Record<StudentRecord["gender"], string> = { MALE: "Male", FEMALE: "Female", OTHER: "Other" };
+const STATUS_LABELS: Record<string, string> = { active: "Active", archived: "Archived", transferred: "Transferred" };
+const ATTENDANCE_LABELS: Record<AttendanceStatus, string> = { PRESENT: "Present", ABSENT: "Absent", LEAVE: "Leave" };
+
 /**
  * A sortable column header.
  *
@@ -136,17 +146,32 @@ function SortHeader({
   const active = sortBy === column;
   const Icon = !active ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
   return (
-    <TableHead>
+    <TableHead aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
       <Button variant="ghost"
         type="button"
         onClick={() => onSort(column)}
         aria-label={`Sort by ${column}${active ? `, currently ${sortDir}ending` : ""}`}
-        className="justify-start px-1"
+        className="-ms-2 justify-start px-2 text-xs font-semibold text-ink-muted"
       >
         {children}
-        <Icon className={`h-3 w-3 ${active ? "text-primary" : "opacity-40"}`} />
+        <Icon aria-hidden="true" className={active ? "text-primary" : "opacity-40"} />
       </Button>
     </TableHead>
+  );
+}
+
+/**
+ * Explains a disabled header action. A disabled button cannot take focus or
+ * hover, so the reason sits on a focusable wrapper and is shown as a tooltip.
+ */
+function BlockedReason({ blocked, reason, children }: { blocked: boolean; reason: string; children: React.ReactElement }) {
+  if (!blocked) return children;
+  return (
+    <Tooltip content={reason}>
+      <span tabIndex={0} className="inline-flex rounded-2xl">
+        {children}
+      </span>
+    </Tooltip>
   );
 }
 
@@ -166,12 +191,15 @@ export default function StudentsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [attendanceDate, setAttendanceDate] = useState(localToday());
   const [attendanceClassId, setAttendanceClassId] = useState("");
   const [attendanceStudents, setAttendanceStudents] = useState<AttendanceStudent[]>([]);
   const [attendanceEntries, setAttendanceEntries] = useState<Record<string, AttendanceStatus>>({});
   const [attendanceSummary, setAttendanceSummary] = useState({ total: 0, present: 0, absent: 0, leave: 0, unmarked: 0, repeatedAbsenceWarnings: 0 });
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceLoadFailed, setAttendanceLoadFailed] = useState(false);
 
   const loadStudents = useCallback(async () => {
     setIsLoading(true);
@@ -202,8 +230,10 @@ export default function StudentsPage() {
       setSelected(new Set());
       setClasses(loadedClasses);
       setAttendanceClassId((current) => current || loadedClasses[0]?.id || "");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load students");
+      setLoadFailed(false);
+    } catch {
+      // Shown in place of the roster with a retry, rather than as an empty table.
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
     }
@@ -212,6 +242,14 @@ export default function StudentsPage() {
   // Any change to what is being listed resets to page 1 — otherwise filtering a
   // 200-student roster down to 3 while sitting on page 4 shows an empty table.
   const resetPage = () => setPage(1);
+
+  const filtersActive = Boolean(searchQuery.trim() || classFilter || statusFilter === "archived");
+  const clearFilters = () => {
+    setSearchQuery("");
+    setClassFilter("");
+    setStatusFilter("active");
+    resetPage();
+  };
 
   const toggleSort = (column: string) => {
     if (sortBy === column) {
@@ -266,12 +304,12 @@ export default function StudentsPage() {
         body: JSON.stringify({ ids: [...selected], status, reason: "Archived by administrator" }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Bulk update failed");
+      if (!res.ok) throw new Error(data.error || ui("Could not change the selected students. Please try again."));
       toast.success(data.unchanged ? ui("{0} student(s) changed; {1} already had this status.", [data.updated, data.unchanged]) : ui("{0} student(s) changed.", [data.updated]));
       setArchiveReview(null);
       await loadStudents();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Bulk update failed");
+      toast.error(error instanceof Error ? error.message : ui("Could not change the selected students. Please try again."));
     } finally {
       setBulkBusy(false);
     }
@@ -290,6 +328,7 @@ export default function StudentsPage() {
   const loadAttendance = useCallback(async () => {
     if (!attendanceClassId) {
       setAttendanceStudents([]);
+      setAttendanceLoadFailed(false);
       return;
     }
 
@@ -309,8 +348,10 @@ export default function StudentsPage() {
           return acc;
         }, {})
       );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load attendance");
+      setAttendanceLoadFailed(false);
+    } catch {
+      // Shown in place of the register with a retry.
+      setAttendanceLoadFailed(true);
     } finally {
       setAttendanceLoading(false);
     }
@@ -327,13 +368,14 @@ export default function StudentsPage() {
   const classGroups = groupClasses(classes);
 
   const saveAttendance = async () => {
-    if (!attendanceClassId) return toast.error("Select a class first");
+    if (!attendanceClassId) return toast.error(ui("Select a class first"));
     const entries = attendanceStudents.map((student) => ({
       studentId: student.id,
       status: attendanceEntries[student.id] || "PRESENT",
     }));
 
     setAttendanceLoading(true);
+    setAttendanceSaving(true);
     try {
       const res = await fetch("/api/attendance", {
         method: "POST",
@@ -341,13 +383,14 @@ export default function StudentsPage() {
         body: JSON.stringify({ classId: attendanceClassId, date: attendanceDate, entries }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save attendance");
-      toast.success("Attendance saved");
+      if (!res.ok) throw new Error(data.error || ui("Could not save attendance. Please try again."));
+      toast.success(ui("Attendance saved for {0} student(s).", [entries.length]));
       await loadAttendance();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save attendance");
+      toast.error(error instanceof Error ? error.message : ui("Could not save attendance. Please try again."));
     } finally {
       setAttendanceLoading(false);
+      setAttendanceSaving(false);
     }
   };
 
@@ -369,44 +412,58 @@ export default function StudentsPage() {
     loadStudents();
   };
 
+  // Admission and import both need a class to place students in.
+  const needsClass = !isLoading && !loadFailed && classes.length === 0;
+  const needsClassReason = ui("Create a class first. Students need to be linked to a class and campus.");
+
   return (
     <>
       <ConfirmAction open={Boolean(archiveReview)} title={ui("Archive {0} student(s)?", [archiveReview?.count ?? 0])} description={ui("The selected students have {0}. Archive removes them from active lists; academic, financial and document history stays preserved and each can be restored later.", [archiveReview?.summary ?? ""])} confirmLabel={ui("Archive Student")} tone="warning" busy={bulkBusy} onCancel={() => setArchiveReview(null)} onConfirm={() => void applyBulkStatus("archived")} />
       <Header
-        title="Students"
-        description="Manage student records, guardians, classes, and daily attendance"
+        title={ui("Students")}
+        description={ui("Manage student records, guardians, classes, and daily attendance")}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link href="/dashboard/guardians" className={buttonVariants({ variant: "outline", size: "sm" })}>
-              Guardians & access
+              {ui("Guardians & access")}
             </Link>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkImport(true)} disabled={classes.length === 0}>
-              <Upload className="h-4 w-4" />
-              Bulk Import
-            </Button>
-            <Button size="sm" onClick={() => setShowAdmissionForm(true)} disabled={classes.length === 0}>
-              <Plus className="h-4 w-4" />
-              Add Student
-            </Button>
+            <BlockedReason blocked={needsClass} reason={needsClassReason}>
+              <Button variant="outline" size="sm" onClick={() => setShowBulkImport(true)} disabled={classes.length === 0}>
+                <Upload aria-hidden="true" />
+                {ui("Bulk Import")}
+              </Button>
+            </BlockedReason>
+            <BlockedReason blocked={needsClass} reason={needsClassReason}>
+              <Button size="sm" onClick={() => setShowAdmissionForm(true)} disabled={classes.length === 0}>
+                <Plus aria-hidden="true" />
+                {ui("Add Student")}
+              </Button>
+            </BlockedReason>
           </div>
         }
       />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {/* Student Roster */}
-        <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "0ms" }}>
+        <Card className="sk-enter min-w-0">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              Student Roster
+            <CardTitle className="flex items-center gap-3">
+              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-primary">
+                <Users className="size-4" />
+              </span>
+              {ui("Student Roster")}
             </CardTitle>
+            <CardDescription>
+              {ui("Search, sort and export student records. Select rows to archive them or restore them to the roll.")}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <InputGroup className="relative flex-1 max-w-sm">
-                <Search data-field-affix="start" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+              <InputGroup className="min-w-0 flex-1 md:max-w-sm">
+                <Search data-field-affix="start" aria-hidden="true" className="size-4 text-ink-subtle" />
                 <Input
-                  placeholder="Search name, roll, guardian..."
+                  aria-label={ui("Search students")}
+                  placeholder={ui("Search name, roll, guardian...")}
                   value={searchQuery}
                   onChange={(event) => {
                     setSearchQuery(event.target.value);
@@ -416,7 +473,7 @@ export default function StudentsPage() {
                 />
               </InputGroup>
               <Select
-                aria-label="Filter students by class"
+                aria-label={ui("Filter students by class")}
                 className={"w-full md:w-56"}
                 value={classFilter}
                 onChange={(event) => {
@@ -424,7 +481,7 @@ export default function StudentsPage() {
                   resetPage();
                 }}
               >
-                <option value="">All Classes</option>
+                <option value="">{ui("All Classes")}</option>
                 {classes.map((cls) => (
                   <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
                 ))}
@@ -436,133 +493,176 @@ export default function StudentsPage() {
                   setStatusFilter(event.target.value as "active" | "archived");
                   resetPage();
                 }}
-                aria-label="Filter by status"
+                aria-label={ui("Filter by status")}
               >
-                <option value="active">On roll</option>
-                <option value="archived">Archived / left</option>
+                <option value="active">{ui("On roll")}</option>
+                <option value="archived">{ui("Archived / left")}</option>
               </Select>
-              <Button type="button" variant="outline" size="sm" onClick={exportCsv} disabled={students.length === 0}>
-                <Download className="h-4 w-4" />
-                Export CSV
+              <Button type="button" variant="outline" size="sm" onClick={exportCsv} disabled={students.length === 0} className="md:ms-auto">
+                <Download aria-hidden="true" />
+                {ui("Export CSV")}
               </Button>
             </div>
 
             {selected.size > 0 && (
-              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
-                <span className="text-sm font-semibold">
-                  {selected.size} selected
+              <div className="sk-enter flex flex-wrap items-center gap-3 rounded-2xl border border-status-brand-border bg-status-brand-surface px-3 py-2">
+                <span className="text-sm font-semibold tabular-nums text-status-brand-text">
+                  {ui("{0} selected", [selected.size])}
                 </span>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={bulkBusy}
+                  loading={bulkBusy}
                   onClick={() => bulkSetStatus(statusFilter === "archived" ? "active" : "archived")}
                 >
-                  {bulkBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {statusFilter === "archived" ? "Restore to roll" : "Archive"}
+                  {statusFilter === "archived" ? ui("Restore to roll") : ui("Archive")}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
-                  Clear selection
+                  {ui("Clear selection")}
                 </Button>
               </div>
             )}
 
             {isLoading ? (
-              <SkeletonList rows={4} label="Loading classes" />
+              <SkeletonTable rows={6} columns={5} label={ui("Loading students")} />
+            ) : loadFailed ? (
+              <ErrorState
+                title={ui("Could not load students")}
+                description={ui("The student roster did not load. Check your connection and try again.")}
+                onRetry={() => void loadStudents()}
+              />
             ) : classes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Plus className="mb-3 h-8 w-8 text-muted-foreground" />
-                <h3 className="font-semibold">Create a class first</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Students need to be linked to a class and campus.</p>
-              </div>
+              <EmptyState
+                icon={School}
+                size="sm"
+                title={ui("Create a class first")}
+                description={ui("Students need to be linked to a class and campus.")}
+                action={
+                  <Link href="/dashboard/classes" className={buttonVariants({ size: "sm" })}>
+                    <Plus aria-hidden="true" />
+                    {ui("Go to classes")}
+                  </Link>
+                }
+              />
             ) : students.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Plus className="mb-3 h-8 w-8 text-muted-foreground" />
-                <h3 className="font-semibold">No students found</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Add one student or import a CSV roster.</p>
-              </div>
+              filtersActive ? (
+                <EmptyState
+                  icon={SearchX}
+                  size="sm"
+                  title={ui("No students match these filters")}
+                  description={ui("Try another name or class, or clear the filters to see everyone on roll.")}
+                  action={
+                    <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                      {ui("Clear filters")}
+                    </Button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon={UserPlus}
+                  size="sm"
+                  title={ui("No students found")}
+                  description={ui("Add one student or import a CSV roster.")}
+                  action={
+                    <Button type="button" size="sm" onClick={() => setShowAdmissionForm(true)}>
+                      <Plus aria-hidden="true" />
+                      {ui("Add Student")}
+                    </Button>
+                  }
+                  secondaryAction={
+                    <Button type="button" variant="outline" size="sm" onClick={() => setShowBulkImport(true)}>
+                      <Upload aria-hidden="true" />
+                      {ui("Bulk Import")}
+                    </Button>
+                  }
+                />
+              )
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-8">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <SystemCheckbox
+
+                        checked={allOnPageSelected}
+                        onChange={() =>
+                          setSelected(allOnPageSelected ? new Set() : new Set(students.map((s) => s.id)))
+                        }
+                        aria-label="Select all students on this page"
+                      />
+                    </TableHead>
+                    <SortHeader column="rollNo" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>{ui("Roll No")}</SortHeader>
+                    <SortHeader column="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>{ui("Name")}</SortHeader>
+                    <SortHeader column="class" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>{ui("Class")}</SortHeader>
+                    <TableHead>
+                      <span className="inline-flex items-center gap-1">
+                        {ui("Login")}
+                        <InfoTip content={ui("The email this student signs in with. Not linked means the student has no login yet.")} />
+                      </span>
+                    </TableHead>
+                    <SortHeader column="guardian" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>{ui("Guardian")}</SortHeader>
+                    <TableHead>{ui("Phone")}</TableHead>
+                    <TableHead>{ui("Gender")}</TableHead>
+                    <SortHeader column="status" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>{ui("Status")}</SortHeader>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {students.map((student) => (
+                    <TableRow key={student.id} data-state={selected.has(student.id) ? "selected" : undefined}>
+                      <TableCell>
                         <SystemCheckbox
 
-                          checked={allOnPageSelected}
-                          onChange={() =>
-                            setSelected(allOnPageSelected ? new Set() : new Set(students.map((s) => s.id)))
-                          }
-                          aria-label="Select all students on this page"
-                          className="h-4 w-4 accent-primary"
+                          checked={selected.has(student.id)}
+                          onChange={() => toggleRow(student.id)}
+                          aria-label={`Select ${student.fullName}`}
                         />
-                      </TableHead>
-                      <SortHeader column="rollNo" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Roll No</SortHeader>
-                      <SortHeader column="name" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Name</SortHeader>
-                      <SortHeader column="class" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Class</SortHeader>
-                      <TableHead>Login</TableHead>
-                      <SortHeader column="guardian" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Guardian</SortHeader>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Gender</TableHead>
-                      <SortHeader column="status" sortBy={sortBy} sortDir={sortDir} onSort={toggleSort}>Status</SortHeader>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap font-mono text-xs tabular-nums text-ink-muted">{student.rollNo}</TableCell>
+                      <TableCell className="min-w-40">
+                        <div className="font-semibold text-ink-strong">{student.fullName}</div>
+                        {student.city && (
+                          <div className="text-xs text-ink-subtle">{student.city}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{student.class ? classLabel(student.class) : ui("Unassigned")}</TableCell>
+                      <TableCell className="text-sm text-ink-muted">
+                        {student.studentUser?.email ? <bdi>{student.studentUser.email}</bdi> : <span className="text-ink-subtle">{ui("Not linked")}</span>}
+                      </TableCell>
+                      <TableCell className="min-w-36">
+                        <div className="text-ink-muted">{student.guardianName || <span className="text-ink-subtle">{ui("Not recorded")}</span>}</div>
+                        {student.guardianPhone && (
+                          <div className="text-xs tabular-nums text-ink-subtle"><bdi dir="ltr">{student.guardianPhone}</bdi></div>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm tabular-nums text-ink-muted">
+                        {student.phone || student.guardianPhone ? <bdi dir="ltr">{student.phone || student.guardianPhone}</bdi> : "—"}
+                      </TableCell>
+                      <TableCell><Badge variant="neutral" size="sm">{ui(GENDER_LABELS[student.gender] ?? student.gender)}</Badge></TableCell>
+                      <TableCell>
+                        <Badge variant={statusBadgeVariant(student.status)} size="sm" dot>
+                          {ui(STATUS_LABELS[student.status || "active"] ?? student.status ?? "Active")}
+                        </Badge>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {students.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell>
-                          <SystemCheckbox
-
-                            checked={selected.has(student.id)}
-                            onChange={() => toggleRow(student.id)}
-                            aria-label={`Select ${student.fullName}`}
-                            className="h-4 w-4 accent-primary"
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{student.rollNo}</TableCell>
-                        <TableCell>
-                          <div className="font-medium">{student.fullName}</div>
-                          {student.city && (
-                            <div className="text-xs text-muted-foreground">{student.city}</div>
-                          )}
-                        </TableCell>
-                        <TableCell>{classLabel(student.class)}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{student.studentUser?.email || "Not linked"}</TableCell>
-                        <TableCell>
-                          <div className="text-muted-foreground">{student.guardianName || "Not recorded"}</div>
-                          {student.guardianPhone && (
-                            <div className="text-xs text-muted-foreground">{student.guardianPhone}</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{student.phone || student.guardianPhone || "—"}</TableCell>
-                        <TableCell><Badge variant="secondary">{student.gender}</Badge></TableCell>
-                        <TableCell>
-                          <Badge variant={statusBadgeVariant(student.status)}>
-                            {student.status || "active"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             )}
 
             {/* Pagination. The API has always capped the roster at 50 rows and
                 returned a total; without these controls every student past the
                 50th was simply unreachable from this screen. */}
-            {!isLoading && pagination.total > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-                <p className="text-sm text-muted-foreground">
-                  Showing{" "}
-                  <span className="font-semibold text-foreground">
-                    {(pagination.page - 1) * pagination.limit + 1}–
-                    {Math.min(pagination.page * pagination.limit, pagination.total)}
-                  </span>{" "}
-                  of <span className="font-semibold text-foreground">{pagination.total}</span> students
+            {!isLoading && !loadFailed && pagination.total > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-3">
+                <p className="text-sm text-ink-muted tabular-nums">
+                  {ui("Showing {0}–{1} of {2} students", [
+                    (pagination.page - 1) * pagination.limit + 1,
+                    Math.min(pagination.page * pagination.limit, pagination.total),
+                    pagination.total,
+                  ])}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -570,11 +670,11 @@ export default function StudentsPage() {
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={pagination.page <= 1}
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
+                    <ChevronLeft aria-hidden="true" className="rtl:rotate-180" />
+                    {ui("Previous")}
                   </Button>
-                  <span className="text-sm font-semibold">
-                    Page {pagination.page} of {pagination.pages}
+                  <span className="text-sm font-medium tabular-nums text-ink-muted">
+                    {ui("Page {0} of {1}", [pagination.page, pagination.pages])}
                   </span>
                   <Button
                     type="button"
@@ -583,8 +683,8 @@ export default function StudentsPage() {
                     onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
                     disabled={pagination.page >= pagination.pages}
                   >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
+                    {ui("Next")}
+                    <ChevronRight aria-hidden="true" className="rtl:rotate-180" />
                   </Button>
                 </div>
               </div>
@@ -593,39 +693,43 @@ export default function StudentsPage() {
         </Card>
 
         {/* Daily Attendance */}
-        <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
+        <Card className="sk-enter min-w-0" style={{ "--sk-delay": "80ms" } as React.CSSProperties}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarCheck className="h-4 w-4 text-primary" />
-              Daily Attendance
+            <CardTitle className="flex items-center gap-3">
+              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-primary">
+                <CalendarCheck className="size-4" />
+              </span>
+              {ui("Daily Attendance")}
             </CardTitle>
+            <CardDescription>
+              {ui("Mark each student for the chosen date, then save. Anyone left unmarked is saved as present.")}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] xl:items-end">
-              <div className="space-y-1">
-                <Label htmlFor="attendance-date">Date</Label>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)] xl:items-end">
+              <div className="min-w-0 space-y-1.5">
+                <Label htmlFor="attendance-date">{ui("Date")}</Label>
                 <Input id="attendance-date" type="date" value={attendanceDate} onChange={(event) => setAttendanceDate(event.target.value)} />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="attendance-class">Class</Label>
+              <div className="min-w-0 space-y-1.5">
+                <Label htmlFor="attendance-class">{ui("Class")}</Label>
                 <Select id="attendance-class" value={attendanceClassId} onChange={(event) => setAttendanceClassId(event.target.value)}>
-                  <option value="">Select class</option>
+                  <option value="">{ui("Select class")}</option>
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>{classLabel(cls)}</option>
                   ))}
                 </Select>
               </div>
-              <div className="flex flex-wrap gap-2 md:justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={() => markAll("PRESENT")} disabled={attendanceStudents.length === 0}>All Present</Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => markAll("ABSENT")} disabled={attendanceStudents.length === 0}>All Absent</Button>
-                <Button type="button" size="sm" onClick={saveAttendance} disabled={attendanceLoading || attendanceStudents.length === 0}>
-                  {attendanceLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Save Attendance
+              <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-1 xl:justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => markAll("PRESENT")} disabled={attendanceStudents.length === 0}>{ui("All Present")}</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => markAll("ABSENT")} disabled={attendanceStudents.length === 0}>{ui("All Absent")}</Button>
+                <Button type="button" size="sm" onClick={saveAttendance} loading={attendanceSaving} disabled={attendanceLoading || attendanceStudents.length === 0}>
+                  {ui("Save Attendance")}
                 </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+            <div className="sk-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
               {[
                 ["Total", attendanceSummary.total],
                 ["Present", attendanceSummary.present],
@@ -633,66 +737,81 @@ export default function StudentsPage() {
                 ["Leave", attendanceSummary.leave],
                 ["Warnings", attendanceSummary.repeatedAbsenceWarnings],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-xl font-bold">{value}</p>
+                <div key={label} className="min-w-0 rounded-2xl border border-border-subtle bg-surface-subtle p-3">
+                  <p className="flex items-center gap-1 text-xs font-semibold text-ink-muted">
+                    {ui(String(label))}
+                    {label === "Warnings" ? (
+                      <InfoTip content={ui("Students absent 3 or more times in the 7 days up to the chosen date.")} className="-my-1" />
+                    ) : null}
+                  </p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-ink-strong">{value}</p>
                 </div>
               ))}
             </div>
 
             {attendanceLoading ? (
-              <SkeletonList rows={5} label="Loading students" />
+              <SkeletonTable rows={5} columns={4} label={ui("Loading students")} />
+            ) : attendanceLoadFailed ? (
+              <ErrorState
+                title={ui("Could not load attendance")}
+                description={ui("The register for this class and date did not load. Check your connection and try again.")}
+                onRetry={() => void loadAttendance()}
+              />
             ) : attendanceStudents.length === 0 ? (
-              <div className="py-8 text-sm text-muted-foreground">Select a class with students to mark attendance.</div>
+              <EmptyState
+                icon={CalendarCheck}
+                size="sm"
+                title={ui("No students to mark")}
+                description={ui("Select a class with students to mark attendance.")}
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Warning</TableHead>
-                      <TableHead className="text-right">Status</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{ui("Student")}</TableHead>
+                    <TableHead>{ui("Class")}</TableHead>
+                    <TableHead>{ui("Warning")}</TableHead>
+                    <TableHead className="text-end">{ui("Status")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {attendanceStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell className="min-w-40">
+                        <div className="font-semibold text-ink-strong">{student.fullName}</div>
+                        <div className="text-xs tabular-nums text-ink-subtle">{student.rollNo}</div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{student.class ? classLabel(student.class) : ui("Unassigned")}</TableCell>
+                      <TableCell>
+                        {student.absenceWarning ? (
+                          <Badge variant="warning" size="sm" className="tabular-nums">
+                            <AlertCircle aria-hidden="true" />
+                            {ui("{0} absences", [student.recentAbsences])}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-ink-subtle">{ui("Clear")}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div role="group" aria-label={ui("Attendance for {0}", [student.fullName])} className="flex justify-end gap-1">
+                          {(["PRESENT", "ABSENT", "LEAVE"] as const).map((status) => (
+                            <Button
+                              key={status}
+                              type="button"
+                              size="sm"
+                              aria-pressed={attendanceEntries[student.id] === status}
+                              variant={attendanceEntries[student.id] === status ? "default" : "outline"}
+                              onClick={() => setAttendanceEntries((entries) => ({ ...entries, [student.id]: status }))}
+                            >
+                              {ui(ATTENDANCE_LABELS[status])}
+                            </Button>
+                          ))}
+                        </div>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {attendanceStudents.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell>
-                          <div className="font-medium">{student.fullName}</div>
-                          <div className="text-xs text-muted-foreground">{student.rollNo}</div>
-                        </TableCell>
-                        <TableCell>{classLabel(student.class)}</TableCell>
-                        <TableCell>
-                          {student.absenceWarning ? (
-                            <Badge variant="warning" className="gap-1">
-                              <AlertCircle className="h-3 w-3" />
-                              {student.recentAbsences} absences
-                            </Badge>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">Clear</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-1">
-                            {(["PRESENT", "ABSENT", "LEAVE"] as const).map((status) => (
-                              <Button
-                                key={status}
-                                type="button"
-                                size="sm"
-                                variant={attendanceEntries[student.id] === status ? "default" : "outline"}
-                                onClick={() => setAttendanceEntries((entries) => ({ ...entries, [student.id]: status }))}
-                              >
-                                {status}
-                              </Button>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>

@@ -48,6 +48,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 
 /** Every id from `startIds` up to the root, so a search hit can be revealed. */
@@ -235,7 +236,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       {/* ── Controls ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <InputGroup surfaceClassName="bg-white" className="relative min-w-[200px] flex-1">
-          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+          <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -244,13 +245,13 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               if (e.key === "Escape") setQuery("");
             }}
             placeholder="Find a name, rank, department or staff code…"
-            className="w-full py-2.5 pl-9 pr-8"
+            className="w-full py-2.5 ps-9 pe-8"
           />
           {query ? (
             <FieldAction   data-field-affix="end"
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2"
+              className="absolute end-2 top-1/2 -translate-y-1/2"
               aria-label="Clear search"
             >
               <X className="h-3.5 w-3.5" />
@@ -335,7 +336,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <Users className="h-8 w-8 text-ink-muted" />
-            <p className="text-sm font-bold text-ink">No staff on this campus yet</p>
+            <p className="text-sm font-semibold text-ink-strong">No staff on this campus yet</p>
             <p className="max-w-xs text-xs font-semibold text-ink-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
           </div>
         ) : (
@@ -437,7 +438,7 @@ function OrgCard({
         type="button"
         onClick={onSelect}
         className={cn(
-          "group flex justify-start h-full w-full items-center gap-2.5 text-left",
+          "group flex justify-start h-full w-full items-center gap-2.5 text-start",
           selected ? "border-primary ring-2 ring-primary/20" : "border-edge/50",
           dimmed && "opacity-30"
         )}
@@ -458,11 +459,9 @@ function OrgCard({
 
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1">
-            <span className="truncate text-[13px] font-bold leading-tight text-ink">{node.fullName}</span>
+            <span className="truncate text-sm font-bold leading-tight text-ink">{node.fullName}</span>
             {node.dueForReview ? (
-              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-2xs font-bold text-amber-700" title="Has served the usual time in this rank">
-                DUE
-              </span>
+              <Badge variant="warning" size="sm" className="shrink-0">Due<span className="sr-only"> · Has served the usual time in this rank</span></Badge>
             ) : null}
           </span>
           <span
@@ -486,9 +485,9 @@ function OrgCard({
         </span>
 
         {isLeaving ? (
-          <span className="absolute right-2 top-2 rounded-full bg-rose-50 px-1.5 py-0.5 text-2xs font-semibold uppercase text-rose-600">
+          <Badge variant="danger" size="sm" className="absolute end-2 top-2">
             {node.employmentStatus === "NOTICE_PERIOD" ? "Notice" : "Left"}
-          </span>
+          </Badge>
         ) : null}
       </Button>
 

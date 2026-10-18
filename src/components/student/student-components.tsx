@@ -25,7 +25,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
       role="status"
       aria-busy="true"
       aria-label="Loading the student portal"
-      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
+      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(120,70,180,0.06),0_24px_60px_-24px_rgba(120,70,180,0.35)]"
     >
       <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
@@ -49,7 +49,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
 /** Matches the compact `StatCard` the pages actually render. */
 function StatCardSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-edge/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
+    <div className="rounded-[18px] border border-edge/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_6px_16px_-10px_rgba(120,70,180,0.25)]">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -156,7 +156,7 @@ export function CourseworkSkeleton() {
             </div>
           </div>
           <div className="xl:col-span-3">
-            <div className="overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+            <div className="overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
               <div className="border-b border-edge/10 px-4 py-3">
                 <SkeletonBlock className="h-4 w-28" />
               </div>
@@ -164,7 +164,7 @@ export function CourseworkSkeleton() {
                 <SkeletonBlock className="h-3 w-16" />
                 <SkeletonBlock className="h-3 w-12" />
                 <SkeletonBlock className="h-3 w-10" />
-                <SkeletonBlock className="h-3 w-14 ml-auto" />
+                <SkeletonBlock className="h-3 w-14 ms-auto" />
               </div>
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="group flex items-center justify-between px-4 py-3 border-b border-edge/8">
@@ -196,7 +196,7 @@ export function ReportsSkeleton() {
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+            <div key={i} className="overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
               <div className="bg-gradient-to-br from-brand-50/60 via-white to-white p-4 pb-3 border-b border-edge/8">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2 min-w-0 flex-1">
@@ -237,7 +237,7 @@ export function AttendanceSkeleton() {
             <StatCardSkeleton key={i} valueWidth="w-16" />
           ))}
         </div>
-        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
           <div className="flex items-center justify-between mb-5">
             <SkeletonBlock className="h-5 w-40" />
             <div className="flex gap-3">
@@ -300,7 +300,7 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
           <SkeletonBlock className="h-8 w-40 rounded-xl" />
           <SkeletonBlock className="h-8 w-52 rounded-xl" />
         </div>
-        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
           <div className="space-y-3">
             <div className="flex flex-col items-center justify-center py-2.5">
               <SkeletonBlock className="h-3 w-24" />
@@ -333,7 +333,7 @@ export function StudentErrorState({ error, onRetry }: { error?: string | null; o
         </div>
         <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Something went wrong</p>
         <h2 className="mt-2 text-2xl font-bold text-ink-strong tracking-tight">Couldn&apos;t load your portal</h2>
-        <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
+        <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
           {error || "We couldn't load your student portal. This may be a permission or connectivity issue."}
         </p>
         <div className="mt-6 inline-block">
@@ -373,7 +373,7 @@ export function FeesSkeleton() {
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="relative space-y-3 overflow-hidden rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+              <div key={i} className="relative space-y-3 overflow-hidden rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1.5">
                     <SkeletonBlock className="h-4 w-28" />
@@ -421,7 +421,7 @@ export function StudentRouteSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className={`rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
+              className={`rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />

@@ -8,6 +8,7 @@ import { useChat, type SendAttachment } from "./chat-provider";
 import type { ChatMessageView } from "@/lib/chat/types";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { InputGroup } from "@/components/ui/input-group";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { fill } from "./chat-text";
@@ -242,7 +243,7 @@ export function Composer({
                     ? "bg-rose-50 text-rose-600 ring-rose-200"
                     : f.uploaded
                       ? "bg-brand-50 text-primary ring-primary/20"
-                      : "bg-[#f4ecf8] text-ink-muted ring-edge/30"
+                      : "bg-brand-50 text-ink-muted ring-edge/30"
                 )}
               >
                 {f.error ? null : f.uploaded ? (
@@ -300,16 +301,13 @@ export function Composer({
               }}
               accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
             />
-            <Button variant="ghost" size="icon"
-              type="button"
+            <IconButton variant="ghost" size="sm"
+              label={ui("Attach a file")}
               onClick={() => fileInputRef.current?.click()}
               disabled={files.length >= 5}
-              aria-label={ui("Attach a file")}
-              title={ui("Attach a file")}
-              className="shrink-0"
             >
-              <Paperclip className="h-4 w-4" />
-            </Button>
+              <Paperclip aria-hidden="true" className="h-4 w-4" />
+            </IconButton>
           </>
         )}
 

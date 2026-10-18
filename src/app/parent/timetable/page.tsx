@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
-import { Clock } from "lucide-react";
+import { Clock, Lock } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentEmptyState, ParentTimetableSkeleton } from "@/components/parent/parent-components";
+import { ErrorState } from "@/components/ui/error-state";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { FamilyMeetings } from "@/components/meetings/family-meetings";
 import { useParentData } from "../parent-data-context";
@@ -33,9 +34,14 @@ export default function ParentTimetablePage() {
   const [timetableData, setTimetableData] = useState<any>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load used to fall through to "No timetable published", which
+  // told a guardian the school had not published one when it simply had not
+  // arrived. "denied" is the portal permission, which a retry cannot change.
+  const [loadError, setLoadError] = useState<"failed" | "denied" | null>(null);
 
   const loadTimetable = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (token) params.set("token", token);
@@ -47,8 +53,13 @@ export default function ParentTimetablePage() {
       if (json.success) {
         setTimetableData(json.data);
         setWeekendDays(json.data?.weekends || []);
+      } else {
+        setLoadError(res.status === 403 ? "denied" : "failed");
       }
-    } catch { toast.error("Failed to load timetable"); }
+    } catch {
+      setLoadError("failed");
+      toast.error("Could not load the timetable. Please try again.");
+    }
     setLoading(false);
   }, [token, selectedStudentId]);
 
@@ -102,14 +113,20 @@ export default function ParentTimetablePage() {
       <div className="space-y-3">
         {loading ? (
           <ParentTimetableSkeleton weekendDays={weekendDays} />
+        ) : loadError === "denied" ? (
+          <ParentEmptyState icon={Lock} title="Timetable not shared" description="The school has not shared the timetable with this account. Contact the school office if you need it." />
+        ) : loadError ? (
+          <div className="sk-panel">
+            <ErrorState onRetry={loadTimetable} />
+          </div>
         ) : hasTable ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-1.5">
               {subjectNames.map((name) => {
                 const c = colorMap.get(name);
                 return (
-                  <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg} px-2 py-1`}>
-                    <span className={`text-3xs font-bold ${c?.text}`}>{name}</span>
+                  <span key={name} className={`inline-flex max-w-full items-center rounded-full border ${c?.border} ${c?.bg} px-2.5 py-1`}>
+                    <span className={`text-2xs font-semibold ${c?.text} [overflow-wrap:anywhere]`}>{name}</span>
                   </span>
                 );
               })}
@@ -118,11 +135,11 @@ export default function ParentTimetablePage() {
               <div className="min-w-[700px]">
                 <div className="grid border-b border-muted" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-2">
-                    <Clock className="w-3 h-3 text-ink-subtle" />
+                    <Clock aria-hidden="true" className="h-3.5 w-3.5 text-ink-subtle" />
                   </div>
                   {visibleDays.map((d) => (
-                    <div key={d.num} className="flex items-center justify-center py-2 border-l border-muted">
-                      <span className="text-3xs font-semibold uppercase text-ink-subtle">{d.short}</span>
+                    <div key={d.num} className="flex items-center justify-center border-s border-muted py-2.5">
+                      <span className="sk-eyebrow">{d.short}</span>
                     </div>
                   ))}
                 </div>
@@ -130,30 +147,30 @@ export default function ParentTimetablePage() {
                   const isSpecial = p.type !== "CLASS";
                   return (
                     <div key={p.num} className={`grid border-b border-muted last:border-b-0 ${isSpecial ? "bg-muted/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
-                      <div className="flex flex-col items-center justify-center p-1 border-r border-muted">
-                        <span className="text-3xs font-bold text-primary">P{p.num}</span>
-                        <span className="text-3xs font-bold text-ink-subtle">{p.start}</span>
+                      <div className="flex flex-col items-center justify-center border-e border-muted p-1">
+                        <span className="text-2xs font-bold tabular-nums text-primary">P{p.num}</span>
+                        <span className="text-2xs font-medium tabular-nums text-ink-subtle" dir="ltr">{p.start}</span>
                       </div>
                       {visibleDays.map((d) => {
                         const slot = getSlot(d.num, p.num);
                         if (!slot || slot.slotType !== "CLASS") {
                           const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType === "ASSEMBLY" ? "Assembly" : slot?.slotType || "";
                           return (
-                            <div key={d.num} className="border-l border-muted flex items-center justify-center p-0.5">
-                              <span className="text-3xs font-bold text-ink-subtle">{label}</span>
+                            <div key={d.num} className="flex items-center justify-center border-s border-muted p-0.5">
+                              <span className="text-2xs font-semibold text-ink-subtle">{label}</span>
                             </div>
                           );
                         }
                         const c = slot.subject ? colorMap.get(slot.subject.name) : null;
                         return (
-                          <div key={d.num} className="border-l border-muted p-0.5">
+                          <div key={d.num} className="border-s border-muted p-0.5">
                             {slot.subject ? (
-                              <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1`}>
-                                <p className={`text-3xs font-bold ${c?.text} leading-tight`}>{slot.subject.name}</p>
-                                {slot.teacher && <p className="text-3xs font-semibold text-ink-subtle mt-0.5">{slot.teacher.fullName}</p>}
+                              <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1.5`}>
+                                <p className={`text-2xs font-semibold leading-tight ${c?.text} [overflow-wrap:anywhere]`}>{slot.subject.name}</p>
+                                {slot.teacher && <p className="mt-0.5 text-2xs font-medium leading-tight text-ink-subtle [overflow-wrap:anywhere]">{slot.teacher.fullName}</p>}
                               </div>
                             ) : (
-                              <div className="h-full flex items-center justify-center"><span className="text-3xs text-ink-subtle">—</span></div>
+                              <div className="flex h-full items-center justify-center"><span aria-hidden="true" className="text-2xs text-ink-faint">—</span></div>
                             )}
                           </div>
                         );

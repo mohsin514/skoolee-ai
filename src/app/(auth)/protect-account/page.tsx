@@ -3,13 +3,15 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle, ArrowRight, CheckCircle2, Info, KeyRound,
+  ArrowRight, CheckCircle2, Info, KeyRound,
   Loader2, LockKeyhole, RotateCcw, ShieldCheck, Smartphone, Timer,
 } from "lucide-react";
 import { dashboardPathForRole } from "@/lib/roles";
 import { safeReturnPath } from "@/lib/auth/return-path";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
 import { LanguageSelect } from "@/components/locale/LanguageSelect";
@@ -260,10 +262,7 @@ export default function ProtectAccount() {
   const stepper = (current: number) => <MfaStepper labels={t.steps} current={current} progressLabel={t.progress} completedLabel={t.completed} />;
 
   const alert = pageError ? (
-    <div id="mfa-error" ref={errorRef} tabIndex={-1} role="alert" className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text">
-      <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-      <p className="text-sm font-bold leading-snug">{pageError}</p>
-    </div>
+    <Alert id="mfa-error" ref={errorRef} tabIndex={-1} tone="danger" title={pageError} className="sk-shake mb-5" />
   ) : null;
 
   const codeField = (
@@ -274,8 +273,8 @@ export default function ProtectAccount() {
   );
 
   const submitButton = (
-    <Button type="submit" size="lg" disabled={busy} aria-busy={busy} className="w-full">
-      {busy ? <><Loader2 aria-hidden="true" className="motion-safe:animate-spin" />{t.verifying}</> : <>{t.verify}<ArrowRight aria-hidden="true" className="rtl:-scale-x-100" /></>}
+    <Button type="submit" size="lg" loading={busy} className="group w-full">
+      {busy ? t.verifying : <>{t.verify}<ArrowRight aria-hidden="true" className="transition-transform rtl:-scale-x-100 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5" /></>}
     </Button>
   );
 
@@ -291,31 +290,31 @@ export default function ProtectAccount() {
         </div>
 
         <div className="relative z-10 flex items-center gap-2.5">
-          <span className="h-8 w-1 rounded-full bg-white/70" />
+          <span aria-hidden="true" className="h-8 w-1 rounded-full bg-white/70" />
           <p className="text-2xs font-semibold uppercase tracking-wider text-white/80">Skoolee AI</p>
         </div>
 
         <div className="relative z-10 max-w-xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
+          <div className="sk-enter inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
             <LockKeyhole aria-hidden="true" className="size-3.5 text-brand-200" />
             <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">{t.brandEyebrow}</span>
           </div>
-          <p className="mt-7 text-[2.6rem] font-extrabold leading-[1.06] tracking-[-0.035em] text-white text-balance xl:text-[3.1rem]">{t.brandTitle}</p>
-          <p className="mt-5 max-w-md text-md font-semibold leading-relaxed text-white/85">{t.brandBody}</p>
-          <ul className="mt-9 space-y-3 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl">
+          <p className="sk-enter mt-7 text-4xl font-extrabold leading-tight tracking-tight text-white text-balance xl:text-5xl" style={{ "--sk-delay": "80ms" } as React.CSSProperties}>{t.brandTitle}</p>
+          <p className="sk-enter mt-5 max-w-md text-md font-medium leading-relaxed text-white/85" style={{ "--sk-delay": "120ms" } as React.CSSProperties}>{t.brandBody}</p>
+          <ul className="sk-enter mt-9 space-y-3 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl" style={{ "--sk-delay": "160ms" } as React.CSSProperties}>
             {t.brandPoints.map((point, index) => {
               const Icon = [Timer, KeyRound, Smartphone][index] ?? ShieldCheck;
               return (
                 <li key={point} className="flex items-center gap-3.5">
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20"><Icon aria-hidden="true" className="size-[18px] text-white" /></span>
-                  <span className="text-md font-bold text-white">{point}</span>
+                  <span className="text-md font-semibold text-white">{point}</span>
                 </li>
               );
             })}
           </ul>
         </div>
 
-        <p className="relative z-10 flex items-center gap-1.5 text-2xs font-bold text-white/75">
+        <p className="relative z-10 flex items-center gap-1.5 text-xs font-medium text-white/80">
           <ShieldCheck aria-hidden="true" className="size-3.5" /> {t.brandFooter}
         </p>
       </section>
@@ -327,20 +326,20 @@ export default function ProtectAccount() {
             <LanguageSelect id="mfa-language" label={t.language} value={language} onChange={value => { if (value) setLanguage(value); }} />
           </div>
 
-          <div className="mb-7 flex flex-col items-center text-center">
+          <div className="sk-enter mb-7 flex flex-col items-center text-center">
             <SkooleeLogo size="min(2.35rem, 10vw)" weight="heavy" />
             <div aria-hidden="true" className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
-            <h1 className="mt-6 text-[1.9rem] font-extrabold leading-tight tracking-[-0.035em] text-ink-strong text-balance">{heading}</h1>
-            {subheading && <p className="mt-2 max-w-md text-md font-semibold leading-relaxed text-ink-muted">{subheading}</p>}
+            <h1 className="mt-6 text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">{heading}</h1>
+            {subheading && <p className="mt-2 max-w-md text-md leading-relaxed text-ink-muted">{subheading}</p>}
             {status?.school && view !== "expired" && (
-              <p className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-bold text-brand-700">
-                <ShieldCheck aria-hidden="true" className="size-3.5 shrink-0" />
+              <Badge variant="secondary" className="mt-3 leading-snug">
+                <ShieldCheck aria-hidden="true" />
                 <span className="min-w-0 [overflow-wrap:anywhere]">{t.school}: <bdi>{status.school}</bdi></span>
-              </p>
+              </Badge>
             )}
           </div>
 
-          <div className="rounded-[30px] border border-edge/30 bg-white p-5 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-8 print:border-0 print:p-0 print:shadow-none">
+          <div className="sk-enter sk-panel p-5 shadow-xl sm:p-8 print:border-0 print:p-0 print:shadow-none" style={{ "--sk-delay": "70ms" } as React.CSSProperties}>
             {busy && <p role="status" className="sr-only">{t.working}</p>}
             <p aria-live="polite" className="sr-only">{feedback === "key" || feedback === "codes" ? t.copied : feedback === "download" ? t.downloaded : feedback === "copyFailed" ? t.copyFailed : ""}</p>
 
@@ -372,12 +371,9 @@ export default function ProtectAccount() {
             {view === "intro" && <>
               {stepper(0)}
               {alert}
-              <div className="mb-6 flex items-start gap-3 rounded-2xl bg-brand-50 p-4">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-white shadow-sm shadow-primary/25"><Smartphone aria-hidden="true" className="size-5" /></span>
-                <p className="text-sm font-semibold leading-relaxed text-ink-muted">{t.apps}</p>
-              </div>
-              <Button type="button" size="lg" className="w-full" disabled={busy} aria-busy={busy} onClick={() => send("setup")}>
-                {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <ShieldCheck aria-hidden="true" />}
+              <Alert tone="brand" icon={Smartphone} live="off" className="mb-6">{t.apps}</Alert>
+              <Button type="button" size="lg" className="w-full" loading={busy} onClick={() => send("setup")}>
+                {busy ? null : <ShieldCheck aria-hidden="true" />}
                 {status?.awaitingAcknowledgement ? t.retry : t.setup}
               </Button>
             </>}
@@ -385,7 +381,7 @@ export default function ProtectAccount() {
             {view === "scan" && <>
               {stepper(step)}
               <AuthenticatorSetup secret={secret} uri={uri} t={t} onCopy={() => void copyKey()} copied={feedback === "key"} />
-              <div className="my-6 h-px bg-edge/30" />
+              <div aria-hidden="true" className="my-6 h-px bg-border-subtle" />
               <form onSubmit={submit} aria-busy={busy} className="space-y-5" noValidate>
                 {codeField}
                 {submitButton}
@@ -402,8 +398,8 @@ export default function ProtectAccount() {
                 {submitButton}
               </form>
               {status?.resumeChallenge && !status.enrolled && (
-                <div className="mt-6 border-t border-edge/25 pt-5">
-                  <p id="mfa-start-over-hint" className="flex items-start gap-2 text-xs font-semibold leading-relaxed text-ink-muted"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{t.startOverHint}</p>
+                <div className="mt-6 border-t border-border-subtle pt-5">
+                  <p id="mfa-start-over-hint" className="flex items-start gap-2 text-xs leading-relaxed text-ink-muted"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{t.startOverHint}</p>
                   <Button type="button" variant="ghost" className="mt-2 w-full" disabled={busy} aria-describedby="mfa-start-over-hint" onClick={() => send("setup")}><RotateCcw aria-hidden="true" />{t.retry}</Button>
                 </div>
               )}
@@ -413,8 +409,8 @@ export default function ProtectAccount() {
               {stepper(2)}
               <RecoveryCodesSheet codes={codes} schoolName={status?.school} ack={ack} onAck={setAck} t={t} disabled={busy}
                 headingRef={recoveryInstructionsRef} feedback={feedback} onFeedback={announce} alert={alert}>
-                <Button type="button" size="lg" className="mt-4 w-full" disabled={!ack || busy} aria-busy={busy} onClick={() => send("acknowledge")}>
-                  {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : null}{t.finish}{busy ? null : <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />}
+                <Button type="button" size="lg" className="mt-4 w-full" disabled={!ack} loading={busy} onClick={() => send("acknowledge")}>
+                  {t.finish}{busy ? null : <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />}
                 </Button>
               </RecoveryCodesSheet>
             </>}
@@ -422,18 +418,19 @@ export default function ProtectAccount() {
             {view === "done" && <>
               {done === "enrolled" && stepper(3)}
               <div role="status" className="flex flex-col items-center gap-3 py-6 text-center">
-                <span className="sk-check-pop flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-brand-400 text-white shadow-[0_14px_30px_-12px_rgba(129,39,207,0.7)]">
-                  <CheckCircle2 aria-hidden="true" className="size-8" />
+                <span aria-hidden="true" className="sk-check-pop flex size-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-brand-400 text-white shadow-brand">
+                  <CheckCircle2 className="size-8" />
                 </span>
-                <p className="text-base font-bold text-ink-strong">{done === "verified" ? t.verifiedTitle : t.doneTitle}</p>
-                <p className="flex items-center gap-2 text-sm font-semibold text-ink-muted"><Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" />{t.doneBody}</p>
+                {/* The page heading already shows this; it stays for the status announcement. */}
+                <p className="sr-only">{done === "verified" ? t.verifiedTitle : t.doneTitle}</p>
+                <p className="flex items-center gap-2 text-sm font-medium text-ink-muted"><Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" />{t.doneBody}</p>
               </div>
             </>}
           </div>
 
           {view !== "expired" && view !== "done" && (
             <div className="mt-6 flex justify-center print:hidden">
-              <Link href="/login" className="flex min-h-11 items-center px-2 text-sm font-bold text-primary underline-offset-4 motion-safe:transition-colors hover:text-brand-400 hover:underline">{t.login}</Link>
+              <Link href="/login" className="flex min-h-11 items-center px-2 text-sm font-semibold text-primary underline-offset-4 motion-safe:transition-colors hover:text-brand-700 hover:underline">{t.login}</Link>
             </div>
           )}
         </div>

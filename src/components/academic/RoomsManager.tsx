@@ -172,7 +172,7 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
   return (
     <div className="sk-rise space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="relative overflow-hidden rounded-[28px] border border-edge/25 bg-gradient-to-br from-teal-700 via-[#115e59] to-[#134e4a] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(15,118,110,0.6)]">
+      <header className="relative overflow-hidden rounded-[28px] border border-edge/25 bg-gradient-to-br from-teal-700 via-teal-800 to-teal-900 px-6 py-5 text-white shadow-xl">
         <span
           aria-hidden
           className="pointer-events-none absolute -right-16 -top-20 h-60 w-60 rounded-full bg-white/10 blur-3xl"
@@ -225,12 +225,12 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
       {/* ── Search ──────────────────────────────────────────────────────── */}
       {rooms.length > 6 ? (
         <InputGroup className="relative max-w-sm">
-          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+          <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
           <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find a room, block or wing…"
-            className={cn(inputClass, "pl-9")}
+            className={cn(inputClass, "ps-9")}
           />
         </InputGroup>
       ) : null}
@@ -319,7 +319,7 @@ export function RoomsManager({ campusId }: { campusId?: string }) {
             />
           }
         >
-          <p className="text-sm font-semibold text-ink-muted">
+          <p className="text-sm font-medium leading-relaxed text-ink-muted">
             {deleting.examCapacity} exam seats will leave the campus total.
           </p>
         </Modal>
@@ -516,7 +516,7 @@ function RoomEditor({
       <div className="space-y-5">
         {/* ── Identity and location ─────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <p className="mb-2 ps-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             Where it is
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -604,7 +604,7 @@ function RoomEditor({
 
         {/* ── Layout ────────────────────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <p className="mb-2 ps-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             How the benches are laid out
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -712,7 +712,8 @@ function RoomEditor({
                       {Array.from({ length: draft.seatsPerBench }).map((___, s) => (
                         <span
                           key={s}
-                          title={
+                          role="img"
+                          aria-label={
                             s < draft.examSeatsPerBench
                               ? "Used in an exam"
                               : "Empty on an exam day"
@@ -730,9 +731,9 @@ function RoomEditor({
                 </div>
               ))}
               <p className="pt-1 text-center text-2xs font-semibold text-ink-subtle">
-                <span className="mr-1 inline-block h-2 w-2 rounded-sm bg-primary align-middle" />
+                <span className="me-1 inline-block h-2 w-2 rounded-sm bg-primary align-middle" />
                 seated in an exam
-                <span className="ml-3 mr-1 inline-block h-2 w-2 rounded-sm bg-edge/45 align-middle" />
+                <span className="ms-3 me-1 inline-block h-2 w-2 rounded-sm bg-edge/45 align-middle" />
                 left empty for spacing
               </p>
             </div>

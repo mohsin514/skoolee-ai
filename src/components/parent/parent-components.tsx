@@ -46,7 +46,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
       role="status"
       aria-busy="true"
       aria-label="Loading the guardian portal"
-      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
+      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(120,70,180,0.06),0_24px_60px_-24px_rgba(120,70,180,0.35)]"
     >
       <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
         <span
@@ -70,7 +70,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
 /** Matches the compact `ParentStat` the pages actually render. */
 function ParentStatSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
+    <div className="rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -96,7 +96,7 @@ export function ParentOverviewSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
+              className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-md"
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
@@ -127,7 +127,7 @@ export function ParentListSkeleton({ rows = 3 }: { rows?: number }) {
         {[...Array(rows)].map((_, i) => (
           <div
             key={i}
-            className="space-y-3 rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
+            className="space-y-3 rounded-[22px] border border-edge/20 bg-white p-4 shadow-md"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 space-y-2">
@@ -195,10 +195,10 @@ export function ParentStat({
   const t = tones[tone];
 
   return (
-    <div className="group relative overflow-hidden rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]">
+    <div className="group relative overflow-hidden rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-brand">
       <span
         aria-hidden
-        className={`absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.bar}`}
+        className={`absolute inset-y-0 start-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.bar}`}
       />
       <div className="relative flex min-w-0 items-center justify-between gap-[10px]">
         <div className="min-w-0">
@@ -239,7 +239,7 @@ export function ParentTimetableSkeleton({ weekendDays = [] }: { weekendDays?: nu
           <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
         ))}
       </div>
-      <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+      <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-md">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-16 shrink-0" />
@@ -281,7 +281,7 @@ export function ParentRouteSkeleton() {
             <ParentStatSkeleton key={i} />
           ))}
         </div>
-        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-md">
           <div className="mb-3 flex items-center gap-2.5">
             <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
             <SkeletonBlock className="h-4 w-36" />

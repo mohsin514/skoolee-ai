@@ -104,12 +104,12 @@ export default function AccountantPage() {
       }
       setData(d);
     } catch {
-      toast.error("Failed to load dashboard");
+      toast.error(tr("Could not load the finance console. Sign in again to continue."));
       router.replace("/login");
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, tr]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -133,14 +133,14 @@ export default function AccountantPage() {
       tagline={tr("Finance Console")}
       eyebrow={tr("Finance Console")}
       navItems={navItems}
-      userName={data?.userName || "Accountant"}
+      userName={data?.userName || tr("Accountant")}
       userRole="Accountant"
       avatarSeed={data?.userEmail}
       logoUrl={data?.logoUrl}
       dashboardHref="/accountant"
     >
       {loading || !data ? (
-        <ConsoleSkeleton label="Loading the finance console" />
+        <ConsoleSkeleton label={tr("Loading the finance console")} />
       ) : (
         <ConsolePage
           items={NAV}
@@ -158,7 +158,7 @@ export default function AccountantPage() {
           }
         >
           {activeView === "dashboard" ? (
-            <div className="space-y-5">
+            <div className="sk-enter space-y-5">
               {data.summary?.kind === "ACCOUNTANT" ? (
                 <FinanceOverview
                   summary={data.summary}
@@ -166,13 +166,13 @@ export default function AccountantPage() {
                   onNavigate={(view) => setActiveView(view as AccountantView)}
                 />
               ) : null}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {NAV.filter((item) => item.id !== "dashboard").map((item) => (
                   <ConsoleQuickLink
                     key={item.id}
                     icon={item.icon}
-                    label={item.label}
-                    description={item.summary ?? ""}
+                    label={tr(item.label)}
+                    description={tr(item.summary ?? "")}
                     tone={item.tone}
                     onClick={() => setActiveView(item.id)}
                   />

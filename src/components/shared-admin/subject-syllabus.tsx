@@ -7,6 +7,10 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { EmptyInline } from "@/components/shared-admin";
 import { Input as SystemInput } from "@/components/ui/input";
+import { IconButton } from "@/components/ui/icon-button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
 type TopicStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
 
@@ -38,6 +42,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
   const [syllabusTopics, setTopics] = useState<SyllabusTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SyllabusTopic | null>(null);
   const [open, setOpen] = useState(false);
 
   const fetchTopics = useCallback(async () => {
@@ -163,8 +168,8 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
       {open ? (
         <div className="mt-4 space-y-3">
           {loading ? (
-            <div className="flex items-center gap-2 py-2 text-xs font-bold text-ink-subtle">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <div className="flex items-center gap-2 py-2 text-xs font-medium text-ink-subtle">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
               Loading syllabus…
             </div>
           ) : (
@@ -173,50 +178,66 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                 <div className="space-y-1.5">
                   {syllabusTopics.map((topic, index) => (
                     <div key={topic.id} className="flex items-center gap-2 rounded-xl bg-brand-50/60 px-3 py-2">
-                      <SystemButton variant="ghost"
-                        type="button"
+                      <IconButton
+                        label={index > 0 ? "Move up" : "Move down"}
+                        variant="ghost"
+                        size="sm"
                         onClick={() => moveTopic(index, index > 0 ? -1 : 1)}
                         disabled={busy}
-                        className="flex shrink-0 items-center justify-center"
-                        title="Move up"
                       >
-                        <ChevronDown className="h-3 w-3 rotate-180" />
-                      </SystemButton>
+                        <ChevronDown aria-hidden="true" className={cn("h-3 w-3", index > 0 && "rotate-180")} />
+                      </IconButton>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-bold text-ink-strong">{topic.title}</p>
                         {topic.description ? (
-                          <p className="truncate text-2xs font-bold text-ink-subtle">{topic.description}</p>
+                          <p className="truncate text-2xs font-normal text-ink-subtle">{topic.description}</p>
                         ) : null}
                       </div>
-                      <SystemButton variant="ghost"
-                        type="button"
-                        onClick={() => toggleStatus(topic)}
+                      <Tooltip content="Click to change status: Not started → In progress → Completed">
+                        <SystemButton variant="ghost"
+                          type="button"
+                          size="sm"
+                          onClick={() => toggleStatus(topic)}
+                          disabled={busy}
+                          className="h-auto shrink-0 px-1 py-1 text-ink-muted"
+                        >
+                          <Badge
+                            size="sm"
+                            dot
+                            variant={topic.status === "COMPLETED" ? "success" : topic.status === "IN_PROGRESS" ? "warning" : "neutral"}
+                          >
+                            {STATUS_LABEL[topic.status]}
+                          </Badge>
+                        </SystemButton>
+                      </Tooltip>
+                      <IconButton
+                        label="Delete topic"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPendingDelete(topic)}
                         disabled={busy}
-                        className={cn(
-                          "shrink-0 px-2 py-1",
-                          topic.status === "COMPLETED"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : topic.status === "IN_PROGRESS"
-                              ? "bg-amber-50 text-amber-600"
-                              : "bg-muted text-[#64748b]"
-                        )}
-                        title="Cycle status: Not started → In progress → Completed"
                       >
-                        {STATUS_LABEL[topic.status]}
-                      </SystemButton>
-                      <SystemButton variant="ghost"
-                        type="button"
-                        onClick={() => deleteTopic(topic.id)}
-                        disabled={busy}
-                        className="flex shrink-0 items-center justify-center"
-                        title="Delete topic"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </SystemButton>
+                        <Trash2 aria-hidden="true" className="h-3 w-3" />
+                      </IconButton>
                     </div>
                   ))}
                 </div>
               ) : <EmptyInline text="No syllabus topics yet. Add the first topic below." />}
+
+              <ConfirmAction
+                open={pendingDelete !== null}
+                tone="danger"
+                title="Delete this topic?"
+                description={pendingDelete ? `"${pendingDelete.title}" will be removed from this subject's syllabus.` : ""}
+                confirmLabel="Delete topic"
+                busy={busy}
+                onCancel={() => setPendingDelete(null)}
+                onConfirm={() => {
+                  const target = pendingDelete;
+                  setPendingDelete(null);
+                  if (target) void deleteTopic(target.id);
+                }}
+              />
 
               <div className="flex gap-2 pt-1">
                 <SystemInput

@@ -28,6 +28,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
@@ -176,7 +177,7 @@ export function Header({ title, description, actions }: HeaderProps) {
   const avatarSrc = user?.profileImageUrl;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-edge/25 bg-brand-50/90 px-4 py-3 backdrop-blur-xl shadow-[0_1px_2px_rgba(31,26,35,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] md:px-6">
+    <header className="sticky top-0 z-30 border-b border-edge/25 bg-brand-50/90 px-4 py-3 backdrop-blur-xl shadow-[0_1px_2px_rgba(120,70,180,0.06),0_10px_36px_-8px_rgba(129,39,207,0.18)] md:px-6">
       <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex min-w-0 items-center gap-4">
           <div className="shrink-0 -rotate-2 md:hidden">
@@ -207,27 +208,25 @@ export function Header({ title, description, actions }: HeaderProps) {
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
           <div ref={notifRef} className="relative">
-            <Button
-              type="button"
+            <IconButton
+              label="Notifications"
               variant="outline"
-              size="icon"
-              className="relative shrink-0 hover:-translate-y-0.5"
-              title="Notifications"
+              className="relative hover:-translate-y-0.5"
               onClick={() => {
                 setNotifOpen((open) => !open);
                 setMenuOpen(false);
               }}
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-4 w-4" aria-hidden="true" />
               {unreadCount > 0 && (
-                <span className="sk-glow absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-2xs font-bold text-white ring-2 ring-white">
+                <span className="sk-glow absolute -end-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-2xs font-bold text-white ring-2 ring-white">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
-            </Button>
+            </IconButton>
 
             {notifOpen && (
-              <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
+              <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(120,70,180,0.18)]">
                 <div className="flex items-center justify-between border-b border-edge/10 px-5 py-4">
                   <h3 className="text-sm font-bold text-ink-strong tracking-tight">Notifications</h3>
                   {unreadCount > 0 && (
@@ -249,7 +248,7 @@ export function Header({ title, description, actions }: HeaderProps) {
                 setNotifOpen(false);
               }}
               className={cn(
-                "flex justify-start items-center gap-2 text-left hover:-translate-y-0.5",
+                "flex justify-start items-center gap-2 text-start hover:-translate-y-0.5",
                 menuOpen && "border-primary/35 bg-white shadow-lg ring-2 ring-primary/15"
               )}
               aria-haspopup="menu"
@@ -274,7 +273,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             {menuOpen && (
               <div
                 role="menu"
-                className="animate-dropdown-enter absolute right-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_24px_70px_rgba(31,26,35,0.16)]"
+                className="animate-dropdown-enter absolute right-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_24px_70px_rgba(120,70,180,0.16)]"
               >
                 <div className="border-b border-edge/15 bg-brand-50/70 p-4">
                   <div className="flex items-center gap-3">

@@ -331,7 +331,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
           {/* ── The rail ──────────────────────────────────────────────── */}
           <nav
             aria-label="Exam steps"
-            className="grid gap-2 rounded-[24px] border border-edge/25 bg-white p-2.5 shadow-[0_2px_6px_rgba(31,26,35,0.05),0_14px_34px_-22px_rgba(129,39,207,0.3)] sm:grid-cols-3 xl:grid-cols-5"
+            className="grid gap-2 rounded-[24px] border border-edge/25 bg-white p-2.5 shadow-[0_2px_6px_rgba(120,70,180,0.05),0_14px_34px_-22px_rgba(129,39,207,0.3)] sm:grid-cols-3 xl:grid-cols-5"
           >
             {STEPS.map((s) => {
               const value = progress[s.key];
@@ -345,7 +345,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                   onClick={() => setStep(s.key)}
                   aria-current={on ? "step" : undefined}
                   className={"justify-start " + (cn(
-                    "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-left",
+                    "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-start",
                     on
                       ? ""
                       : "hover:-translate-y-0.5",
@@ -449,7 +449,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
           <Button variant="ghost"
             type="button"
             onClick={() => setShowLegacy((v) => !v)}
-            className="justify-start flex w-full items-center gap-3 px-5 py-3.5 text-left"
+            className="justify-start flex w-full items-center gap-3 px-5 py-3.5 text-start"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted">
               <MoreHorizontal className="h-4 w-4 text-ink-muted" />
@@ -477,7 +477,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                   <Button variant="secondary"
                     type="button"
                     onClick={() => setOpenExam(e)}
-                    className="justify-start flex w-full items-center gap-3 px-5 py-2.5 text-left"
+                    className="sk-row-interactive justify-start flex w-full items-center gap-3 px-5 py-2.5 text-start"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-bold text-ink-strong">
@@ -634,7 +634,7 @@ function PlanStep({
               key={cls.examId}
               type="button"
               onClick={() => onOpenExam(cls.examId)}
-              className="block group p-3 text-left hover:-translate-y-0.5"
+              className="sk-hover-lift block group p-3 text-start"
             >
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-sm font-bold text-ink-strong">
@@ -666,7 +666,7 @@ function MiniBar({ label, value, total }: { label: string; value: number; total:
         {label}
       </span>
       <Meter value={value} total={total} tone={done ? "emerald" : "violet"} className="flex-1" />
-      <span className="w-11 shrink-0 text-right text-2xs font-bold tabular-nums text-ink-subtle">
+      <span className="w-11 shrink-0 text-end text-2xs font-bold tabular-nums text-ink-subtle">
         {value}/{total}
       </span>
     </div>
@@ -740,7 +740,7 @@ function MarksStep({
                 <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(cls)}
-                  className="group flex w-full items-center gap-3 px-5 py-3 text-left"
+                  className="sk-row-interactive group flex w-full items-center gap-3 px-5 py-3 text-start"
                 >
                   <span
                     className={cn(

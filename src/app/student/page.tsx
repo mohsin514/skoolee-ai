@@ -1,17 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { ATTENDANCE_RISK_THRESHOLD } from "@/lib/attendance";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   Award, BookOpen, CalendarClock, CheckCircle2, ChevronRight, Clock, CreditCard,
-  GraduationCap, Loader2, MapPin, Printer, Sparkles, TrendingUp,
+  GraduationCap, MapPin, Printer, Sparkles, TrendingUp,
 } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { cn } from "@/lib/utils";
+import { localeTag } from "@/lib/locale/package";
 import { toast } from "@/components/ui/toast";
-import { AiActionPanel, BrandButton, EmptyState } from "@/components/role-dashboard";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { AiActionPanel, EmptyState } from "@/components/role-dashboard";
 import { DashboardSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { CountUp, Panel, PanelHeading, StatCard } from "@/components/student/student-ui";
 import { useStudentData } from "./student-data-context";
@@ -21,7 +26,8 @@ import { downloadPdfFile } from "@/lib/download";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { StudentToday } from "@/components/student/student-today";
 
-const WEEKDAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/** A text link that reads as a quiet action: 44px tall, with an arrow that leans forward. */
+const panelLink = cn(buttonVariants({ variant: "ghost", size: "sm" }), "sk-nudge-trigger -me-2 gap-1 text-primary");
 
 /** Timetable days are 1=Mon..7=Sun; JS getDay() is 0=Sun. */
 function isoDayOfWeek(d: Date) {
@@ -44,6 +50,7 @@ function greeting() {
 export default function StudentDashboard() {
   const { money } = useLocaleFormat();
   const tr = useUiText();
+  const locale = useLocale();
   const { data, loading, refetch, error } = useStudentData();
   const [downloading, setDownloading] = useState(false);
   const [upcomingPapers, setUpcomingPapers] = useState<any[]>([]);
@@ -131,10 +138,10 @@ export default function StudentDashboard() {
       if (json.success && json.pdfUrl) {
         await downloadPdfFile(json.pdfUrl, "report-card.pdf");
       } else {
-        toast.error(json.error || "No report card available to download");
+        toast.error(tr("No report card is available to download yet."));
       }
     } catch {
-      toast.error("Failed to download report card");
+      toast.error(tr("Could not download the report card. Please try again."));
     } finally {
       setDownloading(false);
     }
@@ -155,85 +162,87 @@ export default function StudentDashboard() {
   const feePaidPct = invoiced ? Math.round(((invoiced - user.balanceDue) / invoiced) * 100) : 100;
 
   const studentAIFeatures = [
-    { feature: "explain_report_card", label: "Explain Report", placeholder: "Optional question about the latest report" },
-    { feature: "study_plan", label: "Study Plan", placeholder: "Goal, exam, or available study time" },
-    { feature: "school_faq", label: "School FAQ", field: "question" as const, placeholder: "Ask an approved school question" },
+    { feature: "explain_report_card", label: tr("Explain Report"), placeholder: tr("Optional question about the latest report") },
+    { feature: "study_plan", label: tr("Study Plan"), placeholder: tr("Goal, exam, or available study time") },
+    { feature: "school_faq", label: tr("School FAQ"), field: "question" as const, placeholder: tr("Ask an approved school question") },
   ];
 
   const nextPaper = upcomingPapers[0];
   const upNext = todayWithState.find((s) => s.current) || todayWithState.find((s) => s.isNext);
+  const tag = localeTag(locale);
+  const periodCount = todayWithState.length;
 
   return (
     <StudentPage
       avatar={<AvatarImage src={user.profileImageUrl} name={user.fullName} initialsClassName="text-lg" className="h-full w-full object-cover" />}
       icon={GraduationCap}
-      eyebrow={<>{greeting()}</>}
+      eyebrow={<>{tr(greeting())}</>}
       title={user.fullName}
       summary={
         <>
-          {user.rollNo || "No roll number"} · {user.className} · {user.campusName}
+          {user.rollNo || tr("No roll number")} · {user.className} · {user.campusName}
         </>
       }
       actions={
         <>
           {/* SKO-418: now/next lives in Today below, computed in school time rather than the device clock. */}
-          <BrandButton
+          <Button
             variant="dark"
             className="min-h-10"
-            icon={downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+            loading={downloading}
             onClick={handleDownloadPdf}
-            disabled={downloading}
           >
-            {downloading ? tr("Generating…") : tr("Report Card")}
-          </BrandButton>
+            {downloading ? null : <Printer aria-hidden="true" />}
+            {tr("Report Card")}
+          </Button>
         </>
       }
     >
       {!data.profileMissing ? <StudentToday /> : null}
       {data.profileMissing ? (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           <EmptyState
             icon={GraduationCap}
-            title="Academic profile not linked yet"
-            description="The account is active, but no central student record is linked to it yet."
+            title={tr("Academic profile not linked yet")}
+            description={tr("The account is active, but no central student record is linked to it yet.")}
           />
         </div>
       ) : (
         <div className="space-y-3">
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               icon={Award}
-              label="Average"
+              label={tr("Average")}
               value={<CountUp value={average} suffix="%" />}
-              sub={user.marks.length ? `Across ${user.marks.length} published marks` : "No published marks yet"}
+              sub={user.marks.length ? tr("Across {0} published marks", [user.marks.length]) : tr("No published marks yet")}
               tone="purple"
               delay={80}
             />
             <StatCard
               icon={CheckCircle2}
-              label="Attendance"
-              value={user.attendanceRate === null ? "N/A" : <CountUp value={user.attendanceRate} suffix="%" />}
-              sub={user.attendanceRate === null ? "Nothing marked yet" : user.attendanceRate >= 75 ? "Good standing" : "Below 75%"}
-              tone={user.attendanceRate === null ? "purple" : user.attendanceRate >= 75 ? "green" : "rose"}
+              label={tr("Attendance")}
+              value={user.attendanceRate === null ? "—" : <CountUp value={user.attendanceRate} suffix="%" />}
+              sub={user.attendanceRate === null ? tr("Nothing marked yet") : user.attendanceRate >= ATTENDANCE_RISK_THRESHOLD ? tr("Good standing") : tr("Below {0}%", [ATTENDANCE_RISK_THRESHOLD])}
+              tone={user.attendanceRate === null ? "purple" : user.attendanceRate >= ATTENDANCE_RISK_THRESHOLD ? "green" : "rose"}
               ring={user.attendanceRate}
               delay={160}
             />
             <StatCard
               icon={BookOpen}
-              label="Subjects"
+              label={tr("Subjects")}
               value={<CountUp value={user.subjects.length} />}
-              sub="Enrolled this year"
+              sub={tr("Enrolled this year")}
               tone="purple"
               delay={240}
             />
             <StatCard
               icon={CreditCard}
-              label="Balance Due"
+              label={tr("Balance Due")}
               /* Invoice amounts are stored in paisa — the guardian portal
                  already divides, and this card was reading 100x high. */
               value={money(user.balanceDue, user.balanceCurrency)}
-              sub={user.balanceDue > 0 ? `${feePaidPct}% of fees cleared` : "All fees cleared"}
+              sub={user.balanceDue > 0 ? tr("{0}% of fees cleared", [feePaidPct]) : tr("All fees cleared")}
               tone={user.balanceDue > 0 ? "amber" : "green"}
               ring={invoiced ? feePaidPct : null}
               delay={320}
@@ -244,135 +253,124 @@ export default function StudentDashboard() {
           <LearnerInsights series={learnerSeriesFromStudent(user)} />
 
           {/* Today + next paper */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
             <Panel className="xl:col-span-2" delay={360}>
               <PanelHeading
                 icon={Clock}
-                title="Today's Classes"
-                sub={`${WEEKDAYS[isoDayOfWeek(now)]} · ${todayWithState.length} period${todayWithState.length !== 1 ? "s" : ""}`}
+                title={tr("Today's Classes")}
+                sub={`${now.toLocaleDateString(tag, { weekday: "short" })} · ${tr(periodCount === 1 ? "{0} period" : "{0} periods", [periodCount])}`}
                 action={
-                  <Link
-                    href="/student/timetable"
-                    className="inline-flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-primary transition-colors hover:text-brand-700"
-                  >
-                    Full week <ChevronRight className="w-3 h-3" />
+                  <Link href="/student/timetable" className={panelLink}>
+                    {tr("Full week")} <ChevronRight aria-hidden="true" className="sk-nudge size-3.5 rtl:rotate-180" />
                   </Link>
                 }
               />
               {slots === null ? (
-                <div className="space-y-2">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="h-14 rounded-2xl bg-border-subtle/40 animate-pulse" />
+                <SkeletonRegion label={tr("Loading today's classes")} className="space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} delay={i * 60} className="h-16 rounded-2xl" />
                   ))}
-                </div>
+                </SkeletonRegion>
               ) : todayWithState.length ? (
-                <div className="space-y-2">
+                <ol className="space-y-2">
                   {todayWithState.map((s) => (
-                    <div
+                    <li
                       key={`${s.dayOfWeek}-${s.periodNumber}`}
-                      className={`group flex items-center gap-4 rounded-2xl border px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                      aria-current={s.current ? "time" : undefined}
+                      className={cn(
+                        "flex min-w-0 items-center gap-3 rounded-2xl border px-3 py-2.5 transition-colors duration-200 sm:gap-4 sm:px-4",
                         s.current
-                          ? "border-emerald-300/60 bg-emerald-50/60 shadow-sm"
+                          ? "border-status-success-border bg-status-success-surface shadow-xs"
                           : s.done
-                          ? "border-edge/10 bg-[#f8f6fa]/60 opacity-60"
-                          : "border-edge/12 bg-white"
-                      }`}
+                          ? "border-border-subtle bg-surface-subtle opacity-70"
+                          : "border-border-subtle bg-white hover:border-border-subtle-hover hover:bg-surface-hover",
+                      )}
                     >
-                      <div className="sk-panel flex h-11 w-11 shrink-0 flex-col items-center justify-center">
-                        <span className="text-3xs font-semibold uppercase text-primary/60">Period</span>
-                        <span className="text-sm font-bold leading-none text-ink-strong">{s.periodNumber}</span>
+                      <div className="sk-panel flex size-12 shrink-0 flex-col items-center justify-center gap-0.5 shadow-none">
+                        <span className="text-2xs font-semibold leading-none text-primary/80">{tr("Period")}</span>
+                        <span className="text-sm font-bold leading-none tabular-nums text-ink-strong">{s.periodNumber}</span>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-ink-strong transition-colors group-hover:text-primary">
-                          {s.subject?.name || s.slotType || "Class"}
+                        <p className="truncate text-sm font-semibold text-ink-strong">
+                          {s.subject?.name || s.slotType || tr("Class")}
                         </p>
-                        <p className="truncate text-2xs font-semibold text-ink-subtle">
+                        <p className="truncate text-xs tabular-nums text-ink-subtle">
                           {s.startTime}–{s.endTime}
                           {s.teacher?.fullName ? ` · ${s.teacher.fullName}` : ""}
-                          {s.roomNumber ? ` · Room ${s.roomNumber}` : ""}
+                          {s.roomNumber ? ` · ${tr("Room {0}", [s.roomNumber])}` : ""}
                         </p>
                       </div>
                       {s.current && (
-                        <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-white">
-                          <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                          Now
-                        </span>
+                        <Badge variant="success" size="sm" dot className="shrink-0">{tr("Now")}</Badge>
                       )}
                       {s.isNext && (
-                        <span className="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
-                          Next
-                        </span>
+                        <Badge variant="secondary" size="sm" className="shrink-0">{tr("Next")}</Badge>
                       )}
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ol>
               ) : (
-                <div className="flex flex-col items-center justify-center rounded-[24px] border border-dashed border-edge/25 bg-brand-50/15 py-12 text-center">
-                  <Clock className="mb-3 h-8 w-8 text-ink-subtle" />
-                  <p className="text-sm font-bold text-ink-strong">No classes scheduled today</p>
-                  <p className="mt-1 text-xs font-semibold text-ink-muted">
-                    {slots.length ? "Enjoy the day off." : "Your timetable will appear once the school publishes it."}
-                  </p>
-                </div>
+                <EmptyState
+                  size="sm"
+                  icon={Clock}
+                  className="rounded-2xl border border-dashed border-border-subtle bg-surface-subtle"
+                  title={tr("No classes scheduled today")}
+                  description={slots.length ? tr("Enjoy the day off.") : tr("Your timetable will appear once the school publishes it.")}
+                />
               )}
             </Panel>
 
             <Panel delay={420}>
-              <PanelHeading icon={CalendarClock} title="Next Paper" tone="amber" />
+              <PanelHeading icon={CalendarClock} title={tr("Next Paper")} tone="amber" />
               {nextPaper ? (
-                <div className="space-y-4">
-                  <div className="rounded-[24px] bg-gradient-to-br from-brand-50 to-white p-5 border border-edge/15">
-                    <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                      {nextPaper.exam?.title || "Exam"}
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-edge/15 bg-gradient-to-br from-brand-50 to-white p-4 sm:p-5">
+                    <p className="sk-eyebrow">{nextPaper.exam?.title || tr("Exam")}</p>
+                    <p className="mt-1 break-words text-xl font-bold tracking-tight text-ink-strong">
+                      {nextPaper.subject?.name || tr("Class-wide paper")}
                     </p>
-                    <p className="mt-1 text-xl font-bold tracking-tight text-ink-strong">
-                      {nextPaper.subject?.name || "Class-wide paper"}
-                    </p>
-                    <p className="mt-2 text-xs font-semibold text-ink-muted">
-                      {new Date(nextPaper.date + "T00:00:00").toLocaleDateString("en-US", {
+                    <p className="mt-2 text-sm text-ink-muted">
+                      {new Date(nextPaper.date + "T00:00:00").toLocaleDateString(tag, {
                         weekday: "long", month: "long", day: "numeric",
                       })}
                     </p>
                     {nextPaper.periodDefinition && (
-                      <p className="text-xs font-semibold text-ink-subtle">
+                      <p className="text-xs tabular-nums text-ink-subtle">
                         {nextPaper.periodDefinition.startTime}–{nextPaper.periodDefinition.endTime}
                       </p>
                     )}
                     {nextPaper.room && (
-                      <p className="mt-1 flex items-center gap-1 text-2xs font-bold text-primary">
-                        <MapPin className="h-3 w-3" /> Room {nextPaper.room.roomNumber}
+                      <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-primary">
+                        <MapPin aria-hidden="true" className="size-3.5" /> {tr("Room {0}", [nextPaper.room.roomNumber])}
                       </p>
                     )}
                   </div>
                   {upcomingPapers.length > 1 && (
-                    <div className="space-y-1.5">
+                    <ul className="space-y-1.5">
                       {upcomingPapers.slice(1, 4).map((p) => (
-                        <div key={p.id} className="flex items-center gap-3 rounded-xl bg-brand-50/30 px-3 py-2">
-                          <span className="text-2xs font-bold text-primary/70 w-12 shrink-0">
-                            {new Date(p.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        <li key={p.id} className="flex min-w-0 items-center gap-3 rounded-xl bg-surface-subtle px-3 py-2">
+                          <span className="w-14 shrink-0 text-xs font-semibold tabular-nums text-primary">
+                            {new Date(p.date + "T00:00:00").toLocaleDateString(tag, { month: "short", day: "numeric" })}
                           </span>
-                          <span className="truncate text-2xs font-bold text-ink-strong">
-                            {p.subject?.name || "Paper"}
+                          <span className="min-w-0 truncate text-sm font-medium text-ink-strong">
+                            {p.subject?.name || tr("Paper")}
                           </span>
-                        </div>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   )}
-                  <Link
-                    href="/student/timetable"
-                    className="inline-flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-primary transition-colors hover:text-brand-700"
-                  >
-                    Full date sheet <ChevronRight className="w-3 h-3" />
+                  <Link href="/student/timetable" className={panelLink}>
+                    {tr("Full date sheet")} <ChevronRight aria-hidden="true" className="sk-nudge size-3.5 rtl:rotate-180" />
                   </Link>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center rounded-[24px] border border-dashed border-edge/25 bg-brand-50/15 py-12 text-center">
-                  <CalendarClock className="mb-3 h-8 w-8 text-ink-subtle" />
-                  <p className="text-sm font-bold text-ink-strong">No papers scheduled</p>
-                  <p className="mt-1 text-xs font-semibold text-ink-muted">
-                    Exam date sheets appear here once published.
-                  </p>
-                </div>
+                <EmptyState
+                  size="sm"
+                  icon={CalendarClock}
+                  className="rounded-2xl border border-dashed border-border-subtle bg-surface-subtle"
+                  title={tr("No papers scheduled")}
+                  description={tr("Exam date sheets appear here once published.")}
+                />
               )}
             </Panel>
           </div>
@@ -380,47 +378,48 @@ export default function StudentDashboard() {
           <AcademicCalendar readOnly role="STUDENT" />
 
           {/* AI */}
-          <div
-            className="sk-rise bg-gradient-to-br from-primary to-brand-400 rounded-[40px] p-[12px] sm:p-8 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45),0_0_0_1px_rgba(255,255,255,0.04)_inset] relative overflow-hidden flex flex-col lg:flex-row gap-4"
+          <section
+            aria-labelledby="student-insight-title"
+            className="sk-rise sk-brand-surface relative flex flex-col gap-4 overflow-hidden rounded-[28px] p-3 shadow-xl sm:rounded-[32px] sm:p-8 lg:flex-row"
             style={{ animationDelay: "480ms" }}
           >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-            <div className="relative min-w-0 flex-1 text-white space-y-6">
+            <div aria-hidden="true" className="pointer-events-none absolute -end-16 -top-24 size-64 rounded-full bg-white/5 blur-3xl" />
+            <div className="relative min-w-0 flex-1 space-y-5 text-white">
               <div className="flex items-center gap-3">
-                <div className="h-[40px] w-[40px] shrink-0 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110">
-                  {user.aiInsights?.length ? <Sparkles className="w-6 h-6 text-white" /> : <TrendingUp className="w-6 h-6 text-white" />}
+                <div aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 backdrop-blur-sm">
+                  {user.aiInsights?.length ? <Sparkles className="size-5 text-white" /> : <TrendingUp className="size-5 text-white" />}
                 </div>
-                <h4 className="text-xl font-bold italic tracking-tight leading-none">Academic Insight</h4>
+                <h2 id="student-insight-title" className="text-lg font-bold leading-tight tracking-tight sm:text-xl">{tr("Academic Insight")}</h2>
               </div>
-              <p className="text-sm font-medium leading-relaxed italic max-w-2xl text-white/85">
+              <p className="max-w-2xl text-sm leading-relaxed text-white/85">
                 {user.aiInsights?.[0]?.summary ||
                   user.reportCards?.[0]?.remarksEn ||
-                  "Academic performance will be summarized here after marks and report card remarks are published."}
+                  tr("Academic performance will be summarized here after marks and report card remarks are published.")}
               </p>
               {user.aiInsights?.length > 1 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {user.aiInsights.slice(1, 3).map((insight: any) => (
-                    <div key={insight.id} className="rounded-2xl bg-white/10 border border-white/15 p-4 transition-all hover:bg-white/20 hover:-translate-y-0.5 hover:shadow-xl backdrop-blur-sm">
-                      <p className="text-2xs font-semibold uppercase tracking-wider text-white/60 mb-1">
+                    <div key={insight.id} className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+                      <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-white/70">
                         {insight.feature.replaceAll("_", " ")}
                       </p>
-                      <p className="text-xs font-semibold leading-relaxed text-white/90">{insight.summary}</p>
+                      <p className="text-sm leading-relaxed text-white/90">{insight.summary}</p>
                     </div>
                   ))}
                 </div>
               ) : null}
             </div>
-            <div className="relative min-w-0 lg:w-[360px] rounded-[28px] bg-white/95 p-[12px] sm:p-5 text-ink-strong shadow-xl transition-all hover:shadow-2xl hover:-translate-y-0.5 overflow-hidden">
+            <div className="relative min-w-0 overflow-hidden rounded-3xl bg-white/95 p-3 text-ink-strong shadow-xl sm:p-5 lg:w-[360px] lg:shrink-0">
               <CornerSparkles />
               <AiActionPanel
-                title="Student AI"
+                title={tr("Student AI")}
                 options={studentAIFeatures}
                 studentId={user.id}
                 compact
                 onComplete={refetch}
               />
             </div>
-          </div>
+          </section>
         </div>
       )}
     </StudentPage>

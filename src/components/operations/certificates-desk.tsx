@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -216,7 +217,7 @@ function TemplatesTab({ templates, canApprove, onChanged }: { templates: Templat
   };
   return <div className="space-y-3">
     <div className="flex justify-end"><Button onClick={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />{ui("New template")}</Button></div>
-    {!templates.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{ui("No templates yet. Create one, then ask a campus leader to approve it.")}</p>
+    {!templates.length ? <EmptyState size="sm" icon={FileText} title={ui("No templates yet. Create one, then ask a campus leader to approve it.")} />
       : <ul className="space-y-2" aria-label={ui("Templates")}>{templates.map(template => {
         const changed = !template.approved || template.approved.title !== template.draft.title || template.approved.body !== template.draft.body;
         return <li key={template.id} className="space-y-1 rounded-2xl border border-border p-3 text-sm" data-template={template.name} data-template-version={template.currentVersion}>

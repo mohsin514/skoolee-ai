@@ -3,10 +3,19 @@ import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { AlertTriangle, BarChart3, CalendarCheck, ChevronLeft, ChevronRight, ListChecks, WifiOff } from "lucide-react";
+import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, ListChecks, WifiOff } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { Select } from "@/components/ui/select";
-import { AttendanceSkeleton, classLabel, EmptyInline, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
+import { IconButton } from "@/components/ui/icon-button";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { FormField } from "@/components/ui/form-field";
+import { InfoTip } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { AttendanceSkeleton, classLabel, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
 import { AttendanceExceptions, ClassRegister } from "@/components/attendance/class-register";
 import { OfflineRegister } from "@/components/offline/offline-register";
 import { useUiText } from "@/components/locale/LocaleProvider";
@@ -25,6 +34,9 @@ export default function AttendancePage() {
   const [attendanceClassId, setAttendanceClassId] = useState("");
   const [monthlyData, setMonthlyData] = useState<any>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
+  // A failed load used to fall through to the "select a class" prompt, so a
+  // teacher could not tell an outage from an empty month.
+  const [monthlyFailed, setMonthlyFailed] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -42,12 +54,13 @@ export default function AttendancePage() {
   const loadMonthlyReport = useCallback(async (classId: string, month: string) => {
     if (!classId || !month) return;
     setMonthlyLoading(true);
+    setMonthlyFailed(false);
     try {
       const res = await fetch(`/api/attendance/monthly?classId=${classId}&month=${month}`);
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to load monthly report"));
       setMonthlyData(result);
-    } catch { setMonthlyData(null); }
+    } catch { setMonthlyData(null); setMonthlyFailed(true); }
     finally { setMonthlyLoading(false); }
   }, []);
 
@@ -72,7 +85,7 @@ export default function AttendancePage() {
       title={ui("Daily Attendance")}
       summary={ui("Mark student attendance per class and date")}
       actions={
-        <div className="flex h-10 items-center gap-0.5 rounded-xl border border-edge/20 bg-surface-subtle p-1">
+        <div role="group" aria-label={ui("Attendance views")} className="flex flex-wrap items-center gap-0.5 rounded-xl border border-edge/20 bg-surface-subtle p-1">
           {([
             { key: "marking" as ViewTab, label: ui("Mark"), icon: CalendarCheck },
             { key: "exceptions" as ViewTab, label: ui("Exceptions"), icon: ListChecks },
@@ -80,8 +93,8 @@ export default function AttendancePage() {
             // SKO-448: marking that keeps working without a connection.
             { key: "offline" as ViewTab, label: ui("Offline"), icon: WifiOff },
           ]).map(({ key, label, icon: Icon }) => (
-            <Button variant="choice" key={key} type="button" onClick={() => setActiveTab(key)} aria-pressed={activeTab === key} className="shrink-0 whitespace-nowrap px-2 justify-start" data-attendance-tab={key}>
-              <Icon className="h-3.5 w-3.5" />
+            <Button variant="choice" size="sm" key={key} type="button" onClick={() => setActiveTab(key)} aria-pressed={activeTab === key} className="shrink-0 justify-start whitespace-nowrap px-2.5" data-attendance-tab={key}>
+              <Icon aria-hidden="true" className="h-3.5 w-3.5" />
               {label}
             </Button>
           ))}
@@ -98,10 +111,20 @@ export default function AttendancePage() {
             adjustMonth={adjustMonth}
             monthlyData={monthlyData}
             monthlyLoading={monthlyLoading}
+            monthlyFailed={monthlyFailed}
+            onRetry={() => loadMonthlyReport(attendanceClassId, selectedMonth)}
           />
         ) : activeTab === "exceptions" ? <AttendanceExceptions /> : activeTab === "offline" ? <OfflineRegister classes={classHubs.map((cls: any) => ({ id: cls.id, label: classLabel(cls) }))} /> : classHubs.length ? (
           <ClassRegister key={attendanceClassId} classes={classHubs.map((cls: any) => ({ id: cls.id, label: classLabel(cls) }))} initialClassId={attendanceClassId} />
-        ) : <EmptyInline text={ui("No classes are assigned to you.")} />}
+        ) : (
+          <div className="sk-panel sk-enter">
+            <EmptyState
+              icon={GraduationCap}
+              title={ui("No classes are assigned to you.")}
+              description={ui("Your classes appear here once a school administrator assigns them to you. Until then there is no register to mark.")}
+            />
+          </div>
+        )}
       </div>
     </TeacherPage>
   );
@@ -109,140 +132,198 @@ export default function AttendancePage() {
 
 /* ── Monthly Report Sub-View ── */
 
-function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId, selectedMonth, adjustMonth, monthlyData, monthlyLoading }: {
+function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId, selectedMonth, adjustMonth, monthlyData, monthlyLoading, monthlyFailed = false, onRetry }: {
   classHubs: any[]; attendanceClassId: string; setAttendanceClassId: (id: string) => void;
   selectedMonth: string; adjustMonth: (d: number) => void; monthlyData: any; monthlyLoading: boolean;
+  monthlyFailed?: boolean; onRetry?: () => void;
 }) {
+  const ui = useUiText();
   const monthLabel = (() => {
     const [y, m] = selectedMonth.split("-").map(Number);
     return new Date(y, m - 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   })();
+  const students: any[] = monthlyData?.students || [];
 
   return (
     <>
       {/* Controls */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
-          <div>
-            <label className="block mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Class</label>
-            <Select value={attendanceClassId} onChange={(e: any) => setAttendanceClassId(e.target.value)} className={"min-w-[240px]"}>
+        <div className="grid w-full grid-cols-1 items-end gap-3 sm:w-auto sm:grid-cols-[minmax(240px,1fr)_auto]">
+          <FormField name="monthlyClass" id="attendance-monthly-class" label={ui("Class")}>
+            <Select value={attendanceClassId} onChange={(e: any) => setAttendanceClassId(e.target.value)}>
               {classHubs.map((cls: any) => (
                 <option key={cls.id} value={cls.id}>
-                  {classLabel(cls)}{cls.inActiveCycle === false ? " (outside active cycle)" : ""}
+                  {classLabel(cls)}{cls.inActiveCycle === false ? ` ${ui("(outside active cycle)")}` : ""}
                 </option>
               ))}
-              {!classHubs.length ? <option value="">No classes</option> : null}
+              {!classHubs.length ? <option value="">{ui("No classes")}</option> : null}
             </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="icon" variant="outline" type="button" onClick={() => adjustMonth(-1)} title="Previous month" aria-label="Previous month" className="items-center justify-center">
-              <ChevronLeft className="w-4 h-4 text-ink" />
-            </Button>
-            <div className="sk-panel h-10 px-4 flex items-center text-sm font-semibold text-ink-strong min-w-[140px] justify-center">{monthLabel}</div>
-            <Button size="icon" variant="outline" type="button" onClick={() => adjustMonth(1)} title="Next month" aria-label="Next month" className="items-center justify-center">
-              <ChevronRight className="w-4 h-4 text-ink" />
-            </Button>
+          </FormField>
+          <div role="group" aria-label={ui("Month")} className="flex items-center gap-2">
+            <IconButton variant="outline" label={ui("Previous month")} onClick={() => adjustMonth(-1)}>
+              <ChevronLeft aria-hidden="true" className="rtl:rotate-180" />
+            </IconButton>
+            <div aria-live="polite" className="sk-panel flex min-h-11 min-w-[140px] flex-1 items-center justify-center px-4 text-sm font-semibold text-ink-strong sm:flex-none">{monthLabel}</div>
+            <IconButton variant="outline" label={ui("Next month")} onClick={() => adjustMonth(1)}>
+              <ChevronRight aria-hidden="true" className="rtl:rotate-180" />
+            </IconButton>
           </div>
         </div>
       </div>
 
       {monthlyLoading ? (
-        <div className="space-y-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="sk-panel p-5">
-              <div className="skeleton-shimmer bg-border-subtle/50 h-5 w-40 rounded-lg mb-3" />
-              <div className="skeleton-shimmer bg-border-subtle/50 h-3 w-64 rounded-lg" />
-            </div>
-          ))}
+        <SkeletonRegion className="space-y-3" label={ui("Loading monthly report")}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="sk-panel px-4 py-3.5">
+                <Skeleton className="h-3 w-20" delay={i * 60} />
+                <Skeleton className="mt-2 h-6 w-12" delay={i * 60} />
+              </div>
+            ))}
+          </div>
+          <div className="sk-panel space-y-3 p-5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-9 w-9 shrink-0 rounded-xl" delay={i * 60} />
+                <Skeleton className="h-4 w-40" delay={i * 60} />
+                <Skeleton className="ms-auto h-3 w-24" delay={i * 60} />
+              </div>
+            ))}
+          </div>
+        </SkeletonRegion>
+      ) : monthlyFailed ? (
+        <div className="sk-panel">
+          <ErrorState
+            title={ui("Couldn't load the monthly report")}
+            description={ui("Check your connection and try again. Nothing in the register has changed.")}
+            onRetry={onRetry}
+          />
         </div>
       ) : monthlyData ? (
         <>
           {/* Summary stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="sk-stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="sk-panel px-4 py-3.5">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
-              <p className="mt-0.5 text-xl font-bold text-ink-strong">{monthlyData.totalStudents}</p>
+              <p className="sk-eyebrow">{ui("Students")}</p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-ink-strong">{monthlyData.totalStudents}</p>
             </div>
-            <div className="rounded-2xl bg-emerald-50/80 border border-emerald-200/60 px-4 py-3.5">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-700">Avg Attendance</p>
-              <p className="mt-0.5 text-xl font-bold text-emerald-700">{monthlyData.classAveragePercentage}%</p>
+            <div className="rounded-2xl border border-status-success-border bg-status-success-surface px-4 py-3.5 shadow-xs">
+              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
+                <span className="min-w-0 truncate">{ui("Average attendance")}</span>
+                <InfoTip className="-my-1" content={ui("The average of every student's attendance rate this month, counted with your school's attendance rule.")} />
+              </p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-emerald-700">{monthlyData.classAveragePercentage}%</p>
             </div>
-            <div className="rounded-2xl bg-rose-50/80 border border-rose-200/60 px-4 py-3.5">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-rose-700">At-Risk</p>
-              <p className="mt-0.5 text-xl font-bold text-rose-700">{monthlyData.atRiskStudents?.length || 0}</p>
+            <div className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3.5 shadow-xs">
+              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-700">
+                <span className="min-w-0 truncate">{ui("At risk")}</span>
+                <InfoTip className="-my-1" content={ui("Students below 75% attendance this month who have at least one day recorded.")} />
+              </p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-rose-700">{monthlyData.atRiskStudents?.length || 0}</p>
             </div>
-            <div className="rounded-2xl bg-brand-50/80 border border-primary/10 px-4 py-3.5">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Total Days</p>
-              <p className="mt-0.5 text-xl font-bold text-primary">{monthlyData.summary ? monthlyData.summary.totalPresent + monthlyData.summary.totalAbsent + monthlyData.summary.totalLeave : 0}</p>
+            <div className="rounded-2xl border border-status-brand-border bg-status-brand-surface px-4 py-3.5 shadow-xs">
+              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
+                <span className="min-w-0 truncate">{ui("Total Days")}</span>
+                <InfoTip className="-my-1" content={ui("Every present, absent and leave entry recorded for this class this month, added together.")} />
+              </p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{monthlyData.summary ? monthlyData.summary.totalPresent + monthlyData.summary.totalAbsent + monthlyData.summary.totalLeave : 0}</p>
             </div>
           </div>
 
           {/* At-risk students */}
           {monthlyData.atRiskStudents?.length > 0 && (
-            <div className="rounded-2xl border border-rose-200/40 bg-rose-50/30 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="w-4 h-4 text-rose-600" />
-                <p className="text-2xs font-semibold uppercase tracking-wider text-rose-700">At-Risk Students (&lt; 75% Attendance)</p>
-              </div>
-              <div className="space-y-2">
+            <Alert tone="warning" live="off" title={ui("At-risk students (below 75% attendance)")}>
+              <ul className="mt-2 space-y-2">
                 {monthlyData.atRiskStudents.map((s: any) => (
-                  <div key={s.studentId} className="sk-panel flex items-center justify-between gap-3 border-rose-100 px-4 py-2.5">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-8 w-8 shrink-0 rounded-lg bg-rose-100 flex items-center justify-center">
-                        <span className="text-2xs font-bold text-rose-700">{s.rollNo || "#"}</span>
+                  <li key={s.studentId} className="sk-panel flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-2.5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 px-1.5">
+                        <span className="text-2xs font-bold tabular-nums text-rose-700">{s.rollNo || "#"}</span>
                       </div>
-                      <p className="text-sm font-bold text-ink-strong truncate">{s.studentName}</p>
+                      <p className="truncate text-sm font-semibold text-ink-strong">{s.studentName}</p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="rounded-full bg-rose-100 px-2.5 py-1 text-2xs font-bold text-rose-700">{s.percentage}%</span>
-                      <span className="text-2xs font-semibold text-ink-muted">{s.absentDays} absent</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant="danger" size="sm" dot data-numeric>{s.percentage}%</Badge>
+                      <span className="text-xs tabular-nums text-ink-subtle">{ui("{0} absent", [s.absentDays])}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+
+          {/* Student breakdown table */}
+          {students.length === 0 ? (
+            <div className="sk-panel">
+              <EmptyState
+                size="sm"
+                icon={CalendarCheck}
+                title={ui("No attendance recorded yet")}
+                description={ui("Nothing has been marked for this class in {0} yet. The report fills in as you mark the register.", [monthLabel])}
+              />
+            </div>
+          ) : (
+            <div className="sk-panel overflow-hidden">
+              <div className="hidden gap-3 bg-surface-subtle px-5 py-3 sm:grid sm:grid-cols-[1fr_80px_80px_80px_100px]">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{ui("Student")}</span>
+                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-emerald-700">{ui("Present")}</span>
+                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-rose-700">{ui("Absent")}</span>
+                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-amber-700">{ui("Leave")}</span>
+                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Rate")}</span>
+              </div>
+              <div className="divide-y divide-muted">
+                {students.map((student: any) => (
+                  <div key={student.studentId} className={cn(
+                    "grid grid-cols-4 gap-x-3 gap-y-2.5 px-5 py-3.5 transition-colors hover:bg-surface-hover sm:grid-cols-[1fr_80px_80px_80px_100px] sm:items-center",
+                    student.percentage < 75 && "bg-rose-50/30"
+                  )}>
+                    <div className="col-span-4 flex min-w-0 items-center gap-3 sm:col-span-1">
+                      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
+                        <AvatarImage src={student.profileImageUrl} name={student.name} alt={student.name} initialsClassName="text-2xs" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink-strong">{student.name}</p>
+                        <p className="text-xs text-ink-subtle">{student.rollNo || ui("No roll")}</p>
+                      </div>
+                    </div>
+                    <p className="text-center text-sm font-bold tabular-nums text-emerald-700">
+                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Present")}</span>
+                      {student.present}
+                    </p>
+                    <p className="text-center text-sm font-bold tabular-nums text-rose-700">
+                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Absent")}</span>
+                      {student.absent}
+                    </p>
+                    <p className="text-center text-sm font-bold tabular-nums text-amber-700">
+                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Leave")}</span>
+                      {student.leave}
+                    </p>
+                    <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:gap-2">
+                      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Rate")}</span>
+                      <Progress
+                        className="hidden max-w-[60px] flex-1 sm:block"
+                        size="sm"
+                        value={Math.min(student.percentage, 100)}
+                        tone={student.percentage >= 75 ? "success" : "danger"}
+                        label={ui("Attendance rate for {0}", [student.name])}
+                      />
+                      <span className={cn("text-xs font-bold tabular-nums", student.percentage >= 75 ? "text-emerald-700" : "text-rose-700")}>{student.percentage}%</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Student breakdown table */}
-          <div className="sk-panel overflow-hidden">
-            <div className="hidden sm:grid sm:grid-cols-[1fr_80px_80px_80px_100px] gap-3 px-6 py-3 bg-brand-50/30">
-              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">Student</span>
-              <span className="text-2xs font-semibold uppercase tracking-wider text-emerald-600 text-center">Present</span>
-              <span className="text-2xs font-semibold uppercase tracking-wider text-rose-600 text-center">Absent</span>
-              <span className="text-2xs font-semibold uppercase tracking-wider text-amber-600 text-center">Leave</span>
-              <span className="text-2xs font-semibold uppercase tracking-wider text-primary text-center">Rate</span>
-            </div>
-            <div className="divide-y divide-muted">
-              {(monthlyData.students || []).map((student: any) => (
-                <div key={student.studentId} className={cn(
-                  "grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_80px_100px] gap-3 px-5 py-3.5 sm:items-center hover:bg-brand-50/20 transition-colors",
-                  student.percentage < 75 && "bg-rose-50/30"
-                )}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
-                      <AvatarImage src={student.profileImageUrl} name={student.name} alt={student.name} initialsClassName="text-2xs" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-ink-strong truncate">{student.name}</p>
-                      <p className="text-2xs font-semibold text-ink-subtle">{student.rollNo || "No roll"}</p>
-                    </div>
-                  </div>
-                  <p className="text-center text-sm font-bold text-emerald-700">{student.present}</p>
-                  <p className="text-center text-sm font-bold text-rose-700">{student.absent}</p>
-                  <p className="text-center text-sm font-bold text-amber-700">{student.leave}</p>
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="flex-1 max-w-[60px] h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all", student.percentage >= 75 ? "bg-emerald-500" : "bg-rose-500")} style={{ width: `${Math.min(student.percentage, 100)}%` }} />
-                    </div>
-                    <span className={cn("text-xs font-bold", student.percentage >= 75 ? "text-emerald-700" : "text-rose-700")}>{student.percentage}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </>
       ) : (
-        <EmptyInline text="Select a class and month to view attendance reports." />
+        <div className="sk-panel">
+          <EmptyState
+            size="sm"
+            icon={BarChart3}
+            title={ui("Monthly report")}
+            description={ui("Select a class and month to view attendance reports.")}
+          />
+        </div>
       )}
     </>
   );

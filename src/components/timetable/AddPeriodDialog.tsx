@@ -1,16 +1,22 @@
 "use client";
 
 import { useId, useState } from "react";
-import { CalendarPlus, Loader2 } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { addPeriodCopy } from "@/lib/timetable/editor-copy";
 export { addPeriodCopy } from "@/lib/timetable/editor-copy";
 
+const disabledCopy = {
+  en: { occupied: "This day already has that period. Choose another period.", noDays: "There are no school days to add a period to.", full: "Every period on this day is already in the timetable." },
+  ar: { occupied: "هذه الحصة موجودة بالفعل في هذا اليوم. اختر حصة أخرى.", noDays: "لا توجد أيام دراسية لإضافة حصة إليها.", full: "جميع حصص هذا اليوم موجودة بالفعل في الجدول." },
+  ur: { occupied: "اس دن یہ پیریڈ پہلے سے موجود ہے۔ کوئی اور پیریڈ منتخب کریں۔", noDays: "پیریڈ شامل کرنے کے لیے کوئی تعلیمی دن نہیں ہے۔", full: "اس دن کے تمام پیریڈ پہلے سے ٹائم ٹیبل میں ہیں۔" },
+} as const;
 
 export interface AddedTimetableSlot { id: string; dayOfWeek: number; periodNumber: number; startTime: string; endTime: string; slotType: string; subjectId: string | null; teacherId: string | null; roomId: string | null; roomNumber: string | null; subject: { id: string; name: string } | null; teacher: { id: string; fullName: string } | null; room: { id: string; roomNumber: string; capacity: number } | null }
 type Slot = Pick<AddedTimetableSlot, "dayOfWeek" | "periodNumber" | "startTime" | "endTime">;
@@ -27,6 +33,9 @@ export function AddPeriodDialog({ timetableId, slots, definitions, weekendDays, 
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [dirty, setDirty] = useState(false);
   const fixed = fixedTime(period), occupied = slots.some(slot => slot.dayOfWeek === day && slot.periodNumber === period);
   const allPresent = numbers.every(number => slots.some(slot => slot.dayOfWeek === day && slot.periodNumber === number));
+  const dc = disabledCopy[language as keyof typeof disabledCopy] || disabledCopy.en;
+  const blockedReason = !days.length ? dc.noDays : allPresent ? dc.full : occupied ? dc.occupied : "";
+  const submit = <Button loading={busy} disabled={Boolean(blockedReason)} onClick={() => void save()}>{busy ? c.saving : c.title}</Button>;
   const changePeriod = (number: number) => { setDirty(true); setPeriod(number); const clock = fixedTime(number); if (clock) { setStart(clock.startTime); setEnd(clock.endTime); } setError(""); };
   const save = async () => {
     if (busy) return;
@@ -43,7 +52,7 @@ export function AddPeriodDialog({ timetableId, slots, definitions, weekendDays, 
     } catch { setError(c.failed); }
     finally { setBusy(false); }
   };
-  return <Modal title={c.title} subtitle={c.hint} icon={CalendarPlus} size="sm" onClose={onClose} dirty={dirty} dismissible={!busy} disableBackdropClose={busy} footer={<div className="flex flex-wrap justify-end gap-3"><Button variant="outline" disabled={busy} onClick={onClose}>{c.close}</Button><Button disabled={busy || occupied || !days.length || allPresent} onClick={() => void save()}>{busy && <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />}{busy ? c.saving : c.title}</Button></div>}>
+  return <Modal title={c.title} subtitle={c.hint} icon={CalendarPlus} size="sm" onClose={onClose} dirty={dirty} dismissible={!busy} disableBackdropClose={busy} footer={<div className="flex flex-wrap justify-end gap-3"><Button variant="outline" disabled={busy} onClick={onClose}>{c.close}</Button>{blockedReason && !busy ? <Tooltip content={blockedReason}><span tabIndex={0} className="inline-flex">{submit}</span></Tooltip> : submit}</div>}>
     <div className="space-y-4" aria-busy={busy}>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <FormField name={`${id}-day`} label={c.day}><Select value={day} disabled={busy || !days.length} onChange={event => { setDay(Number(event.target.value)); setDirty(true); setError(""); }}>{days.map(value => <option key={value} value={value}>{new Intl.DateTimeFormat(language, { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, value)))}</option>)}</Select></FormField>

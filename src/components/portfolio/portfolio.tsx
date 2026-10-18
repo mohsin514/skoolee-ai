@@ -1,4 +1,6 @@
 "use client";
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -38,7 +40,7 @@ function SourceCard({ label, source, ui }: { label: string; source: Source | und
   if (source === undefined) return null;
   if (!source) return <div className="rounded-lg border border-dashed p-2 text-xs text-ink-muted">{label}: {ui("A source file is unavailable; the entry is kept. Contact the teacher.")}</div>;
   return <div className="rounded-lg border border-edge/40 p-2 text-sm" data-pf-source={source.id}>
-    <p className="text-xs font-semibold uppercase text-ink-muted">{label}</p>
+    <p className="sk-eyebrow">{label}</p>
     <p className="font-bold"><span dir="auto">{source.title}</span> · {ui("Version {0}", [String(source.version)])}</p>
     <p className="text-xs text-ink-muted">{ui("Submitted {0}", [date(source.submittedAt)])} · {ui("Receipt {0}", [source.receiptCode])} · {ui("Rubric version {0}", [String(source.rubricVersion)])}</p>
     {source.text ? <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm" dir="auto">{source.text}</p> : null}
@@ -66,9 +68,9 @@ export function Portfolio({ studentId }: { studentId?: string }) {
   const load = useCallback(async () => { setError(""); try { setData(await call(`/api/portfolio${q}`)); } catch (e) { setError(ui(e instanceof Error ? e.message : "The portfolio could not be loaded.")); } }, [q, ui]);
   useEffect(() => { void load(); }, [load]);
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return false; } finally { setBusy(false); } };
-  const openAdd = async () => { setAdding(true); try { setAttempts((await call(`/api/portfolio?view=evidence${q ? `&${q.slice(1)}` : ""}`)).attempts); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
+  const openAdd = async () => { setAdding(true); try { setAttempts((await call(`/api/portfolio?view=evidence${q ? `&${q.slice(1)}` : ""}`)).attempts); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "Could not load evidence to add.")); } };
 
-  if (error) return <section className="sk-panel p-5" data-portfolio><p className="text-sm text-rose-700">{error}</p></section>;
+  if (error) return <section data-portfolio><ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /></section>;
   if (!data) return <section className="sk-panel p-5" data-portfolio aria-busy="true"><p className="text-sm text-ink-muted">{ui("Loading the portfolio…")}</p></section>;
   const learner = data.role === "LEARNER";
   const earlier = attempts.find(a => a.id === draft.earlierVersionId);
@@ -91,7 +93,7 @@ export function Portfolio({ studentId }: { studentId?: string }) {
       {!learner && e.staffNote ? <p className="mt-1 rounded bg-slate-50 p-2 text-xs"><span className="font-bold">{ui("Staff note — never shown to learners or families")}:</span> <span dir="auto">{e.staffNote}</span></p> : null}
     </li>)}</ol>}
 
-    {!learner && data.shares.length ? <div className="space-y-1" data-pf-shares><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Shared collections")}</p>{data.shares.map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm" data-pf-share-row={s.id} data-pf-share-active={s.active ? "true" : "false"}>
+    {!learner && data.shares.length ? <div className="space-y-1" data-pf-shares><p className="sk-eyebrow">{ui("Shared collections")}</p>{data.shares.map(s => <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm" data-pf-share-row={s.id} data-pf-share-active={s.active ? "true" : "false"}>
       <span><span dir="auto">{s.title}</span> · <bdi>{s.guardian}</bdi> · {ui("{0} entries", [String(s.entryIds.length)])} · {s.revokedAt ? ui("Withdrawn") : s.active ? ui("Until {0}", [date(s.expiresAt)]) : ui("Expired")}</span>
       {s.active ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "revoke", shareId: s.id }), "Share withdrawn. Old links no longer open.")} data-pf-revoke>{ui("Withdraw")}</Button> : null}
     </div>)}</div> : null}
@@ -158,7 +160,7 @@ export function FamilyPortfolio({ studentId }: { studentId: string | null }) {
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-portfolio>
     <h3 className="text-base font-bold">{ui("Learning progress shared by the school")}</h3>
     <ul className="space-y-2">{shares.map(s => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" data-fp-share={s.id}><span><span dir="auto">{s.title}</span> · {ui("Until {0}", [date(s.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => void view(s.id)} data-fp-open>{ui("Open")}</Button><a className="inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-bold" href={`/api/portfolio/export?share=${encodeURIComponent(s.id)}`} target="_blank" rel="noreferrer">{ui("Export")}</a></span></li>)}</ul>
-    {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+    {error ? <Alert tone="danger" compact>{error}</Alert> : null}
     {open ? <div className="space-y-3" data-fp-collection>
       <p className="text-sm font-bold"><span dir="auto">{open.title}</span> · <bdi>{open.student}</bdi></p>
       {open.withdrawn ? <p className="text-xs text-ink-muted">{ui("{0} entries are no longer shared.", [String(open.withdrawn)])}</p> : null}

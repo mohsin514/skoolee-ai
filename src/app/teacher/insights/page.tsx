@@ -2,7 +2,11 @@
 
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip as HintTooltip, InfoTip } from "@/components/ui/tooltip";
+import { useMemo, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, BarChart3, CalendarCheck, GraduationCap, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -93,17 +97,17 @@ export default function TeacherInsightsPage() {
       summary="Attendance, marks progress and quick metrics across your work"
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+        <div className="sk-stagger grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {/* Attendance Donut */}
-          <div className="sk-panel sk-rise p-4">
+          <div className="sk-panel min-w-0 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                   <CalendarCheck className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Attendance Breakdown</h3>
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Daily overview</p>
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Attendance Breakdown</h2>
+                  <p className="sk-eyebrow">Today</p>
                 </div>
               </div>
             </div>
@@ -120,73 +124,91 @@ export default function TeacherInsightsPage() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="flex-1 space-y-2">
+                <div className="min-w-0 flex-1 space-y-2">
                   {[
                     { label: "Present", value: attendanceStats.present, color: "#10b981" },
                     { label: "Absent", value: attendanceStats.absent, color: "#ef4444" },
                     { label: "Leave", value: attendanceStats.leave, color: "#f59e0b" },
                     { label: "Unmarked", value: attendanceStats.unmarked, color: "#d1d5db" },
                   ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="text-2xs font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
+                    <div key={item.label} className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="truncate text-xs font-medium text-ink-muted">{item.label}</span>
                       </div>
-                      <span className="text-xs font-bold text-ink-strong">{item.value}</span>
+                      <span className="text-sm font-bold tabular-nums text-ink-strong">{item.value}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[140px] rounded-2xl bg-brand-50/40">
-                <p className="text-xs font-bold text-ink-subtle">No attendance data yet</p>
-              </div>
+              <EmptyState
+                size="sm"
+                icon={CalendarCheck}
+                title="No attendance data yet"
+                description="No students are enrolled in your classes yet, so there is nothing to count today."
+                className="rounded-2xl bg-surface-subtle"
+              />
             )}
           </div>
 
           {/* Marks Progress Bar Chart */}
-          <div className="sk-panel sk-rise p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="sk-panel min-w-0 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                   <BarChart3 className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Marks Progress</h3>
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Entry status</p>
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Marks Progress</h2>
+                  <p className="sk-eyebrow">Entry status</p>
                 </div>
               </div>
-              <div className={`px-3 py-1.5 rounded-full text-2xs font-semibold uppercase tracking-wider ${completionRate >= 80 ? "bg-emerald-50 text-emerald-600" : completionRate >= 50 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"}`}>
-                {completionRate}% Complete
-              </div>
+              {marksProgressData.length > 0 ? (
+                <span className="inline-flex items-center gap-0.5">
+                  <Badge size="sm" dot data-numeric variant={completionRate >= 80 ? "success" : completionRate >= 50 ? "warning" : "danger"}>
+                    {completionRate}% Complete
+                  </Badge>
+                  <InfoTip content="Marks entered out of marks expected, across the assessments in this chart (up to five)." />
+                </span>
+              ) : null}
             </div>
             {marksProgressData.length > 0 ? (
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={marksProgressData} barCategoryGap="20%" margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 700 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 9, fontWeight: 700 }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 32px rgba(0,0,0,0.12)", fontSize: 12, fontWeight: 700 }} cursor={{ fill: "#fbf0fe" }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10, fontWeight: 600 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 32px rgba(55,27,77,0.14)", fontSize: 12, fontWeight: 600 }} cursor={{ fill: "#fbf0fe" }} />
                   <Bar {...NO_ENTRY_ANIMATION} dataKey="Entered" stackId="a" fill="#8127cf" radius={[4, 4, 0, 0]} />
                   <Bar {...NO_ENTRY_ANIMATION} dataKey="Missing" stackId="a" fill="#e8e0ec" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[160px] rounded-2xl bg-brand-50/40">
-                <p className="text-xs font-bold text-ink-subtle">No exam data yet</p>
-              </div>
+              <EmptyState
+                size="sm"
+                icon={BarChart3}
+                title="No exam data yet"
+                description="Entry progress shows here once an assessment exists for one of your classes."
+                className="rounded-2xl bg-surface-subtle"
+                action={
+                  <Button size="sm" variant="secondary" type="button" onClick={() => router.push("/teacher/marks")}>
+                    Go to marks
+                  </Button>
+                }
+              />
             )}
           </div>
 
           {/* Performance Summary */}
-          <div className="sk-panel sk-rise p-4">
+          <div className="sk-panel min-w-0 p-4 md:col-span-2 xl:col-span-1">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
                   <TrendingUp className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Quick Insights</h3>
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Snapshot</p>
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Quick Insights</h2>
+                  <p className="sk-eyebrow">Snapshot</p>
                 </div>
               </div>
             </div>
@@ -194,43 +216,37 @@ export default function TeacherInsightsPage() {
               {[
                 {
                   label: "Marks Completion", value: `${completionRate}%`, sub: `${marksProgressData.reduce((s: number, d: any) => s + d.Entered, 0)} of ${marksProgressData.reduce((s: number, d: any) => s + d.total, 0)} entries`,
-                  progress: completionRate, color: "bg-primary",
+                  progress: completionRate, tone: "brand" as const,
+                  info: "Marks entered out of marks expected, across the assessments in the chart (up to five).",
                 },
                 {
                   label: "Attendance Rate", value: attendanceStats.total ? `${Math.round(attendanceStats.present / Math.max(attendanceStats.total, 1) * 100)}%` : "—",
                   sub: `${attendanceStats.present} present out of ${attendanceStats.total}`,
-                  progress: attendanceStats.total ? Math.round(attendanceStats.present / attendanceStats.total * 100) : 0, color: "bg-emerald-500",
+                  progress: attendanceStats.total ? Math.round(attendanceStats.present / attendanceStats.total * 100) : 0, tone: "success" as const,
+                  info: "Students marked present today out of every student in your classes. Students not yet marked count as not present.",
                 },
                 {
                   // A count is not a percentage. This drew a bar at
                   // `count * 20`, so five report cards read as "100% complete"
                   // of nothing in particular. It is a figure, so show a figure.
                   label: "Report Cards", value: String(reportCardCount), sub: "Recently generated",
-                  progress: null, color: "bg-rose-500",
+                  progress: null, tone: "danger" as const,
+                  info: null,
                 },
               ].map((item) => (
                 <div key={item.label}>
                   <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{item.label}</span>
+                    <span className="inline-flex min-w-0 items-center gap-0.5">
+                      <span className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-muted">{item.label}</span>
+                      {item.info ? <InfoTip className="-my-1" content={item.info} /> : null}
+                    </span>
                     <span className="text-sm font-bold tabular-nums text-ink-strong">{item.value}</span>
                   </div>
                   {typeof item.progress === "number" ? (
-                    <div
-                      className="h-2 overflow-hidden rounded-full bg-muted"
-                      role="progressbar"
-                      aria-valuenow={item.progress}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={item.label}
-                    >
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${item.color}`}
-                        style={{ width: `${item.progress}%` }}
-                      />
-                    </div>
+                    <Progress value={item.progress} label={item.label} tone={item.tone} size="sm" />
                   ) : null}
                   {item.sub ? (
-                    <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{item.sub}</p>
+                    <p className="mt-1 text-xs tabular-nums text-ink-subtle">{item.sub}</p>
                   ) : null}
                 </div>
               ))}
@@ -240,43 +256,46 @@ export default function TeacherInsightsPage() {
 
         {/* ── Class by class ── */}
         {classBreakdown.length > 0 ? (
-          <div className="sk-panel sk-rise overflow-hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-edge/12 px-4 py-3">
+          <div className="sk-panel sk-enter overflow-hidden" style={{ "--sk-delay": "120ms" } as CSSProperties}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-edge/12 px-4 py-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                   <GraduationCap className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong">Class by class</h3>
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Class by class</h2>
+                  <p className="text-xs text-ink-subtle">
                     Sorted by what needs you first
                   </p>
                 </div>
               </div>
-              <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <Badge variant="neutral" size="sm" data-numeric className="shrink-0">
                 {classBreakdown.length} class{classBreakdown.length === 1 ? "" : "es"}
-              </span>
+              </Badge>
             </div>
-
 
               <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
                 <TableHeader>
                   <TableRow className="bg-brand-50/40 text-ink-muted">
                     <TableHead className="px-4 py-3">Class</TableHead>
                     <TableHead className="px-3 py-3 text-center">Students</TableHead>
-                    <TableHead className="px-3 py-3 text-center">In today</TableHead>
+                    <TableHead className="px-3 py-3 text-center">
+                      <span className="inline-flex items-center gap-0.5">In today<InfoTip className="-my-1" content="Students marked present today out of the class roster. Until the register is complete it shows how many are still unmarked." /></span>
+                    </TableHead>
                     <TableHead className="px-3 py-3 text-center">Assessments</TableHead>
                     <TableHead className="px-3 py-3">Marks entered</TableHead>
-                    <TableHead className="px-3 py-3 text-center">Missing</TableHead>
-                    <TableHead className="px-4 py-3" />
+                    <TableHead className="px-3 py-3 text-center">
+                      <span className="inline-flex items-center gap-0.5">Missing<InfoTip className="-my-1" content="Marks still to enter for this class's assessments, in the subjects you can mark." /></span>
+                    </TableHead>
+                    <TableHead className="px-4 py-3"><span className="sr-only">Actions</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-muted">
                   {classBreakdown.map((cls) => (
-                    <TableRow key={cls.id} >
+                    <TableRow key={cls.id}>
                       <TableCell className="px-4 py-3">
-                        <p className="text-sm font-bold text-ink-strong">{cls.label}</p>
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                        <p className="text-sm font-semibold text-ink-strong">{cls.label}</p>
+                        <p className="text-xs text-ink-subtle">
                           {cls.role} · {cls.subjects} subject{cls.subjects === 1 ? "" : "s"}
                         </p>
                       </TableCell>
@@ -285,14 +304,14 @@ export default function TeacherInsightsPage() {
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center">
                         {cls.attendanceRate === null ? (
-                          <span className="text-2xs font-semibold text-ink-subtle">—</span>
+                          <span className="text-xs text-ink-subtle">—</span>
                         ) : (
                           <span className={cn(
                             "inline-flex flex-col items-center leading-tight",
                             cls.unmarked > 0 ? "text-amber-700" : "text-emerald-700",
                           )}>
                             <span className="text-sm font-bold tabular-nums">{cls.present}/{cls.students}</span>
-                            <span className="text-2xs font-bold tabular-nums opacity-75">
+                            <span className="text-2xs font-semibold tabular-nums">
                               {cls.unmarked > 0 ? `${cls.unmarked} unmarked` : `${cls.attendanceRate}%`}
                             </span>
                           </span>
@@ -303,26 +322,17 @@ export default function TeacherInsightsPage() {
                       </TableCell>
                       <TableCell className="px-3 py-3">
                         {cls.completion === null ? (
-                          <span className="text-2xs font-semibold text-ink-subtle">No assessments yet</span>
+                          <span className="text-xs text-ink-subtle">No assessments yet</span>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <div
-                              className="h-2 w-full min-w-[80px] overflow-hidden rounded-full bg-muted"
-                              role="progressbar"
-                              aria-valuenow={cls.completion}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-label={`Marks entered for ${cls.label}`}
-                            >
-                              <div
-                                className={cn(
-                                  "h-full rounded-full transition-all duration-700",
-                                  cls.completion >= 80 ? "bg-emerald-500" : cls.completion >= 40 ? "bg-amber-500" : "bg-rose-500",
-                                )}
-                                style={{ width: `${cls.completion}%` }}
-                              />
-                            </div>
-                            <span className="shrink-0 text-2xs font-bold tabular-nums text-ink-muted">
+                            <Progress
+                              className="min-w-[80px]"
+                              size="sm"
+                              value={cls.completion}
+                              label={`Marks entered for ${cls.label}`}
+                              tone={cls.completion >= 80 ? "success" : cls.completion >= 40 ? "warning" : "danger"}
+                            />
+                            <span className="shrink-0 text-xs font-semibold tabular-nums text-ink-muted">
                               {cls.completion}%
                             </span>
                           </div>
@@ -330,30 +340,32 @@ export default function TeacherInsightsPage() {
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center">
                         {cls.missing > 0 ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-2xs font-bold tabular-nums text-rose-700">
-                            <AlertCircle className="h-3 w-3" />
+                          <Badge variant="danger" size="sm" data-numeric>
+                            <AlertCircle aria-hidden="true" />
                             {cls.missing}
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="text-2xs font-bold text-emerald-600">All in</span>
+                          <Badge variant="success" size="sm" dot>All in</Badge>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-end">
                         {/* An insight the teacher cannot act on from where they
                             read it is just a number. */}
                         <div className="inline-flex gap-1.5">
-                          <Button variant="default" type="button"
-                            onClick={() => router.push(`/teacher/attendance?classId=${encodeURIComponent(cls.id)}`)}
-                            title={`Mark attendance for ${cls.label}`}
+                          <HintTooltip content={`Mark attendance for ${cls.label}`}>
+                            <Button variant="secondary" size="sm" type="button"
+                              onClick={() => router.push(`/teacher/attendance?classId=${encodeURIComponent(cls.id)}`)}
                             >
-                            Attendance
-                          </Button>
-                          <Button variant="default" type="button"
-                            onClick={() => router.push(`/teacher/marks?classId=${encodeURIComponent(cls.id)}`)}
-                            title={`Enter marks for ${cls.label}`}
+                              Attendance
+                            </Button>
+                          </HintTooltip>
+                          <HintTooltip content={`Enter marks for ${cls.label}`}>
+                            <Button variant="secondary" size="sm" type="button"
+                              onClick={() => router.push(`/teacher/marks?classId=${encodeURIComponent(cls.id)}`)}
                             >
-                            Marks
-                          </Button>
+                              Marks
+                            </Button>
+                          </HintTooltip>
                         </div>
                       </TableCell>
                     </TableRow>

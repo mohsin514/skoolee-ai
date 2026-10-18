@@ -347,7 +347,7 @@ export function TimetableGrid({
                     </div>
                   ) : (
                     <div
-                      title={`Free · ${day.full} P${period.num} ${period.start}–${period.end}`}
+                      aria-label={`Free · ${day.full}, period ${period.num}, ${period.start}–${period.end}`}
                       className={cn(
                         "flex h-full items-center justify-center rounded-xl border border-dashed border-edge/20 transition-all group-hover:border-primary/30 group-hover:bg-brand-50/30",
                         d.cell,

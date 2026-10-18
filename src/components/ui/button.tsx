@@ -13,7 +13,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "border border-[#6d22b4] bg-primary bg-gradient-to-b from-brand-500 to-[#7423ba] text-primary-foreground shadow-[0_7px_15px_-7px_rgba(106,31,176,0.6),inset_0_1px_0_rgba(255,255,255,0.25),inset_0_-1px_0_rgba(56,12,99,0.15)] actionable-hover:border-[#5d149f] actionable-hover:from-[#812aca] actionable-hover:to-[#6820aa] actionable-hover:shadow-[0_10px_22px_-8px_rgba(106,31,176,0.6),inset_0_1px_0_rgba(255,255,255,0.3)] actionable-active:shadow-[0_2px_6px_-2px_rgba(106,31,176,0.45),inset_0_1px_3px_rgba(56,12,99,0.2)] disabled:bg-none",
-        dark: "border border-ink-strong bg-ink-strong text-white shadow-[0_6px_14px_-8px_rgba(31,26,35,0.6),inset_0_1px_0_rgba(255,255,255,0.12)] actionable-hover:bg-black",
+        dark: "border border-ink-strong bg-ink-strong text-white shadow-[0_6px_14px_-8px_rgba(120,70,180,0.6),inset_0_1px_0_rgba(255,255,255,0.12)] actionable-hover:bg-black",
         destructive: "border border-destructive bg-destructive text-destructive-foreground shadow-[0_4px_10px_-6px_rgba(153,27,27,0.5),inset_0_1px_0_rgba(255,255,255,0.2)] actionable-hover:bg-red-900",
         outline: "border border-field-border bg-white text-ink shadow-[0_2px_3px_-2px_rgba(55,27,77,0.16),inset_0_1px_0_white] actionable-hover:border-[#b59bce] actionable-hover:bg-surface-hover actionable-hover:text-primary actionable-hover:shadow-[0_5px_12px_-8px_rgba(90,42,128,0.35)]",
         secondary: "border border-brand-200 bg-[#f1e7fb] text-brand-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] actionable-hover:border-[#cdb2e6] actionable-hover:bg-[#eaddf6]",

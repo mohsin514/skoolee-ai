@@ -1,15 +1,16 @@
 "use client";
 
 import { useCountLabel } from "@/components/locale/use-count-label";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "@/components/ui/toast";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import {
   AlertCircle, ArrowRight, BookOpen, CalendarCheck, CheckCircle2,
-  ClipboardList, GraduationCap, Loader2, UserCheck, Users,
+  ClipboardList, GraduationCap, UserCheck, Users,
 } from "lucide-react";
-import { BrandButton } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { StatTiles } from "@/components/shared-admin/workspace";
@@ -61,11 +62,11 @@ export default function TeacherDashboardHub() {
         body: JSON.stringify({}),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to mark attendance");
+      if (!res.ok) throw new Error(json.error || "Could not check you in. Please try again.");
       setSelfAttendanceStatus("marked");
       setSelfAttendanceTime(json.data?.checkInTime || new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }));
-      toast.success(json.alreadyMarked ? "Already marked today" : "Attendance marked successfully!");
-    } catch (err: any) { toast.error(err.message); }
+      toast.success(json.alreadyMarked ? "You were already checked in today." : "You're checked in for today.");
+    } catch (err: any) { toast.error(friendlyErrorMessage(err, "Could not check you in. Please try again.")); }
     finally { setMarkingSelf(false); }
   }, []);
 
@@ -129,28 +130,27 @@ export default function TeacherDashboardHub() {
           {/* Checking in was a full-width card of its own for one button. It is
               a two-second daily action, so it belongs in the header. */}
           {selfAttendanceStatus === "loading" ? (
-            <span className="skeleton-shimmer h-10 w-32 rounded-xl bg-border-subtle/50" />
+            <Skeleton className="h-10 w-32 rounded-xl" />
           ) : selfAttendanceStatus === "marked" ? (
-            <span
-              title={selfAttendanceTime ? `Checked in at ${selfAttendanceTime}` : "Checked in today"}
-              className="flex h-10 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-2xs font-semibold uppercase tracking-wider text-emerald-700"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Checked in
+            /* The time is printed in the chip, so it needs no hover tooltip to
+               say the same thing again. */
+            <Badge variant="success" className="min-h-10 rounded-xl px-3 text-xs">
+              <CheckCircle2 aria-hidden="true" />
+              {selfAttendanceTime ? "Checked in" : "Checked in today"}
               {selfAttendanceTime ? (
-                <span className="font-bold tabular-nums opacity-70">{selfAttendanceTime}</span>
+                <span data-numeric className="font-medium tabular-nums">{selfAttendanceTime}</span>
               ) : null}
-            </span>
+            </Badge>
           ) : (
-            <BrandButton
+            <Button
               variant="dark"
               className="min-h-10"
-              icon={markingSelf ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
               onClick={handleMarkSelfAttendance}
-              disabled={markingSelf}
+              loading={markingSelf}
             >
+              {markingSelf ? null : <UserCheck aria-hidden="true" />}
               I&apos;m Present
-            </BrandButton>
+            </Button>
           )}
           <GradingToolbar grading={grading} classHubs={classHubs} />
         </>
@@ -159,7 +159,7 @@ export default function TeacherDashboardHub() {
       <div className="space-y-3">
         {/* ── What needs doing, before anything else ── */}
         {(hasUnmarkedAttendance || hasMissingMarks) && (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="sk-stagger grid grid-cols-1 gap-3 md:grid-cols-2">
             {hasUnmarkedAttendance && (
               <AlertRow
                 tone="amber"
@@ -258,16 +258,17 @@ function AlertRow({
     <Button variant="choice"
       type="button"
       onClick={onClick}
-      className="group justify-start p-3 text-start"
+      className="group sk-nudge-trigger w-full justify-start gap-3 p-3 text-start"
     >
-      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", chips[tone])}>
+      <span aria-hidden="true" className={cn("sk-icon-tile flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", chips[tone])}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold leading-tight">{title}</span>
-        <span className="block truncate text-2xs font-semibold opacity-70">{detail}</span>
+        <span className="block text-sm font-semibold leading-snug text-ink-strong">{title}</span>
+        <span className="block truncate text-xs font-normal text-ink-muted">{detail}</span>
       </span>
-      <ArrowRight className="h-4 w-4 shrink-0 opacity-50 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
+      {/* Points forward in the reading direction and leans that way on hover. */}
+      <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 shrink-0 text-ink-subtle group-hover:text-primary rtl:rotate-180" />
     </Button>
   );
 }

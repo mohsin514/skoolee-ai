@@ -117,7 +117,7 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
                 onClick={() => select(key)}
                 className={cn(
                   "h-auto min-h-14 w-full min-w-0 flex-col gap-1 px-1.5 py-2 text-center text-xs leading-tight md:min-h-12 md:flex-row md:justify-start md:gap-3 md:px-3 md:text-start md:text-sm",
-                  selected ? "bg-white text-brand-700 shadow-[0_1px_2px_rgba(31,26,35,0.06),0_6px_16px_-10px_rgba(106,31,176,0.45)] ring-1 ring-brand-200" : "text-ink-muted",
+                  selected ? "bg-white text-brand-700 shadow-[0_1px_2px_rgba(120,70,180,0.06),0_6px_16px_-10px_rgba(106,31,176,0.45)] ring-1 ring-brand-200" : "text-ink-muted",
                 )}>
                 <span aria-hidden="true" className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg md:size-8",
                   selected ? "bg-primary text-white" : "bg-white text-ink-muted ring-1 ring-border-subtle")}>

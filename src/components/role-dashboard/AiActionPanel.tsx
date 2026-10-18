@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "./BrandButton";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 
 
 export interface AIFeatureOption {
@@ -150,40 +151,42 @@ export function AiActionPanel({
         </BrandButton>
 
         {output ? (
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-emerald-700">
+          <div className="sk-fade-in rounded-2xl border border-status-success-border bg-status-success-surface p-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-status-success-text">
                 <Check className="sk-check-pop w-4 h-4" />
                 <p className="text-2xs font-semibold uppercase tracking-wider">Draft saved</p>
               </div>
               <div className="flex items-center gap-1">
+                <Tooltip content="Copy this draft to the clipboard">
                 <Button variant="secondary" size="sm"
                   type="button"
                   onClick={copyOutput}
-                  title="Copy this draft to the clipboard"
                   className="inline-flex justify-start items-center gap-1"
                 >
                   {copied ? <ClipboardCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   {copied ? "Copied" : "Copy"}
                 </Button>
+                </Tooltip>
+                <Tooltip content="Draft this again with the same context">
                 <Button variant="secondary" size="sm"
                   type="button"
                   onClick={runAI}
                   disabled={busy}
-                  title="Draft this again with the same context"
                   className="inline-flex justify-start items-center gap-1"
                 >
                   <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
                   Redo
                 </Button>
+                </Tooltip>
               </div>
             </div>
             {/* A long lesson plan scrolls inside this box; without the cue the
                 text simply appeared to stop mid-sentence. */}
-            <p className="custom-scrollbar max-h-40 overflow-y-auto whitespace-pre-line text-xs font-semibold leading-relaxed text-ink-strong">
+            <p className="custom-scrollbar max-h-40 overflow-y-auto whitespace-pre-line text-sm font-normal leading-relaxed text-ink">
               {output}
             </p>
-            <p className="mt-2 text-2xs font-semibold text-emerald-700/70">
+            <p className="mt-2 text-2xs font-semibold text-status-success-text/80">
               {output.split(/\s+/).filter(Boolean).length} words · scroll for the rest · always read an AI draft before you use it
             </p>
           </div>

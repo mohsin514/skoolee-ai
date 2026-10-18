@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { Alert } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { downloadPdfFile } from "@/lib/download";
@@ -221,14 +222,14 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-ink-strong truncate">{p.student.fullName}</p>
-                    <p className="text-2xs font-bold text-ink-subtle">
+                    <p className="text-2xs font-medium text-ink-subtle">
                       {classLabel(p.student.class.name, p.student.class.section)}
                     </p>
                   </div>
                   <p className="text-2xs font-bold text-ink truncate">{p.receiptNo ?? "—"}</p>
-                  <p className="text-xs font-bold text-emerald-600">{formatPKR(p.amount, p.invoice.currency)}</p>
-                  <p className="text-2xs font-bold text-ink-muted">{tr(paymentMethodLabel(p.paymentMethod))}</p>
-                  <p className="text-2xs font-bold text-ink-muted">{formatDate(p.paymentDate)}</p>
+                  <p className="text-xs font-bold tabular-nums text-status-success-text">{formatPKR(p.amount, p.invoice.currency)}</p>
+                  <p className="text-2xs font-medium text-ink-subtle">{tr(paymentMethodLabel(p.paymentMethod))}</p>
+                  <p className="text-2xs font-medium tabular-nums text-ink-subtle">{formatDate(p.paymentDate)}</p>
                   <div className="min-w-0">
                     <p className="text-2xs font-bold text-ink truncate">{p.invoice.invoiceNumber}</p>
                     <span className={`text-3xs font-semibold uppercase px-1.5 py-0.5 rounded ${statusBadgeClass(p.invoice.status)}`}>
@@ -249,7 +250,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
                 className="justify-start flex items-center gap-1 px-3"
               >
                 <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
-              <span className="text-2xs font-semibold uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
+              <span className="text-2xs font-semibold tabular-nums text-ink-muted">{tr("Page {0} of {1}", [page, totalPages])}
               </span>
               <Button variant="secondary"
                 type="button"
@@ -479,13 +480,13 @@ function PaymentModal({
               {receipt.discountAmount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Discount"}</UiText></span>
-                  <span className="text-sm font-bold text-emerald-600">−{formatPKR(receipt.discountAmount, receipt.currency)}</span>
+                  <span className="text-sm font-bold tabular-nums text-status-success-text">−{formatPKR(receipt.discountAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.fineAmount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Fine"}</UiText></span>
-                  <span className="text-sm font-bold text-rose-600">{formatPKR(receipt.fineAmount, receipt.currency)}</span>
+                  <span className="text-sm font-bold tabular-nums text-status-error-text">{formatPKR(receipt.fineAmount, receipt.currency)}</span>
                 </div>
               )}
               {receipt.creditAmount > 0 && (
@@ -497,7 +498,7 @@ function PaymentModal({
               {receipt.note ? (
                 <div className="flex justify-between">
                   <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Note"}</UiText></span>
-                  <span className="text-sm font-bold text-ink-strong text-right max-w-[60%]">{receipt.note}</span>
+                  <span className="text-sm font-bold text-ink-strong text-end max-w-[60%]">{receipt.note}</span>
                 </div>
               ) : null}
               <div className="flex justify-between">
@@ -538,7 +539,7 @@ function PaymentModal({
             {studentsList.length > 0 && (
               <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                 {studentsList.map((s) => (
-                  <Button variant="outline" key={s.id} onClick={() => loadStudentInvoices(s.id, s)} className="justify-start w-full flex items-center gap-3 px-4 py-3 text-left">
+                  <Button variant="outline" key={s.id} onClick={() => loadStudentInvoices(s.id, s)} className="justify-start w-full flex items-center gap-3 px-4 py-3 text-start">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary text-xs font-bold">
                       {s.fullName.charAt(0)}
                     </div>
@@ -640,7 +641,7 @@ function PaymentModal({
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Note (optional)"}</UiText></span>
               <SystemInput type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr("e.g. late fee waived")} className={inputClass} />
             </label>
-            {outcomeUnknown && <p role="status" data-collect-outcome="unknown" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">{tr("We could not confirm whether this payment was saved. Check the result before doing anything else; it will not be recorded twice.")}</p>}
+            {outcomeUnknown && <div data-collect-outcome="unknown"><Alert tone="warning" live="polite" compact>{tr("We could not confirm whether this payment was saved. Check the result before doing anything else; it will not be recorded twice.")}</Alert></div>}
             <div className="flex gap-3">
               <BrandButton variant="soft" className="flex-1 h-12" onClick={() => { setStep("search"); setStudentsList([]); setInvoices([]); }}><UiText>{"Back"}</UiText></BrandButton>
               <BrandButton className="flex-[2] h-12" onClick={handleRecordPayment} disabled={saving}>
@@ -761,13 +762,12 @@ function BankImportModal({
         {busy ? tr("Validating...") : tr("Validate statement")}
       </BrandButton>}>
       <div className="max-h-[70vh] space-y-4 overflow-y-auto" dir="auto">
-        {committed ? <section aria-live="polite" className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-          <p className="font-bold">{batch.state === "REVERSED" ? tr("Batch reversed") : tr("Batch receipt")}</p>
+        {committed ? <Alert tone="success" live="polite" title={batch.state === "REVERSED" ? tr("Batch reversed") : tr("Batch receipt")}><div className="space-y-3">
           <p>{tr("{0} transactions committed; {1} matched; {2} unmatched.", [batch.receipt?.summary?.committed || 0, batch.receipt?.summary?.matched || 0, batch.receipt?.summary?.unmatched || 0])}</p>
           <p className="font-mono text-xs" dir="ltr">{batch.id}</p>
-          {reversal && <div className="rounded-xl bg-white p-3 text-sm"><p className="font-bold">{reversal.eligible ? tr("Reversal is eligible") : tr("Reversal is blocked")}</p><p>{tr(reversal.action)}</p>{reversal.dependencies?.map((item: string) => <p key={item} className="text-rose-700">{item}</p>)}</div>}
-          {confirmReverse && reversal?.eligible && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm"><p>{tr("This marks the pending reconciliation reversed and retains its receipt.")}</p><div className="mt-3 flex gap-2"><BrandButton variant="soft" onClick={() => setConfirmReverse(false)}>{tr("Cancel")}</BrandButton><BrandButton onClick={() => void reverse()} disabled={busy}>{tr("Reverse batch")}</BrandButton></div></div>}
-        </section> : <>
+          {reversal && <div className="rounded-xl bg-white p-3 text-sm"><p className="font-bold">{reversal.eligible ? tr("Reversal is eligible") : tr("Reversal is blocked")}</p><p>{tr(reversal.action)}</p>{reversal.dependencies?.map((item: string) => <p key={item} className="text-status-error-text">{item}</p>)}</div>}
+          {confirmReverse && reversal?.eligible && <Alert tone="warning" live="off" compact actions={<><BrandButton variant="soft" onClick={() => setConfirmReverse(false)}>{tr("Cancel")}</BrandButton><Button variant="destructive" type="button" loading={busy} onClick={() => void reverse()}>{tr("Reverse batch")}</Button></>}>{tr("This marks the pending reconciliation reversed and retains its receipt.")}</Alert>}
+        </div></Alert> : <>
           <label className="block text-sm">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setCurrency(event.target.value)}>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
           <label><span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account Name")}</span><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School Savings Account")} className="w-full" /></label>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
@@ -783,7 +783,7 @@ function BankImportModal({
             <p className="text-xs text-ink-subtle">{tr("Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.")}</p>
             <label className="block text-xs font-bold">{tr("Reason for matching by hand")}<SystemInput type="text" value={matchReason} maxLength={300} placeholder={tr("e.g. payer's note names the pupil; confirmed by phone")} onChange={(event) => setMatchReason(event.target.value)} className="mt-1 w-full" /></label>
             <Table className="w-full text-xs"><TableHeader><TableRow><TableHead>{tr("Include")}</TableHead><TableHead dir="ltr">{tr("Row")}</TableHead><TableHead>{tr("Date")}</TableHead><TableHead>{tr("Amount")}</TableHead><TableHead>{tr("Description")}</TableHead><TableHead>{tr("Invoice match")}</TableHead><TableHead>{tr("Status")}</TableHead></TableRow></TableHeader><TableBody>
-              {batch.rows?.map((row: any) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox  aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell dir="ltr">{String(row.proposal?.date || "")}</TableCell><TableCell dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</TableCell><TableCell>{String(row.proposal?.description || "")}</TableCell><TableCell><SystemSelect aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, event.target.value ? { matchedInvoiceId: event.target.value, reason: matchReason } : { matchedInvoiceId: null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</SystemSelect>{row.state === "UNRESOLVED" && <Button variant="link" type="button" className="mt-1 px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</Button>}</TableCell><TableCell>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-rose-700">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
+              {batch.rows?.map((row: any) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox  aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell dir="ltr">{String(row.proposal?.date || "")}</TableCell><TableCell dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</TableCell><TableCell>{String(row.proposal?.description || "")}</TableCell><TableCell><SystemSelect aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, event.target.value ? { matchedInvoiceId: event.target.value, reason: matchReason } : { matchedInvoiceId: null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</SystemSelect>{row.state === "UNRESOLVED" && <Button variant="link" type="button" className="mt-1 px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</Button>}</TableCell><TableCell>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-status-error-text">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
             </TableBody></Table>
           </>}
         </>}

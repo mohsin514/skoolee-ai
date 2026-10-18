@@ -179,9 +179,9 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       </div>
 
       {unassignedClasses.length > 0 && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-amber-700 mb-1"><UiText>{"Classes Without Fee Structure"}</UiText></p>
-          <p className="text-xs font-bold text-amber-800">
+        <div className="rounded-2xl bg-status-warning-surface border border-status-warning-border px-4 py-3">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-status-warning-text mb-1"><UiText>{"Classes Without Fee Structure"}</UiText></p>
+          <p className="text-xs font-bold text-status-warning-text">
             {unassignedClasses.map((c) => classLabel(c.name, c.section)).join(", ")}
           </p>
         </div>
@@ -223,7 +223,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
                     {formatPKR(fs.monthlyFee, fs.currency)}<UiText>{"/mo · Ended"}</UiText>{new Date(fs.activeTo!).toLocaleDateString()}
                   </p>
                 </div>
-                <span className="text-2xs font-semibold uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100"><UiText>{"Inactive"}</UiText></span>
+                <span className="text-2xs font-semibold uppercase text-ink-subtle px-2 py-1 rounded-lg bg-muted"><UiText>{"Inactive"}</UiText></span>
               </div>
             ))}
           </div>
@@ -303,21 +303,21 @@ function StructureCard({
           <p className="text-sm font-bold text-primary">{formatPKR(fs.monthlyFee, fs.currency)}</p>
         </div>
         {oneTimeTotal > 0 && (
-          <div className="rounded-xl bg-blue-50/50 px-3 py-2">
+          <div className="rounded-xl bg-status-info-surface px-3 py-2">
             <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"One-Time"}</UiText></p>
-            <p className="text-sm font-bold text-blue-600">{formatPKR(oneTimeTotal, fs.currency)}</p>
+            <p className="text-sm font-bold text-status-info-text">{formatPKR(oneTimeTotal, fs.currency)}</p>
           </div>
         )}
-        <div className="rounded-xl bg-amber-50/50 px-3 py-2">
+        <div className="rounded-xl bg-status-warning-surface px-3 py-2">
           <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Late Fee"}</UiText></p>
-          <p className="text-sm font-bold text-amber-600">
+          <p className="text-sm font-bold text-status-warning-text">
             {fs.lateFeePercentage}%{fs.compoundLateFee ? tr(" cpd") : ""}
           </p>
         </div>
         {(fs.taxPercentage ?? 0) > 0 && (
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
+          <div className="rounded-xl bg-surface-subtle px-3 py-2">
             <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Tax"}</UiText></p>
-            <p className="text-sm font-bold text-gray-600">{fs.taxPercentage}%</p>
+            <p className="text-sm font-bold text-ink-muted">{fs.taxPercentage}%</p>
           </div>
         )}
       </div>
@@ -331,7 +331,7 @@ function StructureCard({
             </div>
           ))}
           {Object.entries(discountRules).map(([name, pct]) => (
-            <div key={name} className="flex items-center justify-between text-2xs font-bold text-emerald-600/70 px-1">
+            <div key={name} className="flex items-center justify-between text-2xs font-bold text-status-success-text px-1">
               <span>{name}<UiText>{"discount"}</UiText></span>
               <span>-{pct}%</span>
             </div>
@@ -448,8 +448,8 @@ function StructureModal({
       size="sm"
       onClose={onClose}
       footer={
-        <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+        <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving} aria-busy={saving || undefined}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : editing ? <Edit3 className="w-4 h-4" aria-hidden="true" /> : <Plus className="w-4 h-4" aria-hidden="true" />}
           {saving ? tr("Saving...") : editing ? tr("Update Structure") : tr("Create Structure")}
         </BrandButton>
       }
@@ -585,9 +585,9 @@ function StructureModal({
                         copy[i] = { ...copy[i], pct: e.target.value };
                         setDiscountRules(copy);
                       }}
-                      className="w-full pr-7"
+                      className="w-full pe-7"
                     />
-                    <Percent data-field-affix="end" className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-subtle" />
+                    <Percent data-field-affix="end" className="absolute end-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-subtle" />
                   </InputGroup>
                   <Button aria-label={tr("Remove discount rule")} variant="secondary" size="icon"
                     type="button"

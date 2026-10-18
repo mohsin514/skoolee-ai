@@ -11,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
 
 // SKO-451: release performance report and resource-policy review in the owner console. Measured values are kept
 // apart from estimates, missing or stale telemetry is said plainly, and a policy change asks for a follow-up run.
@@ -85,7 +87,7 @@ export function CapacityReport() {
   const [open, setOpen] = useState<string | null>(null), [failingOnly, setFailingOnly] = useState(false), [changing, setChanging] = useState(false), [reverting, setReverting] = useState<Policy | null>(null), [revertReason, setRevertReason] = useState("");
   const load = useCallback(async () => { try { setData(await call("/api/owner/capacity")); setError(null); } catch (e) { setError(e instanceof Error ? e.message : "Unavailable"); } }, []);
   useEffect(() => { void load(); }, [load]);
-  if (error) return <p className="sk-panel m-4 p-4 text-sm sm:m-6" role="alert" data-capacity-error>{ui("Telemetry is unavailable; do not infer healthy service.")} <bdi>{ui(error)}</bdi></p>;
+  if (error) return <div className="m-4 sm:m-6" data-capacity-error><ErrorState title={ui("Telemetry is unavailable; do not infer healthy service.")} description={ui(error)} onRetry={() => void load()} /></div>;
   if (!data) return <p className="p-4 text-sm text-ink-muted sm:p-6" aria-live="polite">{ui("Loading measured telemetry…")}</p>;
   const runs = failingOnly ? data.runs.filter(r => !r.passed) : data.runs;
   const req = data.requests;
@@ -100,7 +102,7 @@ export function CapacityReport() {
       {!data.runs.length ? <p className="text-sm" data-runs-empty>{ui("No representative benchmark has been recorded for this workload. No capacity claim is available until this workload is measured.")}</p> : <ul className="space-y-2">{runs.map(r => <li key={r.id} className="rounded-xl border border-border p-3" data-run={r.runId} data-run-passed={String(r.passed)}>
         <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)} data-run-toggle={r.runId}>
           <span className="font-semibold"><bdi dir="ltr">{r.runId}</bdi> · <bdi>{r.profile}</bdi></span>
-          <span className={cn("rounded-full border px-2 py-0.5 text-xs font-bold", r.passed ? "border-emerald-200 text-emerald-800" : "border-rose-200 text-rose-800")}>{r.passed ? ui("All objectives met") : ui("Objectives not met")}</span>
+          <Badge variant={r.passed ? "success" : "danger"} dot>{r.passed ? ui("All objectives met") : ui("Objectives not met")}</Badge>
         </Button>
         <p className="mt-1 text-xs text-ink-muted">{ui("Release")} <bdi dir="ltr">{r.release}</bdi> · <bdi>{r.environment}</bdi> · {dateTime(r.finishedAt)}</p>
         {open === r.id ? <div className="mt-3"><RunDetail run={r} /></div> : null}
@@ -108,7 +110,7 @@ export function CapacityReport() {
     </section>
 
     <section className="sk-panel space-y-3 p-4" data-live>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Live measurements")}</h3><span className={cn("rounded-full border px-2 py-0.5 text-xs font-bold", req.state === "MEASURED" ? "border-emerald-200 text-emerald-800" : "border-amber-200 text-amber-900")} data-telemetry-state={req.state}>{stateText}</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Live measurements")}</h3><Badge variant={req.state === "MEASURED" ? "success" : req.state === "STALE" ? "warning" : "neutral"} dot data-telemetry-state={req.state}>{stateText}</Badge></div>
       <p className="text-xs text-ink-muted">{ui(req.scope)} · {ui("Last {0} minutes", [String(req.windowSeconds / 60)])} · {ui("Measured at {0}", [dateTime(req.measuredAt)])}</p>
       <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("Class")}</TableHead><TableHead>{ui("Requests")}</TableHead><TableHead>p95</TableHead><TableHead>p99</TableHead><TableHead>{ui("Errors")}</TableHead><TableHead>{ui("Refused (429)")}</TableHead></TableRow></TableHeader>
         <TableBody>{req.classes.map(c => <TableRow key={c.serviceClass} data-live-class={c.serviceClass}><TableCell>{c.serviceClass}</TableCell><TableCell><bdi dir="ltr">{c.count}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(c.p95)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(c.p99)}</bdi></TableCell><TableCell><bdi dir="ltr">{c.errors}</bdi></TableCell><TableCell><bdi dir="ltr">{c.rejected}</bdi></TableCell></TableRow>)}</TableBody></Table></div>

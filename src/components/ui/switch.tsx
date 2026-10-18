@@ -29,7 +29,7 @@ export const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(({ classNa
       <span
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute top-1/2 start-0.5 -translate-y-1/2 rounded-full bg-white shadow-[0_1px_3px_rgb(31_26_35/0.3)] transition-transform duration-200 ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none",
+          "pointer-events-none absolute top-1/2 start-0.5 -translate-y-1/2 rounded-full bg-white shadow-[0_1px_3px_rgb(120_70_180/0.3)] transition-transform duration-200 ease-[cubic-bezier(.16,1,.3,1)] motion-reduce:transition-none",
           small ? "size-4 peer-checked:translate-x-4 rtl:peer-checked:-translate-x-4" : "size-5 peer-checked:translate-x-5 rtl:peer-checked:-translate-x-5",
         )}
       />

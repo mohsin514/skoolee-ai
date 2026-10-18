@@ -59,7 +59,7 @@ export function RoleShellSkeleton({
       </aside>
 
       <main className="flex h-screen flex-1 flex-col overflow-hidden p-3 pb-20 md:ms-64 md:p-5 md:pb-5">
-        <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-[22px] border border-edge/25 bg-white/40 px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] backdrop-blur-xl">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-[22px] border border-edge/25 bg-white/40 px-4 py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] backdrop-blur-xl">
           <div className="flex items-center gap-4">
             <SkeletonBar className="h-9 w-9 shrink-0 rounded-xl" />
             <div className="hidden space-y-1.5 sm:block">
@@ -76,7 +76,7 @@ export function RoleShellSkeleton({
         </div>
 
         {contentCard ? (
-          <section className="custom-scrollbar flex-1 overflow-hidden rounded-[32px] bg-white p-4 shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] sm:p-5">
+          <section className="custom-scrollbar flex-1 overflow-hidden rounded-[32px] bg-white p-4 shadow-[0_2px_8px_rgba(120,70,180,0.06),0_24px_60px_-24px_rgba(120,70,180,0.35)] sm:p-5">
             {children}
           </section>
         ) : (
@@ -92,7 +92,7 @@ export function RoleShellSkeleton({
 /** The dark banner each command centre opens with. */
 function HeroSkeleton() {
   return (
-    <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-ink-strong via-[#2a2130] to-[#2d2533] p-6 shadow-[0_14px_36px_-10px_rgba(31,26,35,0.45)] sm:p-8">
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-ink-strong via-ink-strong to-brand-950 p-6 shadow-xl sm:p-8">
       <div
         aria-hidden
         className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-gradient-to-bl from-primary/30 to-transparent blur-[70px]"

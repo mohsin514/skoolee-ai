@@ -20,6 +20,7 @@ import { useChat } from "./chat-provider";
 import { ChatWorkspace } from "./chat-workspace";
 import { chatHeader, chatUnreadBadge } from "./chat-styles";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 const MotionButton = motion.create(Button);
@@ -137,7 +138,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
               className={cn(
                 "fixed z-[58] flex flex-col overflow-hidden rounded-3xl border border-border bg-card",
 
-                "shadow-[0_32px_80px_-20px_rgba(31,26,35,0.45),0_0_0_1px_rgba(129,39,207,0.06)]",
+                "shadow-[0_32px_80px_-20px_rgba(120,70,180,0.45),0_0_0_1px_rgba(129,39,207,0.06)]",
                 "inset-x-3 bottom-40 top-3",
                 "md:inset-auto md:bottom-24 md:end-6 md:top-auto md:h-[620px] md:max-h-[calc(100dvh-8rem)] md:w-[420px]"
               )}
@@ -145,7 +146,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
               <header className={cn(chatHeader, "justify-between")}>
                 <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><MessageCircle className="h-5 w-5" /></span><p className="text-sm font-semibold text-foreground">{ui("School messaging")}</p></div>
                 <div className="flex items-center gap-1">
-                  <Link href="/messages" onClick={() => setIsOpen(false)} aria-label={ui("Open full messages page")} title={ui("Open full page")} className={buttonVariants({ variant: "ghost", size: "icon" })}><Maximize2 className="h-4 w-4" /></Link>
+                  <Tooltip content={ui("Open full messages page")}><Link href="/messages" onClick={() => setIsOpen(false)} aria-label={ui("Open full messages page")} className={buttonVariants({ variant: "ghost", size: "icon" })}><Maximize2 aria-hidden="true" className="h-4 w-4" /></Link></Tooltip>
                   <Button variant="ghost" size="icon" type="button" onClick={() => setIsOpen(false)} aria-label={ui("Close messages")}><X className="h-4 w-4" /></Button>
                 </div>
               </header>

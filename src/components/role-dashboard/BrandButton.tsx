@@ -1,10 +1,10 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import type { ReactNode } from "react";
+import { Button, type ButtonProps } from "@/components/ui/button";
 
 type BrandButtonVariant = "gradient" | "dark" | "soft" | "danger";
-interface BrandButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface BrandButtonProps extends Omit<ButtonProps, "variant"> {
   variant?: BrandButtonVariant;
   icon?: ReactNode;
 }

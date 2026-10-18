@@ -2,6 +2,7 @@
 
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import React from "react";
 import {
   ArrowDownWideNarrow,
@@ -178,8 +179,8 @@ export function ExamTableView({
                 </TableCell>
                 <TableCell className="px-4 py-3">
                   {range ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-teal-700">
-                      <CalendarDays className="h-3 w-3" />
+                    <span className="inline-flex flex-wrap items-center gap-1 text-xs font-semibold text-ink tabular-nums">
+                      <CalendarDays className="h-3 w-3 text-primary" aria-hidden="true" />
                       {range}
                       <span className="text-ink-subtle">
                         · {sched?.papers} paper{(sched?.papers ?? 0) > 1 ? "s" : ""}
@@ -192,23 +193,21 @@ export function ExamTableView({
                 <TableCell className="px-4 py-3">
                   {m && m.expectedMarks > 0 ? (
                     <div className="w-28">
-                      <div className="mb-1 flex items-center justify-between text-2xs font-bold">
+                      <div className="mb-1 flex items-center justify-between text-2xs font-semibold tabular-nums">
                         <span className="text-ink-muted">
                           {m.enteredMarks}/{m.expectedMarks}
                         </span>
-                        <span className={pct === 100 ? "text-emerald-600" : "text-amber-600"}>
+                        <span className={pct === 100 ? "text-status-success-text" : "text-status-warning-text"}>
                           {pct}%
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            pct === 100 ? "bg-emerald-500" : "bg-amber-500",
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      <Progress
+                        value={pct}
+                        size="sm"
+                        tone={pct === 100 ? "success" : "warning"}
+                        label="Marks entered"
+                        valueText={`${m.enteredMarks} of ${m.expectedMarks} marks entered`}
+                      />
                     </div>
                   ) : (
                     <span className="text-2xs font-semibold text-ink-subtle">—</span>

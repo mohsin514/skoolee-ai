@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // SKO-430: pilot charter, comparable observations, evidence-state measures and claim review in the
 // owner console. Figures always show their denominator; withheld percentages show the reason.
@@ -93,7 +94,7 @@ export function PilotEvidence() {
       {exported ? <ExportView exported={exported} onClose={() => setExported(null)} /> : null}
 
       {pilots === null ? <p role="status" className="text-sm text-ink-muted">{ui("Loading pilots…")}</p>
-        : pilots.length === 0 ? <p className="rounded-xl border border-dashed border-border p-6 text-sm text-ink-muted">{ui("No pilots yet. Record a charter, then a baseline, before reporting any impact.")}</p>
+        : pilots.length === 0 ? <EmptyState size="sm" icon={FlaskConical} title={ui("No pilots yet")} description={ui("Record a charter, then a baseline, before reporting any impact.")} action={<Button onClick={() => setCreating(true)}>{ui("New pilot")}</Button>} />
         : (
           <ul className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {pilots.map((pilot) => (
@@ -106,7 +107,7 @@ export function PilotEvidence() {
                     {pilot.synthetic ? <Badge tone="warn">{ui("Synthetic — not a result")}</Badge> : null}
                   </span>
                   <span className="mt-1 block text-xs text-ink-muted" dir="ltr"><bdi>{pilot.cohort}</bdi></span>
-                  <span className="mt-2 block text-xs font-semibold text-ink-muted">{ui("{0} observations · {1} measures · {2} claims", [pilot._count?.observations ?? 0, pilot._count?.measures ?? 0, pilot._count?.claims ?? 0])}</span>
+                  <span className="mt-2 block text-xs font-medium text-ink-subtle tabular-nums">{ui("{0} observations · {1} measures · {2} claims", [pilot._count?.observations ?? 0, pilot._count?.measures ?? 0, pilot._count?.claims ?? 0])}</span>
                 </Button>
               </li>
             ))}

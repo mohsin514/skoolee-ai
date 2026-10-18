@@ -41,6 +41,7 @@ import {
 } from "recharts";
 import { getPlanLimits } from "@/config/plans";
 import { CommandHero } from "./CommandHero";
+import { Badge } from "@/components/ui/badge";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, GRADE_HIGH, GRADE_LOW, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, money } from "./palette";
 import {
@@ -162,7 +163,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
               <Receipt className="h-7 w-7 text-edge" aria-hidden />
-              <p className="mt-2 px-2 text-2xs font-bold leading-tight text-ink-subtle">No invoices raised yet</p>
+              <p className="mt-2 px-2 text-2xs font-medium leading-tight text-ink-subtle">No invoices raised yet</p>
             </div>
           )
         }
@@ -211,7 +212,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <p className="mt-3 text-2xs font-bold text-ink-subtle">
+              <p className="mt-3 text-2xs font-medium text-ink-subtle">
                 The vertical rule marks the group average of {derived.averageRoll.toLocaleString()} students per campus.
               </p>
             </>
@@ -240,7 +241,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                       const full = campuses.find((c: any) => c.id === campus.id);
                       if (full) onSelectCampus(full);
                     }}
-                    className="flex w-full items-center justify-between gap-3 text-left"
+                    className="flex w-full items-center justify-between gap-3 text-start"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-xs font-bold text-ink-strong">{campus.name}</p>
@@ -441,14 +442,14 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
       {derived.rows.length > 0 ? (
         <InsightCard icon={School} title="Campus scorecard" subtitle="Every campus, side by side · reports shown as cards / exams" delay={120}>
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[880px] border-collapse text-left">
+            <table className="w-full min-w-[880px] border-collapse text-start">
               <thead>
                 <tr className="border-b border-edge/30">
                   {["Campus", "Students", "Classes", "Teachers", "Average", "Collected", "Reports", "Messages", "AI runs", ""].map((h, i) => (
                     <th
                       key={h || i}
                       scope="col"
-                      className={`px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle ${i > 0 && i < 9 ? "text-right" : ""}`}
+                      className={`px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle ${i > 0 && i < 9 ? "text-end" : ""}`}
                     >
                       {h}
                     </th>
@@ -462,39 +463,39 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                       <p className="text-xs font-bold text-ink-strong">{campus.name}</p>
                       <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{campus.city || "—"}</p>
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-strong [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-bold text-ink-strong tabular-nums">
                       {campus.students.toLocaleString()}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.classes.toLocaleString()}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.teachers.toLocaleString()}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-medium tabular-nums">
                       {campus.average === null ? (
                         <span className="text-ink-faint">—</span>
                       ) : (
                         <span style={{ color: campus.average >= 40 ? "#0f7a55" : "#a81231" }}>{campus.average}%</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.billed > 0 ? `${campus.collectionRate}%` : "—"}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.reportCards.toLocaleString()}
                       <span className="text-ink-faint"> / {campus.exams.toLocaleString()}</span>
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.messagesSent.toLocaleString()}
                       {campus.messageIssues > 0 ? (
                         <span style={{ color: "#a81231" }}> · {campus.messageIssues} failed</span>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-xs font-bold text-ink-muted [font-variant-numeric:tabular-nums]">
+                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.aiRuns.toLocaleString()}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2.5 text-end">
                       <Button variant="default" size="sm"
                         type="button"
                         onClick={() => {
@@ -520,16 +521,10 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
 function CoverageChip({ label, filled }: { label: string; filled: boolean }) {
   const Icon = filled ? CheckCircle2 : AlertTriangle;
   return (
-    <span
-      className="flex items-center gap-1 rounded-full px-2 py-1 text-2xs font-semibold uppercase tracking-wider"
-      style={{
-        background: filled ? `${STATUS.good}1f` : `${STATUS.warning}26`,
-        color: filled ? "#0f7a55" : "#8a6100",
-      }}
-    >
+    <Badge variant={filled ? "success" : "warning"} size="sm" className="gap-1">
       <Icon className="h-3 w-3" aria-hidden />
       {label}
       <span className="sr-only">{filled ? " in post" : " vacant"}</span>
-    </span>
+    </Badge>
   );
 }

@@ -5,8 +5,11 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChangeEvent, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
 import { toast } from "@/components/ui/toast";
@@ -21,12 +24,16 @@ interface ReversalAnalysis { eligible: boolean; dependencies: Array<{ studentNam
 
 const CSV_TEMPLATE = "fullName,rollNo,classId,gender,dateOfBirth,phone,studentEmail,guardianName,guardianPhone,guardianWhatsapp,guardianEmail,address,city,medicalNotes\nAli Ahmed Khan,V-A-001,,MALE,2010-03-15,+92 3001234567,ali@example.com,Ahmed Khan,+92 3001234567,,ahmed@example.com,123 Mosque Lane,Lahore,None";
 
+const rowStateVariant = (state: string) => (state === "ACCEPTED" ? "success" : state === "SKIPPED" ? "neutral" : "danger");
+
 export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, onSuccess }: Props) {
   const t = useUiText();
   const input = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState("");
   const [batch, setBatch] = useState<Batch | null>(null);
   const [busy, setBusy] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [analysis, setAnalysis] = useState<ReversalAnalysis | null>(null);
   const [confirmReverse, setConfirmReverse] = useState(false);
   const rows = batch?.rows || [];
@@ -83,7 +90,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   };
   const commit = async () => {
     if (!batch || batch.summary.accepted < 1) return;
-    setBusy(true);
+    setBusy(true); setCommitting(true);
     try {
       const response = await fetch("/api/students?campusId=" + encodeURIComponent(batch.campusId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ _importBatchId: batch.id, _reviewToken: batch.reviewToken }) });
       const result = await response.json();
@@ -95,16 +102,18 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
       if (result.guardianInviteFailures?.length || result.studentInviteFailures?.length) toast.warning(t("Some account invitation emails could not be sent."));
       onSuccess();
     } catch (error) { toast.error(error instanceof Error ? error.message : t("Import failed")); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setCommitting(false); }
   };
   const checkReversal = async () => {
     if (!batch) return;
+    setChecking(true);
     try {
       const response = await fetch(batchUrl(batch.id), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reversal-check" }) });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || t("Could not check reversal dependencies"));
       setAnalysis(result.data as ReversalAnalysis);
     } catch (error) { toast.error(error instanceof Error ? error.message : t("Could not check reversal dependencies")); }
+    finally { setChecking(false); }
   };
   const reverse = async () => {
     if (!batch) return;
@@ -125,33 +134,67 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   const downloadErrors = () => batch && downloadCSV("student_import_" + batch.id + "_corrections.csv", [["row", "match_key", "validation_errors", "source_row"], ...rows.filter((row) => row.errors.length).map((row) => [row.rowNumber, row.matchKey || "", row.errors.join("; "), JSON.stringify(row.source)])]);
   const close = () => { if (committed) onSuccess(); reset(); onOpenChange(false); };
 
+  const nothingSelected = !!batch && batch.summary.accepted === 0;
+  const commitButton = batch ? (
+    <Button type="button" className="w-full sm:w-auto" onClick={() => void commit()} disabled={busy || batch.summary.accepted === 0} loading={committing}>
+      {committing ? null : <CheckCircle2 aria-hidden="true" className="h-4 w-4" />}
+      {t("Commit {0} selected pupils", [batch.summary.accepted])}
+    </Button>
+  ) : null;
+
   return <Dialog open={open} onOpenChange={close}><DialogContent size="md">
-    <DialogHeader><DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-primary" />{t("Bulk Student Import")}</DialogTitle><DialogDescription>{t("Upload and validate first. Live pupil records change only when you commit this reviewed batch.")}</DialogDescription></DialogHeader>
+    <DialogHeader><DialogTitle className="flex items-center gap-2"><FileSpreadsheet aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" />{t("Bulk Student Import")}</DialogTitle><DialogDescription>{t("Upload and validate first. Live pupil records change only when you commit this reviewed batch.")}</DialogDescription></DialogHeader>
     <div className="space-y-4" dir="auto">
-      {committed && batch ? <section aria-live="polite" className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-        <p className="font-bold">{batch.state === "REVERSED" ? t("Batch reversed") : t("Batch receipt")}</p>
-        <p>{t("{0} pupil records committed; {1} skipped; {2} need correction.", [batch.summary.accepted, batch.summary.skipped, batch.summary.rejected + batch.summary.unresolved])}</p>
-        <p className="font-mono text-xs" dir="ltr">{batch.id}</p>
-        {analysis && <div className="space-y-2 rounded-xl bg-white p-3 text-sm"><p className="font-bold">{analysis.eligible ? t("Reversal is eligible") : t("Reversal is blocked")}</p><p>{t(analysis.action)}</p>{analysis.dependencies.map((item) => <p key={item.studentName + item.rollNo} className="text-rose-700">{item.studentName} ({item.rollNo}): {item.references.join(", ")}</p>)}{analysis.missing.length > 0 && <p>{t("Some pupil records are no longer available in this campus.")}</p>}</div>}
-        {confirmReverse && analysis?.eligible && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3"><p>{t("This deletes only unchanged pupils created by this batch. The action is recorded in the receipt.")}</p><div className="mt-3 flex gap-2"><Button variant="outline" onClick={() => setConfirmReverse(false)}>{t("Cancel")}</Button><Button variant="destructive" disabled={busy} onClick={() => void reverse()}>{t("Reverse batch")}</Button></div></div>}
-        {batch.state !== "REVERSED" && <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void checkReversal()}>{t("Check reversal")}</Button>{analysis?.eligible && !confirmReverse && <Button variant="destructive" onClick={() => setConfirmReverse(true)}>{t("Reverse batch")}</Button>}</div>}
+      {committed && batch ? <section className="space-y-3">
+        <Alert
+          tone={batch.state === "REVERSED" ? "neutral" : "success"}
+          live="polite"
+          title={batch.state === "REVERSED" ? t("Batch reversed") : t("Batch receipt")}
+          actions={batch.state !== "REVERSED" ? <>
+            <Button variant="outline" size="sm" loading={checking} onClick={() => void checkReversal()}>{t("Check reversal")}</Button>
+            {analysis?.eligible && !confirmReverse && <Button variant="destructive" size="sm" onClick={() => setConfirmReverse(true)}>{t("Reverse batch")}</Button>}
+          </> : undefined}
+        >
+          <p data-numeric>{t("{0} pupil records committed; {1} skipped; {2} need correction.", [batch.summary.accepted, batch.summary.skipped, batch.summary.rejected + batch.summary.unresolved])}</p>
+          <p className="mt-1 text-xs text-ink-muted">{t("Batch reference")}: <span className="break-all font-mono" dir="ltr">{batch.id}</span></p>
+        </Alert>
+        {analysis && <Alert tone={analysis.eligible ? "info" : "warning"} live="off" title={analysis.eligible ? t("Reversal is eligible") : t("Reversal is blocked")}>
+          <p>{t(analysis.action)}</p>
+          {analysis.dependencies.length > 0 && <ul className="mt-2 space-y-1 text-status-error-text">{analysis.dependencies.map((item) => <li key={item.studentName + item.rollNo}>{item.studentName} (<span dir="ltr">{item.rollNo}</span>): {item.references.join(", ")}</li>)}</ul>}
+          {analysis.missing.length > 0 && <p className="mt-2">{t("Some pupil records are no longer available in this campus.")}</p>}
+        </Alert>}
+        {confirmReverse && analysis?.eligible && <Alert
+          tone="warning"
+          actions={<><Button variant="outline" size="sm" disabled={busy} onClick={() => setConfirmReverse(false)}>{t("Cancel")}</Button><Button variant="destructive" size="sm" loading={busy} onClick={() => void reverse()}>{t("Reverse batch")}</Button></>}
+        >
+          {t("This deletes only unchanged pupils created by this batch. The action is recorded in the receipt.")}
+        </Alert>}
       </section> : <>
-        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-edge/30 bg-brand-50/30 p-6">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-edge/30 bg-brand-50/30 p-4 text-center sm:p-6">
           <input ref={input} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => void changeFile(event)} />
-          {fileName ? <div className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-primary" /><span className="font-bold">{fileName}</span><Button variant="ghost" type="button" aria-label={t("Choose a different file")}  onClick={reset}><X className="h-4 w-4" /></Button></div> : <><Upload className="h-8 w-8 text-primary/50" /><p className="text-sm font-bold">{t("Choose a CSV to stage a preview. Upload does not commit records.")}</p></>}
-          <div className="flex flex-wrap justify-center gap-2"><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => input.current?.click()}><Upload className="h-4 w-4" />{fileName ? t("Choose Different File") : t("Choose CSV File")}</Button><Button type="button" variant="ghost" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4" />{t("Download Template")}</Button></div>
+          {fileName ? <div className="flex min-w-0 max-w-full items-center gap-2"><FileSpreadsheet aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" /><span className="min-w-0 truncate text-sm font-semibold text-ink-strong" dir="auto">{fileName}</span><IconButton label={t("Remove file")} disabled={busy} onClick={reset}><X aria-hidden="true" /></IconButton></div> : <><Upload aria-hidden="true" className="h-8 w-8 text-primary/50" /><p className="max-w-sm text-sm font-medium leading-relaxed text-ink">{t("Choose a CSV to stage a preview. Upload does not commit records.")}</p></>}
+          <div className="flex flex-wrap justify-center gap-2"><Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => input.current?.click()}><Upload aria-hidden="true" className="h-4 w-4" />{fileName ? t("Choose Different File") : t("Choose CSV File")}</Button><Button type="button" variant="ghost" size="sm" onClick={downloadTemplate}><Download aria-hidden="true" className="h-4 w-4" />{t("Download Template")}</Button></div>
+          {!fileName && <p className="text-xs text-ink-subtle">{t("CSV files up to 5 MB. Use the template for the expected columns.")}</p>}
         </div>
-        {busy && <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />{t("Validating rows. Live records are unchanged.")}</p>}
+        {busy && !committing && <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-primary" />{batch ? t("Saving your review. Live records are unchanged.") : t("Validating rows. Live records are unchanged.")}</p>}
         {batch && <section className="space-y-3" aria-live="polite">
-          <div className="flex flex-wrap gap-2 text-xs font-bold"><Badge variant="success">{t("{0} selected", [batch.summary.accepted])}</Badge><Badge variant="destructive">{t("{0} rejected", [batch.summary.rejected])}</Badge><Badge>{t("{0} skipped", [batch.summary.skipped])}</Badge><Badge>{t("{0} unresolved", [batch.summary.unresolved])}</Badge><span>{t("{0} total rows", [batch.summary.total])}</span></div>
-          <p className="text-xs text-ink-muted">{t("Match key: campus + class + roll number. Existing pupils are never overwritten. Staging expires {0}.", [new Date(batch.expiresAt).toLocaleString()])}</p>
-          {rows.some((row) => row.errors.length) && <Button size="sm" variant="outline" onClick={downloadErrors}><Download className="h-4 w-4" />{t("Download corrections")}</Button>}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="success" dot data-numeric>{t("{0} selected", [batch.summary.accepted])}</Badge>
+            <Badge variant="danger" dot data-numeric>{t("{0} rejected", [batch.summary.rejected])}</Badge>
+            <Badge variant="neutral" dot data-numeric>{t("{0} skipped", [batch.summary.skipped])}</Badge>
+            <Badge variant="warning" dot data-numeric>{t("{0} unresolved", [batch.summary.unresolved])}</Badge>
+            <span data-numeric className="text-xs text-ink-muted">{t("{0} total rows", [batch.summary.total])}</span>
+          </div>
+          <p className="text-xs leading-relaxed text-ink-muted">{t("Match key: campus + class + roll number. Existing pupils are never overwritten. Staging expires {0}.", [new Date(batch.expiresAt).toLocaleString()])}</p>
+          {rows.some((row) => row.errors.length) && <Button size="sm" variant="outline" onClick={downloadErrors}><Download aria-hidden="true" className="h-4 w-4" />{t("Download corrections")}</Button>}
           <Table containerClassName="max-h-80 overflow-auto" className="w-full text-sm"><TableHeader><TableRow><TableHead>{t("Include")}</TableHead><TableHead dir="ltr">{t("Row")}</TableHead><TableHead>{t("Name")}</TableHead><TableHead>{t("Roll No")}</TableHead><TableHead>{t("Match key")}</TableHead><TableHead>{t("Status")}</TableHead></TableRow></TableHeader><TableBody>
-            {rows.map((row) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox aria-label={t("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void selectRow(row, event.target.checked)} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell>{String(row.proposal?.fullName || "—")}</TableCell><TableCell dir="ltr">{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") ? <Input key={String(row.proposal.rollNo)} aria-label={t("Roll number for row {0}", [row.rowNumber])} defaultValue={String(row.proposal.rollNo || "")} className={"w-24"} onBlur={(event) => { if (event.currentTarget.value !== String(row.proposal?.rollNo || "")) void updateProposal(row, { rollNo: event.currentTarget.value }); }} /> : String(row.proposal?.rollNo || "—")}</TableCell><TableCell dir="ltr">{row.matchKey || "—"}{row.matchLabel && <span className="block" dir="auto">{row.matchLabel}</span>}{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") && <div className="mt-1 flex flex-wrap gap-1"><Select aria-label={t("Class for row {0}", [row.rowNumber])} className={"max-w-32"} value={String(row.proposal.classId || "")} onChange={(event) => void updateProposal(row, { classId: event.target.value })}>{classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}{cls.section ? " · " + cls.section : ""}</option>)}</Select><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void skipRow(row)}>{t("Skip row")}</Button></div>}</TableCell><TableCell><Badge variant={row.state === "ACCEPTED" ? "success" : row.state === "SKIPPED" ? "outline" : "destructive"}>{t(row.state)}</Badge>{row.errors.length > 0 && <span className="mt-1 block max-w-56 text-xs text-rose-700" role="note">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
+            {rows.map((row) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox aria-label={t("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void selectRow(row, event.target.checked)} />}</TableCell><TableCell dir="ltr" data-numeric>{row.rowNumber}</TableCell><TableCell className="font-medium text-ink-strong">{String(row.proposal?.fullName || "—")}</TableCell><TableCell dir="ltr">{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") ? <Input key={String(row.proposal.rollNo)} aria-label={t("Roll number for row {0}", [row.rowNumber])} defaultValue={String(row.proposal.rollNo || "")} className={"w-24"} onBlur={(event) => { if (event.currentTarget.value !== String(row.proposal?.rollNo || "")) void updateProposal(row, { rollNo: event.currentTarget.value }); }} /> : String(row.proposal?.rollNo || "—")}</TableCell><TableCell dir="ltr">{row.matchKey || "—"}{row.matchLabel && <span className="block text-xs text-ink-muted" dir="auto">{row.matchLabel}</span>}{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") && <div className="mt-1 flex flex-wrap gap-1"><Select aria-label={t("Class for row {0}", [row.rowNumber])} className={"max-w-32"} value={String(row.proposal.classId || "")} onChange={(event) => void updateProposal(row, { classId: event.target.value })}>{classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}{cls.section ? " · " + cls.section : ""}</option>)}</Select><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void skipRow(row)}>{t("Skip row")}</Button></div>}</TableCell><TableCell><Badge size="sm" dot variant={rowStateVariant(row.state)}>{t(row.state)}</Badge>{row.errors.length > 0 && <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-error-text" role="note">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
           </TableBody></Table>
         </section>}
       </>}
     </div>
-    <DialogFooter><Button type="button" variant="outline" onClick={close}>{committed ? t("Done") : t("Cancel")}</Button>{batch?.state === "STAGED" && <Button type="button" onClick={() => void commit()} disabled={busy || batch.summary.accepted === 0}>{busy ? <><Loader2 className="h-4 w-4 animate-spin" />{t("Committing...")}</> : <><CheckCircle2 className="h-4 w-4" />{t("Commit {0} selected pupils", [batch.summary.accepted])}</>}</Button>}</DialogFooter>
+    <DialogFooter><Button type="button" variant="outline" onClick={close}>{committed ? t("Done") : t("Cancel")}</Button>{batch?.state === "STAGED" && (nothingSelected
+      ? <Tooltip content={t("Select at least one accepted row to commit.")}><span tabIndex={0} className="flex sm:inline-flex">{commitButton}</span></Tooltip>
+      : commitButton)}</DialogFooter>
   </DialogContent></Dialog>;
 }

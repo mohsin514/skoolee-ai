@@ -11,6 +11,7 @@ import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { FIELD_TYPES, IDENTITY_FIELDS, IDENTITY_KEYS, answerProblems, label, starterDefinition, visibleDocuments, visibleFields, type Answers, type FieldDef, type FormDefinition, type Language } from "@/lib/admissions/form-rules";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip } from "@/components/ui/tooltip";
 
 // SKO-398: the admissions desk. Work starts from ownership and the next action; the review shows the exact
 // form version an application was answered on, keeps office notes apart from messages to the family, lists
@@ -91,7 +92,7 @@ function Pipeline({ forms, owners, classes }: { forms: Form[]; owners: Person[];
         <FormField name="admission-filter-status" label={ui("Stage")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="">{ui("Any stage")}</option>{["SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED", "ENROLLED", "DECLINED", "REJECTED", "WITHDRAWN", "DRAFT"].map(value => <option key={value} value={value}>{statusLabel(ui, value)}</option>)}</Select></FormField>
         <FormField name="admission-filter-q" label={ui("Search reference, child or phone")}><Input value={q} onChange={event => setQ(event.target.value)} /></FormField>
       </div>
-      <Button onClick={() => setCreating(true)} disabled={!published.length} title={!published.length ? ui("Publish an application form first.") : undefined}><Plus className="size-4" aria-hidden="true" />{ui("Enter an application")}</Button>
+      {(() => { const enter = <Button onClick={() => setCreating(true)} disabled={!published.length}><Plus className="size-4" aria-hidden="true" />{ui("Enter an application")}</Button>; return published.length ? enter : <Tooltip content={ui("Publish an application form first.")}><span tabIndex={0} className="inline-flex">{enter}</span></Tooltip>; })()}
     </div>
     {loading && !rows.length ? <p role="status" className="text-sm text-ink-muted">{ui("Loading applications…")}</p>
       : loadError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{loadError}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>

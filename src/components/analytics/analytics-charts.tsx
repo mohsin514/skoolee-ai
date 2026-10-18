@@ -7,11 +7,14 @@ import {
 } from "recharts";
 import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import {
-  Award, BarChart3, Loader2, TrendingDown, TrendingUp, Users,
+  Award, BarChart3, TrendingDown, TrendingUp, Users,
   GraduationCap, AlertTriangle, BookOpen, Calendar,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { SkeletonBlock } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Badge } from "@/components/ui/badge";
 
 interface AnalyticsData {
   summary: {
@@ -38,16 +41,22 @@ const GRADE_COLORS: Record<string, string> = {
 export function AnalyticsCharts() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const res = await fetch("/api/analytics");
       const json = await res.json();
       if (json.success) setData(json.data);
-      else toast.error("Failed to load analytics");
+      else {
+        setFailed(true);
+        toast.error("Could not load the analytics. Try again in a moment.");
+      }
     } catch {
-      toast.error("Failed to load analytics");
+      setFailed(true);
+      toast.error("Could not load the analytics. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -61,13 +70,21 @@ export function AnalyticsCharts() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return failed ? (
+      <ErrorState
+        title="Analytics could not be loaded"
+        description="Reload to try again."
+        onRetry={load}
+      />
+    ) : null;
+  }
 
   const { summary } = data;
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="sk-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard icon={TrendingUp} label="Avg Performance" value={`${summary.avgPerformance}%`} color="emerald" />
         <StatCard icon={Award} label="Pass Rate" value={`${summary.passRate}%`} color="blue" />
         <StatCard icon={AlertTriangle} label="Needs Attention" value={summary.needsAttention} color="amber" />
@@ -163,65 +180,63 @@ export function AnalyticsCharts() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-[24px] border border-edge/10 bg-white p-6 shadow-lg">
+        <div className="sk-panel min-w-0 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
             <div className="h-8 w-8 rounded-xl bg-emerald-50 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
-            <h3 className="text-sm font-bold text-ink-strong">Top Performers</h3>
+            <h3 className="text-base font-semibold text-ink-strong">Top Performers</h3>
           </div>
           {data.topStudents.length > 0 ? (
             <div className="space-y-2">
               {data.topStudents.map((s, i) => (
-                <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-brand-50/30 transition-colors">
-                  <div className="flex items-center gap-3">
+                <div key={i} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-surface-hover">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-2xs font-bold ${
                       i < 3 ? "bg-primary text-white" : "bg-muted text-ink-muted"
                     }`}>{i + 1}</span>
-                    <div>
-                      <p className="text-xs font-bold text-ink-strong">{s.name}</p>
-                      <p className="text-2xs font-semibold text-ink-subtle">{s.rollNo}</p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink-strong">{s.name}</p>
+                      <p className="text-xs text-ink-subtle tabular-nums">{s.rollNo}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-primary">{s.percentage}%</span>
-                    <span className="text-2xs font-bold text-ink-subtle bg-muted px-2 py-0.5 rounded-md">{s.grade}</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-sm font-bold tabular-nums text-primary">{s.percentage}%</span>
+                    <Badge variant="neutral" size="sm">{s.grade}</Badge>
                   </div>
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-ink-subtle text-center py-8">No data yet</p>}
+          ) : <EmptyState size="sm" icon={Award} title="No top performers yet" description="Rankings appear once exam results are published." />}
         </div>
 
-        <div className="rounded-[24px] border border-edge/10 bg-white p-6 shadow-lg">
+        <div className="sk-panel min-w-0 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
             <div className="h-8 w-8 rounded-xl bg-amber-50 flex items-center justify-center">
               <TrendingDown className="w-4 h-4 text-amber-600" />
             </div>
-            <h3 className="text-sm font-bold text-ink-strong">Students Needing Attention</h3>
+            <h3 className="text-base font-semibold text-ink-strong">Students Needing Attention</h3>
           </div>
           {data.atRiskStudents.length > 0 ? (
             <div className="space-y-2">
               {data.atRiskStudents.map((s, i) => (
-                <div key={i} className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-rose-50/30 transition-colors">
-                  <div>
-                    <p className="text-xs font-bold text-ink-strong">{s.name}</p>
-                    <p className="text-2xs font-semibold text-ink-subtle">{s.rollNo}</p>
+                <div key={i} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-surface-hover">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink-strong">{s.name}</p>
+                    <p className="text-xs text-ink-subtle tabular-nums">{s.rollNo}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-rose-600">{s.percentage}%</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-sm font-bold tabular-nums text-status-error-text">{s.percentage}%</span>
                     {s.attendancePct !== null && (
-                      <span className={`text-2xs font-bold px-2 py-0.5 rounded-md ${
-                        s.attendancePct < 75 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
-                      }`}>
+                      <Badge variant={s.attendancePct < 75 ? "danger" : "success"} size="sm" dot className="tabular-nums">
                         {s.attendancePct}% att.
-                      </span>
+                      </Badge>
                     )}
                   </div>
                 </div>
               ))}
             </div>
-          ) : <p className="text-sm text-ink-subtle text-center py-8">No at-risk students</p>}
+          ) : <EmptyState size="sm" icon={Users} title="No students need attention" description="No student is currently flagged by their results or attendance." />}
         </div>
       </div>
     </div>
@@ -239,14 +254,14 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
   const c = colorMap[color] || colorMap.purple;
 
   return (
-    <div className={`rounded-[20px] border border-edge/10 ${c.bg} p-5 shadow-sm`}>
-      <div className="flex items-center gap-3">
-        <div className={`h-10 w-10 rounded-xl ${c.iconBg} flex items-center justify-center`}>
+    <div className={`sk-hover-lift rounded-[20px] border border-edge/10 ${c.bg} p-5 shadow-sm`}>
+      <div className="flex min-w-0 items-center gap-3">
+        <div className={`h-10 w-10 shrink-0 rounded-xl ${c.iconBg} flex items-center justify-center`}>
           <Icon className={`h-5 w-5 ${c.text}`} />
         </div>
-        <div>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
-          <p className="text-2xl font-bold text-ink-strong">{value}</p>
+        <div className="min-w-0">
+          <p className="sk-eyebrow truncate">{label}</p>
+          <p className="text-2xl font-bold tabular-nums text-ink-strong">{value}</p>
         </div>
       </div>
     </div>
@@ -255,12 +270,12 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
 
 function ChartCard({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
   return (
-    <div className="rounded-[24px] border border-edge/10 bg-white p-6 shadow-lg">
+    <div className="sk-panel min-w-0 p-5 sm:p-6">
       <div className="flex items-center gap-2 mb-4">
         <div className="h-8 w-8 rounded-xl bg-brand-50 flex items-center justify-center">
           <Icon className="w-4 h-4 text-primary" />
         </div>
-        <h3 className="text-sm font-bold text-ink-strong">{title}</h3>
+        <h3 className="text-base font-semibold text-ink-strong">{title}</h3>
       </div>
       {children}
     </div>
@@ -270,7 +285,7 @@ function ChartCard({ title, icon: Icon, children }: { title: string; icon: any; 
 function EmptyChart() {
   return (
     <div className="flex h-[280px] items-center justify-center">
-      <p className="text-sm font-semibold text-ink-subtle">Charts appear after exam results are published</p>
+      <EmptyState size="sm" icon={BarChart3} title="No chart data yet" description="Charts appear after exam results are published." />
     </div>
   );
 }

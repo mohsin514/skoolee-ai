@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
@@ -32,7 +34,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 
 const API = "/api";
 const inputClass = "w-full";
-const labelClass = "block mb-2 pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
+const labelClass = "block mb-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
 
 type AccountsTabKey = "chart" | "methods" | "banks" | "income" | "expense" | "profit";
 
@@ -236,9 +238,19 @@ function ChartPanel({ campusId }: { campusId?: string }) {
                   {acc.isActive === false ? tr("Reactivate") : tr("Deactivate")}
                 </Button>
               ) : null}
-              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(acc)} className="flex items-center justify-center" aria-label={tr("Delete account")} disabled={(acc._count?.entries ?? 0) > 0} title={(acc._count?.entries ?? 0) > 0 ? tr("Accounts with entries are kept for audit; deactivate instead.") : undefined}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              {(acc._count?.entries ?? 0) > 0 ? (
+                <Tooltip content={tr("Accounts with entries are kept for audit; deactivate instead.")}>
+                  <span tabIndex={0} className="inline-flex rounded-lg">
+                    <Button variant="secondary" size="icon" type="button" className="flex items-center justify-center" aria-label={tr("Delete account")} disabled>
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </Button>
+                  </span>
+                </Tooltip>
+              ) : (
+                <IconButton label={tr("Delete account")} variant="secondary" onClick={() => setDeleting(acc)}>
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
+                </IconButton>
+              )}
             </div>
           ))}
         </div>
@@ -258,7 +270,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
                 <option value="EQUITY"><UiText>{"Equity"}</UiText></option>
               </SystemSelect>
             </label>
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Account"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save Changes") : tr("Create Account")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
       )}
@@ -428,7 +440,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
         <ModalFrame title={editing ? tr("Edit Payment Method") : tr("New Payment Method")} eyebrow={tr("Accounts · Methods")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
             <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Cash")} onChange={setName} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Method"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save Changes") : tr("Create Method")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
       )}
@@ -601,7 +613,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
                   {[b.bankName, b.accountNumber].filter(Boolean).join(" · ") || "—"}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-end">
                 <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
                 <p className="text-sm font-bold text-ink-strong">{formatPKR(b.openingBalance, b.currency)}</p>
               </div>
@@ -630,7 +642,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
             <FormInput label={tr("Bank Name")} value={bankName} placeholder={tr("e.g. HBL")} onChange={setBankName} />
             <FormInput label={tr("Account Number")} value={accountNumber} placeholder="e.g. 1234-5678-90" onChange={setAccountNumber} />
             <FormInput label={`${tr("Opening Balance")} (${currency})`} type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Bank Account"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save Changes") : tr("Create Bank Account")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </ModalFrame>
       )}

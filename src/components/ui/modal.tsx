@@ -648,7 +648,7 @@ export function ModalSurface({
           "relative flex min-w-0 w-full max-w-full flex-col overflow-hidden bg-white",
           fullscreen
             ? "h-[100dvh] max-h-[100dvh] rounded-none"
-            : "max-h-[92dvh] rounded-t-[32px] border border-edge/20 shadow-[0_-8px_60px_rgba(31,26,35,0.28)] sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
+            : "max-h-[92dvh] rounded-t-[32px] border border-edge/20 shadow-[0_-8px_60px_rgba(120,70,180,0.28)] sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(120,70,180,0.28)]",
           !fullscreen && width,
           fullscreen
             ? closing ? "animate-modal-exit" : "animate-modal-enter"

@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,11 +151,11 @@ export function PayrollRunsPanel() {
         <FormField name="pay-year" label={ui("Year")} className="w-28"><Input type="number" min={2000} max={2100} dir="ltr" value={period.year} onChange={(e) => setPeriod((p) => ({ ...p, year: Number(e.target.value) || p.year }))} /></FormField>
         {data ? <Button type="button" disabled={busy || !data.policy} onClick={() => void post({ action: "prepare", data: period }, "Draft calculated. Approval is a separate step.")}>{current ? ui("Prepare new version") : ui("Prepare run")}</Button> : null}
       </div>
-      <div aria-live="polite">
-        {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
-        {notice ? <p role="status" className="text-sm font-semibold text-emerald-800">{notice}</p> : null}
+      <div className="space-y-2">
+        {error && data ? <Alert tone="danger" compact>{error}</Alert> : null}
+        {notice ? <Alert tone="success" compact>{notice}</Alert> : null}
       </div>
-      {!data ? (error ? null : <p role="status" className="text-sm text-ink-subtle">{ui("Loading payroll…")}</p>) : (
+      {!data ? (error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /> : <p role="status" className="text-sm text-ink-subtle">{ui("Loading payroll…")}</p>) : (
         <>
           {data.policy ? (
             <div className="rounded-xl border border-border p-3 text-sm">

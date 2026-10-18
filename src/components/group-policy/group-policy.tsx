@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
@@ -135,17 +136,17 @@ function DraftEditor({ template, lib, reload }: { template: Template; lib: Libra
     </> : null}
     {preview && draft && !inReview ? <div className="space-y-2 rounded-xl border p-3" data-impact>
       <p className="sticky top-0 bg-surface py-1 font-bold" data-impact-count>{ui("{0} campuses affected · {1} blocking", [String(preview.affected), String(preview.blocking)])}</p>
-      {preview.campuses.map(c => <div key={c.campusId} className={cn("rounded-xl border p-2 text-sm", !c.compatible && "border-red-400")} data-impact-campus={c.name} data-compatible={c.compatible}>
+      {preview.campuses.map(c => <div key={c.campusId} className={cn("rounded-xl border p-2 text-sm", !c.compatible && "border-status-error-border")} data-impact-campus={c.name} data-compatible={c.compatible}>
         <p className="font-bold"><bdi>{c.name}</bdi> · <bdi dir="ltr">{c.country}</bdi>{c.board ? <> · <bdi>{c.board}</bdi></> : null} · {c.compatible ? ui("Compatible") : ui("Blocked")}</p>
-        {c.problems.map(p => <p key={p} className="text-red-700 dark:text-red-300" dir="auto">{ui(p)}</p>)}
+        {c.problems.length ? <Alert tone="danger" compact live="off">{c.problems.map(p => <p key={p} className="text-status-error-text" dir="auto">{ui(p)}</p>)}</Alert> : null}
         {c.changes.map(ch => <p key={ch.key}>{ui(LABELS[ch.key] ?? ch.key)}: <bdi>{show(ui, ch.key, ch.from)}</bdi> → <bdi>{show(ui, ch.key, ch.to)}</bdi>{ch.locked ? <> · {ui("Locked")}</> : null}</p>)}
-        {c.keptOverrides.map(o => <p key={o.id} className="text-amber-700 dark:text-amber-300">{ui("Campus override kept: {0}", [ui(LABELS[o.key] ?? o.key)])}</p>)}
-        {c.endedOverrides.map(o => <p key={o.id} className="text-red-700 dark:text-red-300">{ui("Campus override ends (no longer overridable): {0}", [ui(LABELS[o.key] ?? o.key)])}</p>)}
+        {c.keptOverrides.map(o => <p key={o.id} className="text-status-warning-text">{ui("Campus override kept: {0}", [ui(LABELS[o.key] ?? o.key)])}</p>)}
+        {c.endedOverrides.map(o => <p key={o.id} className="text-status-error-text">{ui("Campus override ends (no longer overridable): {0}", [ui(LABELS[o.key] ?? o.key)])}</p>)}
       </div>)}
       <div className="grid gap-2 sm:grid-cols-3"><FormField name="sch-date" label={ui("Effective from")}><Input type="datetime-local" value={effective} onChange={e => { setEffective(e.target.value); setPreview(null); }} dir="ltr" data-schedule-date /></FormField>
         <FormField name="sch-rev" label={ui("Reviewer")}><Select value={reviewer} onChange={e => setReviewer(e.target.value)} data-schedule-reviewer><option value="">{ui("Choose")}</option>{lib.owners.filter(o => o.id !== lib.userId).map(o => <option key={o.id} value={o.id}>{o.fullName}</option>)}</Select></FormField>
         <div className="flex items-end"><Button disabled={busy || !effective || !reviewer || preview.blocking > 0} onClick={() => void run(async () => { await call("/api/group-policy", "POST", { action: "submit", versionId: draft.id, effectiveFrom: new Date(effective).toISOString(), reviewerId: reviewer, previewHash: preview.previewHash }); setPreview(null); }, "Sent for review.")} data-schedule-submit>{ui("Schedule v{0}", [String(preview.version)])}</Button></div></div>
-      {preview.blocking ? <p className="text-xs text-red-700 dark:text-red-300">{ui("Blocked campuses cannot receive this template. Remove them or create a separate template for them.")}</p> : null}
+      {preview.blocking ? <Alert tone="danger" compact live="off">{ui("Blocked campuses cannot receive this template. Remove them or create a separate template for them.")}</Alert> : null}
     </div> : null}
   </div>;
 }

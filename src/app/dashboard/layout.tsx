@@ -1,5 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { PageCard } from "@/components/ui/page-card";
+import { Alert } from "@/components/ui/alert";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -49,9 +51,16 @@ export default async function DashboardLayout({
         <Sidebar />
         <main className="min-h-screen min-w-0 flex-1 pb-24 md:ms-64 md:pb-0">
           {isSuspended && (
-            <div className="border-b border-amber-200 bg-amber-50/90 px-6 py-3 text-sm font-bold text-amber-800">
-              Subscription suspended. Billing is still available so an administrator can restore access.
-            </div>
+            <Alert
+              tone="warning"
+              live="off"
+              compact
+              className="rounded-none border-x-0 border-t-0 px-4 shadow-none sm:px-6"
+              title="Subscription suspended."
+              actions={<Link href="/dashboard/billing" className="sk-link text-sm">Open billing</Link>}
+            >
+              Billing is still available so an administrator can restore access.
+            </Alert>
           )}
           <div className="p-3 sm:p-5"><PageCard className="p-0 sm:p-0">{children}</PageCard></div>
         </main>

@@ -7,6 +7,8 @@ import { localeTag } from "@/lib/locale/package";
 import { CalendarCheck, CheckCircle2, Clock, X } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { useParentData } from "../parent-data-context";
 import { GuardianAttendanceExplanations } from "@/components/attendance/class-register";
 import { GuardianLeave, GuardianTrips } from "@/components/family/family-requests";
@@ -59,16 +61,16 @@ export default function ParentAttendancePage() {
         ) : (
           <>
             <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
-              <ParentStat icon={Clock} label={tr("Attendance Rate")} value={attendance.rate !== null ? `${attendance.rate}%` : "N/A"} sub={attendance.rate !== null && attendance.rate >= 75 ? tr("Good standing") : tr("Below 75%")} />
+              <ParentStat icon={Clock} label={tr("Attendance Rate")} value={attendance.rate !== null ? `${attendance.rate}%` : "N/A"} sub={attendance.rate === null ? tr("No rate yet") : attendance.rate >= 75 ? tr("Good standing") : tr("Below 75%")} />
               <ParentStat icon={CheckCircle2} label={tr("Present")} value={attendance.present} sub={`${attendance.total ? Math.round((attendance.present / attendance.total) * 100) : 0}% ${tr("of total")}`} tone="green" />
               <ParentStat icon={X} label={tr("Absent / Leave")} value={(attendance.counted ?? attendance.total) - (attendance.attended ?? attendance.present)} sub={tr("Days missed")} tone="rose" />
               <ParentStat icon={CalendarCheck} label={tr("Total Days")} value={attendance.total} sub={tr("School days recorded")} tone="violet" />
             </div>
 
             <div className="sk-panel sk-rise p-4" style={{ animationDelay: "120ms" }}>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Recent Attendance"}</UiText></h3>
-                <span className="text-2xs font-semibold text-ink-subtle">{tr("Recent school days: {0}", [attendance.recent.length])}
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <h3 className="text-base font-bold text-ink-strong"><UiText>{"Recent Attendance"}</UiText></h3>
+                <span className="text-xs tabular-nums text-ink-subtle">{tr("Recent school days: {0}", [attendance.recent.length])}
                 </span>
               </div>
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
@@ -80,12 +82,15 @@ export default function ParentAttendancePage() {
                   })} — ${tr(a.status)}`;
                   return (
                     <div key={i} className="flex flex-col items-center gap-1">
-                      <div
-                        role="img"
-                        aria-label={label}
-                        title={label}
-                        className={`h-6 w-6 rounded-lg transition-transform hover:scale-110 ${statusColors[a.status] || "bg-gray-300"}`}
-                      />
+                      {/* The date and status show on hover, keyboard focus or a
+                          long press; the old native title= only worked with a mouse. */}
+                      <Tooltip content={label} describe={false}>
+                        <span
+                          role="img"
+                          aria-label={label}
+                          className={`block h-6 w-6 rounded-lg shadow-xs transition-transform motion-safe:hover:scale-110 ${statusColors[a.status] || "bg-ink-faint"}`}
+                        />
+                      </Tooltip>
                       <span className="text-3xs font-semibold tabular-nums text-ink-subtle">
                         {new Intl.NumberFormat(localeTag(locale)).format(new Date(a.date).getUTCDate())}
                       </span>
@@ -95,16 +100,13 @@ export default function ParentAttendancePage() {
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {presentStatuses.map((status) => (
-                  <span
-                    key={status}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-2xs font-bold capitalize text-ink-muted"
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${statusColors[status]}`} />
+                  <Badge key={status} variant="neutral" className="capitalize">
+                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${statusColors[status]}`} />
                     {tr(status)}
-                    <span className="tabular-nums opacity-70">
+                    <span className="tabular-nums text-ink-subtle">
                       {attendance.recent.filter((a) => a.status === status).length}
                     </span>
-                  </span>
+                  </Badge>
                 ))}
               </div>
             </div>

@@ -7,7 +7,6 @@ import {
   ArrowRight,
   CalendarCheck,
   GraduationCap,
-  Loader2,
   TrendingUp,
   UserCheck,
   Users,
@@ -21,6 +20,7 @@ import { BrandButton } from "@/components/role-dashboard";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
+import { InfoTip } from "@/components/ui/tooltip";
 import { Input as SystemInput } from "@/components/ui/input";
 
 type CalendarRole = "ADMIN" | "PRINCIPAL" | "TEACHER" | "STUDENT" | "PARENT";
@@ -157,7 +157,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
             </div>
             <div>
               <h2 className="text-xl font-bold tracking-tight text-ink-strong">Year-End Summary</h2>
-              <p className="text-2xs font-semibold text-ink-muted">
+              <p className="text-2xs font-medium text-ink-muted">
                 Academic Year {activeYear}
                 {activeCycle ? ` · ${activeCycle.label}` : ""}
               </p>
@@ -194,7 +194,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                 <div className="rounded-2xl border border-edge/15 bg-surface-subtle p-4 lg:col-span-2">
                   <div className="mb-3 flex items-center gap-2">
                     <PieChart className="h-4 w-4 text-primary" />
-                    <h4 className="text-sm font-bold text-ink-strong">Average Grades per Class</h4>
+                    <h4 className="flex items-center gap-1.5 text-sm font-bold text-ink-strong">Average Grades per Class <InfoTip content="Mean of each student's overall weighted percentage in the class for this year. Shown for classes that are completed or have exams." /></h4>
                   </div>
                   {classAvgs.length === 0 ? (
                     <p className="py-6 text-center text-xs font-semibold text-ink-subtle">
@@ -211,7 +211,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                               style={{ width: `${c.avg != null ? Math.min(100, Math.max(0, c.avg)) : 0}%` }}
                             />
                           </div>
-                          <span className={cn("w-12 text-right text-sm font-bold", c.avg != null ? (c.avg >= 80 ? "text-emerald-600" : c.avg >= 50 ? "text-amber-600" : "text-rose-500") : "text-ink-subtle")}>
+                          <span className={cn("w-12 text-end text-sm font-bold tabular-nums", c.avg != null ? (c.avg >= 80 ? "text-emerald-600" : c.avg >= 50 ? "text-amber-600" : "text-rose-500") : "text-ink-subtle")}>
                             {c.avg != null ? `${Math.round(c.avg)}%` : "—"}
                           </span>
                         </div>
@@ -259,11 +259,12 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
             <div className="flex justify-end gap-3">
               <BrandButton variant="soft" onClick={() => setShowArchive(false)}>Cancel</BrandButton>
               <Button variant="destructive"
+                loading={archiving}
                 onClick={doArchive}
                 disabled={archiving || archiveConfirm.trim() !== activeCycle?.label}
                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5"
               >
-                {archiving ? <><Loader2 className="h-4 w-4 animate-spin" /> Archiving…</> : <><Archive className="h-4 w-4" /> Archive Year</>}
+                {archiving ? "Archiving…" : <><Archive className="h-4 w-4" aria-hidden="true" /> Archive Year</>}
               </Button>
             </div>
           }

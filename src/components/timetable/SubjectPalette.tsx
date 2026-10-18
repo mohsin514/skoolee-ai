@@ -43,8 +43,9 @@ export function SubjectPalette({
       <p className="mt-4 mb-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
         Subjects ({subjects.length})
       </p>
+      {subjects.length > 0 && <p className="text-xs leading-relaxed text-ink-subtle">Drag a subject onto a grid cell to place it.</p>}
 
-      <div className="mt-1 flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
+      <div className="mt-1 flex-1 space-y-2 overflow-y-auto custom-scrollbar pe-1">
         {subjects.length === 0 && (
           <p className="rounded-xl border border-dashed border-edge/20 p-4 text-center text-2xs font-semibold text-ink-subtle">
             No subjects for this class yet. Add subjects first.
@@ -66,7 +67,6 @@ export function SubjectPalette({
               className={`group cursor-grab rounded-xl border border-edge/15 bg-white p-2.5 transition-all hover:border-primary/30 hover:shadow-sm active:cursor-grabbing ${
                 complete ? "ring-1 ring-emerald-200" : ""
               }`}
-              title="Drag onto a grid cell to place this subject"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-1.5">

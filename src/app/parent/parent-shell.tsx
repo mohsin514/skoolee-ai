@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { ChevronDown, MessageCircle, X } from "lucide-react";
 import { useState } from "react";
 import { ModalSurface } from "@/components/ui/modal";
@@ -64,14 +65,14 @@ function ChildSwitcher() {
 
   return (
     <>
-      <Button variant="choice" type="button" aria-label={t("Change child")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="mb-[12px] w-full min-w-0 shrink-0 justify-between gap-[8px] px-[12px] py-[8px] text-start">
-        <span className="min-w-0"><span className="block text-2xs font-semibold uppercase tracking-wider text-ink-muted">{t("Viewing")}</span><bdi className="block text-sm [overflow-wrap:anywhere]">{selected.fullName}</bdi>{selected.rollNo && <bdi className="block text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{selected.rollNo}</bdi>}</span>
-        <ChevronDown aria-hidden="true" className="shrink-0" />
+      <Button variant="choice" type="button" aria-label={t("Change child")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="mb-3 w-full min-w-0 shrink-0 justify-between gap-2 px-3 py-2 text-start shadow-xs">
+        <span className="min-w-0"><span className="sk-eyebrow block">{t("Viewing")}</span><bdi className="block text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{selected.fullName}</bdi>{selected.rollNo && <bdi className="block text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{selected.rollNo}</bdi>}</span>
+        <ChevronDown aria-hidden="true" className="shrink-0 text-ink-subtle" />
       </Button>
       {open && <ModalSurface ariaLabel={t("Choose child")} onClose={() => setOpen(false)}>
-        <div className="flex items-center justify-between gap-[8px] border-b border-border p-[12px]"><h2 className="text-lg font-bold">{t("Choose child")}</h2><Button variant="ghost" size="icon" aria-label={t("Close")} onClick={() => setOpen(false)} className="h-[44px] w-[44px] min-w-[44px]"><X aria-hidden="true" /></Button></div>
-        <div className="min-h-0 space-y-[8px] overflow-y-auto p-[12px]">
-          {siblings.map(child => <Button variant="choice" key={child.id} type="button" aria-pressed={child.id === selectedStudentId} onClick={() => { selectChild(child.id); setOpen(false); }} className="w-full min-w-0 flex-col items-start gap-[4px] px-[12px] py-[8px] text-start"><bdi className="max-w-full text-sm [overflow-wrap:anywhere]">{child.fullName}</bdi>{child.rollNo && <span className="max-w-full text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{t("Roll number")}: <bdi>{child.rollNo}</bdi></span>}</Button>)}
+        <div className="flex items-center justify-between gap-2 border-b border-border-subtle p-3"><h2 className="text-lg font-bold text-ink-strong">{t("Choose child")}</h2><IconButton label={t("Close")} tooltip={false} onClick={() => setOpen(false)}><X aria-hidden="true" /></IconButton></div>
+        <div className="min-h-0 space-y-2 overflow-y-auto p-3">
+          {siblings.map(child => <Button variant="choice" key={child.id} type="button" aria-pressed={child.id === selectedStudentId} onClick={() => { selectChild(child.id); setOpen(false); }} className="w-full min-w-0 flex-col items-start gap-1 px-3 py-2 text-start"><bdi className="max-w-full text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{child.fullName}</bdi>{child.rollNo && <span className="max-w-full text-xs font-medium text-ink-muted [overflow-wrap:anywhere]">{t("Roll number")}: <bdi>{child.rollNo}</bdi></span>}</Button>)}
         </div>
       </ModalSurface>}
     </>

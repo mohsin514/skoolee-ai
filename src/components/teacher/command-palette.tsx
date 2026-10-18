@@ -11,6 +11,7 @@ import { classLabel } from "@/components/teacher/teacher-components";
 import { TEACHER_PALETTE_EVENT } from "@/components/teacher/palette-bus";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
@@ -160,7 +161,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
         role="dialog"
         aria-modal="true"
         aria-label={t("Quick switcher")}
-        className="animate-modal-enter w-full max-w-xl overflow-hidden rounded-[26px] border border-border bg-card shadow-[0_34px_90px_rgba(31,26,35,0.35)]"
+        className="animate-modal-enter w-full max-w-xl overflow-hidden rounded-[26px] border border-border bg-card shadow-[0_34px_90px_rgba(120,70,180,0.35)]"
       >
         <InputGroup className="my-2">
           <Search data-field-affix="start" className="h-4 w-4 shrink-0 text-primary" />
@@ -184,9 +185,12 @@ export function TeacherCommandPalette({ data }: { data: any }) {
 
         <div ref={listRef} className="custom-scrollbar max-h-[52vh] overflow-y-auto p-2">
           {results.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm font-semibold text-ink-subtle">
-              {t("Nothing matches your search.")}
-            </p>
+            <EmptyState
+              size="sm"
+              icon={Search}
+              title={t("Nothing matches your search.")}
+              description={t("Try a student name, roll number or page name.")}
+            />
           ) : (
             results.map((cmd, i) => {
               const Icon = cmd.icon;
@@ -204,7 +208,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
                     onMouseEnter={() => setCursor(i)}
                     onClick={() => run(cmd)}
                     className={cn(
-                      "flex justify-start w-full items-center gap-3 text-start",
+                      "sk-row-interactive flex justify-start w-full items-center gap-3 text-start",
                       cursor === i ? "bg-accent" : "hover:bg-accent/60",
                     )}
                   >

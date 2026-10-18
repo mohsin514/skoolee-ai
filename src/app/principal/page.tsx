@@ -16,7 +16,7 @@ import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
 import { pageCardSurface } from "@/components/ui/page-card";
 
 import { moduleForView } from "@/lib/navigation/modules";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import type { ReactNode } from "react";
 import {
@@ -47,7 +47,6 @@ import {
   LayoutGrid,
   LayoutDashboard,
   CalendarRange,
-  Loader2,
   MapPin,
   MessageSquare,
   Package,
@@ -56,6 +55,7 @@ import {
   Receipt,
   Scale,
   School,
+  Search,
   Send,
   ShieldCheck,
   Sparkles,
@@ -75,7 +75,12 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
+import { Card } from "@/components/ui/card";
+import { ErrorState } from "@/components/ui/error-state";
+import { InputGroup } from "@/components/ui/input-group";
+import { InfoTip, Tooltip } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toast";
+import { SignOutLink } from "@/app/403/sign-out-link";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import {
   AiActionPanel,
@@ -221,8 +226,10 @@ const principalAIFeatures = [
 
 export default function PrincipalDashboard() {
   // `loading` is not read: the provider hands back null until the first
-  // payload lands, and null is what the skeleton keys off.
-  const { data, refetch } = usePrincipalData();
+  // payload lands, and null is what the skeleton keys off. `error` is: a
+  // failed load also leaves data null, which used to hold the skeleton up
+  // forever with no way forward.
+  const { data, error, refetch } = usePrincipalData();
   const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "overview");
   const packageNav = usePackageStates();
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -329,7 +336,7 @@ export default function PrincipalDashboard() {
   };
 
   const handleRemove = async (userId: string, label: string) => {
-    setConfirmAction({ title: `Remove ${label}`, description: `Are you sure you want to remove this ${label.toLowerCase()}? This action cannot be undone.`, confirmLabel: "Remove", run: async () => { setConfirmBusy(true); try { await removeStaff(userId); toast.success(`${label} removed`); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+    setConfirmAction({ title: ui("Remove {0}", [ui(label)]), description: ui("Are you sure you want to remove this {0}? This action cannot be undone.", [ui(label).toLowerCase()]), confirmLabel: ui("Remove"), tone: "danger", run: async () => { setConfirmBusy(true); try { await removeStaff(userId); toast.success(ui("{0} removed", [ui(label)])); await refetch(); } catch (error: any) { toast.error(error); } finally { setConfirmBusy(false); } } });
   };
 
   const handleResendInvite = async (inviteId: string) => { try { await resendInvitation(inviteId); toast.success("Invitation resent"); await refetch(); } catch (error: any) { toast.error(error.message); } };
@@ -585,6 +592,17 @@ export default function PrincipalDashboard() {
   const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
 
   if (!data) {
+    if (error) {
+      return (
+        <main className="sk-app-canvas flex min-h-dvh items-center justify-center p-4 sm:p-6">
+          <ErrorState
+            variant="page"
+            onRetry={refetch}
+            action={<div className="w-full sm:w-auto"><SignOutLink label={ui("Sign out")} /></div>}
+          />
+        </main>
+      );
+    }
     return (
       <RoleShellSkeleton navRows={8} label="Loading the academic command centre">
         <CommandCentreSkeleton />
@@ -746,7 +764,7 @@ export default function PrincipalDashboard() {
               onNavigate={(v) => setActiveView(v as PrincipalView)}
             />
             <div className="border-t border-edge/15 pt-6">
-              <h3 className="text-sm font-bold text-ink-strong mb-4">Year History & Student Promotion</h3>
+              <h3 className="mb-4 text-base font-bold text-ink-strong">Year History & Student Promotion</h3>
               <AcademicYearPanel />
             </div>
           </div>
@@ -784,7 +802,7 @@ export default function PrincipalDashboard() {
         {activeView === "teacher-performance" ? <TeacherPerformancePanel /> : null}
         {activeView === "report-cards" ? (
           <div className="space-y-8">
-            <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} />
+            <ReportsPanel data={data} onOpenExams={() => setActiveView("exam-cycles")} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} />
 
           </div>
         ) : null}
@@ -923,16 +941,34 @@ function OverviewPanel({ data, onViewReports, onComplete }: {
   onViewReports: () => void; onComplete: () => void | Promise<void>;
 }) {
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-      <div className="xl:col-span-2">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 xl:gap-8">
+      <div className="min-w-0 xl:col-span-2">
         <CollapsiblePanel icon={FileText} title="Report Card Queue" subtitle="Recent generated academic records"
-          headerRight={<BrandButton variant="soft" onClick={onViewReports} icon={<FileText className="w-4 h-4" />}>Open Review</BrandButton>} defaultOpen>
-          {data.recentReportCards.length > 0 ? (<div className="space-y-3">{data.recentReportCards.slice(0, 6).map((card: any, index: number) => (<div key={card.id} className="sk-rise flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-brand-50/55 via-white to-brand-50/20 border border-edge/25 px-4 py-3" style={{ animationDelay: `${index * 60}ms` }}><div className="min-w-0"><p className="text-xs font-bold text-ink-strong truncate">{card.student?.fullName || "Student"}</p><p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{card.exam?.title} · {card.grade || `${Math.round(card.percentage || 0)}%`}</p></div><StatusPill status={card.status} /></div>))}</div>) : (<EmptyState icon={FileText} title="No report cards yet" description="Locked exams and generated marks will appear here for academic review." />)}
+          headerRight={<BrandButton variant="soft" onClick={onViewReports} icon={<FileText aria-hidden="true" className="w-4 h-4" />}>Open Review</BrandButton>} defaultOpen>
+          {data.recentReportCards.length > 0 ? (
+            <div className="sk-stagger space-y-2.5">
+              {data.recentReportCards.slice(0, 6).map((card: any) => (
+                <div key={card.id} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink-strong">{card.student?.fullName || "Student"}</p>
+                    <p className="truncate text-xs text-ink-subtle"><bdi>{card.exam?.title}</bdi> · <span className="tabular-nums">{card.grade || `${Math.round(card.percentage || 0)}%`}</span></p>
+                  </div>
+                  <StatusPill status={card.status} />
+                </div>
+              ))}
+            </div>
+          ) : (<EmptyState size="sm" icon={FileText} title="No report cards yet" description="Locked exams and generated marks will appear here for academic review." />)}
         </CollapsiblePanel>
       </div>
-      <div className="space-y-6">
-        <div className="sk-rise bg-gradient-to-br from-white via-brand-50/20 to-white p-6 rounded-[28px] border border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] relative overflow-hidden transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-primary/25" style={{ animationDelay: "240ms" }}><CornerSparkles /><AiActionPanel title="Principal AI" options={principalAIFeatures} compact onComplete={onComplete} /></div>
-        <div className="sk-rise bg-gradient-to-br from-brand-50/40 via-brand-50/20 to-white p-6 rounded-[28px] border border-primary/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-primary/25" style={{ animationDelay: "320ms" }}><div className="flex items-center gap-3 mb-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-brand-300/10 text-primary shadow-sm"><Sparkles className="w-5 h-5" /></div><p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider">AI Review</p></div><AIReviewQueue items={data.pendingAIReviewItems} onComplete={onComplete} /></div>
+      <div className="min-w-0 space-y-6">
+        <Card variant="featured" className="sk-rise relative overflow-hidden p-5 sm:p-6" style={{ animationDelay: "240ms" }}><CornerSparkles /><AiActionPanel title="Principal AI" options={principalAIFeatures} compact onComplete={onComplete} /></Card>
+        <Card className="sk-rise p-5 sm:p-6" style={{ animationDelay: "320ms" }}>
+          <div className="mb-5 flex items-center gap-3">
+            <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary shadow-xs"><Sparkles className="w-5 h-5" /></div>
+            <h3 className="text-base font-bold text-ink-strong">AI Review</h3>
+          </div>
+          <AIReviewQueue items={data.pendingAIReviewItems} onComplete={onComplete} />
+        </Card>
       </div>
     </div>
   );
@@ -946,58 +982,180 @@ function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvi
   onViewTeacher: (teacher: any, visible?: any[]) => void;
   onResend: (id: string) => void; onCancel: (id: string) => void;
 }) {
+  const ui = useUiText();
   const [searchQuery, setSearchQuery] = useState("");
   const filtered = teachers.filter((t) => { if (!searchQuery.trim()) return true; const q = searchQuery.toLowerCase(); return t.fullName?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q); });
   if (teachers.length === 0 && pendingInvites.length === 0 && campusAdmins.length === 0 && pendingAdminInvites.length === 0) return (<EmptyState icon={Users} title="No faculty records found" description="Invite teachers so subjects and classes can be assigned from the central model." action={<BrandButton onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>} />);
   return (
     <div className="space-y-8">
-      <div className="sk-rise rounded-[32px] border border-edge/25 bg-gradient-to-br from-brand-50/30 via-white to-brand-50/20 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
-        <div className="flex items-center justify-between gap-4 mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /><div className="flex gap-2"></div></div>
+      <Card className="sk-rise p-4 sm:p-6" style={{ animationDelay: "80ms" }}>
+        <div className="mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /></div>
         {campusAdmins.length > 0 ? (<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{campusAdmins.map((admin: any) => (<AdminRow key={admin.id} admin={admin} onRemove={admin.id ? () => onRemove(admin.id, "Admin") : undefined} />))}</div>) : null}
-        {pendingAdminInvites.length > 0 ? (<div className="mt-4 space-y-2"><p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle px-2">Pending Invitations</p>{pendingAdminInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div>) : null}
-        {campusAdmins.length === 0 && pendingAdminInvites.length === 0 ? (<p className="rounded-2xl bg-white/70 px-4 py-3 text-2xs font-bold text-ink-subtle">No admins yet. Invite campus administrators to manage this campus.</p>) : null}
-      </div>
+        {pendingAdminInvites.length > 0 ? (<div className="mt-4 space-y-2"><p className="sk-eyebrow px-2">Pending Invitations</p>{pendingAdminInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div>) : null}
+        {campusAdmins.length === 0 && pendingAdminInvites.length === 0 ? (
+          <EmptyState
+            size="sm"
+            icon={ShieldCheck}
+            title={ui("No campus admins yet")}
+            description={ui("Invite campus administrators to manage this campus.")}
+            action={<BrandButton variant="soft" onClick={() => onInvite("CAMPUS_ADMIN")}>{ui("Invite Admin")}</BrandButton>}
+          />
+        ) : null}
+      </Card>
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <PanelTitle icon={Users} title="Teacher Profiles" />
-          <div className="flex items-center gap-2">
-            <div className="sk-panel flex items-center px-4 h-12"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><SystemInput type="text" placeholder="Search teachers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={"ml-2 w-40"} /></div>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <InputGroup className="min-w-0 flex-1 sm:w-64 sm:flex-none">
+              <Search data-field-affix="start" aria-hidden="true" className="size-4 text-ink-subtle" />
+              <SystemInput type="text" aria-label={ui("Search teachers")} placeholder="Search teachers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            </InputGroup>
             <BrandButton variant="soft" onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((teacher: any) => (<FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={() => onRemove(teacher.id, "Teacher")} />))}
-          {filtered.length === 0 ? (<div className="md:col-span-2 xl:col-span-3"><EmptyState icon={Users} title={searchQuery ? "No matching teachers" : "No active teachers"} description={searchQuery ? "Try a different search term." : "Assigned teachers will appear here for principal oversight."} /></div>) : null}
+          {filtered.length === 0 ? (
+            <div className="md:col-span-2 xl:col-span-3">
+              <EmptyState
+                icon={Users}
+                title={searchQuery ? "No matching teachers" : "No active teachers"}
+                description={searchQuery ? "Try a different search term." : "Assigned teachers will appear here for principal oversight."}
+                action={searchQuery
+                  ? <Button variant="outline" type="button" onClick={() => setSearchQuery("")}>{ui("Clear search")}</Button>
+                  : <BrandButton variant="soft" onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>}
+              />
+            </div>
+          ) : null}
         </div>
-        {pendingInvites.length > 0 ? (<div className="mt-6 space-y-2"><p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle px-2">Pending Teacher Invitations ({pendingInvites.length})</p><div className="space-y-2">{pendingInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div></div>) : null}
+        {pendingInvites.length > 0 ? (<div className="mt-6 space-y-2"><p className="sk-eyebrow px-2">Pending Teacher Invitations (<span className="tabular-nums">{pendingInvites.length}</span>)</p><div className="space-y-2">{pendingInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div></div>) : null}
       </div>
     </div>
   );
 }
 
-function ReportsPanel({ data, busyAction, editingReportId, editedRemarks, onRunAction, onGenerateRemarks, onEdit, onCancelEdit, onRemarkChange, onSaveRemark }: {
-  data: any; busyAction: string | null; editingReportId: string | null; editedRemarks: { en: string; ur: string };
+function ReportsPanel({ data, onOpenExams, busyAction, editingReportId, editedRemarks, onRunAction, onGenerateRemarks, onEdit, onCancelEdit, onRemarkChange, onSaveRemark }: {
+  data: any; onOpenExams: () => void; busyAction: string | null; editingReportId: string | null; editedRemarks: { en: string; ur: string };
   onRunAction: (examId: string, action: ReportAction, successMessage: string) => void; onGenerateRemarks: (examId: string) => void; onEdit: (report: any) => void; onCancelEdit: () => void; onRemarkChange: (value: { en: string; ur: string }) => void; onSaveRemark: (report: any, approve?: boolean) => void;
 }) {
-  return <div className="space-y-6">{data.reviewExams.map((exam: any) => <div key={exam.id} className="sk-panel p-4"><ReportCardPipeline exam={exam} campusId={data.campusId} /></div>)}{!data.reviewExams.length && <p>No locked exams are ready for review.</p>}</div>;
+  const ui = useUiText();
+  // An exam joins this list once its marks are locked (or it has moved on to
+  // review or publication), so an empty list points back to where that happens.
+  if (!data.reviewExams.length) {
+    return (
+      <div className="sk-panel">
+        <EmptyState
+          icon={ClipboardList}
+          title={ui("No exams ready for review")}
+          description={ui("An exam appears here once its marks are locked.")}
+          action={<Button variant="outline" type="button" onClick={onOpenExams}>{ui("Open Exams & Results")}</Button>}
+        />
+      </div>
+    );
+  }
+  return <div className="space-y-6">{data.reviewExams.map((exam: any) => <div key={exam.id} className="sk-panel p-4"><ReportCardPipeline exam={exam} campusId={data.campusId} /></div>)}</div>;
 }
 
 function EngagementPanel({ data, totals, busy, onRunAutomation }: { data: any; totals: { sent: number; failed: number; blocked: number; noContact: number }; busy: boolean; onRunAutomation: () => void; }) {
-  return (<div className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-4 gap-4"><EngagementStat icon={CheckCircle2} label="Sent" value={totals.sent} tone="green" /><EngagementStat icon={AlertCircle} label="Failed" value={totals.failed} tone="rose" /><EngagementStat icon={ShieldCheck} label="Blocked" value={totals.blocked} tone="purple" /><EngagementStat icon={MessageSquare} label="No Contact" value={totals.noContact} tone="amber" /></div><div className="sk-rise rounded-[32px] border border-edge/25 bg-brand-50/30 p-6" style={{ animationDelay: "160ms" }}><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6"><PanelTitle icon={MessageSquare} title="Recent Parent Communication" /><BrandButton variant="soft" onClick={onRunAutomation} disabled={busy} icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}>Run Automation</BrandButton></div><div className="space-y-3">{data.recentCommunications.map((item: any, i: number) => (<div key={item.id} className="sk-panel sk-rise p-5" style={{ animationDelay: `${i * 60}ms` }}><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold text-ink-strong">{formatStatus(item.templateKey)}</p><p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{item.student?.fullName || item.recipientName || "Parent"} - {item.channel}</p><p className="mt-2 line-clamp-2 text-xs font-semibold leading-relaxed text-ink-muted">{item.body}</p></div><div className="flex shrink-0 flex-col items-start gap-2 sm:items-end"><StatusPill status={item.status} /><span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{formatDate(item.sentAt || item.createdAt)}</span></div></div></div>))}{data.recentCommunications.length === 0 ? (<p className="rounded-[24px] bg-white p-6 text-sm font-semibold text-ink-muted">No parent communication has been generated yet.</p>) : null}</div></div></div>);
+  const ui = useUiText();
+  return (
+    <div className="space-y-6">
+      <div className="sk-stagger grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <EngagementStat icon={CheckCircle2} label="Sent" value={totals.sent} tone="green" />
+        <EngagementStat icon={AlertCircle} label="Failed" value={totals.failed} tone="rose" />
+        <EngagementStat icon={ShieldCheck} label="Blocked" value={totals.blocked} tone="purple" info={ui("Held back before sending, for example because the plan does not include this channel, the subscription is suspended or approved school data is still needed.")} />
+        <EngagementStat icon={MessageSquare} label="No Contact" value={totals.noContact} tone="amber" info={ui("Not sent because the guardian has no contact details on file for that channel.")} />
+      </div>
+      <Card variant="muted" className="sk-rise p-4 sm:p-6" style={{ animationDelay: "160ms" }}>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <PanelTitle icon={MessageSquare} title="Recent Parent Communication" />
+          <Tooltip content={ui("Runs this campus's reminders now: fees due in 3 days or overdue, marks-entry deadlines that are near, and reports waiting for principal review.")}>
+            <Button variant="secondary" type="button" onClick={onRunAutomation} loading={busy}>
+              {busy ? null : <Clock aria-hidden="true" className="h-4 w-4" />}
+              Run Automation
+            </Button>
+          </Tooltip>
+        </div>
+        {data.recentCommunications.length === 0 ? (
+          <EmptyState
+            size="sm"
+            icon={MessageSquare}
+            title={ui("No parent messages yet")}
+            description={ui("Messages created for guardians, such as fee reminders and report notices, appear here.")}
+          />
+        ) : (
+          <div className="sk-stagger space-y-3">
+            {data.recentCommunications.map((item: any) => (
+              <div key={item.id} className="sk-panel p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-ink-strong">{formatStatus(item.templateKey)}</p>
+                    <p className="mt-1 truncate text-xs text-ink-subtle"><bdi>{item.student?.fullName || item.recipientName || "Parent"}</bdi> · {item.channel}</p>
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink-muted" dir="auto">{item.body}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+                    <StatusPill status={item.status} />
+                    <span className="text-xs tabular-nums text-ink-subtle">{formatDate(item.sentAt || item.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
 }
 
 
 function ActionButton({ label, icon: Icon, busy, onClick }: { label: string; icon: LucideIcon; busy: boolean; onClick: () => void }) {
-  return (<Button variant="default" type="button" onClick={onClick} disabled={busy} className="w-full items-center justify-center gap-1.5">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}{label}</Button>);
+  return (<Button variant="default" type="button" onClick={onClick} loading={busy} className="w-full">{busy ? null : <Icon aria-hidden="true" className="h-3.5 w-3.5" />}{label}</Button>);
 }
 
 function ReportReviewCard({ report, busy, editing, editedRemarks, onEdit, onCancel, onChange, onSave, onApprove }: {
   report: any; busy: boolean; editing: boolean; editedRemarks: { en: string; ur: string }; onEdit: () => void; onCancel: () => void; onChange: (v: { en: string; ur: string }) => void; onSave: () => void; onApprove: () => void;
 }) {
-  return (<div className="sk-panel sk-rise p-5 transition-all duration-300 hover:shadow-md hover:border-primary/25"><div className="flex items-start justify-between gap-3 mb-3"><div className="min-w-0"><p className="text-xs font-bold text-ink-strong">{report.student?.fullName || "Student"}</p><p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{report.exam?.title || "Exam"} · {report.grade || `${Math.round(report.percentage || 0)}%`}</p></div><StatusPill status={report.status} /></div>{editing ? (<div className="space-y-3"><div><p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1">English Remarks</p><SystemTextarea value={editedRemarks.en} onChange={(e) => onChange({ ...editedRemarks, en: e.target.value })} className={"w-full resize-none"} /></div><div><p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1">Urdu Remarks</p><SystemTextarea value={editedRemarks.ur} onChange={(e) => onChange({ ...editedRemarks, ur: e.target.value })} className={"w-full resize-none"} /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={onSave} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</BrandButton><BrandButton variant="dark" onClick={onApprove} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & Approve"}</BrandButton><Button variant="secondary" type="button" onClick={onCancel} >Cancel</Button></div></div>) : (<div className="flex gap-2"><Button variant="default" type="button" onClick={onEdit} >Edit Remarks</Button></div>)}</div>);
+  const fieldId = useId();
+  return (
+    <div className="sk-panel p-5 transition-[border-color,box-shadow] duration-300 hover:border-primary/25 hover:shadow-md">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-ink-strong">{report.student?.fullName || "Student"}</p>
+          <p className="mt-1 text-xs text-ink-subtle">{report.exam?.title || "Exam"} · <span className="tabular-nums">{report.grade || `${Math.round(report.percentage || 0)}%`}</span></p>
+        </div>
+        <StatusPill status={report.status} />
+      </div>
+      {editing ? (
+        <div className="space-y-3">
+          <div>
+            <label htmlFor={`${fieldId}-en`} className="mb-1 block text-sm font-semibold text-ink-strong">English Remarks</label>
+            <SystemTextarea id={`${fieldId}-en`} value={editedRemarks.en} onChange={(e) => onChange({ ...editedRemarks, en: e.target.value })} className={"w-full resize-none"} />
+          </div>
+          <div>
+            <label htmlFor={`${fieldId}-ur`} className="mb-1 block text-sm font-semibold text-ink-strong">Urdu Remarks</label>
+            <SystemTextarea id={`${fieldId}-ur`} dir="auto" value={editedRemarks.ur} onChange={(e) => onChange({ ...editedRemarks, ur: e.target.value })} className={"w-full resize-none"} />
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" type="button" onClick={onCancel} disabled={busy}>Cancel</Button>
+            <Button variant="secondary" type="button" onClick={onSave} loading={busy}>Save</Button>
+            <Button variant="dark" type="button" onClick={onApprove} loading={busy}>Save & Approve</Button>
+          </div>
+        </div>
+      ) : (<div className="flex gap-2"><Button variant="default" type="button" onClick={onEdit}>Edit Remarks</Button></div>)}
+    </div>
+  );
 }
 
-function EngagementStat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: number; tone: string }) {
+function EngagementStat({ icon: Icon, label, value, tone, info }: { icon: LucideIcon; label: string; value: number; tone: string; info?: string }) {
   const toneStyles: Record<string, string> = { green: "bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700", rose: "bg-gradient-to-br from-rose-50 to-rose-100/50 text-rose-700", purple: "bg-gradient-to-br from-brand-50 to-brand-100 text-primary", amber: "bg-gradient-to-br from-amber-50 to-amber-100/50 text-amber-700" };
-  return (<div className="sk-panel sk-rise p-5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"><div className="flex items-center gap-3 mb-3"><div className={`rounded-xl p-2 ${toneStyles[tone] || "bg-gradient-to-br from-muted to-muted/50 text-ink-muted"} shadow-sm`}><Icon className="w-4 h-4" /></div><p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p></div><p className="text-3xl font-extrabold tracking-wider text-ink-strong">{value}</p></div>);
+  return (
+    <div className="sk-panel min-w-0 p-4 sm:p-5">
+      <div className="mb-3 flex min-w-0 items-center gap-2.5">
+        <div aria-hidden="true" className={`shrink-0 rounded-xl p-2 shadow-xs ${toneStyles[tone] || "bg-surface-subtle text-ink-muted"}`}><Icon className="w-4 h-4" /></div>
+        <p className="sk-eyebrow min-w-0 truncate">{label}</p>
+        {info ? <InfoTip content={info} className="-ms-1" /> : null}
+      </div>
+      <p className="text-3xl font-bold tracking-tight tabular-nums text-ink-strong">{value}</p>
+    </div>
+  );
 }

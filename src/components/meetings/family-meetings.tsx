@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
@@ -109,15 +110,15 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
           <FormField name="meeting-agenda" label={ui("What would you like to discuss? (optional)")}><Textarea value={agenda} onChange={e => setAgenda(e.target.value)} maxLength={1000} rows={2} /></FormField>
           <FormField name="meeting-access" label={ui("Tell the school about access needs (optional)")} hint={ui("For example an interpreter, step-free access or a phone call instead.")}><Textarea value={accessNeeds} onChange={e => setAccessNeeds(e.target.value)} maxLength={500} rows={2} /></FormField>
         </> : null}
-        <div className="rounded-xl bg-surface-sunken p-3 text-xs" data-meeting-policy><p className="font-bold">{ui("Changing or cancelling")}</p><p><bdi>{picked.window.cancellationPolicy}</bdi></p></div>
+        <div data-meeting-policy><Alert tone="neutral" compact live="off" title={ui("Changing or cancelling")}><bdi>{picked.window.cancellationPolicy}</bdi></Alert></div>
         <p className="text-xs text-ink-muted">{ui("The slot is confirmed only after booking.")}</p>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setPicked(null)}>{ui("Back")}</Button><Button disabled={busy || !mode} onClick={() => void confirm()} data-meeting-book>{moving ? ui("Move meeting") : ui("Confirm booking")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setPicked(null)}>{ui("Back")}</Button><Button loading={busy} disabled={busy || !mode} onClick={() => void confirm()} data-meeting-book>{moving ? ui("Move meeting") : ui("Confirm booking")}</Button></div>
       </div>
     </ModalFrame> : null}
 
     {cancelling ? <ModalFrame title={ui("Cancel meeting")} eyebrow={cancelling.teacherName} subtitle={slotLabel({ localDate: cancelling.local.date }, { start: cancelling.local.time, end: cancelling.local.end })} onClose={() => setCancelling(null)}>
       <div className="space-y-3" data-meeting-cancel-dialog>
-        <div className="rounded-xl bg-surface-sunken p-3 text-xs"><p className="font-bold">{ui("Changing or cancelling")}</p><p><bdi>{cancelling.cancellationPolicy}</bdi></p></div>
+        <Alert tone="neutral" compact live="off" title={ui("Changing or cancelling")}><bdi>{cancelling.cancellationPolicy}</bdi></Alert>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setCancelling(null)}>{ui("Keep the meeting")}</Button><Button disabled={busy} onClick={() => void cancel()} data-meeting-cancel-confirm>{ui("Cancel meeting")}</Button></div>
       </div>
     </ModalFrame> : null}

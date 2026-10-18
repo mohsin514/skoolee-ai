@@ -32,6 +32,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { toneOf } from "@/lib/ui/module-tones";
 import { Select as SystemSelect } from "@/components/ui/select";
@@ -945,11 +946,11 @@ export function ExamCycleManager({
       <div className="sk-panel sk-rise relative overflow-hidden px-4 py-3 sm:px-5">
         <span
           aria-hidden
-          className={cn("absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b", examTone.rail)}
+          className={cn("absolute inset-y-0 start-0 w-[3px] bg-gradient-to-b", examTone.rail)}
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full blur-2xl"
+          className="pointer-events-none absolute -end-16 -top-16 h-40 w-40 rounded-full blur-2xl"
           style={{ background: `radial-gradient(circle, ${examTone.hex}14, transparent 70%)` }}
         />
         <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -982,7 +983,7 @@ export function ExamCycleManager({
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
                 aria-label="Filter by term"
-                className="appearance-none pl-3 pr-8"
+                className="appearance-none ps-3 pe-8"
               >
                 <option value="ALL">All Terms</option>
                 {termOptions.map((t) => (
@@ -1040,16 +1041,16 @@ export function ExamCycleManager({
       </div>
 
       {/* ── Toolbar ── */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-edge/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+      <div className="sticky top-0 z-20 sk-toolbar flex flex-wrap items-center gap-2 p-2">
         <InputGroup surfaceClassName="bg-surface-subtle" className="relative min-w-[190px] flex-1">
-          <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
+          <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
           <SystemInput
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search exams, classes, subjects…   ( / )"
             aria-label="Search exams"
-            className="w-full pl-9 pr-3"
+            className="w-full ps-9 pe-3"
           />
         </InputGroup>
 
@@ -1445,7 +1446,7 @@ function BoardLane({
     <section
       aria-label={column.title}
       className={cn(
-        "flex w-[320px] shrink-0 flex-col rounded-3xl border bg-gradient-to-b from-white to-surface-subtle p-4 shadow-sm transition-all",
+        "flex w-[min(320px,85vw)] shrink-0 flex-col rounded-3xl border bg-gradient-to-b from-card to-surface-subtle p-4 shadow-sm transition-all",
         dropZone
           ? dropZone.ok
             ? "border-primary/60 ring-4 ring-primary/10"
@@ -1597,7 +1598,7 @@ function StageTile({
       onClick={onClick}
       aria-pressed={active}
       className={"justify-start " + (cn(
-        "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-left hover:-translate-y-0.5",
+        "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-start hover:-translate-y-0.5",
         "",
       ))}
       style={active ? { boxShadow: `0 0 0 1.5px ${accent}, 0 10px 24px -14px ${accent}` } : undefined}
@@ -1605,7 +1606,7 @@ function StageTile({
       <span
         aria-hidden
         className={cn(
-          "absolute inset-y-0 left-0 w-[3px]",
+          "absolute inset-y-0 start-0 w-[3px]",
           active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60",
         )}
         style={{ backgroundColor: accent }}
@@ -1666,7 +1667,7 @@ function FilterSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="appearance-none pl-3 pr-8"
+        className="appearance-none ps-3 pe-8"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
@@ -1753,17 +1754,21 @@ function BoardSkeleton({ count }: { count: number }) {
 
 function EmptyBoard({ isTeacher, onCreate }: { isTeacher: boolean; onCreate: () => void }) {
   return (
-    <div className="sk-panel flex flex-col items-center justify-center border-dashed p-16 text-center">
-      <CalendarDays className="mb-3 h-10 w-10 text-ink-subtle" />
-      <p className="text-sm font-bold text-ink-muted">{isTeacher ? "No tests yet" : "No exams yet"}</p>
-      <p className="mt-1 text-xs font-semibold text-ink-subtle">
-        {isTeacher
-          ? "Create a quiz or class test for one of your subjects."
-          : "Create your first exam to start the cycle."}
-      </p>
-      <BrandButton variant="gradient" icon={<Plus className="h-4 w-4" />} onClick={onCreate} className="mt-5">
-        {isTeacher ? "New Test" : "New Exam"}
-      </BrandButton>
+    <div className="sk-panel border-dashed p-6 sm:p-10">
+      <EmptyState
+        icon={CalendarDays}
+        title={isTeacher ? "No tests yet" : "No exams yet"}
+        description={
+          isTeacher
+            ? "Create a quiz or class test for one of your subjects."
+            : "Create your first exam to start the cycle."
+        }
+        action={
+          <BrandButton variant="gradient" icon={<Plus className="h-4 w-4" />} onClick={onCreate}>
+            {isTeacher ? "New Test" : "New Exam"}
+          </BrandButton>
+        }
+      />
     </div>
   );
 }

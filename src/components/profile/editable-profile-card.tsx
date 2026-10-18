@@ -300,7 +300,7 @@ function ProfileInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
+      <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
       <SystemInput
         value={value}
         placeholder={placeholder}

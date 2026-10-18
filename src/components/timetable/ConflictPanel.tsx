@@ -14,6 +14,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import type { GridDay, SlotChange, StudioSlot, SubjectOption, TimetableData } from "./TimetableStudio";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 
 
 function effectiveSlots(slots: StudioSlot[], pending: Map<string, SlotChange>): StudioSlot[] {
@@ -371,11 +372,14 @@ export function ConflictPanel({
                     const h = Math.round((count / maxWorkload) * 28);
                     return (
                       <div key={day.num} className="flex flex-1 flex-col items-center gap-0.5">
-                        <div
-                          className={`w-full rounded-t-md ${count > 2 ? "bg-amber-400" : "bg-primary/70"}`}
-                          style={{ height: `${Math.max(h, count > 0 ? 4 : 2)}px` }}
-                          title={`${day.short}: ${count} period(s)`}
-                        />
+                        <Tooltip content={`${day.short}: ${count} ${count === 1 ? "period" : "periods"}`}>
+                          <span
+                            tabIndex={0}
+                            aria-label={`${day.short}: ${count} ${count === 1 ? "period" : "periods"}`}
+                            className={`block w-full rounded-t-md ${count > 2 ? "bg-amber-400" : "bg-primary/70"}`}
+                            style={{ height: `${Math.max(h, count > 0 ? 4 : 2)}px` }}
+                          />
+                        </Tooltip>
                         <span className="text-3xs font-bold text-ink-subtle">{day.short}</span>
                       </div>
                     );

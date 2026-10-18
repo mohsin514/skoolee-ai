@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 
 
 interface Designation {
@@ -210,7 +211,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-ink">Rank ladder</h3>
-          <p className="mt-0.5 max-w-2xl text-xs font-semibold text-ink-muted">
+          <p className="mt-0.5 max-w-2xl text-xs font-normal leading-relaxed text-ink-muted">
             Every rank your institution uses, most senior first. Nothing here is fixed — rename what you like,
             reorder by changing the seniority number, and retire what you no longer use.
           </p>
@@ -229,7 +230,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
         <div className="rounded-2xl border border-dashed border-edge/60 bg-surface-subtle px-6 py-12 text-center">
           <Layers className="mx-auto h-8 w-8 text-ink-muted" />
           <p className="mt-3 text-sm font-bold text-ink">No ranks defined yet</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
+          <p className="mx-auto mt-1 max-w-md text-xs font-normal leading-relaxed text-ink-muted">
             Ranks are what make the chart mean something — who is senior to whom, who can head a department, and
             what a promotion moves someone into. Start from a preset for your kind of institution, or build the
             ladder yourself.
@@ -267,9 +268,11 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                         )}
                         style={{ borderLeftWidth: 4, borderLeftColor: tone.hex }}
                       >
-                        <span className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-2xs font-bold tabular-nums text-ink-muted" title="Seniority — lower is more senior">
+                        <Tooltip content="Seniority — lower is more senior">
+                        <span tabIndex={0} className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-2xs font-bold tabular-nums text-ink-muted">
                           {d.level}
                         </span>
+                        </Tooltip>
 
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-1.5">
@@ -374,7 +377,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                   disabled={applying !== null}
                   onClick={() => applyPreset(preset.type)}
                   className={cn(
-                    "flex justify-start w-full items-start gap-3 text-left",
+                    "flex justify-start w-full items-start gap-3 text-start",
                     institutionType === preset.type ? "border-primary bg-brand-50/40" : "border-edge/40"
                   )}
                 >
@@ -390,7 +393,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-1 block text-xs font-semibold text-ink-muted">{preset.blurb}</span>
+                    <span className="mt-1 block text-xs font-normal leading-relaxed text-ink-muted">{preset.blurb}</span>
                     <span className="mt-1.5 block text-2xs font-semibold uppercase tracking-wide text-ink-subtle">
                       {preset.rankCount} ranks · {preset.departmentCount} units
                     </span>
@@ -497,7 +500,7 @@ function LabelledField({
         {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-2xs font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-2xs font-normal leading-relaxed text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -518,7 +521,7 @@ function Toggle({
       <SystemCheckbox  checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
       <span className="min-w-0">
         <span className="block text-xs font-bold text-ink">{label}</span>
-        <span className="block text-2xs font-semibold text-ink-muted">{hint}</span>
+        <span className="block text-2xs font-normal leading-relaxed text-ink-muted">{hint}</span>
       </span>
     </label>
   );

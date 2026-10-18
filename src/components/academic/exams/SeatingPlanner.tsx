@@ -18,6 +18,8 @@ import {
   Wand2,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -381,12 +383,12 @@ export function SeatingPlanner({
       ) : null}
 
       {/* ── Actions ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_8px_24px_-16px_rgba(120,70,180,0.35)] backdrop-blur-xl">
         <p className="text-xs font-bold text-ink-strong">
           {slots.length} exam slot{slots.length === 1 ? "" : "s"} across {papers.length} paper
           {papers.length === 1 ? "" : "s"}
         </p>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ms-auto flex flex-wrap items-center gap-2">
           <Button variant="outline" size="icon"
             type="button"
             onClick={load}
@@ -453,7 +455,7 @@ export function SeatingPlanner({
                       type="button"
                       onClick={() => setOpen(paper)}
                       className={"block " + (cn(
-                        "group p-3 text-left hover:-translate-y-0.5",
+                        "group p-3 text-start hover:-translate-y-0.5",
                         done
                           ? ""
                           : "",
@@ -470,7 +472,7 @@ export function SeatingPlanner({
                         <span className="text-2xs font-bold tabular-nums text-ink-strong">
                           {seated}/{head}
                         </span>
-                        <span className="ml-auto truncate text-2xs font-bold text-ink-subtle">
+                        <span className="ms-auto truncate text-2xs font-bold text-ink-subtle">
                           {paper.rooms.length === 0
                             ? "No room"
                             : `${paper.rooms.map((r) => r.room.roomNumber).join(", ")} · ${seats} seats`}
@@ -518,7 +520,7 @@ export function SeatingPlanner({
           }
         >
           {report.failed.length === 0 ? (
-            <p className="text-sm font-semibold text-ink-muted">
+            <p className="text-sm font-normal leading-relaxed text-ink-muted">
               Every paper has rooms and every candidate has a seat. Download the plan and hand it
               to the invigilators.
             </p>
@@ -701,25 +703,27 @@ function RoomAssignModal({
             <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               Rooms free in this slot
             </p>
-            <div className="max-h-[26rem] space-y-1.5 overflow-y-auto pr-1 custom-scrollbar">
+            <div className="max-h-[26rem] space-y-1.5 overflow-y-auto pe-1 custom-scrollbar">
               {available.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-edge/35 p-6 text-center text-xs font-bold text-ink-muted">
-                  No rooms on this campus yet.
-                </p>
+                <EmptyState
+                  size="sm"
+                  icon={DoorOpen}
+                  title="No rooms on this campus yet"
+                  description="Add rooms with a measured exam capacity to this campus first, then come back to seat this paper."
+                />
               ) : (
                 available.map((room) => {
                   const on = chosen.includes(room.id);
                   const disabled = room.unmeasured || (room.busy && !on);
-                  return (
+                  const choice = (
                     <Button variant="choice"
                       key={room.id}
                       type="button"
                       disabled={disabled}
                       onClick={() => toggle(room.id)}
                       aria-pressed={on}
-                      title={room.busyReason ?? undefined}
                       className={"justify-start " + (cn(
-                        "flex w-full items-center gap-3 p-2.5 text-left",
+                        "flex w-full items-center gap-3 p-2.5 text-start",
                         "",
                         "",
                       ))}
@@ -753,6 +757,15 @@ function RoomAssignModal({
                       </span>
                     </Button>
                   );
+                  return room.busy && room.busyReason ? (
+                    <Tooltip key={room.id} content={room.busyReason}>
+                      <span tabIndex={0} className="block rounded-xl">
+                        {choice}
+                      </span>
+                    </Tooltip>
+                  ) : (
+                    choice
+                  );
                 })
               )}
             </div>
@@ -771,7 +784,7 @@ function RoomAssignModal({
                 </p>
               </div>
             ) : (
-              <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1 custom-scrollbar">
+              <div className="max-h-[26rem] space-y-3 overflow-y-auto pe-1 custom-scrollbar">
                 {plan.rooms.map((room) => (
                   <RoomSeatMap key={room.examRoomId} room={room} />
                 ))}
@@ -810,7 +823,7 @@ function RoomSeatMap({ room }: { room: PlanRoom }) {
             Primary
           </span>
         ) : null}
-        <span className="ml-auto text-2xs font-bold tabular-nums text-ink-subtle">
+        <span className="ms-auto text-2xs font-bold tabular-nums text-ink-subtle">
           {room.seated} / {room.capacity} seats
           {room.teachingCapacity > room.capacity ? ` (${room.teachingCapacity} teaching)` : ""}
         </span>
@@ -826,9 +839,9 @@ function RoomSeatMap({ room }: { room: PlanRoom }) {
               <span className="w-5 shrink-0 text-3xs font-bold text-ink-subtle">R{rowNo}</span>
               <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                 {seats.map((s) => (
+                  <Tooltip key={s.studentId} content={`${s.fullName} · Roll ${s.rollNumber} · ${s.seatLabel}`}>
                   <span
-                    key={s.studentId}
-                    title={`${s.fullName} · Roll ${s.rollNumber} · ${s.seatLabel}`}
+                    tabIndex={0}
                     className="group flex min-w-0 flex-1 basis-16 cursor-default flex-col rounded-lg border border-edge/25 bg-gradient-to-b from-white to-surface-subtle px-1.5 py-1 transition-colors hover:border-primary/40 hover:from-brand-50"
                   >
                     <span className="truncate text-3xs font-bold leading-tight text-primary">
@@ -841,6 +854,7 @@ function RoomSeatMap({ room }: { room: PlanRoom }) {
                       {s.rollNumber}
                     </span>
                   </span>
+                  </Tooltip>
                 ))}
               </div>
             </div>

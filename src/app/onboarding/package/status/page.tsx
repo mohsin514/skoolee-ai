@@ -1,10 +1,12 @@
 "use client";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Alert, type AlertTone } from "@/components/ui/alert";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { getPackageCopy } from "../copy";
 
 type Intent = {
@@ -23,6 +25,25 @@ type Intent = {
   failureReason: string | null;
 };
 
+/** The status card's shape — a state notice, the order details and the actions. */
+function StatusSkeleton({ label }: { label: string }) {
+  return (
+    <SkeletonRegion label={label} className="mt-6 space-y-5">
+      <Skeleton className="h-20 w-full rounded-2xl" />
+      <div className="grid gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4 sm:grid-cols-2">
+        {[0, 1, 2, 3].map((index) => (
+          <div key={index} className="space-y-2">
+            <Skeleton className="h-3 w-24" delay={index * 60} />
+            <Skeleton className="h-4 w-36" delay={index * 60} />
+          </div>
+        ))}
+      </div>
+      <Skeleton className="h-11 w-full rounded-2xl" />
+      <Skeleton className="h-11 w-full rounded-2xl" />
+    </SkeletonRegion>
+  );
+}
+
 function CheckoutStatus() {
   const params = useSearchParams();
   const intentId = params.get("intentId") || "";
@@ -31,6 +52,7 @@ function CheckoutStatus() {
   const [bank, setBank] = useState<{ bankName: string; accountTitle: string; accountNumber: string; iban: string | null } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const copy = getPackageCopy(language);
 
   const load = useCallback(async () => {
@@ -44,7 +66,7 @@ function CheckoutStatus() {
   }, [intentId, copy.paymentFailure]);
 
   useEffect(() => {
-    if (intentId) load().catch((issue) => setError(issue instanceof Error ? issue.message : copy.paymentFailure));
+    if (intentId) load().catch(() => setError(copy.paymentFailure));
     else setError(copy.missingReference);
   }, [intentId, load, copy.missingReference]);
 
@@ -53,6 +75,20 @@ function CheckoutStatus() {
     const timer = window.setInterval(() => { void load().catch(() => undefined); }, 8000);
     return () => window.clearInterval(timer);
   }, [intent, load]);
+
+  /** A manual refresh (or a retry after a failed first load) reports its own failure. */
+  const refresh = async () => {
+    if (!intentId) return;
+    setRefreshing(true);
+    if (!intent) setError("");
+    try {
+      await load();
+    } catch {
+      setError(copy.paymentFailure);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const retry = async () => {
     if (!intent) return;
@@ -75,8 +111,8 @@ function CheckoutStatus() {
       if (!response.ok) throw new Error(data.error || copy.paymentFailure);
       if (data.url) window.location.assign(data.url);
       else if (data.intentId) window.location.assign(`/onboarding/package/status?intentId=${encodeURIComponent(data.intentId)}`);
-    } catch (issue) {
-      setError(issue instanceof Error ? issue.message : copy.paymentFailure);
+    } catch {
+      setError(copy.paymentFailure);
     } finally {
       setBusy(false);
     }
@@ -89,45 +125,62 @@ function CheckoutStatus() {
     (intent.provider !== "BANK_TRANSFER" && ["PENDING", "PENDING_SETTLEMENT"].includes(intent.status) && !intent.checkoutUrl)
   );
   const resumeStep = intent?.returnStep || "package";
+  const stateTone: AlertTone = isSettled ? "success" : isPending ? "info" : intent?.status === "FAILED" ? "danger" : intent?.status === "CANCELLED" ? "warning" : "neutral";
 
   const isRtl = language === "ar" || language === "ur";
   return (
     <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
-      <section aria-labelledby="payment-status-title" className="sk-panel mx-auto max-w-xl p-6 sm:p-10">
-        <h1 id="payment-status-title" className="text-2xl font-extrabold sm:text-3xl">{copy.statusTitle}</h1>
-        {error && <p role="alert" className="mt-5 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900">{error}</p>}
-        {!intent && !error && <p aria-live="polite" className="mt-5 flex items-center gap-2 text-sm text-ink-muted"><Loader2 className="h-4 w-4 animate-spin" />{copy.loadingOrder}</p>}
+      <section aria-labelledby="payment-status-title" className="sk-panel sk-enter mx-auto max-w-xl p-5 shadow-lg sm:p-10">
+        <p className="sk-eyebrow text-primary">{copy.setup}</p>
+        <h1 id="payment-status-title" className="mt-2 text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{copy.statusTitle}</h1>
+        {error && (
+          <Alert
+            tone="danger"
+            className="mt-5"
+            actions={!intent ? (
+              <>
+                {intentId && (
+                  <Button variant="outline" size="sm" type="button" onClick={() => void refresh()} loading={refreshing}>
+                    {!refreshing && <RefreshCw aria-hidden="true" />}{copy.refreshStatus}
+                  </Button>
+                )}
+                <Link href="/onboarding" className={buttonVariants({ variant: "outline", size: "sm" })}>{copy.resumeSetup}</Link>
+              </>
+            ) : undefined}
+          >
+            {error}
+          </Alert>
+        )}
+        {!intent && !error && <StatusSkeleton label={copy.loadingOrder.replace(/…$/, "")} />}
         {intent && (
           <div className="mt-6 space-y-5">
-            <div className={`rounded-2xl border p-4 ${isSettled ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-              <p className="flex items-center gap-2 font-bold">
-                {isSettled ? <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-emerald-700" /> : isPending ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin text-amber-800" /> : <AlertCircle aria-hidden="true" className="h-5 w-5 text-amber-800" />}
-                {copy.stateNames[intent.status] ?? intent.status}
-              </p>
-              <p aria-live="polite" className="mt-2 text-sm leading-6 text-ink-muted">
+            <Alert tone={stateTone} live="polite" title={copy.stateNames[intent.status] ?? intent.status}>
+              <p className="text-sm leading-relaxed text-ink-muted">
                 {isSettled ? copy.savedActive : isPending ? copy.savedPending : intent.status === "FAILED" ? intent.failureReason || copy.savedFailed : intent.status === "CANCELLED" ? copy.savedCancelled : copy.savedSelection}
               </p>
-            </div>
-            <dl className="grid gap-3 rounded-2xl bg-[#fbf7fc] p-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-ink-muted">{copy.orderReference}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{intent.id}</bdi></dd></div>
-              <div><dt className="text-ink-muted">{copy.package}</dt><dd className="font-semibold">{copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan}</dd></div>
-              <div><dt className="text-ink-muted">{copy.paymentState}</dt><dd className="font-semibold">{copy.stateNames[intent.status] ?? intent.status}</dd></div>
-              {intent.amount != null && <div><dt className="text-ink-muted">{copy.savedAmount}</dt><dd dir="ltr" className="font-semibold"><bdi>{intent.currency} {intent.amount.toLocaleString()}</bdi></dd></div>}
+            </Alert>
+            <dl className="grid gap-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 text-sm sm:grid-cols-2">
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.orderReference}</dt><dd dir="ltr" className="mt-0.5 break-all font-mono font-semibold text-ink-strong"><bdi>{intent.id}</bdi></dd></div>
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.package}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan}</dd></div>
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.paymentState}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{copy.stateNames[intent.status] ?? intent.status}</dd></div>
+              {intent.amount != null && <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.savedAmount}</dt><dd dir="ltr" className="mt-0.5 font-semibold tabular-nums text-ink-strong"><bdi>{intent.currency} {intent.amount.toLocaleString()}</bdi></dd></div>}
             </dl>
-            {bank && intent.status === "PENDING_SETTLEMENT" && <dl className="grid gap-2 rounded-2xl border border-[#e6dce9] p-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-ink-muted">{copy.bank}</dt><dd className="font-semibold">{bank.bankName}</dd></div>
-              <div><dt className="text-ink-muted">{copy.accountTitle}</dt><dd className="font-semibold">{bank.accountTitle}</dd></div>
-              <div><dt className="text-ink-muted">{copy.accountNumber}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.accountNumber}</bdi></dd></div>
-              {bank.iban && <div><dt className="text-ink-muted">{copy.iban}</dt><dd dir="ltr" className="break-all font-mono font-semibold"><bdi>{bank.iban}</bdi></dd></div>}
+            {bank && intent.status === "PENDING_SETTLEMENT" && <dl className="grid gap-4 rounded-2xl border border-border-subtle bg-white p-4 text-sm sm:grid-cols-2">
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.bank}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{bank.bankName}</dd></div>
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.accountTitle}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{bank.accountTitle}</dd></div>
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.accountNumber}</dt><dd dir="ltr" className="mt-0.5 break-all font-mono font-semibold tabular-nums text-ink-strong"><bdi>{bank.accountNumber}</bdi></dd></div>
+              {bank.iban && <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.iban}</dt><dd dir="ltr" className="mt-0.5 break-all font-mono font-semibold text-ink-strong"><bdi>{bank.iban}</bdi></dd></div>}
             </dl>}
-            {intent.checkoutUrl && isPending && <a href={intent.checkoutUrl} className={buttonVariants({ variant: "default", className: "w-full" })}>{copy.continueCheckout}</a>}
-            {canRetry && <Button variant="default" type="button" onClick={retry} disabled={busy} className="w-full items-center justify-center gap-2">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} {copy.retryCheckout}
-            </Button>}
-            {isPending && <Button variant="outline" type="button" onClick={() => void load()} >{copy.refreshStatus}</Button>}
-            <Link href={`/onboarding?step=${encodeURIComponent(resumeStep)}`} className={buttonVariants({ variant: "outline", className: "w-full" })}>
-              {copy.resumeSetup}
-            </Link>
+            <div className="flex flex-col gap-3">
+              {intent.checkoutUrl && isPending && <a href={intent.checkoutUrl} className={buttonVariants({ variant: "default", className: "w-full" })}>{copy.continueCheckout}</a>}
+              {canRetry && <Button variant="default" type="button" onClick={retry} loading={busy} className="w-full">
+                {!busy && <RefreshCw aria-hidden="true" className="h-4 w-4" />}{copy.retryCheckout}
+              </Button>}
+              {isPending && <Button variant="outline" type="button" onClick={() => void refresh()} loading={refreshing} className="w-full">{copy.refreshStatus}</Button>}
+              <Link href={`/onboarding?step=${encodeURIComponent(resumeStep)}`} className={buttonVariants({ variant: "outline", className: "w-full" })}>
+                {copy.resumeSetup}
+              </Link>
+            </div>
           </div>
         )}
       </section>
@@ -136,5 +189,9 @@ function CheckoutStatus() {
 }
 
 export default function CheckoutStatusPage() {
-  return <Suspense fallback={<main className="p-8 text-sm">Loading checkout status…</main>}><CheckoutStatus /></Suspense>;
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-brand-50 px-4 py-8 sm:px-8 sm:py-12"><section className="sk-panel mx-auto max-w-xl p-5 sm:p-10"><StatusSkeleton label={getPackageCopy("en").loadingOrder.replace(/…$/, "")} /></section></main>}>
+      <CheckoutStatus />
+    </Suspense>
+  );
 }

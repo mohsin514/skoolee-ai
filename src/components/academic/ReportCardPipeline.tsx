@@ -3,6 +3,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { FormField } from "@/components/ui/form-field";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { FileText } from "lucide-react";
 import { jobMessages } from "@/lib/jobs/messages";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -79,6 +86,9 @@ const copy = {
     empty: "No reports generated. Lock the exam and generate reports first.",
     loading: "Loading current report versions…",
     retry: "Retry loading reports",
+    loadFailed: "Could not load the report versions. Check your connection and try again.",
+    emptyTitle: "No report cards yet",
+    actionFailed: "Could not complete this action. Reload the reports and try again.",
     language: "Report language",
     remarks: "Remarks",
     filter: "Readiness",
@@ -109,6 +119,9 @@ const copy = {
     empty: "لا توجد تقارير. أقفل الامتحان ثم أنشئ التقارير.",
     loading: "جار تحميل النسخ الحالية…",
     retry: "إعادة تحميل التقارير",
+    loadFailed: "تعذر تحميل نسخ التقارير. تحقق من الاتصال وحاول مرة أخرى.",
+    emptyTitle: "لا توجد بطاقات تقارير بعد",
+    actionFailed: "تعذر إكمال هذا الإجراء. أعد تحميل التقارير وحاول مرة أخرى.",
     language: "لغة التقرير",
     remarks: "الملاحظات",
     filter: "الجاهزية",
@@ -139,6 +152,9 @@ const copy = {
     empty: "کوئی رپورٹ نہیں۔ پہلے امتحان لاک کریں اور رپورٹس بنائیں۔",
     loading: "موجودہ نسخے لوڈ ہو رہے ہیں…",
     retry: "رپورٹس دوبارہ لوڈ کریں",
+    loadFailed: "رپورٹ کے نسخے لوڈ نہیں ہو سکے۔ کنکشن چیک کر کے دوبارہ کوشش کریں۔",
+    emptyTitle: "ابھی کوئی رپورٹ کارڈ نہیں",
+    actionFailed: "یہ عمل مکمل نہیں ہو سکا۔ رپورٹس دوبارہ لوڈ کر کے کوشش کریں۔",
     language: "رپورٹ کی زبان",
     remarks: "تبصرے",
     filter: "تیاری",
@@ -171,7 +187,8 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) 
   const [cards, setCards] = useState<Card[]>([]),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [failure, setFailure] = useState("");
   const locale = useLocale().language;
   const [canReview, setCanReview] = useState(false),
     [selected, setSelected] = useState<string[]>([]),
@@ -208,7 +225,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) 
       if (!alive.current || request.current !== controller || controller.signal.aborted) return;
       setLoadFailed(true);
       setCards([]);
-      setMessage(e instanceof Error ? e.message : "Failed to load reports");
+      void e; setMessage("");
     } finally {
       if (alive.current && request.current === controller) setLoading(false);
     }
@@ -219,6 +236,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) 
   async function action(action: string) {
     setBusy(true);
     setMessage("");
+    setFailure("");
     try {
       const r = await fetch(
         `/api/reports${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`,
@@ -242,14 +260,14 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) 
       if (r.status === 409) await load();
       if (!r.ok)
         throw new Error(
-          typeof d.error === "string" ? d.error : "Action failed",
+          typeof d.error === "string" ? d.error : "action_failed",
         );
       if (d.jobId) { window.location.assign(`/jobs?id=${d.jobId}`); return; }
       setMessage(t.success);
       await load();
       if (alive.current) onChanged?.();
     } catch (e) {
-      if (alive.current) setMessage(e instanceof Error ? e.message : "Action failed");
+      if (alive.current) { void e; setMessage(""); setFailure(t.actionFailed); }
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -258,6 +276,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) 
   async function save(requestCorrection = false) {
     if (!current) return;
     setBusy(true);
+    setFailure("");
     try {
       const key =
         language === "ar"
@@ -283,7 +302,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) 
       await load();
       setMessage(t.success);
     } catch (e) {
-      if (alive.current) setMessage(e instanceof Error ? e.message : "Save failed");
+      if (alive.current) { void e; setMessage(""); setFailure(t.actionFailed); }
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -295,37 +314,38 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged }: PipelineProps) 
       className="space-y-4 min-w-0 [overflow-wrap:anywhere]"
       aria-label={t.title}
     >
-      <a className="underline" href="/jobs">{jobMessages[locale].title}</a>
-      <h3 className="text-lg font-semibold">
-        {t.title} · {exam.title}
-      </h3>
-      <p className="text-sm">
-        {exam.class?.name} {exam.class?.section}
-      </p>
-      <p role="status" aria-live="polite" className="text-sm">
-        {sectionLabel(message, locale)}
-      </p>
+      <a className="sk-link text-sm font-medium text-primary" href="/jobs">{jobMessages[locale].title}</a>
+      <div className="min-w-0">
+        <h3 className="text-base font-bold text-ink-strong sm:text-lg">
+          {t.title} · {exam.title}
+        </h3>
+        <p className="text-xs text-ink-subtle">
+          {exam.class?.name} {exam.class?.section}
+        </p>
+      </div>
+      <div role="status" aria-live="polite">
+        {message ? <Alert tone="success" compact live="off">{sectionLabel(message, locale)}</Alert> : null}
+      </div>
+      {failure ? <Alert tone="danger" compact>{failure}</Alert> : null}
       {loading ? (
-        <p>{t.loading}</p>
+        <SkeletonList rows={4} label={t.loading} />
       ) : (
         <>
-          <p>
-            {t.blocked}: {blocked} · {t.eligible}: {cards.length - blocked} ·{" "}
-            {t.approved}: {cards.filter((c) => c.review.approvedAt).length}
-          </p>
-          {loadFailed ? <Button variant="outline" onClick={() => void load()}>{t.retry}</Button> : !cards.length && <p>{t.empty}</p>}
+          <div className="flex flex-wrap gap-2 tabular-nums">
+            <Badge variant="danger" dot>{t.blocked}: {blocked}</Badge>
+            <Badge variant="info" dot>{t.eligible}: {cards.length - blocked}</Badge>
+            <Badge variant="success" dot>{t.approved}: {cards.filter((c) => c.review.approvedAt).length}</Badge>
+          </div>
+          {loadFailed ? <ErrorState description={t.loadFailed} onRetry={() => void load()} retryLabel={t.retry} /> : !cards.length && <EmptyState size="sm" icon={FileText} title={t.emptyTitle} description={t.empty} />}
           {canReview && cards.some((c) => c.review.predecessorId) && (
-            <>
-              <label className="block">
-                {t.reason}
-                <Textarea
-                  className="block w-full"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  maxLength={1000}
-                />
-              </label>
-            </>
+            <FormField name="correctionReason" label={t.reason} showCount>
+              <Textarea
+                className="block w-full"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={1000}
+              />
+            </FormField>
           )}
           <div className="flex flex-wrap gap-2">
             {canReview && (

@@ -5,6 +5,8 @@ import { LearningActions } from "@/components/learning/learning-actions";
 import { PolicyManager } from "@/components/policies/policy-manager";
 import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils";
 
 import { pageCardSurface } from "@/components/ui/page-card";
@@ -12,7 +14,6 @@ import { pageCardSurface } from "@/components/ui/page-card";
 import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
 import {
-  AlertTriangle,
   Award,
   ArrowRightLeft,
   BookOpen,
@@ -50,8 +51,8 @@ import {
   Trophy,
   Network,
 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
-import { userMessage } from "@/lib/errors";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { apiErrorMessage, userMessage } from "@/lib/errors";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import { RoleShell, type RoleNavItem, BrandButton } from "@/components/role-dashboard";
@@ -238,25 +239,36 @@ function useAdminView(): [AdminView, (next: AdminView) => void] {
 
 /** Shown when a section is reachable by URL but not permitted for this role. */
 function RestrictedView({ onBack }: { onBack: () => void }) {
+  const ui = useUiText();
   return (
-    <div className="sk-panel p-10 text-center">
-      <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
-        <Shield className="h-6 w-6" />
-      </span>
-      <h2 className="text-lg font-bold tracking-tight text-ink-strong">Not available for your role</h2>
-      <p className="mx-auto mt-2 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">
-        Billing is managed at the school level. Ask a school administrator if you need changes to the plan.
-      </p>
-      <Button variant="default"
-        type="button"
-        onClick={onBack}
-        className="mt-6"
-      >
-        Back to overview
-      </Button>
+    <div className="sk-panel">
+      <EmptyState
+        icon={Shield}
+        title={ui("Not available for your role")}
+        description={ui("Billing is managed at the school level. Ask a school administrator if you need changes to the plan.")}
+        action={
+          <Button variant="default" type="button" onClick={onBack}>
+            {ui("Back to overview")}
+          </Button>
+        }
+      />
     </div>
   );
 }
+
+/**
+ * Staff rows hand over either a readable label ("Admin", "Teacher") or the raw
+ * role ("ACCOUNTANT"); the confirm dialog and toast always show the readable one.
+ */
+const STAFF_ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Admin",
+  CAMPUS_ADMIN: "Admin",
+  PRINCIPAL: "Principal",
+  TEACHER: "Teacher",
+  ACCOUNTANT: "Accountant",
+  LIBRARIAN: "Librarian",
+  RECEPTIONIST: "Receptionist",
+};
 
 export default function CampusAdminDashboard() {
   const [data, setData] = useState<any>(null);
@@ -297,6 +309,7 @@ export default function CampusAdminDashboard() {
     title: string;
     description: string;
     confirmLabel: string;
+    cancelLabel?: string;
     tone?: "danger" | "warning" | "primary";
     run: () => Promise<void>;
   } | null>(null);
@@ -381,6 +394,9 @@ export default function CampusAdminDashboard() {
     if (convertingQuery && studentId) {
       const queryId = convertingQuery.id;
       setConvertingQuery(null);
+      // The student already exists at this point, so a failure here is only
+      // about the enquiry; say so rather than implying nothing was saved.
+      const notConverted = ui("The student was added, but the enquiry could not be marked as converted.");
       (async () => {
         try {
           const res = await fetch("/api/admission-queries", {
@@ -390,12 +406,12 @@ export default function CampusAdminDashboard() {
           });
           const data = await res.json();
           if (res.ok) {
-            toast.success(`Query converted to ${createdStudent.fullName}`);
+            toast.success(ui("Enquiry marked as converted for {0}", [createdStudent.fullName]));
           } else {
-            toast.error(data.error || "Could not mark query as converted");
+            toast.error(friendlyErrorMessage(apiErrorMessage(data.error, ""), notConverted));
           }
         } catch {
-          toast.error("Student created, but could not mark the query as converted");
+          toast.error(notConverted);
         }
         // loadData() refreshes campus-wide counts but not the enquiries
         // panel's own list — that only re-fetches when this version bumps,
@@ -409,6 +425,7 @@ export default function CampusAdminDashboard() {
   };
 
   const handleAddSection = async (name: string, section: string, academicYear: number, convertClassId?: string) => {
+    const failed = ui("Could not create the section. Please try again.");
     try {
       // Converting: the class had no sections, so rename that row rather than
       // spawning a sibling and stranding its students on an unnamed class.
@@ -424,21 +441,22 @@ export default function CampusAdminDashboard() {
             body: JSON.stringify({ name, section, sections: [section], academicYear }),
           });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Section could not be created");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       toast.success(
         convertClassId
-          ? `"${name}" now has section "${section}" — existing students moved into it`
-          : `Section "${section}" created`
+          ? ui("\"{0}\" now has section \"{1}\" — existing students moved into it", [name, section])
+          : ui("Section \"{0}\" created", [section])
       );
       await loadData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Section could not be created");
+      toast.error(friendlyErrorMessage(error, failed));
     }
   };
 
   const handleMoveStudent = async () => {
     if (!movingStudent || !moveClassId || moveClassId === (movingStudent.class?.id || movingStudent.classId)) return;
     setMovingStudentBusy(true);
+    const failed = ui("Could not move the student. Please try again.");
     try {
       const res = await fetch("/api/students", {
         method: "PATCH",
@@ -446,15 +464,15 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: movingStudent.id, classId: moveClassId }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Student could not be moved");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       const moved = result.data;
       const cls = moved?.class ? [moved.class.name, moved.class.section].filter(Boolean).join(" ") : "";
-      toast.success(moved?.rollNo ? `Moved to ${cls} — new roll: ${moved.rollNo}` : "Student moved");
+      toast.success(moved?.rollNo ? ui("Moved to {0}. New roll number: {1}", [cls, moved.rollNo]) : ui("Student moved"));
       setMovingStudent(null);
       setMoveClassId("");
       await loadData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Student could not be moved");
+      toast.error(friendlyErrorMessage(error, failed));
     } finally {
       setMovingStudentBusy(false);
     }
@@ -462,6 +480,7 @@ export default function CampusAdminDashboard() {
 
   const handleChangeClassTeacher = async (classId: string, classTeacherId: string) => {
     setSavingClassTeacherId(classId);
+    const failed = ui("Could not change the class teacher. Please try again.");
     try {
       const res = await fetch("/api/classes", {
         method: "PATCH",
@@ -469,8 +488,8 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: classId, classTeacherId: classTeacherId || null }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Class teacher could not be updated");
-      toast.success("Class teacher updated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Class teacher updated"));
       (result.clashes || []).forEach((c: any) => toast.warning(c.message));
       setSelectedClass((current: any) =>
         current?.id === classId
@@ -480,7 +499,7 @@ export default function CampusAdminDashboard() {
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Class teacher could not be updated");
+      toast.error(friendlyErrorMessage(error, failed));
     } finally {
       setSavingClassTeacherId(null);
     }
@@ -491,11 +510,12 @@ export default function CampusAdminDashboard() {
     subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }
   ) => {
     if (!subject.name.trim()) {
-      toast.error("Subject name is required");
+      toast.error(ui("Enter a subject name before adding it."));
       return false;
     }
 
     setCreatingSubjectClassId(classId);
+    const failed = ui("Could not add the subject. Please try again.");
     try {
       const res = await fetch("/api/subjects", {
         method: "POST",
@@ -509,15 +529,15 @@ export default function CampusAdminDashboard() {
         }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Subject could not be created");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       toast.success(
-        result.createdCount > 1 ? `Subject added to ${result.createdCount} sections` : "Subject added"
+        result.createdCount > 1 ? ui("Subject added to {0} sections", [result.createdCount]) : ui("Subject added")
       );
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Subject could not be created");
+      toast.error(friendlyErrorMessage(error, failed));
       return false;
     } finally {
       setCreatingSubjectClassId(null);
@@ -541,6 +561,7 @@ export default function CampusAdminDashboard() {
     if (input.sections.length === 0) return false;
 
     setCreatingSections(true);
+    const failed = ui("Could not add the section. Please try again.");
     try {
       const res = await fetch("/api/classes", {
         method: "POST",
@@ -554,7 +575,7 @@ export default function CampusAdminDashboard() {
         }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Section could not be created");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
 
       const created: any[] = Array.isArray(result.data) ? result.data : [result.data];
 
@@ -595,8 +616,8 @@ export default function CampusAdminDashboard() {
 
       toast.success(
         created.length > 1
-          ? `${created.length} sections added to ${source.name}`
-          : `Section ${input.sections[0]} added to ${source.name}`,
+          ? ui("{0} sections added to {1}", [created.length, source.name])
+          : ui("Section {0} added to {1}", [input.sections[0], source.name]),
       );
 
       const nextData = await loadData();
@@ -606,7 +627,7 @@ export default function CampusAdminDashboard() {
       else syncSelectedClass(nextData, source.id);
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Section could not be created");
+      toast.error(friendlyErrorMessage(error, failed));
       return false;
     } finally {
       setCreatingSections(false);
@@ -624,6 +645,7 @@ export default function CampusAdminDashboard() {
   };
   const saveSubjectTeacher = async (classId: string, subjectId: string, teacherId: string, effectiveFrom?: string) => {
     setSavingSubjectId(subjectId);
+    const failed = ui("Could not change the subject teacher. Please try again.");
     try {
       const res = await fetch("/api/subjects", {
         method: "PATCH",
@@ -631,13 +653,13 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: subjectId, teacherId: teacherId || null, ...(effectiveFrom ? { effectiveFrom } : {}) }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Subject teacher could not be updated");
-      toast.success("Subject teacher updated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Subject teacher updated"));
       (result.clashes || []).forEach((c: any) => toast.warning(c.message));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Subject teacher could not be updated");
+      toast.error(friendlyErrorMessage(error, failed));
     } finally {
       setSavingSubjectId(null);
     }
@@ -647,6 +669,7 @@ export default function CampusAdminDashboard() {
   // subject in one call, so the two can never drift out of sync.
   const handleChangeTeachingMode = async (classId: string, mode: "SINGLE" | "SUBJECT") => {
     setApplyingSubjectClassId(classId);
+    const failed = ui("Could not change the teaching mode. Please try again.");
     try {
       const res = await fetch("/api/classes", {
         method: "PATCH",
@@ -654,13 +677,13 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: classId, teachingMode: mode }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Teaching mode could not be updated");
-      toast.success(mode === "SINGLE" ? "All subjects now follow the class teacher" : "Each subject can now have its own teacher");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(mode === "SINGLE" ? ui("All subjects now follow the class teacher") : ui("Each subject can now have its own teacher"));
       (result.clashes || []).forEach((c: any) => toast.warning(c.message));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Teaching mode could not be updated");
+      toast.error(friendlyErrorMessage(error, failed));
     } finally {
       setApplyingSubjectClassId(null);
     }
@@ -677,17 +700,19 @@ export default function CampusAdminDashboard() {
 
   const handleRemove = async (userId: string, label: string) => {
     if (userId === data?.currentUserId) {
-      toast.info("Your owner account stays active so this campus remains manageable.");
+      toast.info(ui("Your owner account stays active so this campus remains manageable."));
       return;
     }
 
+    const roleLabel = ui(STAFF_ROLE_LABELS[label] ?? label);
     setConfirmAction({
-      title: `Revoke ${label} access?`,
-      description: `This will remove the selected ${label.toLowerCase()} from this campus workspace.`,
-      confirmLabel: "Revoke access",
+      title: ui("Revoke {0} access?", [roleLabel]),
+      // removeStaff deactivates the account and ends its sessions; nothing is deleted.
+      description: ui("They will be signed out and can no longer use this campus workspace. Their records are kept."),
+      confirmLabel: ui("Revoke access"),
       run: async () => {
         await removeStaff(userId);
-        toast.success(`${label} access revoked`);
+        toast.success(ui("{0} access revoked", [roleLabel]));
         await loadData();
       },
     });
@@ -696,21 +721,22 @@ export default function CampusAdminDashboard() {
   const handleResendInvite = async (inviteId: string) => {
     try {
       await resendInvitation(inviteId);
-      toast.success("Invitation resent");
+      toast.success(ui("Invitation resent"));
       await loadData();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, ui("Could not resend the invitation. Please try again.")));
     }
   };
 
   const handleCancelInvite = async (inviteId: string) => {
     setConfirmAction({
-      title: "Cancel invitation?",
-      description: "The invited person will no longer be able to use this invitation link.",
-      confirmLabel: "Cancel invite",
+      title: ui("Cancel invitation?"),
+      description: ui("The invited person will no longer be able to use this invitation link."),
+      confirmLabel: ui("Cancel invitation"),
+      cancelLabel: ui("Keep invitation"),
       run: async () => {
         await cancelInvitation(inviteId);
-        toast.success("Invitation cancelled");
+        toast.success(ui("Invitation cancelled"));
         await loadData();
       },
     });
@@ -722,8 +748,9 @@ export default function CampusAdminDashboard() {
     try {
       await confirmAction.run();
       setConfirmAction(null);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      // The dialog stays open so the admin can retry or cancel.
+      toast.error(friendlyErrorMessage(error, ui("This action could not be completed. Please try again.")));
     } finally {
       setConfirmBusy(false);
     }
@@ -732,7 +759,7 @@ export default function CampusAdminDashboard() {
   const handleDeleteClass = async (cls: any) => {
     const previewResponse = await fetch(`/api/classes?id=${encodeURIComponent(cls.id)}&preview=true`, { method: "DELETE" });
     const preview = await previewResponse.json();
-    if (!previewResponse.ok) throw new Error(preview.error || "Could not calculate class impact");
+    if (!previewResponse.ok) throw new Error(apiErrorMessage(preview.error, ui("Could not check what archiving this class affects. Please try again.")));
     const enrolled = Number(preview.dependencies?.students || 0);
     setConfirmAction({
       title: ui("Archive {0}?", [classLabel(cls)]),
@@ -743,8 +770,8 @@ export default function CampusAdminDashboard() {
         if (enrolled) return;
         const res = await fetch(`/api/classes?id=${cls.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Archived by administrator" }) });
         const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "Class could not be archived");
-        toast.success("Class archived; history preserved");
+        if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not archive the class. Please try again.")));
+        toast.success(ui("Class archived; history preserved"));
         setSelectedClass(null);
         await loadData();
       },
@@ -779,7 +806,10 @@ export default function CampusAdminDashboard() {
 
   const handleDeleteSubject = async (subject: any) => {
     // SKO-462: the real impact, fetched before anything is confirmed.
-    const impact = await fetchAcademicImpact("subject", subject.id).catch((error: Error) => { toast.error(error.message); return null; });
+    const impact = await fetchAcademicImpact("subject", subject.id).catch((error: unknown) => {
+      toast.error(friendlyErrorMessage(error, ui("Could not check what deleting this subject affects. Please try again.")));
+      return null;
+    });
     if (!impact) return;
     const blocked = Boolean(impact.counts.marks || impact.counts.exams || impact.counts.examSchedules);
     setConfirmAction({
@@ -791,7 +821,7 @@ export default function CampusAdminDashboard() {
         if (blocked) return;
         const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" });
         const result = await res.json();
-        if (!res.ok) throw new Error(result.error || "Subject could not be deleted");
+        if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not delete the subject. Please try again.")));
         toast.success(ui("Subject deleted · {0}", [new Date().toLocaleString()]));
         await loadData();
       },
@@ -800,6 +830,7 @@ export default function CampusAdminDashboard() {
 
   const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
     setSavingClassUpdate(true);
+    const failed = ui("Could not save the class changes. Please try again.");
     try {
       const res = await fetch("/api/classes", {
         method: "PATCH",
@@ -807,12 +838,12 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: classId, ...updates }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Class could not be updated");
-      toast.success("Class updated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Class updated"));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Class could not be updated");
+      toast.error(friendlyErrorMessage(error, failed));
     } finally {
       setSavingClassUpdate(false);
     }
@@ -820,6 +851,7 @@ export default function CampusAdminDashboard() {
 
   const handleUpdateStudent = async (studentId: string, updates: Record<string, any>) => {
     setSavingStudentUpdate(true);
+    const failed = ui("Could not save the student's changes. Please try again.");
     try {
       const res = await fetch("/api/students", {
         method: "PATCH",
@@ -827,14 +859,14 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: studentId, ...updates }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Student could not be updated");
-      toast.success("Student updated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Student updated"));
       setSelectedStudent((current: any) =>
         current?.id === studentId ? { ...current, ...result.data } : current
       );
       await loadData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Student could not be updated");
+      toast.error(friendlyErrorMessage(error, failed));
     } finally {
       setSavingStudentUpdate(false);
     }
@@ -842,6 +874,7 @@ export default function CampusAdminDashboard() {
 
   const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
     setSavingSubjectUpdateId(subjectId);
+    const failed = ui("Could not save the subject changes. Please try again.");
     try {
       const res = await fetch("/api/subjects", {
         method: "PATCH",
@@ -849,18 +882,19 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: subjectId, ...updates }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Subject could not be updated");
-      toast.success("Subject updated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Subject updated"));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Subject could not be updated");
+      toast.error(friendlyErrorMessage(error, failed));
     } finally {
       setSavingSubjectUpdateId(null);
     }
   };
 
   const handleUpdateTeacher = async (teacherId: string, updates: Record<string, any>) => {
+    const failed = ui("Could not save the teacher's changes. Please try again.");
     try {
       const res = await fetch("/api/users", {
         method: "PATCH",
@@ -868,31 +902,33 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ id: teacherId, ...updates }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Teacher could not be updated");
-      toast.success("Teacher updated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Teacher updated"));
       setSelectedTeacher((current: any) =>
         current?.id === teacherId ? { ...current, ...result.data } : current
       );
       await loadData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Teacher could not be updated");
+      toast.error(friendlyErrorMessage(error, failed));
     }
   };
 
   const handleSendReportCard = async (reportCardId: string) => {
     setSendingReport(reportCardId);
+    const failed = ui("Could not send the report card. Please try again.");
     try {
       const res = await fetch(`/api/reports/${reportCardId}/send`, { method: "POST" });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to send");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       if (result.jobId) { window.location.assign(`/jobs?id=${result.jobId}`); return; }
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error) { toast.error(friendlyErrorMessage(error, failed)); }
     finally { setSendingReport(null); }
   };
 
   const handleSaveReportRemarks = async (reportCardId: string, remarks: { en: string; ur: string }) => {
     setSavingRemarks(true);
+    const failed = ui("Could not save the remarks. Please try again.");
     try {
       const res = await fetch(`/api/reports/${reportCardId}/remarks`, {
         method: "PATCH",
@@ -900,15 +936,16 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ remarksEn: remarks.en, remarksUr: remarks.ur }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to save remarks");
-      toast.success("Remarks saved");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Remarks saved"));
       setSelectedReportCard((c: any) => c ? { ...c, remarksEn: remarks.en, remarksUr: remarks.ur } : c);
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error) { toast.error(friendlyErrorMessage(error, failed)); }
     finally { setSavingRemarks(false); }
   };
 
   const handleGenerateStudentRemarks = async (studentId: string, examId: string) => {
     setRemarkGeneratingFor(studentId);
+    const failed = ui("Could not generate remarks. Please try again.");
     try {
       const res = await fetch("/api/ai/generate-remarks", {
         method: "POST",
@@ -916,9 +953,9 @@ export default function CampusAdminDashboard() {
         body: JSON.stringify({ studentId, examId }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to generate remarks");
-      toast.success("Remarks generated");
-    } catch (error: any) { toast.error(error.message); }
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      toast.success(ui("Remarks generated"));
+    } catch (error) { toast.error(friendlyErrorMessage(error, failed)); }
     finally { setRemarkGeneratingFor(null); }
   };
 
@@ -1030,24 +1067,19 @@ export default function CampusAdminDashboard() {
   // failed — a white screen and a toast that disappears after five seconds,
   // with no way back other than guessing to reload.
   if (!data) {
+    // Offline gets its own wording: "try again in a moment" is not the fix
+    // when the device has no connection at all.
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-subtle p-6">
-        <div className="sk-panel w-full max-w-sm p-8 text-center">
-          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
-            <AlertTriangle className="h-6 w-6" />
-          </span>
-          <h1 className="text-lg font-bold tracking-tight text-ink-strong">Couldn&apos;t load your dashboard</h1>
-          <p className="mt-2 text-xs font-semibold leading-relaxed text-ink-muted">
-            The campus data didn&apos;t come back. This is usually temporary — try again in a moment.
-          </p>
-          <Button variant="default"
-            type="button"
-            onClick={() => loadData()}
-            className="mt-6 w-full"
-          >
-            Try again
-          </Button>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-surface-subtle px-4 py-6 sm:p-6">
+        <h1 className="sr-only">{ui("Command Centre")}</h1>
+        <ErrorState
+          variant="page"
+          offline={offline}
+          title={offline ? undefined : ui("Couldn't load your dashboard")}
+          description={offline ? undefined : ui("The campus data didn't come back. This is usually temporary — try again in a moment.")}
+          onRetry={() => loadData()}
+        />
       </div>
     );
   }
@@ -1056,12 +1088,12 @@ export default function CampusAdminDashboard() {
 
   return (
     <RoleShell
-      tagline={data.campusName ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}` : "Campus"}
+      tagline={data.campusName ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}` : ui("Campus")}
       navItems={filteredNavItems}
       bottomItems={bottomItems}
-      searchPlaceholder="Search campus records..."
+      searchPlaceholder={ui("Search campus records...")}
       userName={data.adminName}
-      userRole="School Group Campus"
+      userRole={ui("School Group Campus")}
       logoUrl={data.logoUrl}
       avatarSeed={data.adminEmail || data.adminName}
       dashboardHref="/admin"
@@ -1095,31 +1127,35 @@ export default function CampusAdminDashboard() {
             />
           ) : null}
 
-          {activeView === "overview" ? <ActionQueue campusId={data.campusId} /> : null}
-          {activeView === "overview" ? <LearningActions /> : null}
-          {activeView === "overview" ? <PolicyManager /> : null}
+          {/* The command centre's panels are separate cards; without the gap
+              they sat edge to edge and read as one block. */}
           {activeView === "overview" ? (
-            <CampusOverview
-              data={data}
-              onNavigate={(view) => setActiveView(view as AdminView)}
-              onAddStudent={data.classes.length > 0 ? () => openAdmissionForm() : undefined}
-              onAddClass={() => setShowClassWizard(true)}
-            />
+            <div className="space-y-5">
+              <ActionQueue campusId={data.campusId} />
+              <LearningActions />
+              <PolicyManager />
+              <CampusOverview
+                data={data}
+                onNavigate={(view) => setActiveView(view as AdminView)}
+                onAddStudent={data.classes.length > 0 ? () => openAdmissionForm() : undefined}
+                onAddClass={() => setShowClassWizard(true)}
+              />
+            </div>
           ) : null}
 
           {activeView === "institution" ? (
-            <div className="space-y-5">
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-normal text-primary">Institution record</p>
-                <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink-strong">School &amp; Campus</h2>
-                <p className="mt-1.5 text-sm font-semibold text-ink-muted">
-                  Name, branding and contact details. School-wide details are owned by the institution owner.
+            <div className="space-y-6">
+              <header className="min-w-0">
+                <p className="sk-eyebrow text-primary">{ui("Institution record")}</p>
+                <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("School & Campus")}</h2>
+                <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-muted">
+                  {ui("Name, branding and contact details. School-wide details are owned by the institution owner.")}
                 </p>
-              </div>
+              </header>
               {/* scope="editable" keeps a branch admin's view to their own campus
                   rather than listing every sibling campus in the group. */}
               <InstitutionSettingsPanel scope="editable" onSaved={loadData} />
-              <div className="mt-6"><LocaleSettingsPanel /></div>
+              <LocaleSettingsPanel />
             </div>
           ) : null}
 
@@ -1292,10 +1328,10 @@ export default function CampusAdminDashboard() {
                 campusId={data.campusId}
                 onNavigate={(v) => setActiveView(v as AdminView)}
               />
-              <div className="border-t border-edge/15 pt-6">
-                <h3 className="text-sm font-bold text-ink-strong mb-4">Year History & Student Promotion</h3>
+              <section className="border-t border-edge/15 pt-6" aria-labelledby="admin-year-history-heading">
+                <h3 id="admin-year-history-heading" className="mb-4 text-base font-bold text-ink-strong">{ui("Year History & Student Promotion")}</h3>
                 <AcademicYearPanel />
-              </div>
+              </section>
             </div>
           ) : null}
 
@@ -1321,8 +1357,12 @@ export default function CampusAdminDashboard() {
           {activeView === "phone-calls" ? <PhoneCallsPanel /> : null}
           {activeView === "postal" ? <PostalPanel /> : null}
           {activeView === "certificates" ? <CertificatesPanel /> : null}
-          {activeView === "inventory" ? <InventoryPanel /> : null}
-          {activeView === "inventory" ? <PurchasingPanel /> : null}
+          {activeView === "inventory" ? (
+            <div className="space-y-5">
+              <InventoryPanel />
+              <PurchasingPanel />
+            </div>
+          ) : null}
           {activeView === "library" ? <LibraryPanel /> : null}
           {/* Plan buying is only in the sidebar for standalone top admins, but
               the section also lives at ?view=billing, so a campus admin could
@@ -1331,7 +1371,7 @@ export default function CampusAdminDashboard() {
               plan buying only — the two never mix. */}
           {activeView === "billing"
             ? canManagePlans
-              ? <><SubscriptionLifecyclePanel /><PlansPanel /></>
+              ? <div className="space-y-5"><SubscriptionLifecyclePanel /><PlansPanel /></div>
               : <RestrictedView onBack={() => setActiveView(DEFAULT_VIEW)} />
             : null}
         </div>
@@ -1498,7 +1538,8 @@ export default function CampusAdminDashboard() {
         open={Boolean(confirmAction)}
         title={confirmAction?.title || ""}
         description={confirmAction?.description || ""}
-        confirmLabel={confirmAction?.confirmLabel || "Confirm"}
+        confirmLabel={confirmAction?.confirmLabel || ui("Confirm")}
+        cancelLabel={confirmAction?.cancelLabel}
         tone={confirmAction?.tone ?? "danger"}
         busy={confirmBusy}
         onCancel={() => setConfirmAction(null)}

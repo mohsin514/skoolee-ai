@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,7 +60,7 @@ function useFields() {
   return { val: (k: string) => form[k] ?? "", bind: (k: string) => (e: { target: { value: string } }) => setForm((m) => ({ ...m, [k]: e.target.value })), clear: (k: string) => setForm((m) => ({ ...m, [k]: "" })) };
 }
 function Messages({ error, notice }: { error: string | null; notice: string | null }) {
-  return <div aria-live="polite">{error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}{notice ? <p role="status" className="text-sm font-semibold text-emerald-800">{notice}</p> : null}</div>;
+  return <div className="space-y-2">{error ? <Alert tone="danger" compact>{error}</Alert> : null}{notice ? <Alert tone="success" compact>{notice}</Alert> : null}</div>;
 }
 
 // ─── Setup ──────────────────────────────────────────────────────

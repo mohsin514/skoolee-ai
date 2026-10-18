@@ -12,6 +12,8 @@ import { ChatAvatar } from "./chat-avatar";
 import type { ConversationView } from "@/lib/chat/types";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 
@@ -76,15 +78,17 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
                   {unreadTotal > 99 ? "99+" : unreadTotal}
                 </span>
               )}
-              <span
-                className={cn(
-                  "flex items-center",
-                  isConnected ? "text-emerald-500" : "text-amber-500"
-                )}
-                title={isConnected ? ui("Live") : ui("Reconnecting")}
-              >
-                {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-              </span>
+              <Tooltip content={isConnected ? ui("Live") : ui("Reconnecting")} describe={false}>
+                <span
+                  tabIndex={0}
+                  className={cn(
+                    "flex items-center rounded-full",
+                    isConnected ? "text-emerald-500" : "text-amber-500"
+                  )}
+                >
+                  {isConnected ? <Wifi className="h-3 w-3" aria-hidden="true" /> : <WifiOff className="h-3 w-3" aria-hidden="true" />}
+                </span>
+              </Tooltip>
               <span className="sr-only" role="status">
                 {isConnected ? ui("Live updates connected") : ui("Reconnecting to live updates")}
               </span>
@@ -222,14 +226,9 @@ function ConversationRow({
 
         <span className="mt-1 flex items-center gap-1.5">
           {badge && (
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider",
-                badge.className
-              )}
-            >
+            <Badge size="sm" variant="neutral" className={cn("shrink-0", badge.className)}>
               {badge.label(ui)}
-            </span>
+            </Badge>
           )}
           <span
             className={cn(

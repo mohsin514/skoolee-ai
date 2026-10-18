@@ -38,6 +38,7 @@ import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { PublicationReview, PublicationStatus } from "./PublicationReview";
@@ -253,6 +254,7 @@ function PeriodConfigModal({
   onSave: (periods: { period: number; start: string; end: string; type: string }[]) => void;
   onClose: () => void;
 }) {
+  const ui = useUiText();
   const [localPeriods, setLocalPeriods] = useState(periods.length > 0 ? periods : defaultPeriods);
 
   const updatePeriod = (index: number, field: string, value: string) => {
@@ -273,9 +275,9 @@ function PeriodConfigModal({
 
   return (
     <Modal
-      title="Configure Periods"
+      title={ui("Configure Periods")}
       eyebrow="Timetable Setup"
-      subtitle="Set start/end times and types for each period."
+      subtitle={ui("Set start/end times and types for each period.")}
       icon={Clock}
       size="sm"
       onClose={onClose}
@@ -291,7 +293,7 @@ function PeriodConfigModal({
             nested a scroller inside the dialog's scroller — two scrollbars, and
             a wheel gesture that stalled at the inner edge. The dialog body is
             the only thing that scrolls now. */}
-        <div className="space-y-3 pr-1">
+        <div className="space-y-3 pe-1">
           {localPeriods.map((p, i) => (
             <div key={i} className="flex items-center gap-2 rounded-2xl bg-muted p-3">
               <span className="w-6 text-center text-2xs font-bold text-primary">P{p.period}</span>
@@ -358,6 +360,7 @@ function SlotEditorModal({
   onSave: (updates: SlotChange) => void;
   onClose: () => void;
 }) {
+  const ui = useUiText();
   const current = {
     subjectId: pendingChange?.subjectId !== undefined ? pendingChange.subjectId : slot.subjectId,
     teacherId: pendingChange?.teacherId !== undefined ? pendingChange.teacherId : slot.teacherId,
@@ -421,7 +424,7 @@ function SlotEditorModal({
 
   return (
     <Modal
-      title={`${dayName} — Period ${slot.periodNumber}`}
+      title={ui("{0} — Period {1}", [dayName, String(slot.periodNumber)])}
       eyebrow="Edit Slot"
       subtitle={`${slot.startTime} – ${slot.endTime}`}
       icon={Pencil}
@@ -482,7 +485,7 @@ function SlotEditorModal({
 
               <div>
                 <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">
-                  Teacher {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
+                  {ui("Teacher")} {loadingAvail && <><Loader2 aria-hidden="true" className="inline w-3 h-3 animate-spin" /><span role="status" className="sr-only">{ui("Checking availability")}</span></>}
                 </label>
                 <SystemSelect
                   value={teacherId}
@@ -501,7 +504,7 @@ function SlotEditorModal({
 
               <div>
                 <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">
-                  Room (Optional) {loadingAvail && <Loader2 className="inline w-3 h-3 animate-spin" />}
+                  {ui("Room (Optional)")} {loadingAvail && <Loader2 aria-hidden="true" className="inline w-3 h-3 animate-spin" />}
                 </label>
                 <SystemSelect
                   value={roomId}
@@ -985,7 +988,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               onChange={(e) => { const id = e.target.value || null; changeSelection(() => setSelectedClassId(id)); }}
               disabled={changing}
               aria-label={scopeCopy.class}
-              className="min-w-0 px-4 pr-10 appearance-none"
+              className="min-w-0 px-4 pe-10 appearance-none"
             >
               <option value="">{scopeCopy.chooseClass}</option>
               {scopeClasses.map((cls) => {
@@ -1014,21 +1017,21 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               onClick={() => setViewMode("class")}
               className="class"
             >
-              <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Class
+              <Calendar className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Class
             </Button>
             <Button aria-pressed={viewMode === "teacher"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("teacher")}
               className="teacher"
             >
-              <User className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Teacher
+              <User className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Teacher
             </Button>
             <Button aria-pressed={viewMode === "room"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("room")}
               className="room"
             >
-              <DoorOpen className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Room
+              <DoorOpen className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Room
             </Button>
           </div>
 
@@ -1040,9 +1043,10 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
             onClick={() => setReviewOpen(true)}
             disabled={!activeTimetable || changing || pendingChanges.size > 0 || viewMode !== "class"}
             className="flex justify-start items-center gap-1.5"
+            loading={publishing}
             data-review-publish
           >
-            {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <Send aria-hidden="true" className="h-4 w-4" />
             {ui("Review and publish")}
           </Button>
         </div>
@@ -1081,8 +1085,8 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
           {!selectedClassId && (
             <EmptyStateCard
               icon={Calendar}
-              title="Select a Class"
-              description="Choose a class above to view or create its weekly timetable"
+              title={ui("Select a Class")}
+              description={ui("Choose a class above to view or create its weekly timetable")}
             />
           )}
 
@@ -1108,9 +1112,10 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   type="button"
                   onClick={() => handleCreateTimetable()}
                   disabled={creating}
+                  loading={creating}
                   className="flex justify-start items-center gap-2"
                 >
-                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 h-4" />}
+                  <Plus aria-hidden="true" className="h-4 w-4" />
                   Quick Create (Default)
                 </Button>
               </div>
@@ -1159,6 +1164,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       </Button>
                     ))}
                   </div>
+                  <Tooltip content={focused ? ui("Show the subject and conflict panels") : ui("Give the grid the full width")}>
                   <Button variant="choice" size="sm"
                     type="button"
                     onClick={() => {
@@ -1167,23 +1173,24 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       setShowConflicts(!next);
                     }}
                     aria-pressed={focused}
-                    title={focused ? "Show the subject and conflict panels" : "Give the grid the full width"}
                     className="flex justify-start items-center gap-1.5"
                   >
                     {focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                     {focused ? "Exit Focus" : "Focus"}
                   </Button>
+                  </Tooltip>
+                  <Tooltip content={showLegend ? ui("Hide the subject legend") : ui("Show the subject legend")}>
                   <Button variant="secondary" size="sm"
                     type="button"
                     onClick={() => setShowLegend((v) => !v)}
                     aria-pressed={showLegend}
-                    title={showLegend ? "Hide the subject legend" : "Show the subject legend"}
                     className="flex justify-start items-center gap-1.5"
                   >
                     <Palette className="h-3.5 w-3.5" />
                     Legend
                   </Button>
-                  <Button variant="outline" size="sm" disabled={activeTimetable.status !== "DRAFT" || changing || pendingChanges.size > 0} title={addCopy.draftOnly} onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button>
+                  </Tooltip>
+                  {activeTimetable.status !== "DRAFT" ? <Tooltip content={addCopy.draftOnly}><span tabIndex={0} className="inline-flex"><Button variant="outline" size="sm" disabled onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button></span></Tooltip> : <Button variant="outline" size="sm" disabled={changing || pendingChanges.size > 0} onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button>}
                   <Button variant="secondary" size="sm"
                     type="button"
                     disabled={changing || pendingChanges.size > 0}
@@ -1215,9 +1222,10 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       type="button"
                       onClick={handleSaveAll}
                       disabled={saving}
+                      loading={saving}
                       className="flex justify-start items-center gap-1.5"
                     >
-                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      <Check aria-hidden="true" className="h-3.5 w-3.5" />
                       Save Changes
                     </Button>
                   )}
@@ -1241,7 +1249,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                           <span className={`h-2 w-2 shrink-0 rounded-full ${c?.dot || "bg-gray-400"}`} />
                           <span className={`truncate text-2xs font-bold ${c?.text || "text-gray-600"}`}>{s.name}</span>
                           {s.teacher && (
-                            <span className="ml-1 truncate text-2xs font-semibold text-ink-subtle">
+                            <span className="ms-1 truncate text-2xs font-semibold text-ink-subtle">
                               {s.teacher.fullName}
                             </span>
                           )}
@@ -1340,7 +1348,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       <div id="routine-print-root">
         {activeTimetable && viewMode === "class" ? (
           <RoutinePrintGrid
-            title={`${activeTimetable.class.name}${activeTimetable.class.section ? ` - ${activeTimetable.class.section}` : ""} — Weekly Timetable ${activeTimetable.academicYear} (${activeTimetable.term})`}
+            title={ui("{0} — Weekly Timetable {1} ({2})", [`${activeTimetable.class.name}${activeTimetable.class.section ? ` - ${activeTimetable.class.section}` : ""}`, String(activeTimetable.academicYear), activeTimetable.term])}
             periods={periods}
             days={visibleDays}
             cells={visibleDays.map((day) => periods.map((period) => {
@@ -1356,7 +1364,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         ) : null}
         {selectedTeacherId && viewMode === "teacher" ? (
           <RoutinePrintGrid
-            title={`${teachers.find((t) => t.id === selectedTeacherId)?.fullName || "Teacher"} — Weekly Routine`}
+            title={ui("{0} — Weekly Routine", [teachers.find((t) => t.id === selectedTeacherId)?.fullName || ui("Teacher")])}
             periods={periods}
             days={visibleDays}
             cells={visibleDays.map((day) => periods.map((period) => {
@@ -1429,17 +1437,18 @@ function PaneToggle({
 }) {
   const Icon = side === "left" ? ChevronLeft : ChevronRight;
   return (
+    <Tooltip content={label}>
     <Button variant="ghost" size="icon"
       type="button"
       onClick={onClick}
-      title={label}
       aria-label={label}
       className={`absolute top-2 z-10 hidden items-center justify-center lg:flex ${
         side === "left" ? "right-2" : "left-2"
       }`}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon aria-hidden="true" className="h-3.5 w-3.5" />
     </Button>
+    </Tooltip>
   );
 }
 
@@ -1460,7 +1469,6 @@ function CollapsedPane({
     <Button variant="outline"
       type="button"
       onClick={onClick}
-      title={`Show ${label.toLowerCase()}`}
       className="hidden flex-col items-center gap-3 lg:flex lg:sticky lg:top-4 lg:max-h-[78vh]"
     >
       <Chevron className="h-4 w-4 text-ink-subtle" />

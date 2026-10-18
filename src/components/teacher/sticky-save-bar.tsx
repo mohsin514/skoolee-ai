@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2, RotateCcw, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
 
 
 /**
@@ -91,7 +92,7 @@ export function StickySaveBar({
         ref={barRef}
         className={cn(
           "sk-rise pointer-events-auto flex w-full max-w-3xl flex-wrap items-center gap-3 rounded-[22px] border px-4 py-3 backdrop-blur-xl",
-          "shadow-[0_8px_24px_-8px_rgba(31,26,35,0.28),0_24px_60px_-24px_rgba(129,39,207,0.55)]",
+          "shadow-[0_8px_24px_-8px_rgba(120,70,180,0.28),0_24px_60px_-24px_rgba(129,39,207,0.55)]",
           blocked
             ? "border-rose-200 bg-rose-50/95"
             : "border-primary/20 bg-ink-strong/95",
@@ -123,28 +124,32 @@ export function StickySaveBar({
         {children}
 
         {onReset && dirtyCount > 0 ? (
+          <Tooltip content="Discard every change made since this sheet was loaded">
           <Button variant="outline" size="sm"
             type="button"
             onClick={onReset}
             disabled={saving}
-            title="Discard every change made since this sheet was loaded"
             className="inline-flex justify-start items-center gap-1.5 focus-on-dark"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Discard
           </Button>
+          </Tooltip>
         ) : null}
 
+        <Tooltip content={blocked ? blockedReason || "Fix the highlighted cells to save" : `${saveLabel} (⌘S)`}>
+        <span tabIndex={saving || blocked ? 0 : undefined} className="inline-flex">
         <Button variant="default" size="sm"
           type="button"
           onClick={onSave}
           disabled={saving || blocked}
-          title={blocked ? blockedReason : `${saveLabel} (⌘S)`}
           className="inline-flex min-w-[132px] items-center justify-center gap-2 focus-on-dark"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {saving ? savingLabel : saveLabel}
         </Button>
+        </span>
+        </Tooltip>
       </div>
     </div>
   );

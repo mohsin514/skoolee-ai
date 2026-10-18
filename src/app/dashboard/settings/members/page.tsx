@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
-import { Card, CardContent } from "@/components/ui/card";
-import { Users } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { buttonVariants } from "@/components/ui/button";
+import { Network, Users } from "lucide-react";
 
 export default function MembersPage() {
   return (
@@ -12,22 +15,19 @@ export default function MembersPage() {
         description="Manage school staff, teachers, and administrators"
       />
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-        <Card className="sk-rise group relative max-w-3xl border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "0ms" }}>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="relative mb-5">
-              <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-primary/18" />
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-brand-50 text-primary shadow-inner">
-                <Users className="h-8 w-8" />
-              </div>
-            </div>
-            <h2 className="text-xl font-bold text-ink-strong">
-              Member tools are moving to custom auth
-            </h2>
-            <p className="mt-2 max-w-md text-sm font-medium leading-relaxed text-ink-muted">
-              Staff, teacher, and administrator access will live here once the custom auth engine migration is complete.
-            </p>
-          </CardContent>
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
+        <Card className="sk-enter max-w-3xl">
+          <EmptyState
+            icon={Users}
+            title="Member tools are moving to custom auth"
+            description="Staff, teacher, and administrator access will live here once the custom auth engine migration is complete. Until then, the staff hierarchy shows who reports to whom."
+            action={
+              <Link href="/dashboard/staff-hierarchy" className={buttonVariants({ variant: "outline" })}>
+                <Network aria-hidden="true" />
+                Open Staff Hierarchy
+              </Link>
+            }
+          />
         </Card>
       </div>
     </div>

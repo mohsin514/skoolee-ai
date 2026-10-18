@@ -208,7 +208,7 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
               </> : relation.status === "SUSPENDED" ? <Button variant="outline" type="button" disabled={busy} onClick={() => beginEdit(relation, "ACTIVE")} >{t.resume}</Button> : null}
             </div>
             <details className="mt-4 border-t border-slate-100 pt-3">
-              <summary className="cursor-pointer text-sm font-semibold text-[#5e277f]">{t.history}</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-primary">{t.history}</summary>
               <ol className="mt-3 space-y-2 text-xs text-ink-muted">
                 {relation.events.length ? relation.events.map((event) => <li key={event.id} className="border-s border-slate-200 ps-3"><span className="font-semibold text-ink-strong">{event.action}</span> · {event.reason}<br /><span dir="ltr">{new Date(event.createdAt).toLocaleString(locale)}</span> · {event.actorName}</li>) : <li>{t.none}</li>}
               </ol>

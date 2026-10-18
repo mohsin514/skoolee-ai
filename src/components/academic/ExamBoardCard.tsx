@@ -32,6 +32,11 @@ import {
   type ScheduleSummary,
 } from "@/lib/academic/exam-pipeline";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /**
  * Where opening an exam should land.
@@ -122,11 +127,11 @@ export function ExamBoardCard({
         }
       }}
       className={cn(
-        "group relative rounded-2xl border bg-white shadow-sm outline-none transition-all",
+        "group relative rounded-2xl border bg-card shadow-sm outline-none transition-all",
         compact ? "p-3" : "p-4",
         dragging
           ? "scale-[0.98] rotate-[0.6deg] border-primary/40 opacity-50"
-          : "hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(129,39,207,0.18)]",
+          : "hover:border-primary/25 hover:shadow-lg",
         selected ? "border-primary ring-2 ring-primary/20" : "border-edge/15",
       )}
     >
@@ -134,7 +139,7 @@ export function ExamBoardCard({
           while it is mid-drag over another column. */}
       <span
         aria-hidden
-        className="absolute left-0 top-4 h-8 w-1 rounded-r-full"
+        className="absolute start-0 top-4 h-8 w-1 rounded-e-full"
         style={{ backgroundColor: accent }}
       />
 
@@ -160,16 +165,18 @@ export function ExamBoardCard({
           <Button variant="ghost"
             type="button"
             onClick={() => onOpen()}
-            className="min-w-0 text-left leading-tight"
+            className="min-w-0 text-start text-sm font-semibold leading-tight text-ink-strong"
           >
             {exam.title}
           </Button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {flagged ? (
-            <span title="Needs your attention" className="text-amber-500">
-              <TriangleAlert className="h-3.5 w-3.5" />
-            </span>
+            <Tooltip content="Needs your attention">
+              <span tabIndex={0} aria-label="Needs your attention" className="text-status-warning-text">
+                <TriangleAlert aria-hidden="true" className="h-3.5 w-3.5" />
+              </span>
+            </Tooltip>
           ) : null}
           <StatusPill status={exam.status} />
           <CardMenu exam={exam} role={role} hasSchedule={hasSchedule} meta={meta} onOpen={onOpen} onMove={onMove} />
@@ -177,24 +184,24 @@ export function ExamBoardCard({
       </div>
 
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
+        <Badge variant="default" size="sm">
           {EXAM_TYPE_LABELS[exam.examType as ExamType] ||
             exam.examType?.replaceAll("_", " ") ||
             "Exam"}
-        </span>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-bold text-ink-muted">
+        </Badge>
+        <Badge variant="neutral" size="sm">
           {classLabel(exam.class)}
-        </span>
+        </Badge>
         {dateRange ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-2xs font-bold text-teal-700">
-            <CalendarDays className="h-2.5 w-2.5" />
+          <Badge variant="info" size="sm" className="tabular-nums">
+            <CalendarDays aria-hidden="true" className="h-3 w-3" />
             {dateRange}
-          </span>
+          </Badge>
         ) : null}
       </div>
 
       {!compact ? (
-        <p className="mb-3 text-2xs font-semibold text-ink-muted">
+        <p className="mb-3 text-xs text-ink-subtle">
           {exam.subject ? exam.subject.name : "All subjects"}
           {meta?.subjectsCount
             ? ` · ${meta.subjectsCount} subject${meta.subjectsCount > 1 ? "s" : ""}`
@@ -205,31 +212,26 @@ export function ExamBoardCard({
 
       {meta && meta.expectedMarks > 0 ? (
         <div className="mb-3">
-          <div className="mb-1 flex items-center justify-between text-2xs font-bold">
+          <div aria-hidden="true" className="mb-1 flex items-center justify-between text-2xs font-semibold">
             <span className="text-ink-muted">Marks entered</span>
-            <span className="text-ink">
+            <span className="tabular-nums text-ink">
               {meta.enteredMarks}/{meta.expectedMarks} · {pct}%
             </span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${pct}%`, backgroundColor: accent }}
-            />
-          </div>
+          <Progress value={pct} max={100} label="Marks entered" size="sm" tone={pct === 100 ? "success" : "brand"} />
         </div>
       ) : null}
 
       {exam.rejectionReason ? (
-        <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-rose-600">
-            Sent back
-            {exam.rejectionCount && exam.rejectionCount > 1 ? ` · ${exam.rejectionCount} times` : ""}
-          </p>
-          <p className="mt-0.5 text-2xs font-semibold leading-relaxed text-rose-700">
-            {exam.rejectionReason}
-          </p>
-        </div>
+        <Alert
+          tone="danger"
+          compact
+          live="off"
+          className="mb-3"
+          title={`Sent back${exam.rejectionCount && exam.rejectionCount > 1 ? ` · ${exam.rejectionCount} times` : ""}`}
+        >
+          {exam.rejectionReason}
+        </Alert>
       ) : null}
 
       {action ? (
@@ -249,8 +251,8 @@ export function ExamBoardCard({
           {action.label}
         </Button>
       ) : (
-        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-2 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-          <CheckCircle2 className="h-3.5 w-3.5" /> Complete
+        <div className="flex items-center justify-center gap-1.5 rounded-xl bg-status-success-surface py-2 text-xs font-semibold text-status-success-text">
+          <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" /> Complete
         </div>
       )}
 
@@ -319,17 +321,17 @@ function CardMenu({
 
   return (
     <div ref={ref} className="relative">
-      <Button variant="secondary" size="icon"
-        type="button"
-        aria-label={`Actions for ${exam.title}`}
+      <IconButton
+        variant="ghost"
+        size="sm"
+        label={`Actions for ${exam.title}`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-center"
       >
-        <MoreVertical className="h-3.5 w-3.5" />
-      </Button>
+        <MoreVertical aria-hidden="true" className="h-3.5 w-3.5" />
+      </IconButton>
       {open ? (
-        <div className="sk-panel absolute right-0 top-7 z-30 w-56 overflow-hidden p-1.5">
+        <div className="sk-panel absolute end-0 top-9 z-30 w-56 max-w-[calc(100vw-2rem)] shadow-lg overflow-hidden p-1.5">
           {tabs.map((t) => {
             const Icon = t.icon;
             return (
@@ -340,9 +342,9 @@ function CardMenu({
                   setOpen(false);
                   onOpen(t.tab);
                 }}
-                className="justify-start flex w-full items-center gap-2 px-3 py-2 text-left"
+                className="flex w-full items-center justify-start gap-2 px-3 py-2 text-start"
               >
-                <Icon className="h-3.5 w-3.5 text-primary" />
+                <Icon aria-hidden="true" className="h-3.5 w-3.5 text-primary" />
                 {t.label}
               </Button>
             );
@@ -364,18 +366,17 @@ function CardMenu({
                   onMove(col.key);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-2 px-3 py-2 text-left",
-                  "",
+                  "flex w-full items-center justify-between gap-2 px-3 py-2 text-start",
                 )}
               >
                 <span className="flex items-center gap-2">
                   <span
                     className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: verdict.ok ? col.accent : "#cfc2d6" }}
+                    style={{ backgroundColor: verdict.ok ? col.accent : "var(--ink-faint)" }}
                   />
                   {col.title}
                 </span>
-                {verdict.ok ? <ChevronRight className="h-3.5 w-3.5 text-ink-subtle" /> : null}
+                {verdict.ok ? <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-ink-subtle rtl:rotate-180" /> : null}
               </Button>
             );
           })}

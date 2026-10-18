@@ -5,6 +5,9 @@ import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { FormField, FormErrorSummary } from "@/components/ui/form-field";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
+import { Alert } from "@/components/ui/alert";
+import { IconButton } from "@/components/ui/icon-button";
+import { Tooltip } from "@/components/ui/tooltip";
 
 
 import { useState, useMemo, useCallback, useEffect, useRef, useId } from "react";
@@ -16,6 +19,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Delete,
   GraduationCap,
   Heart,
   Keyboard,
@@ -222,59 +226,55 @@ function UrduInput({
           lang="ur"
           className={"flex-1"}
         />
-        <Button aria-label="Urdu keyboard" aria-pressed={showKeyboard} variant="choice"
-          type="button"
-          className="shrink-0"
+        <IconButton label="Urdu keyboard" aria-expanded={showKeyboard} variant="choice"
           onClick={() => setShowKeyboard(!showKeyboard)}
-          title="Urdu keyboard"
         >
-          <Keyboard className="h-4 w-4" />
-        </Button>
+          <Keyboard aria-hidden="true" />
+        </IconButton>
       </div>
 
       {showKeyboard && (
-        <div className="sk-panel absolute left-0 right-0 top-full z-50 mt-1.5 p-2.5">
-          <div className="mb-1.5 flex items-center justify-between px-1">
-            <span className="text-2xs font-bold text-ink-muted">اردو کی بورڈ</span>
-            <Button aria-label="Close Urdu keyboard" size="icon" variant="ghost"
-              type="button"
-
-              onClick={() => setShowKeyboard(false)}
-            >
-              <X className="h-3 w-3" />
-            </Button>
+        <div className="sk-panel sk-enter-scale absolute inset-x-0 top-full z-50 mt-1.5 p-2.5 shadow-lg">
+          <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+            <span lang="ur" className="text-xs font-semibold text-ink-muted">اردو کی بورڈ</span>
+            <IconButton label="Close Urdu keyboard" onClick={() => setShowKeyboard(false)}>
+              <X aria-hidden="true" />
+            </IconButton>
           </div>
-          {URDU_KEYS.map((row, ri) => (
-            <div key={ri} className="flex gap-0.5 mb-0.5">
-              {row.map((char, ci) => (
-                <Button variant="secondary"
-                  key={ci}
-                  type="button"
-                  className="min-w-0 flex-1 px-1"
-                  onClick={() => {
-                    onChange(value + char);
-                  }}
-                >
-                  {char === " " ? "Space" : char}
-                </Button>
-              ))}
+          <div dir="rtl" lang="ur">
+            {URDU_KEYS.map((row, ri) => (
+              <div key={ri} className="mb-0.5 flex gap-0.5">
+                {row.map((char, ci) => (
+                  <Button variant="secondary"
+                    key={ci}
+                    type="button"
+                    className="min-w-0 flex-1 px-1 text-base"
+                    onClick={() => {
+                      onChange(value + char);
+                    }}
+                  >
+                    {char === " " ? <span lang="en" className="text-xs">Space</span> : char}
+                  </Button>
+                ))}
+              </div>
+            ))}
+            <div className="mt-0.5 flex gap-0.5">
+              <Button variant="secondary"
+                type="button"
+                className="min-w-0 flex-1 px-1"
+                onClick={() => onChange(value.slice(0, -1))}
+              >
+                <Delete aria-hidden="true" className="rtl:rotate-180" />
+                <span lang="en">Backspace</span>
+              </Button>
+              <Button variant="secondary"
+                type="button"
+                className="min-w-0 flex-1 px-1"
+                onClick={() => onChange("")}
+              >
+                <span lang="en">Clear</span>
+              </Button>
             </div>
-          ))}
-          <div className="mt-0.5 flex gap-0.5">
-            <Button variant="secondary"
-              type="button"
-              className="min-w-0 flex-1 px-1"
-              onClick={() => onChange(value.slice(0, -1))}
-            >
-              ← Backspace
-            </Button>
-            <Button variant="secondary"
-              type="button"
-              className="min-w-0 flex-1 px-1"
-              onClick={() => onChange("")}
-            >
-              Clear
-            </Button>
           </div>
         </div>
       )}
@@ -472,7 +472,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
 
   const handleSubmit = async () => {
     if (!validateStep(0) || !validateStep(1) || !validateStep(2)) {
-      toast.error("Please fix errors in the form before submitting");
+      toast.error("Some required details are missing. Fix the highlighted fields, then submit again.");
       return;
     }
 
@@ -494,7 +494,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       });
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || "Could not add student");
+      if (!res.ok) throw new Error(data.error || "Could not add the student. Please try again.");
 
       draft.markSaved();
       toast.success(data.message || "Student added successfully");
@@ -508,7 +508,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
 
       onSuccess?.(data.data);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add student");
+      toast.error(error instanceof Error ? error.message : "Could not add the student. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -599,14 +599,14 @@ function StepPersonalInfo({
     <div className="space-y-5">
       <FormSection icon={User} title="Identity" hint="The student's name as it should appear on records and report cards.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup name="fullName" label="Full Name (English) *" error={errors.fullName}>
+        <FieldGroup name="fullName" label="Full Name (English)" required error={errors.fullName}>
           <Input
             value={form.fullName}
             onChange={(e) => onUpdate("fullName", e.target.value)}
             placeholder="Ali Ahmed Khan"
           />
         </FieldGroup>
-        <FieldGroup label="Full Name (Urdu)" hint="Auto-generated from English name">
+        <FieldGroup label="Full Name (Urdu)" hint="Filled in from the English name as you type. Check the spelling.">
           <UrduInput
             value={form.nameUr}
             onChange={(val) => onUpdate("nameUr", val)}
@@ -617,7 +617,7 @@ function StepPersonalInfo({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <FieldGroup label="Gender">
-          <div className="flex gap-2">
+          <div role="group" aria-label="Gender" className="flex gap-2">
             {(["MALE", "FEMALE", "OTHER"] as const).map((g) => (
               <Button aria-pressed={form.gender === g} variant="choice"
                 key={g}
@@ -634,7 +634,7 @@ function StepPersonalInfo({
           name="dateOfBirth"
           label="Date of Birth"
           error={errors.dateOfBirth}
-          hint={age !== null ? `Age: ${age} years old` : undefined}
+          hint={age !== null ? `Age: ${age} years old` : "The student must be at least 3 years old."}
         >
           <Input
             type="date"
@@ -660,7 +660,7 @@ function StepPersonalInfo({
 
       <FormSection icon={GraduationCap} title="Placement" hint="Which class the student joins, and the roll number they are given.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup name="classId" label="Class *" error={errors.classId}>
+        <FieldGroup name="classId" label="Class" required error={errors.classId}>
           <Select
             value={selectedGroupKey}
             onChange={(e) => onSelectClassGroup(e.target.value)}
@@ -673,7 +673,7 @@ function StepPersonalInfo({
             ))}
           </Select>
         </FieldGroup>
-        <FieldGroup label="Section *">
+        <FieldGroup label="Section" required>
           <Select
             value={form.classId}
             onChange={(e) => onUpdate("classId", e.target.value)}
@@ -689,7 +689,7 @@ function StepPersonalInfo({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup name="rollNo" label="Roll Number *" error={errors.rollNo} hint="Auto-generated, unique across campus">
+        <FieldGroup name="rollNo" label="Roll Number" required error={errors.rollNo} hint="Auto-generated, unique across campus">
           <InputGroup className="relative">
             <Input
               value={form.rollNo}
@@ -697,18 +697,20 @@ function StepPersonalInfo({
               placeholder="NUR-Y-001"
 
             />
-            <FieldAction   data-field-affix="end"
-              type="button"
-
-              onClick={onRegenerateRollNo}
-              title="Regenerate roll number"
-            >
-              {rollNoLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-            </FieldAction>
+            <Tooltip content="Regenerate roll number" describe={false}>
+              <FieldAction   data-field-affix="end"
+                type="button"
+                aria-label="Regenerate roll number"
+                aria-busy={rollNoLoading || undefined}
+                onClick={onRegenerateRollNo}
+              >
+                {rollNoLoading ? (
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw aria-hidden="true" className="h-4 w-4" />
+                )}
+              </FieldAction>
+            </Tooltip>
           </InputGroup>
         </FieldGroup>
         <FieldGroup label="Previous School">
@@ -874,20 +876,20 @@ function GuardianPicker({
   }, [search]);
 
   return (
-    <div className="rounded-2xl border border-primary/20 bg-brand-50/50 p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <UserCheck className="h-4 w-4 shrink-0 text-primary" />
-        <p className="text-xs font-bold text-ink-strong">
+    <div className="rounded-2xl border border-status-brand-border bg-status-brand-surface p-4 shadow-xs">
+      <div className="mb-1 flex items-center gap-2">
+        <UserCheck aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
+        <p className="text-sm font-semibold text-ink-strong">
           Already have a guardian at this school?
         </p>
       </div>
-      <p className="mb-3 text-2xs font-semibold leading-relaxed text-ink-muted">
+      <p className="mb-3 text-xs leading-relaxed text-ink-muted">
         Search by name, phone or email to reuse their details and link this student
         to their brothers and sisters.
       </p>
 
-      <InputGroup className="relative">
-        <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+      <InputGroup>
+        <Search data-field-affix="start" aria-hidden="true" className="pointer-events-none h-4 w-4 text-ink-subtle" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -896,14 +898,14 @@ function GuardianPicker({
           aria-label="Search existing guardians"
         />
         {loading ? (
-          <Loader2 data-field-affix="end" className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />
+          <Loader2 data-field-affix="end" aria-hidden="true" className="h-4 w-4 animate-spin text-primary" />
         ) : null}
       </InputGroup>
 
       {open && search.trim().length >= 2 ? (
         <div className="mt-3 space-y-2">
           {results.length === 0 && !loading ? (
-            <p className="px-1 text-2xs font-bold text-ink-muted">
+            <p role="status" className="px-1 text-xs font-medium leading-relaxed text-ink-muted">
               No existing guardian matches that. Fill the fields below to add a new one.
             </p>
           ) : null}
@@ -919,16 +921,16 @@ function GuardianPicker({
               }}
               className="block w-full p-3 text-start"
             >
-              <p className="truncate text-xs font-bold text-ink-strong">{parent.fullName}</p>
-              <p className="truncate text-2xs font-semibold text-ink-muted">
+              <span className="block truncate text-sm font-semibold text-ink-strong">{parent.fullName}</span>
+              <span className="block truncate text-xs font-normal text-ink-muted">
                 {[parent.phone, parent.email].filter(Boolean).join(" · ") || "No contact details"}
-              </p>
+              </span>
               {parent.parentedStudents.length > 0 ? (
-                <p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-primary">
+                <span className="mt-1 block truncate text-xs font-medium text-primary">
                   {parent.parentedStudents
                     .map((c) => `${c.fullName}${c.class ? ` (${c.class.name}${c.class.section ? ` ${c.class.section}` : ""})` : ""}`)
                     .join(" · ")}
-                </p>
+                </span>
               ) : null}
             </Button>
           ))}
@@ -983,7 +985,7 @@ function StepGuardianDetails({
             placeholder="Ahmed Khan"
           />
         </FieldGroup>
-        <FieldGroup label="Guardian Full Name (Urdu)" hint="Auto-generated from English name">
+        <FieldGroup label="Guardian Full Name (Urdu)" hint="Filled in from the English name as you type. Check the spelling.">
           <UrduInput
             value={form.guardianNameUr}
             onChange={(val) => onUpdate("guardianNameUr", val)}
@@ -1019,7 +1021,7 @@ function StepGuardianDetails({
 
       <FormSection icon={MapPin} title="How to reach them" hint="Used for fee reminders, attendance alerts and the parent portal invite.">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup name="guardianPhone" label="Guardian Phone (WhatsApp) *" error={errors.guardianPhone}>
+        <FieldGroup name="guardianPhone" label="Guardian Phone (WhatsApp)" required error={errors.guardianPhone}>
           <Input
             type="tel"
             value={form.guardianPhone}
@@ -1037,7 +1039,13 @@ function StepGuardianDetails({
         </FieldGroup>
       </div>
 
-      <FieldGroup name="guardianEmail" label="Guardian Email" error={errors.guardianEmail} hint="Sends a parent portal invite">
+      <FieldGroup
+        name="guardianEmail"
+        label="Guardian Email"
+        error={errors.guardianEmail}
+        hint="Sends a parent portal invite"
+        tooltip="The parent portal groups brothers and sisters by this email. Use the same address for each child."
+      >
         <Input
           type="email"
           value={form.guardianEmail}
@@ -1065,7 +1073,7 @@ function StepAddressMedical({
     <div className="space-y-5">
       <FormSection icon={MapPin} title="Address" hint="Where the student lives. Printed on official records. This information is required.">
         <>
-          <FieldGroup name="address" label="Street Address *" error={errors.address}>
+          <FieldGroup name="address" label="Street Address" required error={errors.address}>
             <Input
               value={form.address}
               onChange={(e) => onUpdate("address", e.target.value)}
@@ -1073,7 +1081,7 @@ function StepAddressMedical({
             />
           </FieldGroup>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <FieldGroup name="city" label="City *" error={errors.city}>
+            <FieldGroup name="city" label="City" required error={errors.city}>
               <Input
                 value={form.city}
                 onChange={(e) => onUpdate("city", e.target.value)}
@@ -1110,7 +1118,7 @@ function StepAddressMedical({
         hint="Anything staff must know in an emergency. Visible to teachers and the school office. This information is required."
       >
         <>
-          <FieldGroup name="medicalNotes" label="Medical Notes *" error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
+          <FieldGroup name="medicalNotes" label="Medical Notes" required error={errors.medicalNotes} hint="Enter details or write 'None' if not applicable">
             <Textarea
               value={form.medicalNotes}
               onChange={(e) => onUpdate("medicalNotes", e.target.value)}
@@ -1180,8 +1188,8 @@ function StepReview({
           .filter(Boolean)
           .join(" · ")}
       />
-      <p className="px-1 text-xs font-semibold text-ink-muted">
-        Check each section below. Anything wrong can be corrected with <b>Edit</b> — after submitting, changes are
+      <p className="px-1 text-sm leading-relaxed text-ink-muted">
+        Check each section below. Anything wrong can be corrected with <span className="font-semibold text-ink">Edit</span> — after submitting, changes are
         made from the student&apos;s profile.
       </p>
 
@@ -1249,7 +1257,7 @@ function StepReview({
             )}
           </>
         ) : (
-          <p className="text-sm text-ink-subtle">No guardian details provided</p>
+          <p className="col-span-2 text-sm text-ink-subtle">No guardian details provided</p>
         )}
       </ReviewSection>
 
@@ -1267,12 +1275,12 @@ function StepReview({
             required={!!(form.address && form.city)}
           />
         ) : (
-          <p className="text-sm text-rose-500 font-semibold">⚠️ Address is required - please go back and fill it in</p>
+          <Alert tone="danger" compact live="off" className="col-span-2" title="Address is required. Use Edit to go back and fill it in." />
         )}
         {form.medicalNotes ? (
           <ReviewRow label="Medical Notes" value={form.medicalNotes} required />
         ) : (
-          <p className="text-sm text-rose-500 font-semibold">⚠️ Medical notes are required - please go back and fill them in</p>
+          <Alert tone="danger" compact live="off" className="col-span-2" title="Medical notes are required. Use Edit to go back and fill them in." />
         )}
         {form.allergies && <ReviewRow label="Allergies" value={form.allergies} />}
         {form.specialNeeds && <ReviewRow label="Special Needs" value={form.specialNeeds} />}
@@ -1290,15 +1298,27 @@ function FieldGroup({
   label,
   error,
   hint,
+  description,
+  tooltip,
+  required,
   children,
 }: {
   name?: string;
   label: string;
   error?: string;
-  hint?: string;
+  hint?: React.ReactNode;
+  /** What the field is for, read before the control. */
+  description?: React.ReactNode;
+  /** Background behind an (i) next to the label. */
+  tooltip?: React.ReactNode;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   const generatedName = useId();
   const name = suppliedName ?? generatedName;
-  return <FormField name={name} label={label} error={error} hint={hint}>{children}</FormField>;
+  return (
+    <FormField name={name} label={label} error={error} hint={hint} description={description} tooltip={tooltip} required={required}>
+      {children}
+    </FormField>
+  );
 }

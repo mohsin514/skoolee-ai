@@ -2,15 +2,33 @@
 
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Download, FileText, Loader2 } from "lucide-react";
+import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Download, FileText } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { FamilyPortfolio } from "@/components/portfolio/portfolio";
 import { toast } from "@/components/ui/toast";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
 import { downloadPdfFile } from "@/lib/download";
 
 export const dynamic = "force-dynamic";
+
+// The report card's own language decides these labels, not the reader's, so
+// they sit beside the authored text they introduce.
+const REPORT_COPY = {
+  published: { en: "Published version", ar: "النسخة المنشورة", ur: "شائع شدہ نسخہ" },
+  correction: { en: "Correction", ar: "تصحيح", ur: "تصحیح" },
+} as const;
+
+function reportCopy(key: keyof typeof REPORT_COPY, language: unknown) {
+  return language === "ar" ? REPORT_COPY[key].ar : language === "ur" ? REPORT_COPY[key].ur : REPORT_COPY[key].en;
+}
+
+function scoreVariant(pct: number) {
+  return pct >= 80 ? "success" : pct >= 60 ? "warning" : "danger";
+}
 
 export default function ParentResultsPage() {
   const { data, loading, error, refetch, token, selectedStudentId } = useParentData();
@@ -23,7 +41,7 @@ export default function ParentResultsPage() {
     try {
       await downloadPdfFile(rc.pdfUrl, `report-card-${rc.examTitle.replace(/[^a-z0-9]+/gi, "-") || "report-card"}.pdf`);
     } catch {
-      toast.error("Failed to download report card");
+      toast.error("Could not download this report card. Please try again.");
     } finally {
       setDownloadingId(null);
     }
@@ -56,44 +74,51 @@ export default function ParentResultsPage() {
               <ParentStat icon={CheckCircle2} label="Published" value={publishedCount} sub={reportCards.length - publishedCount ? `${reportCards.length - publishedCount} pending release` : "All released"} tone="violet" />
             </div>
 
-            <div className="space-y-3">
-              {reportCards.map((rc: any, index: number) => {
+            <div className="sk-stagger space-y-3">
+              {reportCards.map((rc: any) => {
                 const pct = Math.round(rc.percentage);
-                const scoreColor = pct >= 80 ? "text-emerald-600 bg-emerald-50" : pct >= 60 ? "text-amber-600 bg-amber-50" : "text-rose-600 bg-rose-50";
+                const downloading = downloadingId === rc.id;
+                const remarks = rc.language === "ar" ? rc.remarksAr : rc.language === "ur" ? rc.remarksUr : rc.remarksEn;
                 return (
-                  <div key={rc.id} className="sk-panel sk-rise group relative p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${index * 80}ms` }}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-2xs font-semibold text-ink-subtle uppercase">{rc.term} {rc.academicYear}</p>
-                        <h3 className="text-base font-bold text-ink-strong mt-0.5 transition-colors group-hover:text-primary">{rc.examTitle}</h3>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-2xs font-bold px-2 py-0.5 rounded-lg ${scoreColor}`}>{pct}%</span>
-                          <span className="text-2xs font-bold text-ink-subtle">Grade: {rc.grade || "N/A"}</span>
-                          {rc.rank && <span className="text-2xs font-bold text-ink-subtle">Rank: #{rc.rank}</span>}
+                  <div key={rc.id} className="sk-panel relative min-w-0 p-4 transition-[border-color,box-shadow] duration-200 hover:border-primary/25 hover:shadow-md">
+                    <div className="flex min-w-0 items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="sk-eyebrow [overflow-wrap:anywhere]">{rc.term} {rc.academicYear}</p>
+                        <h3 className="mt-0.5 text-base font-bold text-ink-strong [overflow-wrap:anywhere]">{rc.examTitle}</h3>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                          <Badge variant={scoreVariant(pct)} size="sm" data-numeric className="tabular-nums">{pct}%</Badge>
+                          <span className="text-xs font-medium text-ink-muted">Grade: {rc.grade || "N/A"}</span>
+                          {rc.rank && <span className="text-xs font-medium tabular-nums text-ink-muted">Rank: #{rc.rank}</span>}
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-2xl font-bold text-primary">{rc.obtainedMarks}<span className="text-sm font-bold text-ink-subtle">/{rc.totalMarks}</span></p>
+                      <div className="shrink-0 text-end">
+                        <p className="text-2xl font-bold tabular-nums text-primary">{rc.obtainedMarks}<span className="text-sm font-semibold text-ink-subtle">/{rc.totalMarks}</span></p>
                       </div>
                     </div>
 
-                    <p className="mt-3 text-sm" dir="auto">{rc.language === "ar" ? "النسخة المنشورة" : rc.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi>v{rc.version}</bdi></p>
-                    {rc.correctionReason && <p className="mt-2 rounded border p-3 text-sm" dir="auto">{rc.language === "ar" ? "تصحيح:" : rc.language === "ur" ? "تصحیح:" : "Correction:"} {rc.correctionReason}</p>}
+                    <p className="mt-3 text-xs text-ink-subtle" dir="auto">{reportCopy("published", rc.language)} <bdi>v{rc.version}</bdi></p>
+                    {rc.correctionReason && (
+                      <Alert tone="info" live="off" compact className="mt-2" dir="auto" title={reportCopy("correction", rc.language)}>
+                        {rc.correctionReason}
+                      </Alert>
+                    )}
                     {(rc.remarksEn || rc.remarksAr || rc.remarksUr) && (
-                      <div className="mt-3 p-3 rounded-xl bg-brand-50/30 border border-edge/5">
-                        <p className="text-2xs font-semibold text-ink-subtle uppercase mb-1">Teacher Remarks</p>
-                        <p className="text-xs text-ink leading-relaxed">{rc.language === "ar" ? rc.remarksAr : rc.language === "ur" ? rc.remarksUr : rc.remarksEn}</p>
+                      <div className="mt-3 rounded-xl border border-border-subtle bg-surface-subtle p-3">
+                        <p className="sk-eyebrow mb-1">Teacher Remarks</p>
+                        <p className="text-sm leading-relaxed text-ink" dir="auto">{remarks}</p>
                       </div>
                     )}
 
                     {rc.pdfUrl && (
-                      <Button variant="ghost"
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleDownloadPdf(rc)}
-                        disabled={downloadingId === rc.id}
-                        className="justify-start mt-3 inline-flex items-center gap-1.5"
+                        loading={downloading}
+                        className="mt-3"
                       >
-                        {downloadingId === rc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                        {downloadingId === rc.id ? "Downloading..." : "Download PDF"}
+                        {downloading ? null : <Download aria-hidden="true" />}
+                        Download PDF
                       </Button>
                     )}
                   </div>
@@ -104,44 +129,52 @@ export default function ParentResultsPage() {
             {marksByExam.length > 0 && (
               <div>
                 <div className="mb-3 flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+                  <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                     <BookOpen className="h-4 w-4" />
                   </span>
-                  <h3 className="text-sm font-bold tracking-tight text-ink-strong">Subject-wise Marks</h3>
+                  <h3 className="text-base font-bold text-ink-strong">Subject-wise Marks</h3>
                 </div>
-                <div className="space-y-3">
-                  {marksByExam.map((exam: any, index: number) => {
+                <div className="sk-stagger space-y-3">
+                  {marksByExam.map((exam: any) => {
                     const isExpanded = expandedExam === exam.examId;
                     return (
-                      <div key={exam.examId} className="sk-panel sk-rise overflow-hidden transition-all duration-200 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${(index + 1) * 80}ms` }}>
-                        <Button variant="secondary"
-                          type="button"
-                          onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
-                          aria-expanded={isExpanded}
-                          aria-controls={`exam-marks-${exam.examId}`}
-                          className="flex w-full items-center justify-between gap-3 p-4"
-                        >
-                          <div className="text-left">
-                            <p className="text-2xs font-semibold text-ink-subtle uppercase">{exam.term}</p>
-                            <h3 className="text-sm font-bold text-ink-strong">{exam.examTitle}</h3>
-                            <p className="text-2xs font-semibold text-ink-subtle mt-0.5">{exam.marks.length} subjects</p>
-                          </div>
-                          {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-primary" /> : <ChevronDown className="h-4 w-4 shrink-0 text-ink-subtle" />}
-                        </Button>
+                      <div key={exam.examId} className="sk-panel overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-primary/25 hover:shadow-md">
+                        <h4>
+                          <Button variant="ghost"
+                            type="button"
+                            onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
+                            aria-expanded={isExpanded}
+                            aria-controls={`exam-marks-${exam.examId}`}
+                            className="flex h-auto w-full items-center justify-between gap-3 rounded-none p-4 text-start"
+                          >
+                            <span className="block min-w-0">
+                              <span className="sk-eyebrow block [overflow-wrap:anywhere]">{exam.term}</span>
+                              <span className="block text-sm font-bold text-ink-strong [overflow-wrap:anywhere]">{exam.examTitle}</span>
+                              <span className="mt-0.5 block text-xs font-medium text-ink-subtle">{exam.marks.length} subjects</span>
+                            </span>
+                            {isExpanded ? <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" /> : <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle" />}
+                          </Button>
+                        </h4>
                         {isExpanded && (
-                          <div id={`exam-marks-${exam.examId}`} className="border-t border-muted px-4 pb-4">
-                            <div className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 text-2xs font-semibold uppercase text-ink-subtle">
-                              <span>Subject</span>
-                              <span className="text-right">Marks</span>
-                              <span className="text-right">Grade</span>
-                            </div>
-                            {exam.marks.map((m: any) => (
-                              <div key={m.subject} className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 border-t border-muted/50">
-                                <span className="text-xs font-semibold text-ink-strong">{m.subject}</span>
-                                <span className="text-xs font-bold text-ink-muted text-right">{m.obtained}/{m.total}</span>
-                                <span className="text-xs font-bold text-primary text-right">{m.grade || "-"}</span>
-                              </div>
-                            ))}
+                          <div id={`exam-marks-${exam.examId}`} className="border-t border-border-subtle">
+                            <Table containerClassName="rounded-none border-0">
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Subject</TableHead>
+                                  <TableHead className="text-end">Marks</TableHead>
+                                  <TableHead className="text-end">Grade</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {exam.marks.map((m: any) => (
+                                  <TableRow key={m.subject}>
+                                    <TableCell className="py-3 font-medium text-ink-strong [overflow-wrap:anywhere]">{m.subject}</TableCell>
+                                    <TableCell className="py-3 text-end font-semibold tabular-nums text-ink-muted">{m.obtained}/{m.total}</TableCell>
+                                    <TableCell className="py-3 text-end font-semibold text-primary">{m.grade || "-"}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           </div>
                         )}
                       </div>
@@ -158,4 +191,3 @@ export default function ParentResultsPage() {
     </ParentPage>
   );
 }
-

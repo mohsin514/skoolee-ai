@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { ArrowRight, Languages, ShieldCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Header } from "@/components/layout/header";
 import { EditableProfileCard } from "@/components/profile/editable-profile-card";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
@@ -19,6 +21,11 @@ const SHORTCUTS: { section: SettingsSection; icon: typeof Languages; label: stri
   { section: "security", icon: ShieldCheck, label: "Security & sign-in", hint: "Password, two-factor and signed-in devices." },
 ];
 
+/** Account details only the campus administrator can change. */
+const PROTECTED_FIELDS = ["Role", "Email", "Permissions"];
+
+const delay = (ms: number) => ({ "--sk-delay": `${ms}ms` }) as CSSProperties;
+
 export default function SettingsPage() {
   // Learned from the profile the card already loads, rather than a second fetch.
   const [role, setRole] = useState<string | null>(null);
@@ -26,56 +33,53 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Account Settings" description="Update your profile photo, display name, and contact details." />
+      <Header title={t("Account Settings")} description={t("Update your profile photo, display name, and contact details.")} />
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-        <div className="grid max-w-6xl grid-cols-1 gap-6 xl:grid-cols-[1fr_340px]">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
+        <div className="grid max-w-6xl grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <EditableProfileCard onSaved={(profile) => setRole(profile.role ?? null)} />
 
-          <aside className="space-y-4">
-            <section aria-labelledby="settings-shortcuts-heading" className="sk-rise rounded-[32px] border border-edge/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+          <aside className="min-w-0 space-y-4">
+            <section aria-labelledby="settings-shortcuts-heading" className="sk-panel sk-enter p-5 sm:p-6" style={delay(80)}>
               <h2 id="settings-shortcuts-heading" className="text-lg font-bold tracking-tight text-ink-strong">{t("Settings")}</h2>
-              <p className="mt-1 text-sm font-semibold leading-relaxed text-ink-muted">{t("Language, password, two-factor authentication and signed-in devices.")}</p>
+              <p className="mt-1 text-sm leading-relaxed text-ink-muted">{t("Language, password, two-factor authentication and signed-in devices.")}</p>
               <div className="mt-4 space-y-2">
                 {SHORTCUTS.map(({ section, icon: Icon, label, hint }) => (
                   <Button key={section} type="button" variant="outline" onClick={() => openSettings(section)}
-                    className="h-auto min-h-14 w-full justify-start gap-3 px-4 py-3 text-start">
-                    <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-primary"><Icon className="size-4" /></span>
+                    className="group sk-nudge-trigger h-auto min-h-14 w-full justify-start gap-3 px-4 py-3 text-start">
+                    <span aria-hidden="true" className="sk-icon-tile flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-primary"><Icon className="size-4" /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold text-ink-strong">{t(label)}</span>
-                      <span className="block text-xs font-semibold text-ink-muted">{t(hint)}</span>
+                      <span className="block text-sm font-semibold text-ink-strong">{t(label)}</span>
+                      <span className="block text-xs font-normal leading-relaxed text-ink-muted">{t(hint)}</span>
                     </span>
-                    <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />
+                    <ArrowRight aria-hidden="true" className="sk-nudge rtl:-scale-x-100" />
                   </Button>
                 ))}
               </div>
             </section>
-            <div className="sk-rise group relative rounded-[32px] border border-edge/25 bg-gradient-to-br from-brand-50/80 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
-              <div className="relative mb-4">
-                <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-primary/18" />
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary shadow-md">
-                  <ShieldCheck className="h-6 w-6" />
-                </div>
+            <Card variant="muted" className="sk-enter p-5 sm:p-6" style={delay(160)}>
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
+                <ShieldCheck aria-hidden="true" className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-bold text-ink-strong tracking-tight">Protected Fields</h2>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
-                Role, email, and account permissions are managed by your campus administrator and cannot be changed here.
+              <h2 className="text-lg font-bold tracking-tight text-ink-strong">{t("Protected fields")}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+                {t("Role, email, and account permissions are managed by your campus administrator and cannot be changed here.")}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-semibold text-ink-muted border border-edge/10">Role</span>
-                <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-semibold text-ink-muted border border-edge/10">Email</span>
-                <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-semibold text-ink-muted border border-edge/10">Permissions</span>
+                {PROTECTED_FIELDS.map((field) => (
+                  <Badge key={field} variant="outline" size="sm">{t(field)}</Badge>
+                ))}
               </div>
-            </div>
+            </Card>
           </aside>
         </div>
 
         {role && INSTITUTION_ROLES.has(role) ? (
-          <div className="mt-6 max-w-6xl">
+          <div className="sk-enter mt-6 max-w-6xl">
             <div className="mb-4">
-              <h2 className="text-lg font-bold tracking-tight text-ink-strong">Institution</h2>
-              <p className="mt-1 text-sm font-semibold text-ink-muted">
-                School and campus records. What you can change depends on the campus you administer.
+              <h2 className="text-lg font-bold tracking-tight text-ink-strong">{t("Institution")}</h2>
+              <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                {t("School and campus records. What you can change depends on the campus you administer.")}
               </p>
             </div>
             <InstitutionSettingsPanel />

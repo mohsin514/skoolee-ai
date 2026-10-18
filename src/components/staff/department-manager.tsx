@@ -39,6 +39,9 @@ import { DEPARTMENT_KIND_LABELS, DEPARTMENT_ROLE_LABELS } from "@/lib/staff/hier
 import type { OrgNode } from "@/lib/staff/hierarchy";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 
 interface Member {
@@ -223,7 +226,7 @@ export function DepartmentManager({
               className="flex shrink-0 items-center justify-center"
               aria-label={isOpen ? `Collapse ${unit.name}` : `Expand ${unit.name}`}
             >
-              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180" />}
             </Button>
 
             <span className="min-w-0 flex-1">
@@ -292,9 +295,9 @@ export function DepartmentManager({
 
           {isOpen ? (
             <div className="mt-3 space-y-2 border-t border-edge/30 pt-3">
-              {unit.description ? <p className="text-2xs font-semibold text-ink-muted">{unit.description}</p> : null}
+              {unit.description ? <p className="text-2xs font-normal leading-relaxed text-ink-muted">{unit.description}</p> : null}
               {unit.members.length === 0 ? (
-                <p className="text-2xs font-semibold text-ink-muted">
+                <p className="text-2xs font-normal leading-relaxed text-ink-muted">
                   Nobody in this unit yet. Add people, then give one of them charge of it.
                 </p>
               ) : (
@@ -315,9 +318,11 @@ export function DepartmentManager({
                         ) : null}
                       </span>
                       {member.isPrimary ? (
-                        <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-2xs font-bold text-ink-muted" title="This is their home department">
-                          HOME
-                        </span>
+                        <Tooltip content="This is their home department">
+                          <span tabIndex={0} className="shrink-0 rounded-full">
+                            <Badge variant="neutral" size="sm">HOME</Badge>
+                          </span>
+                        </Tooltip>
                       ) : null}
                       <Select
                         value={member.role}
@@ -361,7 +366,7 @@ export function DepartmentManager({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-ink">Departments & units</h3>
-          <p className="mt-0.5 max-w-2xl text-xs font-semibold text-ink-muted">
+          <p className="mt-0.5 max-w-2xl text-xs font-normal leading-relaxed text-ink-muted">
             Faculties, departments, year sections and admin units. Nest them however your institution is
             organised — a school usually keeps one flat level, a university nests departments inside faculties.
           </p>
@@ -372,14 +377,16 @@ export function DepartmentManager({
       </div>
 
       {roots.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-edge/60 bg-surface-subtle px-6 py-12 text-center">
-          <Building2 className="mx-auto h-8 w-8 text-ink-muted" />
-          <p className="mt-3 text-sm font-bold text-ink">No departments yet</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
-            Applying a preset on the Rank ladder tab creates a starting set for your kind of institution, or add
-            your own here.
-          </p>
-        </div>
+        <EmptyState
+          icon={Building2}
+          title="No departments yet"
+          description="Applying a preset on the Rank ladder tab creates a starting set for your kind of institution, or add your own here."
+          action={
+            <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
+              Add unit
+            </BrandButton>
+          }
+        />
       ) : (
         <ul className="space-y-1.5">{roots.map((unit) => renderUnit(unit, 0))}</ul>
       )}

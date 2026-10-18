@@ -1,15 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { buttonVariants } from "@/components/ui/button";
 import { getAuthUser } from "@/lib/auth";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
-import { Lock, ArrowUpRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ArrowUpRight } from "lucide-react";
 import { AnalyticsCharts } from "@/components/analytics/analytics-charts";
 
 export default async function AnalyticsPage() {
@@ -25,33 +22,23 @@ export default async function AnalyticsPage() {
           title="Analytics"
           description="School performance insights and AI usage metrics"
         />
-        <div className="p-6">
-          <Card className="sk-rise border-amber-200 bg-amber-50/60 shadow-none" style={{ animationDelay: "0ms" }}>
-            <CardContent className="p-6">
-              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                <div className="flex gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-                    <Lock className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <Badge className="mb-3 bg-white text-amber-700">Billing paused</Badge>
-                    <h2 className="text-xl font-bold tracking-normal">
-                      Restore billing to use analytics
-                    </h2>
-                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                      Subscription access is paused. Restore billing before using analytics and other operational workflows.
-                    </p>
-                  </div>
-                </div>
-                <Link href="/dashboard/billing">
-                  <Button>
-                    Upgrade
-                    <ArrowUpRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="p-4 sm:p-6">
+          <Alert
+            tone="warning"
+            live="off"
+            className="sk-enter p-5 sm:p-6"
+            title="Restore billing to use analytics"
+            actions={
+              <Link href="/dashboard/billing" className={cn(buttonVariants(), "sk-nudge-trigger")}>
+                Open billing
+                <ArrowUpRight aria-hidden="true" className="sk-nudge h-4 w-4 rtl:-scale-x-100" />
+              </Link>
+            }
+          >
+            <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">
+              Subscription access is paused. Restore billing before using analytics and other operational workflows.
+            </p>
+          </Alert>
         </div>
       </>
     );
@@ -63,23 +50,24 @@ export default async function AnalyticsPage() {
         title="Analytics"
         description="School performance insights and AI usage metrics"
       />
-      <div className="p-6 space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {!billing.limits.analyticsEnabled && (
-          <Card className="sk-rise border-primary/20 bg-brand-50/50 shadow-none" style={{ animationDelay: "0ms" }}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-ink">
-                  Upgrade to <span className="font-bold text-primary">Pro</span> for AI-powered insights, cohort trends, and intervention summaries.
-                </p>
-                <Link href="/dashboard/billing">
-                  <Button size="sm" variant="outline" className="border-primary/30 text-primary hover:bg-primary hover:text-white">
-                    Upgrade
-                    <ArrowUpRight className="h-3 w-3 ml-1" />
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+          <Alert
+            tone="brand"
+            live="off"
+            compact
+            className="sk-enter"
+            actions={
+              <Link href="/dashboard/billing" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "sk-nudge-trigger border-primary/30 text-primary")}>
+                Upgrade
+                <ArrowUpRight aria-hidden="true" className="sk-nudge h-3.5 w-3.5 rtl:-scale-x-100" />
+              </Link>
+            }
+          >
+            <p className="text-sm text-ink">
+              Upgrade to <span className="font-semibold text-primary">Pro</span> for AI-powered insights, cohort trends, and intervention summaries.
+            </p>
+          </Alert>
         )}
         <AnalyticsCharts />
       </div>

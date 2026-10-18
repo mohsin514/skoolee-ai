@@ -1,5 +1,7 @@
 "use client";
 
+import { IconButton } from "@/components/ui/icon-button";
+import { InfoTip } from "@/components/ui/tooltip";
 import { Button as SystemButton } from "@/components/ui/button";
 import React, {
   useCallback,
@@ -17,7 +19,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   GraduationCap,
   Grid3X3,
   Layers,
@@ -264,12 +265,12 @@ function SectionTransfer({ section, siblings, ui, onDone }: { section: any; sibl
             </div>
           ) : null}
           {preview && !preview.blocked.length ? (
-            <SystemButton type="button" variant="dark" disabled={busy || !target} onClick={() => call("apply")} className="h-11 w-full">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Move {0} student(s) and archive", [preview.ready])}
+            <SystemButton type="button" variant="dark" loading={busy} disabled={busy || !target} onClick={() => call("apply")} className="h-11 w-full">
+              {ui("Move {0} student(s) and archive", [preview.ready])}
             </SystemButton>
           ) : (
-            <SystemButton type="button" variant="secondary" disabled={busy || !target || !effectiveDate} onClick={() => call("preview")} className="h-11 w-full">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Preview move")}
+            <SystemButton type="button" variant="secondary" loading={busy} disabled={busy || !target || !effectiveDate} onClick={() => call("preview")} className="h-11 w-full">
+              {ui("Preview move")}
             </SystemButton>
           )}
         </div>
@@ -395,13 +396,10 @@ function SettingsDrawer({
               type="button"
               onClick={save}
               disabled={classUpdateBusy}
+              loading={classUpdateBusy}
               className="flex h-12 w-full items-center justify-center gap-2"
             >
-              {classUpdateBusy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                ui("Save Changes")
-              )}
+              {ui("Save Changes")}
             </SystemButton>
           </div>
 
@@ -631,9 +629,10 @@ function AddSectionPanel({
         type="button"
         onClick={submit}
         disabled={Boolean(blocked) || busy}
+        loading={busy}
         className="mt-2.5 flex w-full items-center justify-center gap-1.5"
       >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+        {busy ? null : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
         {busy ? ui("Creating\u2026") : ui("Add section")}
       </SystemButton>
     </div>
@@ -682,7 +681,7 @@ function MatrixView({
       <table className="w-full min-w-[600px] border-collapse">
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 rounded-tl-3xl bg-gradient-to-br from-primary to-brand-400 px-5 py-4 text-left text-2xs font-semibold uppercase tracking-wider text-white/90">
+            <th className="sticky start-0 z-10 rounded-ss-3xl bg-gradient-to-br from-primary to-brand-400 px-5 py-4 text-start text-2xs font-semibold uppercase tracking-wider text-white/90">
               {ui("Subject")}
             </th>
             {sections.map((sec) => (
@@ -709,7 +708,7 @@ function MatrixView({
               }
             >
               {/* Subject name cell */}
-              <td className="sticky left-0 z-10 border-t border-edge/10 bg-inherit px-5 py-3.5">
+              <td className="sticky start-0 z-10 border-t border-edge/10 bg-inherit px-5 py-3.5">
                 <div className="flex items-center gap-2">
                   <BookOpen className="h-3.5 w-3.5 shrink-0 text-primary/60" />
                   <span className="text-xs font-bold text-ink-strong">
@@ -748,7 +747,7 @@ function MatrixView({
                     className={cn(
                       "border-t border-edge/10 px-3 py-2.5 text-center transition-all duration-300",
                       isFlashing && "bg-emerald-50",
-                      !isFlashing && assigned && "bg-[#f0fdfa]/40",
+                      !isFlashing && assigned && "bg-status-success-surface/40",
                       !isFlashing && !assigned && !isSingle && "bg-rose-50/30",
                     )}
                   >
@@ -1008,7 +1007,7 @@ function SectionDetailView({
         {/* Left: Subjects & Teachers */}
         <div className="min-w-0 space-y-5">
           {/* Teaching mode toggle */}
-          <div className="rounded-3xl border border-edge/10 bg-gradient-to-br from-surface-subtle to-[#f8f5fb] p-4">
+          <div className="rounded-3xl border border-edge/10 bg-gradient-to-br from-surface-subtle to-brand-50 p-4">
             <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               {ui("Teaching Mode")}
             </p>
@@ -1020,7 +1019,7 @@ function SectionDetailView({
                     title: ui("One Teacher"),
                     desc: ui("Class teacher takes all subjects"),
                     icon: UserCheck,
-                    activeClasses: "border-teal-600 bg-gradient-to-br from-white to-[#f0fdfa] shadow-[0_6px_20px_-4px_rgba(13,148,136,0.25)]",
+                    activeClasses: "border-teal-600 bg-gradient-to-br from-white to-status-success-surface shadow-[0_6px_20px_-4px_rgba(13,148,136,0.25)]",
                     activeTitleColor: "text-teal-700",
                     activeIconBg: "bg-teal-600",
                   },
@@ -1029,7 +1028,7 @@ function SectionDetailView({
                     title: ui("Per Subject"),
                     desc: ui("Each subject has its own teacher"),
                     icon: Users,
-                    activeClasses: "border-amber-600 bg-gradient-to-br from-white to-[#fffbeb] shadow-[0_6px_20px_-4px_rgba(217,119,6,0.25)]",
+                    activeClasses: "border-amber-600 bg-gradient-to-br from-white to-status-warning-surface shadow-[0_6px_20px_-4px_rgba(217,119,6,0.25)]",
                     activeTitleColor: "text-amber-700",
                     activeIconBg: "bg-amber-600",
                   },
@@ -1047,7 +1046,7 @@ function SectionDetailView({
                         onChangeTeachingMode(section.id, option.mode);
                     }}
                     className={cn(
-                      "p-3.5 text-left",
+                      "p-3.5 text-start",
                       active
                         ? option.activeClasses
                         : "border-transparent bg-white/70 hover:border-edge/30 hover:bg-white hover:shadow-sm",
@@ -1080,7 +1079,7 @@ function SectionDetailView({
                         <CheckCircle2 className={cn("h-4 w-4 shrink-0", option.activeTitleColor)} />
                       ) : null}
                     </div>
-                    <p className="mt-1.5 pl-9 text-2xs font-bold leading-relaxed text-ink-subtle">
+                    <p className="mt-1.5 ps-9 text-2xs font-medium leading-relaxed text-ink-subtle">
                       {option.desc}
                     </p>
                   </SystemButton>
@@ -1110,7 +1109,7 @@ function SectionDetailView({
               return (
                 <div
                   key={subject.id}
-                  className="sk-panel group/card p-4 transition-all duration-200 hover:border-l-primary hover:shadow-md"
+                  className="sk-panel group/card p-4 transition-all duration-200 hover:border-s-primary hover:shadow-md"
                 >
                   {isEditing ? (
                     <div className="space-y-3">
@@ -1138,13 +1137,10 @@ function SectionDetailView({
                           disabled={
                             subjectUpdateBusyId === subject.id
                           }
+                          loading={subjectUpdateBusyId === subject.id}
                           className="flex flex-1 items-center justify-center gap-2"
                         >
-                          {subjectUpdateBusyId === subject.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            ui("Save")
-                          )}
+                          {ui("Save")}
                         </SystemButton>
                         <SystemButton variant="ghost"
                           type="button"
@@ -1209,26 +1205,20 @@ function SectionDetailView({
                             <BookOpen className="h-3 w-3" />
                             {ui("Syllabus")}
                           </SystemButton>
-                          <SystemButton variant="ghost"
-                            type="button"
+                          <IconButton variant="ghost" label={ui("Edit subject")}
                             onClick={() =>
                               startEditingSubject(subject)
                             }
-                            className="flex items-center justify-center"
-                            title={ui("Edit subject")}
                           >
-                            <Pencil className="h-3 w-3" />
-                          </SystemButton>
-                          <SystemButton variant="ghost"
-                            type="button"
+                            <Pencil className="h-3 w-3" aria-hidden="true" />
+                          </IconButton>
+                          <IconButton variant="ghost" label={ui("Delete subject")}
                             onClick={() =>
                               onDeleteSubject(subject)
                             }
-                            className="flex items-center justify-center"
-                            title="Delete subject"
                           >
-                            <Trash2 className="h-3 w-3" />
-                          </SystemButton>
+                            <Trash2 className="h-3 w-3" aria-hidden="true" />
+                          </IconButton>
                         </div>
                       </div>
 
@@ -1269,7 +1259,7 @@ function SectionDetailView({
                             }
                           />
                           {subjectBusyId === subject.id ? (
-                            <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-primary" />
+                            <Loader2 className="absolute end-4 top-[42px] h-4 w-4 animate-spin text-primary" />
                           ) : null}
                         </div>
                       ) : null}
@@ -1330,7 +1320,7 @@ function SectionDetailView({
               <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setApplyToAllSections((v) => !v)}
-                className="mt-3 flex w-full items-center gap-3 p-3 text-left justify-start"
+                className="mt-3 flex w-full items-center gap-3 p-3 text-start justify-start"
               >
                 <span
                   className={cn(
@@ -1362,16 +1352,11 @@ function SectionDetailView({
                 type="button"
                 onClick={createSubject}
                 disabled={creatingSubject || !subjectName.trim()}
+                loading={creatingSubject}
                 className="flex h-11 items-center gap-2 px-5 justify-start"
               >
-                {creatingSubject ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Plus className="h-3.5 w-3.5" />
-                    {ui("Add Subject")}
-                  </>
-                )}
+                {creatingSubject ? null : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+                {ui("Add Subject")}
               </SystemButton>
             </div>
           </div>
@@ -1380,7 +1365,7 @@ function SectionDetailView({
         {/* Right: Section info sidebar */}
         <div className="space-y-4">
           {/* Class teacher card */}
-          <div className="rounded-3xl border border-primary/10 bg-gradient-to-br from-brand-50 via-[#f8f2fd] to-brand-100 p-4 shadow-sm">
+          <div className="rounded-3xl border border-primary/10 bg-gradient-to-br from-brand-50 via-brand-50 to-brand-100 p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/15">
                 <GraduationCap className="h-3 w-3 text-primary" />
@@ -1443,13 +1428,13 @@ function SectionDetailView({
                 showUnassignedHint={!section.classTeacher?.id}
               />
               {teacherBusy ? (
-                <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-primary" />
+                <Loader2 className="absolute end-4 top-[42px] h-4 w-4 animate-spin text-primary" />
               ) : null}
             </div>
           </div>
 
           {/* Student count with mini avatars */}
-          <div className="rounded-3xl border border-rose-500/10 bg-gradient-to-br from-white to-[#fff8f8] p-4 shadow-sm">
+          <div className="rounded-3xl border border-rose-500/10 bg-gradient-to-br from-white to-status-error-surface p-4 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <div className="flex h-5 w-5 items-center justify-center rounded-md bg-rose-500/10">
@@ -1509,7 +1494,7 @@ function SectionDetailView({
           <div className={cn(
             "rounded-3xl border p-4 shadow-sm transition-all duration-500",
             completedSteps === totalSteps
-              ? "border-emerald-200/50 bg-gradient-to-br from-white to-[#ecfdf5]"
+              ? "border-emerald-200/50 bg-gradient-to-br from-white to-status-success-surface"
               : "border-edge/10 bg-white",
           )}>
             <div className="flex items-center gap-2">
@@ -1540,7 +1525,8 @@ function SectionDetailView({
                     cy="18"
                     r="14"
                     fill="none"
-                    stroke="#f3f4f9"
+                    stroke="currentColor"
+                    className="text-border-subtle"
                     strokeWidth="3.5"
                   />
                   <circle
@@ -1548,15 +1534,14 @@ function SectionDetailView({
                     cy="18"
                     r="14"
                     fill="none"
-                    stroke={
-                      completedSteps === totalSteps
-                        ? "#10b981"
-                        : "#8127cf"
-                    }
+                    stroke="currentColor"
                     strokeWidth="3.5"
                     strokeDasharray={`${(completedSteps / totalSteps) * 88} 88`}
                     strokeLinecap="round"
-                    className="transition-all duration-700"
+                    className={cn(
+                      "transition-all duration-700",
+                      completedSteps === totalSteps ? "text-status-success-text" : "text-primary",
+                    )}
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-ink-strong">
@@ -1636,7 +1621,7 @@ function SectionDetailView({
                 key={student.id}
                 type="button"
                 onClick={() => onViewStudent(student)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left sm:w-auto sm:min-w-[200px] justify-start"
+                className="flex w-full items-center gap-3 px-4 py-3 text-start sm:w-auto sm:min-w-[200px] justify-start"
               >
                 <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
                   <AvatarImage src={student.profileImageUrl} name={student.fullName} alt="" initialsClassName="text-2xs" />
@@ -1796,7 +1781,7 @@ export function ClassManager({
                 </div>
                 <div className="min-w-0">
                   <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
-                    <span className="bg-gradient-to-r from-primary via-brand-400 to-[#6a1fad] bg-clip-text text-transparent">
+                    <span className="bg-gradient-to-r from-primary via-brand-400 to-brand-700 bg-clip-text text-transparent">
                       {className}
                     </span>
                   </h1>
@@ -1827,14 +1812,11 @@ export function ClassManager({
 
               <div className="flex shrink-0 items-center gap-1.5">
                 {onRefresh ? (
-                  <SystemButton variant="ghost"
-                    type="button"
+                  <IconButton variant="ghost" label={ui("Refresh data")}
                     onClick={onRefresh}
-                    className="flex items-center justify-center"
-                    title={ui("Refresh data")}
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  </SystemButton>
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  </IconButton>
                 ) : null}
                 <SystemButton variant="ghost"
                   type="button"
@@ -1861,11 +1843,6 @@ export function ClassManager({
                       ? "border-emerald-200 bg-emerald-50"
                       : "border-amber-200 bg-amber-50",
                   )}
-                  title={
-                    readySections === sortedSections.length
-                      ? ui("Every section has a class teacher and at least one subject")
-                      : ui("A section is ready once it has a class teacher and at least one subject")
-                  }
                 >
                   {readySections === sortedSections.length ? (
                     <CheckCircle2 className="h-3 w-3 text-emerald-600" />
@@ -1894,6 +1871,13 @@ export function ClassManager({
                       style={{ width: `${(readySections / sortedSections.length) * 100}%` }}
                     />
                   </span>
+                  <InfoTip
+                    content={
+                      readySections === sortedSections.length
+                        ? ui("Every section has a class teacher and at least one subject")
+                        : ui("A section is ready once it has a class teacher and at least one subject")
+                    }
+                  />
                 </div>
               ) : null}
 
@@ -1936,7 +1920,7 @@ export function ClassManager({
           <SystemButton variant="default"
             type="button"
             onClick={() => setMobileRailOpen(!mobileRailOpen)}
-            className="absolute bottom-6 left-6 z-[130] flex h-12 w-12 items-center justify-center lg:hidden"
+            className="absolute bottom-6 start-6 z-[130] flex h-12 w-12 items-center justify-center lg:hidden"
           >
             <Layers className="h-5 w-5" />
           </SystemButton>
@@ -1944,12 +1928,12 @@ export function ClassManager({
           {/* Left Rail */}
           <div
             className={cn(
-              "shrink-0 border-r border-edge/12 bg-gradient-to-b from-surface-subtle to-[#f5f0fa] transition-all duration-300",
+              "shrink-0 border-e border-edge/12 bg-gradient-to-b from-surface-subtle to-brand-50 transition-all duration-300",
               // Desktop: always visible
               "hidden lg:flex lg:w-[220px] lg:flex-col",
               // Mobile: overlay
               mobileRailOpen &&
-                "absolute inset-y-0 left-0 z-[135] flex w-[260px] flex-col shadow-2xl",
+                "absolute inset-y-0 start-0 z-[135] flex w-[260px] flex-col shadow-2xl",
             )}
           >
             {/* Mobile close */}
@@ -1977,7 +1961,7 @@ export function ClassManager({
                   setMobileRailOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2.5 px-3.5 py-3 text-left justify-start",
+                  "flex w-full items-center gap-2.5 px-3.5 py-3 text-start justify-start",
                   selectedSectionId === "all"
                     ? "bg-white shadow-md shadow-primary/8"
                     : "hover:bg-white/70",
@@ -2035,10 +2019,10 @@ export function ClassManager({
                         setMobileRailOpen(false);
                       }}
                       className={cn(
-                        "flex w-full items-start gap-2.5 px-3.5 py-3 text-left justify-start",
+                        "flex w-full items-start gap-2.5 px-3.5 py-3 text-start justify-start",
                         active
-                          ? "border-l-[3px] border-l-primary bg-white pl-3 shadow-md shadow-primary/8"
-                          : "border-l-[3px] border-l-transparent hover:bg-white/70",
+                          ? "border-s-[3px] border-s-primary bg-white ps-3 shadow-md shadow-primary/8"
+                          : "border-s-[3px] border-s-transparent hover:bg-white/70",
                       )}
                     >
                       {/* Status dot */}
@@ -2107,7 +2091,7 @@ export function ClassManager({
                   <SystemButton variant="outline"
                     type="button"
                     onClick={() => setAddingSection(true)}
-                    className="mt-3 flex w-full items-center gap-2.5 px-3.5 py-3 text-left justify-start"
+                    className="mt-3 flex w-full items-center gap-2.5 px-3.5 py-3 text-start justify-start"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                       <Plus className="h-4 w-4" />
@@ -2175,12 +2159,12 @@ export function ClassManager({
                           "flex h-10 w-10 items-center justify-center rounded-2xl shadow-md",
                           sectionSetupStatus(selectedSection) ===
                             "ready"
-                            ? "bg-gradient-to-br from-emerald-500 to-[#34d399] text-white shadow-emerald-500/20"
+                            ? "bg-gradient-to-br from-emerald-500 to-emerald-400 text-white shadow-emerald-500/20"
                             : sectionSetupStatus(
                                   selectedSection,
                                 ) === "partial"
-                              ? "bg-gradient-to-br from-amber-500 to-[#fbbf24] text-white shadow-amber-500/20"
-                              : "bg-gradient-to-br from-edge to-[#e2d8ea] text-white shadow-edge/20",
+                              ? "bg-gradient-to-br from-amber-500 to-amber-400 text-white shadow-amber-500/20"
+                              : "bg-gradient-to-br from-edge to-brand-200 text-white shadow-edge/20",
                         )}
                       >
                         <LayoutGrid className="h-5 w-5" />
@@ -2198,14 +2182,11 @@ export function ClassManager({
                         </p>
                       </div>
                     </div>
-                    <SystemButton variant="ghost"
-                      type="button"
+                    <IconButton variant="ghost" label={ui("Section settings")}
                       onClick={() => setSettingsOpen(true)}
-                      className="flex items-center justify-center"
-                      title="Section settings"
                     >
-                      <Settings className="h-5 w-5" />
-                    </SystemButton>
+                      <Settings className="h-5 w-5" aria-hidden="true" />
+                    </IconButton>
                   </div>
                   <SectionDetailView
                     section={selectedSection}

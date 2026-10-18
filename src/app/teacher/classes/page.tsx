@@ -1,12 +1,16 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip, InfoTip } from "@/components/ui/tooltip";
 import { useRouter } from "next/navigation";
 import { CalendarCheck, FileText, GraduationCap, Star, Users } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
   classLabel, DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
+import { cn } from "@/lib/utils";
 import { useTeacherData } from "../teacher-data-context";
 
 export default function TeacherClassesPage() {
@@ -28,80 +32,83 @@ export default function TeacherClassesPage() {
     >
       <div className="space-y-3">
         {classHubs.length === 0 ? (
-          <div className="sk-panel sk-rise p-10 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
-              <GraduationCap className="h-7 w-7 text-primary" />
-            </div>
-            <h3 className="text-base font-bold text-ink-strong">No classes assigned yet</h3>
-            <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-ink-muted">
-              Your classes will appear here once the admin assigns them to you. Check back later.
-            </p>
+          <div className="sk-panel sk-enter">
+            <EmptyState
+              icon={GraduationCap}
+              title="No classes assigned yet"
+              description="Your classes appear here as soon as a school administrator assigns them to you. If you expected to see a class, ask your administrator to check your teaching assignments."
+            />
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-ink-strong uppercase tracking-wider">Assigned Classes</h3>
-              <span className="text-2xs font-semibold text-ink-muted">{classHubs.length} active</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-bold text-ink-strong">Assigned classes</h2>
+              <Badge variant="neutral" size="sm" data-numeric>{classHubs.length} active</Badge>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="sk-stagger grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {classHubs.map((cls: any) => {
                 const clsStudents = (data.students || []).filter((s: any) => s.class?.id === cls.id);
                 const clsExams = (data.activeExams || []).filter((e: any) => e.classId === cls.id);
                 const clsMissingMarks = clsExams.reduce((sum: number, e: any) => sum + (e.missingMarks || 0), 0);
                 return (
-                  <div key={cls.id} className="sk-panel group p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_2px_6px_rgba(31,26,35,0.06),0_18px_36px_-18px_rgba(129,39,207,0.45)]">
+                  <div key={cls.id} className="sk-panel sk-hover-lift group min-w-0 p-4">
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{cls.role || "Teacher"}</p>
-                        <h4 className="mt-0.5 truncate text-base font-bold tracking-tight text-ink-strong transition-colors group-hover:text-primary">{classLabel(cls)}</h4>
+                        <p className="sk-eyebrow text-primary">{cls.role || "Teacher"}</p>
+                        <h3 className="mt-0.5 truncate text-base font-bold tracking-tight text-ink-strong transition-colors group-hover:text-primary">{classLabel(cls)}</h3>
                       </div>
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary transition-transform duration-200 group-hover:scale-105">
+                      <div aria-hidden="true" className="sk-icon-tile flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                         <GraduationCap className="h-4 w-4" />
                       </div>
                     </div>
                     <div className="mb-3 grid grid-cols-3 gap-1.5">
                       <div className="rounded-xl bg-brand-50/70 px-2 py-1.5 text-center">
                         <p className="text-base font-bold tabular-nums text-primary">{clsStudents.length}</p>
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
+                        <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
                       </div>
                       <div className="rounded-xl bg-brand-50/70 px-2 py-1.5 text-center">
                         <p className="text-base font-bold tabular-nums text-ink-strong">{cls.subjects?.length || 0}</p>
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Subjects</p>
+                        <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Subjects</p>
                       </div>
                       <div className="rounded-xl bg-brand-50/70 px-2 py-1.5 text-center">
-                        <p className={`text-base font-bold tabular-nums ${clsMissingMarks > 0 ? "text-rose-600" : "text-emerald-600"}`}>{clsMissingMarks}</p>
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Pending</p>
+                        <p className={cn("text-base font-bold tabular-nums", clsMissingMarks > 0 ? "text-rose-600" : "text-emerald-600")}>{clsMissingMarks}</p>
+                        <p className="inline-flex max-w-full items-center justify-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                          <span className="truncate">Pending</span>
+                          <InfoTip label="About pending marks" content="Marks not yet entered for this class's active assessments, added up across every assessment." />
+                        </p>
                       </div>
                     </div>
-                    <div className="mb-3 flex flex-wrap gap-1.5">
-                      {(cls.subjects || []).slice(0, 4).map((subject: any) => (
-                        <span key={subject.id} className="rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">{subject.name}</span>
-                      ))}
-                      {(cls.subjects?.length || 0) > 4 && (
-                        <span className="rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-ink-subtle">+{cls.subjects.length - 4}</span>
-                      )}
-                    </div>
+                    {(cls.subjects?.length || 0) > 0 ? (
+                      <div className="mb-3 flex flex-wrap gap-1.5">
+                        {(cls.subjects || []).slice(0, 4).map((subject: any) => (
+                          <Badge key={subject.id} variant="secondary" size="sm" className="max-w-[12rem]"><span className="truncate">{subject.name}</span></Badge>
+                        ))}
+                        {(cls.subjects?.length || 0) > 4 && (
+                          <Badge variant="neutral" size="sm" data-numeric>+{cls.subjects.length - 4}</Badge>
+                        )}
+                      </div>
+                    ) : null}
                     {/* Each action carries this class through. They used to
                         link to the bare page, so tapping "Attendance" on Grade
                         5A landed on whichever class sorted first and the
                         teacher had to pick 5A again. */}
-                    <div className="grid grid-cols-4 gap-1.5">
+                    <div className="grid grid-cols-2 gap-1.5 min-[400px]:grid-cols-4">
                       {[
                         { icon: CalendarCheck, label: "Attendance", href: "/teacher/attendance" },
                         { icon: Star, label: "Marks", href: "/teacher/marks" },
                         { icon: FileText, label: "Reports", href: "/teacher/reports" },
                         { icon: Users, label: "Students", href: "/teacher/students" },
                       ].map(({ icon: ActionIcon, label, href }) => (
-                        <Button size="sm" variant="secondary"
-                          key={label}
-                          type="button"
-                          title={`${label} for ${classLabel(cls)}`}
-                          onClick={() => router.push(`${href}?classId=${encodeURIComponent(cls.id)}`)}
-                          className="min-w-0 flex-col px-1 text-xs justify-start"
-                        >
-                          <ActionIcon className="h-3.5 w-3.5" />
-                          {label}
-                        </Button>
+                        <Tooltip key={label} content={`${label} for ${classLabel(cls)}`}>
+                          <Button size="sm" variant="secondary"
+                            type="button"
+                            onClick={() => router.push(`${href}?classId=${encodeURIComponent(cls.id)}`)}
+                            className="min-w-0 flex-col justify-start px-1 text-xs"
+                          >
+                            <ActionIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                            {label}
+                          </Button>
+                        </Tooltip>
                       ))}
                     </div>
                   </div>

@@ -18,7 +18,7 @@ export type TwoFactorStatus = {
 };
 
 /** A calm card for one group inside the Settings modal: neutral surface, hairline border, soft lift. */
-export const securityCardClass = "rounded-3xl border border-border-subtle bg-white p-5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-18px_rgba(55,27,77,0.18)] sm:p-6";
+export const securityCardClass = "rounded-3xl border border-border-subtle bg-white p-5 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-18px_rgba(55,27,77,0.18)] sm:p-6";
 
 const LOW_CODES = 3;
 
@@ -56,7 +56,7 @@ export function TwoFactorCard({ status, t, locale, onToggle, onChange, onRegener
           className="min-h-14 w-full justify-between gap-4 bg-surface-subtle px-4 text-start aria-disabled:cursor-not-allowed aria-disabled:opacity-60">
           <span className="min-w-0 text-sm font-bold text-ink-strong">{t.twoFactorTitle}</span>
           <span aria-hidden="true" className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full motion-safe:transition-colors motion-safe:duration-200", enabled ? "bg-primary" : "bg-border-subtle")}>
-            <span className={cn("absolute top-1 size-5 rounded-full bg-white shadow-[0_2px_6px_rgba(31,26,35,0.25)] motion-safe:transition-[inset-inline-start] motion-safe:duration-200", enabled ? "start-6" : "start-1")} />
+            <span className={cn("absolute top-1 size-5 rounded-full bg-white shadow-[0_2px_6px_rgba(120,70,180,0.25)] motion-safe:transition-[inset-inline-start] motion-safe:duration-200", enabled ? "start-6" : "start-1")} />
           </span>
         </Button>
         {required && <p id="security-2fa-required" className="flex items-center gap-1.5 px-1 text-xs font-bold text-ink-muted"><ShieldCheck aria-hidden="true" className="size-3.5 shrink-0 text-primary" />{t.required}</p>}

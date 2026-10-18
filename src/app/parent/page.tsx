@@ -87,27 +87,27 @@ export default function ParentOverviewPage() {
         /> : null}
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          {data.access.learningRecords ? <div className="sk-panel min-w-0 p-[12px] sm:p-4">
-            <div className="mb-[12px] flex min-w-0 items-center gap-[10px]">
-              <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+          {data.access.learningRecords ? <div className="sk-panel min-w-0 p-3 sm:p-4">
+            <div className="mb-3 flex min-w-0 items-center gap-2.5">
+              <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                 <FileText className="h-4 w-4" />
               </span>
-              <h3 className="text-sm font-bold tracking-tight text-ink-strong">Latest Report Card</h3>
+              <h3 className="text-base font-bold text-ink-strong">Latest Report Card</h3>
             </div>
             {data.reportCards[0] ? (
-              <div className="min-w-0 space-y-3 rounded-2xl border border-edge/10 bg-brand-50/30 p-[12px] sm:p-4">
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-[12px]">
+              <div className="min-w-0 space-y-3 rounded-2xl border border-border-subtle bg-surface-subtle p-3 sm:p-4">
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 basis-[min(100%,12rem)]">
-                    <p className="[overflow-wrap:anywhere] text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{data.reportCards[0].term} {data.reportCards[0].academicYear}</p>
+                    <p className="sk-eyebrow [overflow-wrap:anywhere]">{data.reportCards[0].term} {data.reportCards[0].academicYear}</p>
                     <p className="mt-0.5 [overflow-wrap:anywhere] text-sm font-bold text-ink-strong">{data.reportCards[0].examTitle}</p>
                   </div>
                   <div className="min-w-0 max-w-full text-start">
-                    <p className="[overflow-wrap:anywhere] text-2xl font-bold text-primary">{Math.round(data.reportCards[0].percentage)}%</p>
-                    <p className="[overflow-wrap:anywhere] text-2xs font-semibold text-ink-subtle">Grade {data.reportCards[0].grade || "N/A"}</p>
+                    <p className="[overflow-wrap:anywhere] text-2xl font-bold tabular-nums text-primary">{Math.round(data.reportCards[0].percentage)}%</p>
+                    <p className="[overflow-wrap:anywhere] text-xs font-medium text-ink-subtle">Grade {data.reportCards[0].grade || "N/A"}</p>
                   </div>
                 </div>
                 {data.reportCards[0].remarksEn && (
-                  <p className="text-xs font-semibold leading-relaxed text-ink-muted line-clamp-2">{data.reportCards[0].remarksEn}</p>
+                  <p className="line-clamp-2 text-sm leading-relaxed text-ink-muted" dir="auto">{data.reportCards[0].remarksEn}</p>
                 )}
               </div>
             ) : (
@@ -120,19 +120,19 @@ export default function ParentOverviewPage() {
             {data.reportCards[0] ? (
               <Link
                 href={`/parent/results${q}`}
-                className="mt-3 inline-flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-primary transition-colors hover:text-brand-700"
+                className="sk-nudge-trigger mt-2 inline-flex min-h-10 items-center gap-1 rounded-lg text-sm font-semibold text-primary transition-colors hover:text-brand-700"
               >
-                View all results <ChevronRight className="w-3 h-3" />
+                View all results <ChevronRight aria-hidden="true" className="sk-nudge h-4 w-4 rtl:rotate-180" />
               </Link>
             ) : null}
           </div> : null}
 
-          {data.access.learningRecords || data.access.attendance || data.access.finances ? <div className="sk-panel min-w-0 p-[12px] sm:p-4">
-            <div className="mb-[12px] flex min-w-0 items-center gap-[10px]">
-              <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+          {data.access.learningRecords || data.access.attendance || data.access.finances ? <div className="sk-panel min-w-0 p-3 sm:p-4">
+            <div className="mb-3 flex min-w-0 items-center gap-2.5">
+              <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <GraduationCap className="h-4 w-4" />
               </span>
-              <h3 className="text-sm font-bold tracking-tight text-ink-strong">Quick Access</h3>
+              <h3 className="text-base font-bold text-ink-strong">Quick Access</h3>
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {data.access.learningRecords ? <QuickLink
@@ -205,9 +205,9 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="group flex min-w-0 items-center gap-[10px] rounded-[18px] border border-edge/20 bg-white p-[12px] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_2px_6px_rgba(31,26,35,0.06),0_16px_32px_-18px_rgba(129,39,207,0.45)]"
+      className="group sk-hover-lift sk-nudge-trigger sk-press flex min-h-14 min-w-0 items-center gap-2.5 rounded-[18px] border border-edge/20 bg-white p-3 shadow-xs"
     >
-      <span className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${tones[tone]}`}>
+      <span aria-hidden="true" className={`sk-icon-tile flex size-9 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
@@ -218,10 +218,10 @@ function QuickLink({
           {label}
         </span>
         {sub ? (
-          <span className="block [overflow-wrap:anywhere] text-2xs font-semibold text-ink-subtle">{sub}</span>
+          <span className="block [overflow-wrap:anywhere] text-xs text-ink-subtle">{sub}</span>
         ) : null}
       </span>
-      <ArrowRight className="h-[14px] w-[14px] shrink-0 text-edge transition-all group-hover:translate-x-0.5 group-hover:text-primary" />
+      <ArrowRight aria-hidden="true" className="sk-nudge h-3.5 w-3.5 shrink-0 text-ink-faint transition-colors group-hover:text-primary rtl:rotate-180" />
     </Link>
   );
 }

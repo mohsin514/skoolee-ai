@@ -149,8 +149,11 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
         setError(json.error || "Access denied");
       }
     } catch {
-      setError("Failed to load data");
-      toast.error("Failed to load data");
+      // Shown under "Couldn't load your portal", so it says what to do next
+      // rather than repeating that something failed.
+      const message = "Your child's details didn't load just now. Please try again in a moment.";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

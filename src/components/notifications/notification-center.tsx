@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, AtSign, Bell, CheckCircle2, ClipboardList, Eye, Reply } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
@@ -78,7 +79,7 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
     <div className="max-h-[360px] space-y-1 overflow-y-auto p-2" aria-live="polite">
       {error ? <div role="alert" className="flex items-center justify-between gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
         : items === null ? <p role="status" className="py-8 text-center text-xs text-ink-muted">{ui("Loading…")}</p>
-        : items.length === 0 ? <div className="py-10 text-center"><Bell className="mx-auto mb-2 h-7 w-7 text-ink-subtle" aria-hidden /><p className="text-sm font-bold text-ink-subtle">{tab === "actions" ? ui("No assigned actions need your attention.") : tab === "mentions" ? ui("No one has messaged you directly.") : ui("No notifications yet")}</p></div>
+        : items.length === 0 ? <EmptyState size="sm" icon={Bell} title={tab === "actions" ? ui("No assigned actions need your attention.") : tab === "mentions" ? ui("No one has messaged you directly.") : ui("No notifications yet")} />
         : items.map(item => {
           const Icon = item.category === "ACTION" ? ClipboardList : item.category === "MENTION" ? AtSign : Bell;
           return <article key={item.id} className={cn("rounded-xl p-2.5", !item.isRead && "bg-brand-50/50")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead}>

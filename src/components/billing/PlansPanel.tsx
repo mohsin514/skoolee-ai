@@ -200,7 +200,7 @@ export function PlansPanel() {
         <Card
           className={`sk-rise ${
             billing.isOperational
-              ? "border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              ? "border-edge/25 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               : "border-amber-200 bg-amber-50/70 shadow-none"
           }`}
           style={{ animationDelay: "0ms" }}

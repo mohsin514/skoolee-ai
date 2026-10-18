@@ -1,12 +1,14 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip } from "@/components/ui/tooltip";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
   BarChart3,
   CalendarDays,
-  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -71,6 +73,7 @@ export function ExamDetailDialog({
   onClose: () => void;
   onChanged?: () => void;
 }) {
+  const tr = useUiText();
   const tabs = useMemo(
     () => (role === "TEACHER" ? TABS.filter((t) => t.key === "marks") : TABS),
     [role],
@@ -107,29 +110,35 @@ export function ExamDetailDialog({
       headerActions={
         sequence && sequence.length > 1 && onNavigate ? (
           <div className="flex items-center gap-1 rounded-2xl bg-surface-sunken px-1.5 py-1">
-            <Button variant="outline" size="icon"
-              type="button"
-              disabled={!prev || dirty}
-              onClick={() => prev && onNavigate(prev.id)}
-              title={dirty ? "Save your marks first" : prev ? `Previous: ${prev.title}` : "First exam"}
-              aria-label="Previous exam"
-              className="flex items-center justify-center enabled:cursor-pointer"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+            <Tooltip content={dirty ? tr("Save your marks first") : prev ? `${tr("Previous:")} ${prev.title}` : tr("First exam")}>
+              <span tabIndex={!prev || dirty ? 0 : -1} className="inline-flex">
+                <Button variant="outline" size="icon"
+                  type="button"
+                  disabled={!prev || dirty}
+                  onClick={() => prev && onNavigate(prev.id)}
+                  aria-label={tr("Previous exam")}
+                  className="flex items-center justify-center enabled:cursor-pointer"
+                >
+                  <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+                </Button>
+              </span>
+            </Tooltip>
             <span className="px-1 text-2xs font-bold tabular-nums text-ink-muted">
               {index + 1}/{sequence.length}
             </span>
-            <Button variant="outline" size="icon"
-              type="button"
-              disabled={!next || dirty}
-              onClick={() => next && onNavigate(next.id)}
-              title={dirty ? "Save your marks first" : next ? `Next: ${next.title}` : "Last exam"}
-              aria-label="Next exam"
-              className="flex items-center justify-center enabled:cursor-pointer"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            <Tooltip content={dirty ? tr("Save your marks first") : next ? `${tr("Next:")} ${next.title}` : tr("Last exam")}>
+              <span tabIndex={!next || dirty ? 0 : -1} className="inline-flex">
+                <Button variant="outline" size="icon"
+                  type="button"
+                  disabled={!next || dirty}
+                  onClick={() => next && onNavigate(next.id)}
+                  aria-label={tr("Next exam")}
+                  className="flex items-center justify-center enabled:cursor-pointer"
+                >
+                  <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+                </Button>
+              </span>
+            </Tooltip>
           </div>
         ) : null
       }
@@ -395,37 +404,32 @@ function MarksEntry({
 
   if (students.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-edge/35 p-14 text-center">
-        <Users className="mx-auto mb-3 h-10 w-10 text-primary/25" />
-        <p className="text-sm font-bold text-ink-strong">No students in this class</p>
-        <p className="mt-1 text-xs font-semibold text-ink-muted">
-          Add students to the class and their rows appear here.
-        </p>
-      </div>
+      <EmptyState
+        size="sm"
+        icon={Users}
+        title={tr("No students in this class")}
+        description={tr("Add students to the class and their rows appear here.")}
+      />
     );
   }
 
   if (subjects.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-edge/35 p-14 text-center">
-        <PenLine className="mx-auto mb-3 h-10 w-10 text-primary/25" />
-        <p className="text-sm font-bold text-ink-strong">No subjects to mark</p>
-        <p className="mt-1 text-xs font-semibold text-ink-muted">
-          This class has no subjects, or none are assigned to you.
-        </p>
-      </div>
+      <EmptyState
+        size="sm"
+        icon={PenLine}
+        title={tr("No subjects to mark")}
+        description={tr("This class has no subjects, or none are assigned to you.")}
+      />
     );
   }
 
   return (
     <div className="space-y-4">
       {locked ? (
-        <div className="flex items-center gap-2.5 rounded-2xl border border-amber-200/70 bg-amber-50/60 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-          <p className="text-xs font-bold text-amber-700">
-            This exam is locked. Marks are read-only until it is unlocked.
-          </p>
-        </div>
+        <Alert tone="warning" compact live="off">
+          {tr("This exam is locked. Marks are read-only until it is unlocked.")}
+        </Alert>
       ) : null}
 
       {/* ── Subject picker ──────────────────────────────────────────────── */}
@@ -492,16 +496,15 @@ function MarksEntry({
           <span className="text-2xs font-bold text-ink-muted">
             Top <span className="tabular-nums text-ink-strong">{stats.top}</span>
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ms-auto flex items-center gap-2">
             {pendingCount > 0 ? (
-              <span className="rounded-lg bg-amber-50 px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-700">
-                {pendingCount} unsaved
-              </span>
+              <Badge variant="warning" size="sm" dot>
+                {pendingCount} {tr("unsaved")}
+              </Badge>
             ) : (
-              <span className="flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-                <Check className="h-3 w-3" />
-                All saved
-              </span>
+              <Badge variant="success" size="sm" dot>
+                {tr("All saved")}
+              </Badge>
             )}
             <BrandButton
               onClick={saveAll}
@@ -583,12 +586,11 @@ function MarksEntry({
                           : "",
                       )}
                     />
+                    <Tooltip content={tr(absent ? "Mark present" : "Mark absent")}>
                     <Button aria-pressed={absent} variant="choice"
                       type="button"
                       disabled={locked}
                       onClick={() => setValue(student.id, absent ? undefined : ABSENT)}
-                      title={tr(absent ? "Mark present" : "Mark absent")}
-
                       className={cn(
                         "shrink-0 px-1.5 enabled:cursor-pointer",
                         "",
@@ -596,12 +598,12 @@ function MarksEntry({
                     >
                       Abs
                     </Button>
+                    </Tooltip>
+                    <Tooltip content={tr(exempt ? "Remove exemption" : "Mark exempt")}>
                     <Button aria-pressed={exempt} variant="choice"
                       type="button"
                       disabled={locked}
                       onClick={() => setValue(student.id, exempt ? undefined : EXEMPT)}
-                      title={tr(exempt ? "Remove exemption" : "Mark exempt")}
-
                       className={cn(
                         "shrink-0 px-1.5 enabled:cursor-pointer",
                         "",
@@ -609,6 +611,7 @@ function MarksEntry({
                     >
                       Ex
                     </Button>
+                    </Tooltip>
                   </div>
                   <span
                     className={cn(
@@ -624,24 +627,19 @@ function MarksEntry({
                   </span>
                   <span className="text-center">
                     {absent ? (
-                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-2xs font-semibold uppercase text-ink-subtle">
+                      <Badge variant="neutral" size="sm">
                         <UiText>Absent</UiText>
-                      </span>
+                      </Badge>
                     ) : exempt ? (
-                      <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-2xs font-semibold uppercase text-sky-700">
+                      <Badge variant="info" size="sm">
                         <UiText>Exempt</UiText>
-                      </span>
+                      </Badge>
                     ) : pct === null ? (
                       <span className="text-2xs font-bold text-ink-subtle">—</span>
                     ) : (
-                      <span
-                        className={cn(
-                          "rounded-md px-1.5 py-0.5 text-2xs font-semibold uppercase",
-                          pass ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600",
-                        )}
-                      >
-                        {pass ? "Pass" : "Fail"}
-                      </span>
+                      <Badge variant={pass ? "success" : "danger"} size="sm" dot>
+                        {pass ? tr("Pass") : tr("Fail")}
+                      </Badge>
                     )}
                   </span>
                 </li>

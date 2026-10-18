@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useId, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import {
-  Loader2, Check, Copy, RefreshCw, Building2, UserPlus, Sparkles,
+  Check, Copy, RefreshCw, Building2, UserPlus, Sparkles,
   AlertCircle, ShieldCheck, KeyRound, ArrowRight, Eye, EyeOff, Users,
   GraduationCap, Layers, Zap,
   type LucideIcon,
@@ -158,7 +158,7 @@ You will be asked to set your own password on first sign-in.`;
 
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-bold text-ink-strong">
+            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-sm font-bold text-ink-strong">
               {data.email}
             </code>
             <Button variant="outline" size="icon"
@@ -171,7 +171,7 @@ You will be asked to set your own password on first sign-in.`;
           </div>
 
           <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-[13px] font-bold tracking-wide text-ink-strong">
+            <code className="flex-1 truncate rounded-xl bg-white px-3 py-2.5 font-mono text-sm font-bold tracking-wide text-ink-strong">
               {reveal ? data.password : "•".repeat(data.password.length)}
             </code>
             <Button variant="outline" size="icon"
@@ -367,7 +367,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
               const on = form.plan === p;
               return (
                 <Button aria-pressed={on} variant="choice" key={p} type="button" onClick={() => set("plan", p)}
-                  className="block text-left">
+                  className="block text-start">
                   <div className="flex items-center justify-between">
                     <span className={`text-[13px] font-bold ${on ? "text-primary" : "text-ink-strong"}`}>{def.name}</span>
                     {on && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={3} />}
@@ -419,9 +419,9 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
             >
             Cancel
           </Button>
-          <Button variant="default" onClick={submit} disabled={!valid || busy}
+          <Button variant="default" onClick={submit} disabled={!valid || busy} loading={busy}
             className="flex justify-start items-center gap-2">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {busy ? null : <Sparkles className="h-4 w-4" aria-hidden="true" />}
             {busy ? "Provisioning…" : "Provision school"}
           </Button>
         </div>
@@ -533,7 +533,7 @@ export function AddUserModal({
               const on = form.role === r.value;
               return (
                 <Button aria-pressed={on} variant="choice" key={r.value} type="button" onClick={() => set("role", r.value)}
-                  className="block text-left">
+                  className="block text-start">
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-bold ${on ? "text-primary" : "text-ink-strong"}`}>{r.label}</span>
                     {on && <Check className="h-3.5 w-3.5 text-primary" strokeWidth={3} />}
@@ -612,9 +612,9 @@ export function AddUserModal({
             >
             Cancel
           </Button>
-          <Button variant="default" onClick={submit} disabled={!valid || busy}
+          <Button variant="default" onClick={submit} disabled={!valid || busy} loading={busy}
             className="flex justify-start items-center gap-2">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            {busy ? null : <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />}
             {busy ? "Creating…" : "Create user"}
           </Button>
         </div>

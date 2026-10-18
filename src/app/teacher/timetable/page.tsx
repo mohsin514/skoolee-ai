@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Calendar, CalendarX2, Loader2 } from "lucide-react";
+import { AlertTriangle, Calendar, CalendarX2 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { toast } from "@/components/ui/toast";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Tooltip } from "@/components/ui/tooltip";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { TimetableSkeleton } from "@/components/teacher/teacher-components";
@@ -30,21 +32,27 @@ export default function TeacherTimetablePage() {
   const [slots, setSlots] = useState<TeacherSlot[]>([]);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load used to fall through to "No classes assigned yet", which
+  // told the teacher their schedule was empty when it simply had not arrived.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
+    let timetableLoaded = false;
     try {
       const [ttRes, calRes] = await Promise.all([
         fetch("/api/timetable/teacher"),
         fetch("/api/academic/calendar"),
       ]);
       const json = await ttRes.json();
-      if (json.success) setSlots(json.data);
-      else toast.error("Failed to load timetable");
+      if (json.success) { setSlots(json.data); timetableLoaded = true; }
+      else setLoadFailed(true);
       const calJson = await calRes.json();
       if (calJson.success) setWeekendDays(calJson.data.weekends || []);
     } catch {
-      toast.error("Failed to load timetable");
+      // The calendar only supplies weekend shading; losing it is not a failed timetable.
+      if (!timetableLoaded) setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -71,15 +79,21 @@ export default function TeacherTimetablePage() {
           first, so the week grid scrolled independently of the page around it. */}
       <div className="space-y-6">
       <SubstituteDuties />
-      {slots.length === 0 ? (
-        <div className="sk-panel sk-rise p-10 text-center" style={{ animationDelay: "80ms" }}>
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
-            <CalendarX2 className="h-7 w-7 text-primary" />
-          </div>
-          <h3 className="text-base font-bold text-ink-strong">No classes assigned yet</h3>
-          <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold text-ink-muted">
-            Your timetable will appear here once the admin publishes a schedule and assigns classes to you. Check back later.
-          </p>
+      {loadFailed ? (
+        <div className="sk-panel sk-enter">
+          <ErrorState
+            title="Couldn't load your timetable"
+            description="Your schedule didn't load. Try again, and if it keeps happening, ask your campus admin."
+            onRetry={() => { void load(); }}
+          />
+        </div>
+      ) : slots.length === 0 ? (
+        <div className="sk-panel sk-enter" style={{ "--sk-delay": "80ms" } as React.CSSProperties}>
+          <EmptyState
+            icon={CalendarX2}
+            title="No classes assigned yet"
+            description="Your timetable will appear here once the admin publishes a schedule and assigns classes to you. Check back later."
+          />
         </div>
       ) : (
         <>
@@ -87,38 +101,48 @@ export default function TeacherTimetablePage() {
 
           {/* Today's classes highlight */}
           {todaySlots.length > 0 && (
-            <div className="sk-rise rounded-[24px] bg-gradient-to-r from-primary/5 to-brand-50/50 border border-primary/10 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
-                  <Calendar className="w-3.5 h-3.5 text-white" />
+            <section
+              aria-labelledby="today-classes-heading"
+              className="sk-enter rounded-[24px] border border-primary/10 bg-gradient-to-r from-primary/5 to-brand-50/50 p-4 shadow-md sm:p-5"
+              style={{ "--sk-delay": "80ms" } as React.CSSProperties}
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <div aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-brand">
+                  <Calendar className="h-4 w-4 text-white" />
                 </div>
-                <h3 className="text-xs font-bold text-ink-strong">Today&apos;s Classes</h3>
+                <h2 id="today-classes-heading" className="text-base font-bold text-ink-strong">Today&apos;s Classes</h2>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <ul className="flex flex-wrap gap-2">
                 {todaySlots.map((s) => {
                   const clashes = clashIds.has(s.id);
-                  return (
+                  const chip = (
                     <div
-                      key={s.id}
-                      title={clashes ? "You are booked in another class this period" : undefined}
-                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
+                      tabIndex={clashes ? 0 : undefined}
+                      className={`flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-xl border px-3 py-2 ${
                         clashes
-                          ? "bg-rose-50 border-rose-200"
-                          : "bg-white/80 border-edge/10"
+                          ? "border-status-error-border bg-status-error-surface"
+                          : "border-edge/10 bg-card/80"
                       }`}
                     >
-                      {clashes ? <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" /> : null}
-                      <span className={`text-2xs font-bold ${clashes ? "text-rose-600" : "text-primary"}`}>{s.startTime}</span>
-                      <span className="text-2xs font-bold text-ink-subtle">|</span>
-                      <span className="text-2xs font-bold text-ink-strong">{s.subject?.name}</span>
-                      <span className="text-2xs font-semibold text-ink-subtle">
+                      {clashes ? <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-status-error-text" /> : null}
+                      <span dir="ltr" className={`text-xs font-bold tabular-nums ${clashes ? "text-status-error-text" : "text-primary"}`}>{s.startTime}</span>
+                      <span aria-hidden="true" className="text-xs text-ink-faint">|</span>
+                      <span className="text-xs font-semibold text-ink-strong">{s.subject?.name}</span>
+                      <span className="text-xs text-ink-subtle">
                         {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
                       </span>
                     </div>
                   );
+                  return (
+                    <li key={s.id} className="min-w-0 max-w-full">
+                      {/* A clash is shown by colour and icon, so the reason is
+                          also a tooltip that keyboard and touch can reach. */}
+                      {clashes ? <Tooltip content="You are booked in another class this period">{chip}</Tooltip> : chip}
+                    </li>
+                  );
                 })}
-              </div>
-            </div>
+              </ul>
+            </section>
           )}
 
           <TimetableReadOnly
@@ -134,7 +158,7 @@ export default function TeacherTimetablePage() {
         </>
       )}
       {/* SKO-442: handovers, cover outcomes and missed-learning follow-up — also for staff with no lessons of their own. */}
-      <div className="mt-6"><MyCover /></div>
+      <div><MyCover /></div>
       </div>
     </TeacherPage>
   );

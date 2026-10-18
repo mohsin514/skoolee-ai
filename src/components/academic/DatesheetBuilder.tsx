@@ -15,7 +15,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
-import { BrandButton } from "@/components/role-dashboard";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
@@ -233,7 +233,7 @@ export function DatesheetBuilder({
                 disabled={isScheduled}
                 onClick={() => setArmed(isArmed ? null : s.id)}
                 className={cn(
-                  "flex w-full items-center justify-between px-3 py-2.5 text-left",
+                  "flex w-full items-center justify-between px-3 py-2.5 text-start",
                   isScheduled
                     ? ""
                     : ""
@@ -264,7 +264,7 @@ export function DatesheetBuilder({
             Datesheet · {days.length} working day{days.length !== 1 ? "s" : ""}
           </span>
           <span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-600">
-            <AlertTriangle className="mr-1 inline h-3 w-3" /> weekends hidden
+            <AlertTriangle className="me-1 inline h-3 w-3" /> weekends hidden
           </span>
         </div>
         <div className="min-w-max">
@@ -321,7 +321,7 @@ export function DatesheetBuilder({
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
-                            <p className="pr-4 text-2xs font-bold text-ink-strong">
+                            <p className="pe-4 text-2xs font-bold text-ink-strong">
                               {sched.subject.name}
                             </p>
                             {sched.rooms && sched.rooms.length > 1 ? (
@@ -550,15 +550,20 @@ function AssignmentPopover({
           >
             Cancel
           </Button>
-          <BrandButton
-            variant="gradient"
-            onClick={submit}
-            disabled={busy || blocked}
-            title={blocked ? "Seat the whole class before scheduling" : undefined}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Schedule
-          </BrandButton>
+          <Tooltip content="Seat the whole class before scheduling" disabled={!blocked}>
+            <span tabIndex={blocked ? 0 : undefined} className="inline-flex">
+              <Button
+                variant="default"
+                onClick={submit}
+                disabled={busy || blocked}
+                loading={busy}
+                className="inline-flex items-center gap-2"
+              >
+                {busy ? null : <Plus className="h-4 w-4" aria-hidden="true" />}
+                Schedule
+              </Button>
+            </span>
+          </Tooltip>
         </div>
       }
     >

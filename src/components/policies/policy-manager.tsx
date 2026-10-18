@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui/alert";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,9 +49,9 @@ export function PolicyManager() {
     <section aria-labelledby="policy-manager" className="sk-panel space-y-4 p-4">
       <h2 id="policy-manager" className="text-lg font-bold">{ui("School policies")}</h2>
       <p className="text-sm text-ink-subtle">{ui("Only approved versions in effect on the question date and meant for the asker's audience are used to answer questions.")}</p>
-      <div aria-live="polite">
-        {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
-        {notice ? <p role="status" className="text-sm font-semibold text-emerald-800">{notice}</p> : null}
+      <div className="space-y-2">
+        {error ? <Alert tone="danger" compact>{error}</Alert> : null}
+        {notice ? <Alert tone="success" compact>{notice}</Alert> : null}
       </div>
 
       <ul className="space-y-2">{policies?.map((p) => (

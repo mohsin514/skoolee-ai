@@ -8,7 +8,9 @@ import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Send } from "lucide-react";
 
 // SKO-445: integration connections. Lists never show keys or secrets — they are shown once, on creation or
 // rotation. Health is recent delivery evidence; a delivery is "accepted by the destination", which is not the
@@ -74,7 +76,7 @@ export function Integrations() {
       {c.webhookHost ? <div><Button size="sm" variant="ghost" onClick={() => { setOpen(open === c.id ? null : c.id); setFilter(""); }} data-open-deliveries>{open === c.id ? ui("Hide deliveries") : ui("Deliveries")}</Button>
         {open === c.id ? <div className="mt-2 space-y-2" data-deliveries>
           <div className="flex flex-wrap items-center justify-between gap-2"><Select className="w-auto" value={filter} onChange={e => setFilter(e.target.value)} aria-label={ui("Status")} data-delivery-filter><option value="">{ui("All")}</option><option value="FAILED">{ui("Failed after retries")}</option><option value="BLOCKED">{ui("Blocked destination")}</option><option value="PENDING">{ui("Waiting to send")}</option><option value="DELIVERED">{ui("Accepted by destination")}</option></Select><p className="text-xs text-ink-muted">{ui("Delivered is different from processed: it means the destination accepted the request.")}</p></div>
-          {list.length ? <ul className="space-y-1">{list.map(d => <li key={d.id}><Button variant="ghost" className={cn("h-auto w-full flex-wrap justify-between py-2 text-start", (d.status === "FAILED" || d.status === "BLOCKED") && "text-red-700 dark:text-red-300")} onClick={async () => { setConfirmReplay(false); setDetail(await call(`/api/integrations?view=delivery&id=${d.id}`)); }} data-delivery={d.eventId} data-delivery-status={d.status}><span><bdi dir="ltr">{d.topic}</bdi> · <bdi dir="ltr">{d.eventId.slice(0, 8)}</bdi> · {statusLabel(ui, d.status)}</span><span className="text-xs">{ui("{0} attempts", [String(d.attempts)])}{d.replayCount ? <> · {ui("replayed {0}×", [String(d.replayCount)])}</> : null} · <bdi>{dateTime(d.occurredAt)}</bdi></span></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No deliveries yet.")}</p>}
+          {list.length ? <ul className="space-y-1">{list.map(d => <li key={d.id}><Button variant="ghost" className="sk-row-interactive h-auto w-full flex-wrap justify-between py-2 text-start" onClick={async () => { setConfirmReplay(false); setDetail(await call(`/api/integrations?view=delivery&id=${d.id}`)); }} data-delivery={d.eventId} data-delivery-status={d.status}><span><bdi dir="ltr">{d.topic}</bdi> · <bdi dir="ltr">{d.eventId.slice(0, 8)}</bdi> · <Badge size="sm" dot variant={d.status === "FAILED" || d.status === "BLOCKED" ? "danger" : d.status === "DELIVERED" ? "success" : "neutral"}>{statusLabel(ui, d.status)}</Badge></span><span className="text-xs text-ink-subtle tabular-nums">{ui("{0} attempts", [String(d.attempts)])}{d.replayCount ? <> · {ui("replayed {0}×", [String(d.replayCount)])}</> : null} · <bdi>{dateTime(d.occurredAt)}</bdi></span></Button></li>)}</ul> : <EmptyState size="sm" icon={Send} title={ui("No deliveries yet.")} description={ui("Deliveries appear here when an event is sent to this connection's webhook.")} />}
         </div> : null}
       </div> : null}
     </li>)}</ul> : <p className="sk-panel p-4 text-sm" data-integrations-empty>{ui("No external connections configured.")}</p>}

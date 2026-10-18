@@ -74,56 +74,59 @@ export default function VerifySuccessPage() {
   }, [countdown, router]);
 
   return (
-    <main lang={language} dir={directionFor(language)} className="grid min-h-dvh w-full grid-cols-1 bg-brand-50 font-sans md:grid-cols-2">
+    <main lang={language} dir={directionFor(language)} className="grid min-h-dvh w-full grid-cols-1 bg-white font-sans md:grid-cols-2">
 
       {/* ─── LEFT SIDE: Visual Narrative ─── */}
       <section className="relative hidden min-h-dvh overflow-hidden md:block">
-        <div className="absolute inset-0 bg-emerald-500/10 mix-blend-multiply z-10"></div>
+        <div aria-hidden className="absolute inset-0 z-10 bg-emerald-500/10 mix-blend-multiply"></div>
         <Image src="/login.svg" alt={t.imageAlt} fill className="object-cover" priority />
-        <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 to-transparent z-20"></div>
+        <div aria-hidden className="absolute inset-0 z-20 bg-gradient-to-t from-emerald-500/20 to-transparent"></div>
         <div className="absolute bottom-12 inset-x-8 z-30 max-w-md xl:inset-x-12">
-          <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-xs font-semibold tracking-normal text-emerald-600 uppercase mb-2 block">{t.eyebrow}</span>
-            <h2 className="text-3xl font-extrabold text-ink-strong leading-tight mb-4">{t.quote}</h2>
-            <p className="text-ink font-medium text-sm">{t.brandBody}</p>
+          <div className="sk-glass sk-enter rounded-3xl p-8 shadow-2xl">
+            <p className="sk-eyebrow mb-3 text-emerald-700">{t.eyebrow}</p>
+            <blockquote className="mb-4 text-2xl font-bold leading-snug tracking-tight text-ink-strong text-balance xl:text-3xl">{t.quote}</blockquote>
+            <p className="text-sm font-medium leading-relaxed text-ink">{t.brandBody}</p>
           </div>
         </div>
       </section>
 
       {/* ─── RIGHT SIDE: Interaction Canvas ─── */}
-      <section className="relative flex min-h-dvh w-full min-w-0 flex-col items-center justify-center bg-[#f6fdf9] p-6 md:p-8">
+      <section className="relative flex min-h-dvh w-full min-w-0 flex-col items-center justify-center bg-status-success-surface/50 px-4 py-8 sm:p-6 md:p-8">
         <div className="w-full max-w-md">
 
           <div className="mb-6 flex flex-col items-center sm:mb-10">
             <div className="mb-4">
               <SkooleeLogo size="1.6rem" />
             </div>
-            <div className="h-1 w-12 bg-emerald-500 rounded-full"></div>
+            <div aria-hidden className="h-1 w-12 rounded-full bg-emerald-500"></div>
           </div>
 
           <div
-            className="flex flex-col items-center rounded-[40px] border border-emerald-100 bg-white p-6 text-center shadow-xl sm:p-10"
+            className="sk-enter-scale flex flex-col items-center rounded-[40px] border border-status-success-border/60 bg-white p-6 text-center shadow-xl sm:p-10"
           >
-            <div className="w-20 h-20 bg-emerald-50 rounded-[32px] flex items-center justify-center text-emerald-500 mb-8 shadow-inner">
-              <CheckCircle aria-hidden className="w-12 h-12" />
+            <div aria-hidden className="mb-6 flex size-20 items-center justify-center rounded-[32px] bg-status-success-surface text-emerald-600 shadow-inner ring-1 ring-status-success-border sm:mb-8">
+              <CheckCircle className="size-12" />
             </div>
 
-            <h1 className="mb-4 text-3xl font-extrabold tracking-normal text-ink-strong">{t.title}</h1>
-            <p className="text-sm font-medium text-ink mb-10 leading-relaxed px-2">
+            <h1 className="mb-3 text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">{t.title}</h1>
+            <p className="mb-8 px-2 text-sm leading-relaxed text-ink-muted sm:mb-10">
               {t.body}
             </p>
 
-            <Link href="/login" className={buttonVariants({ size: "lg", className: "w-full" })}>
-              {t.continue} <ArrowRight aria-hidden className="rtl:rotate-180" />
+            <Link href="/login" className={buttonVariants({ size: "lg", className: "sk-nudge-trigger w-full" })}>
+              {t.continue}
+              <span aria-hidden className="sk-nudge inline-flex">
+                <ArrowRight className="size-4 rtl:rotate-180" />
+              </span>
             </Link>
 
-            <div role="status" aria-atomic="true" className="mt-8 flex items-center gap-3 text-ink-subtle font-bold text-xs tracking-normal">
-               <Loader2 aria-hidden className="h-3.5 w-3.5 shrink-0 motion-safe:animate-spin" /> {t.redirect.replace("{0}", String(countdown))}
+            <div role="status" aria-atomic="true" className="mt-6 flex items-center gap-2 text-xs font-medium tabular-nums text-ink-subtle sm:mt-8">
+              <Loader2 aria-hidden className="h-3.5 w-3.5 shrink-0 motion-safe:animate-spin" /> {t.redirect.replace("{0}", String(countdown))}
             </div>
           </div>
 
-          <p className="mt-8 text-center text-xs font-semibold text-ink-subtle uppercase tracking-normal flex items-center justify-center gap-2">
-            <ShieldCheck aria-hidden className="w-4 h-4" /> {t.complete}
+          <p className="mt-6 flex items-center justify-center gap-2 text-center text-xs font-medium text-ink-subtle sm:mt-8">
+            <ShieldCheck aria-hidden className="size-4 shrink-0 text-emerald-600" /> {t.complete}
           </p>
         </div>
       </section>

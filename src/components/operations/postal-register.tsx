@@ -7,6 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
@@ -61,11 +66,11 @@ export function PostalRegister() {
       <PanelTitle icon={Mail} title={ui("Post and couriers")} />
       <Button onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record item")}</Button>
     </div>
-    <p className="flex flex-wrap gap-3 text-sm font-bold" aria-live="polite" data-postal-counts>
+    <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-ink-strong" aria-live="polite" data-postal-counts>
       <span>{ui("Awaiting collection: {0}", [counts.awaitingCollection])}</span>
       <span>{ui("To dispatch: {0}", [counts.toDispatch])}</span>
       <span>{ui("In transit: {0}", [counts.inTransit])}</span>
-      <span className={counts.unassigned ? "text-amber-800" : ""} data-unassigned={counts.unassigned}>{ui("Without an owner: {0}", [counts.unassigned])}</span>
+      <span className={counts.unassigned ? "text-status-warning-text" : ""} data-unassigned={counts.unassigned}>{ui("Without an owner: {0}", [counts.unassigned])}</span>
     </p>
     <div className="grid gap-3 sm:grid-cols-3">
       <FormField name="postal-filter-view" label={ui("Show")}><Select value={view} onChange={event => setView(event.target.value)}><option value="active">{ui("Awaiting handoff")}</option><option value="mine">{ui("My items")}</option><option value="closed">{ui("Handed over")}</option><option value="all">{ui("All items")}</option></Select></FormField>
@@ -73,17 +78,17 @@ export function PostalRegister() {
       <FormField name="postal-filter-q" label={ui("Search code, reference, name or courier")}><Input value={q} onChange={event => setQ(event.target.value)} /></FormField>
     </div>
 
-    {loading && !rows.length ? <p role="status" className="text-sm text-ink-muted">{ui("Loading postal items…")}</p>
-      : loadError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{loadError}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
-      : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-postal-empty>{view !== "active" || direction || q ? ui("No items match these filters.") : ui("Nothing is waiting to be handed over. Record an item when post arrives or leaves.")}</p>
-      : <ul className="space-y-2" aria-label={ui("Post and couriers")}>{rows.map(row => <li key={row.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-border p-3 text-sm" data-postal={row.itemCode} data-postal-status={row.status}>
+    {loading && !rows.length ? <SkeletonList rows={4} label={ui("Loading postal items…")} />
+      : loadError ? <ErrorState title={ui("Postal items could not be loaded.")} description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
+      : !rows.length ? <div data-postal-empty>{view !== "active" || direction || q ? <EmptyState size="sm" icon={Mail} title={ui("No items match these filters.")} /> : <EmptyState size="sm" icon={Mail} title={ui("Nothing is waiting to be handed over. Record an item when post arrives or leaves.")} action={<Button size="sm" onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record item")}</Button>} />}</div>
+      : <ul className="space-y-2" aria-label={ui("Post and couriers")}>{rows.map(row => <li key={row.id} className="sk-row-interactive flex flex-wrap items-center gap-3 rounded-2xl border border-border p-3 text-sm" data-postal={row.itemCode} data-postal-status={row.status}>
         <div className="min-w-0 flex-1 space-y-0.5">
-          <p className="font-bold"><bdi>{row.itemCode}</bdi> · {row.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · <bdi>{row.toName}</bdi></p>
+          <p className="font-semibold text-ink-strong"><bdi>{row.itemCode}</bdi> · {row.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · <bdi>{row.toName}</bdi></p>
           <p className="text-xs text-ink-muted">{formatDate(row.date)}{row.fromName ? <> · {ui("From")} <bdi>{row.fromName}</bdi></> : null}{row.courier ? <> · <bdi>{row.courier}</bdi></> : null}</p>
           {row.referenceNo ? <p className="break-all text-xs" data-postal-reference><bdi dir="ltr">{row.referenceNo}</bdi></p> : <p className="text-xs text-ink-muted">{ui("No tracking reference")}</p>}
-          <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : CLOSED.includes(row.status) ? null : <span className="font-bold text-amber-800">{ui("No owner yet")}</span>}{row.handedTo ? <> · {ui("Handed to")} <bdi>{row.handedTo}</bdi></> : null}</p>
+          <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : CLOSED.includes(row.status) ? null : <span className="font-semibold text-status-warning-text">{ui("No owner yet")}</span>}{row.handedTo ? <> · {ui("Handed to")} <bdi>{row.handedTo}</bdi></> : null}</p>
         </div>
-        <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${CLOSED.includes(row.status) ? "bg-emerald-50 text-emerald-700" : "bg-muted"}`}>{statusLabel(ui, row.status)}</span>
+        <Badge size="sm" dot variant={CLOSED.includes(row.status) ? "success" : "neutral"}>{statusLabel(ui, row.status)}</Badge>
         <Button size="sm" variant="secondary" onClick={() => setOpenItem(row)} aria-label={ui("Open postal item {0}", [row.itemCode])}>{ui("Open")}</Button>
       </li>)}</ul>}
 
@@ -121,7 +126,7 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
   </ModalFrame>;
   return <ModalFrame title={ui("Record item")} eyebrow={ui("Post and couriers")} subtitle={ui("Record only what is needed to hand the item over.")} onClose={onClose} dirty={Boolean(form.toName || form.referenceNo || form.note)}>
     <div className="space-y-3" data-postal-intake>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-postal-error>{error}</p> : null}
+      {error ? <Alert tone="danger" compact data-postal-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="postal-direction" label={ui("Direction")}><Select value={form.direction} onChange={set("direction")}><option value="RECEIVE">{ui("Incoming")}</option><option value="DISPATCH">{ui("Outgoing")}</option></Select></FormField>
         <FormField name="postal-date" label={ui("Date")}><Input type="date" value={form.date} max={todayText()} onChange={set("date")} /></FormField>
@@ -132,7 +137,7 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
       </div>
       <FormField name="postal-note" label={ui("Note (optional)")}><Textarea value={form.note} rows={2} maxLength={500} onChange={set("note")} /></FormField>
       <FormField name="postal-owner" label={ui("Owner responsible for the handoff (optional)")}><Select value={form.ownerId} onChange={set("ownerId")}><option value="">{ui("No owner yet")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} disabled={busy} aria-busy={busy}>{busy ? ui("Saving…") : ui("Record item")}</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Record item")}</Button></div>
     </div>
   </ModalFrame>;
 }
@@ -165,10 +170,10 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
   };
   return <ModalFrame title={ui("Postal item {0}", [item.itemCode])} eyebrow={ui("Post and couriers")} size="lg" onClose={onClose} dirty={Boolean(note || handedTo || reason)}>
     <div className="space-y-4" data-postal-item={item.itemCode}>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-postal-item-error>{error}</p> : null}
+      {error ? <Alert tone="danger" compact data-postal-item-error>{error}</Alert> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Item details")}>
-        <p className="text-xs font-semibold uppercase text-ink-subtle">{item.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · {formatDate(item.date)} · {statusLabel(ui, item.status)}</p>
-        <p className="font-bold"><bdi>{item.toName}</bdi>{item.fromName ? <> · {ui("From")} <bdi>{item.fromName}</bdi></> : null}{item.courier ? <> · <bdi>{item.courier}</bdi></> : null}</p>
+        <p className="sk-eyebrow">{item.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · {formatDate(item.date)} · {statusLabel(ui, item.status)}</p>
+        <p className="font-semibold text-ink-strong"><bdi>{item.toName}</bdi>{item.fromName ? <> · {ui("From")} <bdi>{item.fromName}</bdi></> : null}{item.courier ? <> · <bdi>{item.courier}</bdi></> : null}</p>
         {item.referenceNo ? <p className="break-all text-xs"><bdi dir="ltr">{item.referenceNo}</bdi></p> : null}
         {item.handedTo ? <p className="text-xs">{ui("Handed to")} <bdi>{item.handedTo}</bdi>{item.closedAt ? <> · <bdi>{dateTime(item.closedAt)}</bdi></> : null}</p> : null}
       </section>
@@ -204,10 +209,10 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
         <div className="flex gap-2"><Button disabled={busy} onClick={correction}>{ui("Save correction")}</Button><Button variant="ghost" onClick={() => setCorrecting(false)}>{ui("Cancel")}</Button></div>
       </fieldset> : <Button variant="ghost" onClick={() => setCorrecting(true)}>{ui("Correct a mistake")}</Button>}
       <section aria-label={ui("History")}>
-        <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
-        {historyError ? <p role="alert" className="text-xs text-rose-700">{historyError}</p> : !history ? <p role="status" className="text-xs">{ui("Loading history…")}</p>
+        <p className="sk-eyebrow mb-2">{ui("History")}</p>
+        {historyError ? <Alert tone="danger" compact>{historyError}</Alert> : !history ? <p role="status" className="text-xs">{ui("Loading history…")}</p>
           : <ol className="space-y-1.5 text-xs" data-postal-history>{history.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
-            <p className="font-bold">{eventLabel(ui, event.kind)} · <bdi>{dateTime(event.createdAt)}</bdi>{event.actorName ? <> · <bdi>{event.actorName}</bdi></> : null}</p>
+            <p className="font-semibold text-ink-strong">{eventLabel(ui, event.kind)} · <bdi>{dateTime(event.createdAt)}</bdi>{event.actorName ? <> · <bdi>{event.actorName}</bdi></> : null}</p>
             {event.kind === "ASSIGNED" ? <p>{event.ownerName ? ui("Owner: {0}", [event.ownerName]) : ui("No owner yet")}</p> : null}
             {event.kind === "CORRECTED" && event.changes ? <ul className="mt-1 space-y-0.5">{Object.entries(event.changes as Record<string, { from: string | null; to: string | null }>).map(([field, change]) => <li key={field} className="break-all" data-correction-field={field}>{fieldLabel(ui, field)}: <s><bdi dir="auto">{change.from ?? "—"}</bdi></s> → <bdi dir="auto">{change.to ?? "—"}</bdi></li>)}</ul> : null}
             {event.note ? <p className="whitespace-pre-wrap"><bdi>{event.note}</bdi></p> : null}

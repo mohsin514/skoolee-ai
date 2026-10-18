@@ -1,12 +1,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
   CalendarDays,
   CalendarX,
-  Check,
   Clock,
   Download,
   Layers,
@@ -14,7 +15,6 @@ import {
   RefreshCw,
   Trash2,
   Wand2,
-  X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -270,31 +270,29 @@ export function MasterDatesheet({
   return (
     <div className="space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+      <div className="flex flex-wrap items-center gap-3 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_8px_24px_-16px_rgba(120,70,180,0.35)] backdrop-blur-xl">
         <div className="min-w-0">
           <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
             Date sheet
           </p>
           <p className="text-sm font-bold text-ink-strong">
             {totals.placed} of {totals.expected} papers placed
-            <span className="ml-2 text-2xs font-bold text-ink-subtle">
+            <span className="ms-2 text-2xs font-bold text-ink-subtle">
               {totals.subjects} subject{totals.subjects === 1 ? "" : "s"} · {data.rows.length}{" "}
               class{data.rows.length === 1 ? "" : "es"}
             </span>
           </p>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="ms-auto flex flex-wrap items-center gap-2">
           {blocking > 0 ? (
-            <span className="flex items-center gap-1.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-rose-600">
-              <AlertTriangle className="h-3.5 w-3.5" />
+            <Badge variant="danger" dot>
               {blocking} to fix
-            </span>
+            </Badge>
           ) : totals.placed === totals.expected ? (
-            <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-              <Check className="h-3.5 w-3.5" />
+            <Badge variant="success" dot>
               Complete
-            </span>
+            </Badge>
           ) : null}
           <Button variant="outline" size="icon"
             type="button"
@@ -433,14 +431,17 @@ export function MasterDatesheet({
           bodyClassName="p-4"
         >
           {calendar.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-edge/30 p-8 text-center text-xs font-bold text-ink-muted">
-              Nothing placed yet. Set a date on a paper and it appears here.
-            </p>
+            <EmptyState
+              size="sm"
+              icon={CalendarDays}
+              title="Nothing placed yet"
+              description="Set a date on a paper and it appears here."
+            />
           ) : (
-            <ol className="relative space-y-2.5 pl-5">
+            <ol className="relative space-y-2.5 ps-5">
               <span
                 aria-hidden
-                className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-primary/40 via-edge/40 to-transparent"
+                className="absolute start-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-primary/40 via-edge/40 to-transparent"
               />
               {calendar.map(({ date, entries }) => {
                 const weekend = data.weekends.includes(isoDow(date));
@@ -449,7 +450,7 @@ export function MasterDatesheet({
                     <span
                       aria-hidden
                       className={cn(
-                        "absolute -left-5 top-3 h-[9px] w-[9px] rounded-full ring-4 ring-white",
+                        "absolute -start-5 top-3 h-[9px] w-[9px] rounded-full ring-4 ring-white",
                         weekend ? "bg-rose-500" : "bg-primary",
                       )}
                     />
@@ -538,7 +539,7 @@ export function MasterDatesheet({
             />
           }
         >
-          <p className="text-sm font-semibold text-ink-muted">
+          <p className="text-sm leading-relaxed font-normal text-ink-muted">
             You can place it again at any time.
           </p>
         </Modal>
@@ -718,10 +719,12 @@ function PlacePaperModal({
         </div>
 
         {checking ? (
-          <div className="flex items-center gap-2 rounded-2xl bg-surface-subtle px-4 py-3 text-xs font-bold text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            Checking that slot against every class…
-          </div>
+          <Alert tone="neutral" compact live="polite" icon={false}>
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+              Checking that slot against every class…
+            </span>
+          </Alert>
         ) : preview ? (
           <>
             <ConflictPanel conflicts={preview.conflicts} />
@@ -742,10 +745,9 @@ function PlacePaperModal({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 rounded-2xl bg-amber-50/70 px-4 py-3 text-xs font-bold text-amber-700">
-                <X className="h-4 w-4" />
+              <Alert tone="warning" compact live="off">
                 Nothing can be placed in this slot — every class is blocked.
-              </div>
+              </Alert>
             )}
           </>
         ) : null}

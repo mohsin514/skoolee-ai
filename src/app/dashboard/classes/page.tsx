@@ -20,9 +20,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Tooltip } from "@/components/ui/tooltip";
 import { BookOpen, GraduationCap, Loader2, Plus, Users } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -90,9 +93,11 @@ export default function ClassesPage() {
   const [subjectForm, setSubjectForm] = useState({ name: "", classId: "", teacherId: "", totalMarks: 100 });
   const [isSaving, setIsSaving] = useState(false);
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(false);
     try {
       const [classRes, subjectRes, staffRes] = await Promise.all([
         fetch("/api/classes"),
@@ -113,6 +118,7 @@ export default function ClassesPage() {
       setSubjects(subjectData.data || []);
       setTeachers(staffData.staff || []);
     } catch (error) {
+      setLoadError(true);
       toast.error(error instanceof Error ? error.message : "Could not load academic data");
     } finally {
       setIsLoading(false);
@@ -148,7 +154,7 @@ export default function ClassesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create class");
-      toast.success(data.count > 1 ? `${data.count} sections created` : "Class section created");
+      toast.success(data.count > 1 ? `${data.count} class sections created` : "Class section created");
       setShowAddDialog(false);
       setClassForm({ name: "", section: "", academicYear: new Date().getFullYear(), classTeacherId: "" });
       await loadData();
@@ -175,7 +181,7 @@ export default function ClassesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create subject");
-      toast.success("Subject assigned");
+      toast.success(`${subjectForm.name.trim() || "Subject"} assigned`);
       setShowSubjectDialog(false);
       setSubjectForm({ name: "", classId: "", teacherId: "", totalMarks: 100 });
       await loadData();
@@ -205,48 +211,62 @@ export default function ClassesPage() {
     }
   };
 
+  const addSubjectButton = (
+    <Button variant="outline" size="sm" onClick={() => setShowSubjectDialog(true)} disabled={classes.length === 0}>
+      <BookOpen aria-hidden="true" className="h-4 w-4" />
+      Add Subject
+    </Button>
+  );
+
   return (
     <>
       <Header
         title="Classes"
         description="Manage classes, sections, teachers, and subject assignments"
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowSubjectDialog(true)} disabled={classes.length === 0}>
-              <BookOpen className="h-4 w-4" />
-              Add Subject
-            </Button>
+          <div className="flex flex-wrap gap-2">
+            {!isLoading && classes.length === 0 ? (
+              <Tooltip content="Create a class first. Subjects are assigned to a class section.">
+                <span tabIndex={0} className="inline-flex rounded-xl">{addSubjectButton}</span>
+              </Tooltip>
+            ) : addSubjectButton}
             <Button size="sm" onClick={() => setShowAddDialog(true)}>
-              <Plus className="h-4 w-4" />
+              <Plus aria-hidden="true" className="h-4 w-4" />
               Add Class
             </Button>
           </div>
         }
       />
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {isLoading ? (
           <SkeletonList rows={4} label="Loading classes" />
+        ) : loadError && classes.length === 0 ? (
+          <Card className="sk-enter">
+            <ErrorState
+              title="Classes could not be loaded"
+              description="Your classes, subjects and teachers did not load. Check your connection and try again."
+              onRetry={loadData}
+            />
+          </Card>
         ) : classes.length === 0 ? (
-          <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "0ms" }}>
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <GraduationCap className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-lg font-semibold">No classes yet</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Create a class before adding students, subjects, or fee structures.
-              </p>
-              <Button size="sm" className="mt-6" onClick={() => setShowAddDialog(true)}>
-                <Plus className="h-4 w-4" />
-                Create Class
-              </Button>
-            </CardContent>
+          <Card className="sk-enter">
+            <EmptyState
+              icon={GraduationCap}
+              title="No classes yet"
+              description="Create a class before adding students, subjects, or fee structures."
+              action={
+                <Button size="sm" onClick={() => setShowAddDialog(true)}>
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                  Create Class
+                </Button>
+              }
+            />
           </Card>
         ) : (
-          <Card className="sk-rise overflow-hidden border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "0ms" }}>
+          <Card className="sk-enter overflow-hidden">
             <CardContent className="p-0">
-              <Table>
+              <Table containerClassName="rounded-none border-0">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Class</TableHead>
@@ -259,28 +279,28 @@ export default function ClassesPage() {
                 <TableBody>
                   {classes.map((cls) => (
                     <TableRow key={cls.id}>
-                      <TableCell>
-                        <div className="font-medium">{cls.name}</div>
-                        <div className="text-xs text-muted-foreground">Section {cls.section || "None"}</div>
+                      <TableCell className="min-w-36">
+                        <div className="font-semibold text-ink-strong">{cls.name}</div>
+                        <div className="text-xs text-ink-subtle">Section {cls.section || "None"}</div>
                       </TableCell>
-                      <TableCell>{cls.academicYear}</TableCell>
-                      <TableCell>{cls.classTeacher?.fullName || "Unassigned"}</TableCell>
+                      <TableCell className="tabular-nums">{cls.academicYear}</TableCell>
+                      <TableCell className={cls.classTeacher ? "text-ink" : "text-ink-subtle"}>{cls.classTeacher?.fullName || "Unassigned"}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Users className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-1.5 text-ink-muted tabular-nums">
+                          <Users aria-hidden="true" className="h-3.5 w-3.5" />
                           {cls._count.students}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="min-w-48">
                         <div className="flex flex-wrap gap-1">
                           {cls.subjects.length ? (
                             cls.subjects.map((subject) => (
-                              <Badge key={subject.id} variant="secondary">
+                              <Badge key={subject.id} variant="secondary" size="sm">
                                 {subject.name}
                               </Badge>
                             ))
                           ) : (
-                            <span className="text-sm text-muted-foreground">No subjects</span>
+                            <span className="text-sm text-ink-subtle">No subjects</span>
                           )}
                         </div>
                       </TableCell>
@@ -292,31 +312,48 @@ export default function ClassesPage() {
           </Card>
         )}
 
-        <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
+        <Card className="sk-enter" style={{ "--sk-delay": "120ms" } as React.CSSProperties}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BookOpen aria-hidden="true" className="h-4 w-4 text-primary" />
               Subject Assignments
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {subjects.length === 0 ? (
-              <div className="py-8 text-sm text-muted-foreground">No subjects assigned yet.</div>
+            {isLoading ? (
+              <SkeletonList rows={2} label="Loading subjects" />
+            ) : subjects.length === 0 ? (
+              <EmptyState
+                size="sm"
+                icon={BookOpen}
+                title="No subjects assigned yet"
+                description={classes.length === 0 ? "Create a class first, then assign its subjects and teachers." : "Assign a subject to a class section to set its teacher and total marks."}
+                action={classes.length > 0 ? (
+                  <Button size="sm" variant="outline" onClick={() => setShowSubjectDialog(true)}>
+                    <Plus aria-hidden="true" className="h-4 w-4" />
+                    Assign Subject
+                  </Button>
+                ) : undefined}
+              />
             ) : (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="sk-stagger grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {subjects.map((subject) => (
-                  <div key={subject.id} className="rounded-lg border border-border p-4">
+                  <div key={subject.id} className="min-w-0 rounded-2xl border border-border-subtle bg-white p-4 shadow-xs transition-[border-color,box-shadow] duration-200 hover:border-primary/25 hover:shadow-sm">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold">{subject.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {classLabel(subject.class)} - {subject.totalMarks} marks
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-ink-strong">{subject.name}</p>
+                        <p className="text-xs text-ink-subtle">
+                          {classLabel(subject.class)} · <span className="tabular-nums">{subject.totalMarks}</span> marks
                         </p>
                       </div>
-                      <Badge variant="outline">{subject.teacher?.fullName || "Unassigned"}</Badge>
+                      <Badge variant={subject.teacher ? "outline" : "neutral"} size="sm" className="max-w-[50%] shrink-0">
+                        <span className="truncate">{subject.teacher?.fullName || "Unassigned"}</span>
+                      </Badge>
                     </div>
-                    <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                    <div className="mt-3 flex items-center gap-2">
                       <Select
+                        aria-label={`Teacher for ${subject.name}, ${classLabel(subject.class)}`}
+                        className="min-w-0 flex-1"
                         value={subject.teacher?.id || ""}
                         onChange={(event) => updateSubjectTeacher(subject.id, event.target.value)}
                         disabled={savingSubjectId === subject.id}
@@ -326,9 +363,12 @@ export default function ClassesPage() {
                           <option key={teacher.id} value={teacher.id}>{teacher.fullName}</option>
                         ))}
                       </Select>
-                      <Button type="button" size="sm" variant="outline" disabled={savingSubjectId === subject.id}>
-                        {savingSubjectId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Teacher"}
-                      </Button>
+                      {savingSubjectId === subject.id ? (
+                        <span role="status" className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+                          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                          Saving
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -344,37 +384,32 @@ export default function ClassesPage() {
             <DialogTitle>Create Class Sections</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={createClass}>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Class Name *</Label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField name="class-name" label="Class name" required>
                 <Input value={classForm.name} onChange={(event) => setClassForm((form) => ({ ...form, name: event.target.value }))} placeholder="Class 10" required />
-              </div>
-              <div className="space-y-2">
-                <Label>Sections</Label>
+              </FormField>
+              <FormField name="class-sections" label="Sections" optional hint="Separate with commas to create several at once, e.g. A, B, C. Leave empty for one class without sections.">
                 <Input value={classForm.section} onChange={(event) => setClassForm((form) => ({ ...form, section: event.target.value }))} placeholder="A, B, C" />
-              </div>
+              </FormField>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Academic Year *</Label>
-                <Input type="number" value={classForm.academicYear} onChange={(event) => setClassForm((form) => ({ ...form, academicYear: Number(event.target.value) }))} min={2000} max={2100} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Class Teacher</Label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField name="class-year" label="Academic year" required hint="Between 2000 and 2100.">
+                <Input type="number" className="tabular-nums" value={classForm.academicYear} onChange={(event) => setClassForm((form) => ({ ...form, academicYear: Number(event.target.value) }))} min={2000} max={2100} required />
+              </FormField>
+              <FormField name="class-teacher" label="Class teacher" optional>
                 <Select value={classForm.classTeacherId} onChange={(event) => setClassForm((form) => ({ ...form, classTeacherId: event.target.value }))}>
                   <option value="">Unassigned</option>
                   {teachers.map((teacher) => (
                     <option key={teacher.id} value={teacher.id}>{teacher.fullName}</option>
                   ))}
                 </Select>
-              </div>
+              </FormField>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button type="submit" loading={isSaving}>
                 Create Sections
               </Button>
             </DialogFooter>
@@ -388,51 +423,45 @@ export default function ClassesPage() {
             <DialogTitle>Assign Subject</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={createSubject}>
-            <div className="space-y-2">
-              <Label>Subject Name *</Label>
+            <FormField name="subject-name" label="Subject name" required>
               <Input value={subjectForm.name} onChange={(event) => setSubjectForm((form) => ({ ...form, name: event.target.value }))} placeholder="Mathematics" required />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Class *</Label>
+            </FormField>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField name="subject-class" label="Class" required>
                 <Select value={selectedSubjectGroupKey} onChange={(event) => selectSubjectClassGroup(event.target.value)} required>
                   <option value="">Select class</option>
                   {classGroups.map((group) => (
                     <option key={group.key} value={group.key}>{group.name} - {group.academicYear}</option>
                   ))}
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Section *</Label>
+              </FormField>
+              <FormField name="subject-section" label="Section" required hint={selectedSubjectGroup ? undefined : "Choose a class first."}>
                 <Select value={subjectForm.classId} onChange={(event) => setSubjectForm((form) => ({ ...form, classId: event.target.value }))} required>
                   <option value="">Select section</option>
                   {(selectedSubjectGroup?.sections || []).map((cls) => (
                     <option key={cls.id} value={cls.id}>Section {sectionLabel(cls)}</option>
                   ))}
                 </Select>
-              </div>
+              </FormField>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Teacher</Label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField name="subject-teacher" label="Teacher" optional>
                 <Select value={subjectForm.teacherId} onChange={(event) => setSubjectForm((form) => ({ ...form, teacherId: event.target.value }))}>
                   <option value="">Unassigned</option>
                   {teachers.map((teacher) => (
                     <option key={teacher.id} value={teacher.id}>{teacher.fullName}</option>
                   ))}
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Total Marks *</Label>
-                <Input type="number" value={subjectForm.totalMarks} onChange={(event) => setSubjectForm((form) => ({ ...form, totalMarks: Number(event.target.value) }))} min={1} required />
-              </div>
+              </FormField>
+              <FormField name="subject-total" label="Total marks" required hint="The most a student can score in this subject.">
+                <Input type="number" className="tabular-nums" value={subjectForm.totalMarks} onChange={(event) => setSubjectForm((form) => ({ ...form, totalMarks: Number(event.target.value) }))} min={1} required />
+              </FormField>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowSubjectDialog(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button type="submit" loading={isSaving}>
                 Assign Subject
               </Button>
             </DialogFooter>

@@ -35,12 +35,12 @@ export function ScheduleConflictsBanner({
   const scopeLabel = scope === "today" ? "today" : "this week";
 
   return (
-    <div className="sk-rise overflow-hidden rounded-[24px] border border-rose-200/70 bg-gradient-to-br from-rose-50 to-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(190,18,60,0.20)]">
+    <div className="sk-rise overflow-hidden rounded-[24px] border border-rose-200/70 bg-gradient-to-br from-rose-50 to-white shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(190,18,60,0.20)]">
       <Button variant="secondary"
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 text-left"
+        className="flex w-full items-center justify-between gap-3 text-start"
       >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">

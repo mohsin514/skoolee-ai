@@ -1,9 +1,10 @@
 "use client";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
-
-
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   BarChart3, BookOpen, Bot, BrainCircuit, ChevronDown, ClipboardCheck, Copy,
   GraduationCap, Lightbulb, Search, Sparkles, Users, X,
@@ -124,21 +125,21 @@ export default function AIPage() {
 
         {/* ── The tool itself ── */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
-          <section className="sk-panel group relative overflow-hidden border-primary/10 transition-all duration-300">
+          <section className="sk-panel sk-enter group relative min-w-0 overflow-hidden border-primary/10 transition-all duration-300">
             {/* One wash, not six. */}
             <span
               aria-hidden
               className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/[0.07] blur-3xl"
             />
             <CornerSparkles />
-            <div className="relative p-5">
+            <div className="relative p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-300 text-white shadow-[0_8px_20px_-6px_rgba(129,39,207,0.6)]">
+                <span aria-hidden="true" className="sk-icon-tile flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-300 text-white shadow-brand">
                   <Bot className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
                   <h2 className="text-base font-bold tracking-tight text-ink-strong">AI Assistant</h2>
-                  <p className="text-2xs font-semibold text-ink-subtle">
+                  <p className="text-xs leading-relaxed text-ink-subtle">
                     Drafts are saved below — nothing is sent to a guardian automatically.
                   </p>
                 </div>
@@ -157,7 +158,7 @@ export default function AIPage() {
               opening this screen for the first time has no idea what any of
               the five actions actually produce; that is the gap worth
               filling. */}
-          <aside className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-ink-strong via-[#2d2433] to-ink-strong p-5 text-white shadow-[0_12px_32px_-12px_rgba(31,26,35,0.6)]">
+          <aside className="sk-enter relative overflow-hidden rounded-[28px] bg-gradient-to-br from-ink-strong via-[#2d2433] to-ink-strong p-5 text-white shadow-xl" style={{ "--sk-delay": "80ms" } as CSSProperties}>
             <span
               aria-hidden
               className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
@@ -165,10 +166,10 @@ export default function AIPage() {
             <CornerSparkles color="#c084fc" />
             <div className="relative">
               <div className="mb-4 flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">
-                  <Sparkles className="h-3.5 w-3.5 text-[#c084fc]" />
+                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">
+                  <Sparkles className="h-3.5 w-3.5 text-brand-300" />
                 </span>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-white/60">What it can do</p>
+                <h2 className="text-2xs font-semibold uppercase tracking-wider text-white/70">What it can do</h2>
               </div>
               <ul className="space-y-2.5">
                 {[
@@ -178,13 +179,13 @@ export default function AIPage() {
                   ["Rewrite remark", "Turns a blunt note into report-card language"],
                   ["Translate", "An English remark rendered into Urdu"],
                 ].map(([label, what]) => (
-                  <li key={label} className="rounded-xl bg-white/[0.06] px-3 py-2.5 transition-colors hover:bg-white/[0.11]">
-                    <p className="text-xs font-bold text-white">{label}</p>
-                    <p className="mt-0.5 text-2xs font-semibold leading-snug text-white/50">{what}</p>
+                  <li key={label} className="rounded-xl bg-white/[0.06] px-3 py-2.5">
+                    <p className="text-sm font-semibold text-white">{label}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-white/70">{what}</p>
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 rounded-xl bg-white/[0.06] px-3 py-2.5 text-2xs font-semibold leading-snug text-white/55">
+              <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-xs leading-relaxed text-white/75">
                 Student names are never sent to the model — drafts are written from
                 pseudonymised data and always need your review.
               </p>
@@ -196,21 +197,21 @@ export default function AIPage() {
         <section className="sk-panel overflow-hidden">
           <div className="flex flex-wrap items-center gap-3 border-b border-edge/12 px-4 py-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+              <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                 <Lightbulb className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <h2 className="truncate text-sm font-bold tracking-tight text-ink-strong">Saved AI drafts</h2>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Saved AI drafts</h2>
+                <p aria-live="polite" className="text-xs tabular-nums text-ink-subtle">
                   {insights.length} total{featureFilter || query ? ` · ${visibleInsights.length} shown` : ""}
                 </p>
               </div>
             </div>
 
             {insights.length > 0 ? (
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                <InputGroup surfaceClassName="bg-white" className="relative min-w-[180px]">
-                  <Search data-field-affix="start" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
+              <div className="flex w-full flex-wrap items-center gap-2 sm:ms-auto sm:w-auto">
+                <InputGroup surfaceClassName="bg-white" className="w-full sm:w-auto sm:min-w-[220px]">
+                  <Search data-field-affix="start" aria-hidden="true" className="pointer-events-none size-4 text-ink-subtle" />
                   <SystemInput
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -219,21 +220,19 @@ export default function AIPage() {
                     className={"w-full"}
                   />
                   {query ? (
-                    <FieldAction   data-field-affix="end" type="button" onClick={() => setQuery("")} aria-label="Clear draft search"
-                      >
-                      <X className="h-3 w-3" />
+                    <FieldAction data-field-affix="end" type="button" onClick={() => setQuery("")} label="Clear draft search">
+                      <X aria-hidden="true" />
                     </FieldAction>
                   ) : null}
                 </InputGroup>
                 {features.length > 1 ? (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div role="group" aria-label="Filter drafts by kind" className="flex flex-wrap gap-1.5">
                     {["", ...features].map((f) => (
-                      <Button variant="choice"
+                      <Button variant="choice" size="sm"
                         key={f || "all"}
                         type="button"
                         onClick={() => setFeatureFilter(f)}
                         aria-pressed={featureFilter === f}
-
                       >
                         {f ? featureLabel(f) : "All"}
                       </Button>
@@ -245,30 +244,29 @@ export default function AIPage() {
           </div>
 
           {visibleInsights.length ? (
-            <ul className="divide-y divide-muted">
+            <ul className="sk-fade-in divide-y divide-muted">
               {visibleInsights.map((insight) => (
                 <InsightRow key={insight.id} insight={insight} />
               ))}
             </ul>
           ) : insights.length ? (
-            <div className="flex flex-col items-center gap-3 p-10 text-center">
-              <p className="text-sm font-bold text-ink-strong">No draft matches that</p>
-              <Button variant="secondary" type="button" onClick={() => { setQuery(""); setFeatureFilter(""); }}
-                className="items-center gap-1.5 justify-start">
-                <X className="h-3.5 w-3.5" /> Clear filters
-              </Button>
-            </div>
+            <EmptyState
+              size="sm"
+              icon={Search}
+              title="No draft matches that"
+              description="Try a different word, or clear the filters to see every saved draft."
+              action={
+                <Button variant="secondary" type="button" onClick={() => { setQuery(""); setFeatureFilter(""); }}>
+                  <X aria-hidden="true" /> Clear filters
+                </Button>
+              }
+            />
           ) : (
-            <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-primary">
-                <Lightbulb className="h-7 w-7" />
-              </span>
-              <h3 className="mt-2 text-base font-bold text-ink-strong">No drafts yet</h3>
-              <p className="max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
-                Pick an action above and run it. Every draft is saved here so you can come
-                back to it, copy it, and edit it before it goes anywhere.
-              </p>
-            </div>
+            <EmptyState
+              icon={Lightbulb}
+              title="No drafts yet"
+              description="Pick an action above and run it. Every draft is saved here so you can come back to it, copy it, and edit it before it goes anywhere."
+            />
           )}
         </section>
       </div>
@@ -292,6 +290,7 @@ function InsightRow({ insight }: { insight: any }) {
     try {
       await navigator.clipboard.writeText(`${insight.title ? `${insight.title}\n\n` : ""}${body}`);
       setCopied(true);
+      toast.success("Draft copied. Paste it wherever you need it.");
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Your browser blocked clipboard access — select the text and copy it manually.");
@@ -299,38 +298,38 @@ function InsightRow({ insight }: { insight: any }) {
   };
 
   return (
-    <li className="group transition-colors hover:bg-brand-50/20">
+    <li className="group transition-colors hover:bg-surface-hover">
       <div className="flex items-start gap-3 px-4 py-3.5">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+        <span aria-hidden="true" className="sk-icon-tile mt-0.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary min-[400px]:flex">
           <Sparkles className="h-4 w-4" />
         </span>
 
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
+            <Badge variant="secondary" size="sm">
               {featureLabel(insight.feature)}
-            </span>
+            </Badge>
             {insight.approvalStatus === "APPROVED" ? (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
+              <Badge variant="success" size="sm" dot>
                 Approved
-              </span>
+              </Badge>
             ) : insight.approvalStatus === "REJECTED" ? (
-              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-700">
+              <Badge variant="danger" size="sm" dot>
                 Rejected
-              </span>
+              </Badge>
             ) : null}
             {when ? (
-              <span className="text-2xs font-semibold text-ink-subtle">{when}</span>
+              <span className="text-xs text-ink-subtle">{when}</span>
             ) : null}
           </div>
 
           {/* `title` was selected by the server and then never rendered — the
               row led with the summary and dropped the headline entirely. */}
           {insight.title ? (
-            <p className="text-sm font-bold leading-snug text-ink-strong">{insight.title}</p>
+            <p className="break-words text-sm font-semibold leading-snug text-ink-strong">{insight.title}</p>
           ) : null}
           <p className={cn(
-            "mt-0.5 whitespace-pre-line text-xs font-semibold leading-relaxed text-ink-muted",
+            "mt-0.5 whitespace-pre-line break-words text-sm leading-relaxed text-ink-muted",
             !open && "line-clamp-2",
           )}>
             {body}
@@ -338,25 +337,21 @@ function InsightRow({ insight }: { insight: any }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Button size="icon" variant="secondary"
-            type="button"
+          <IconButton variant="secondary"
             onClick={copy}
-            title="Copy this draft"
-            aria-label={`Copy the ${featureLabel(insight.feature)} draft`}
-            className="items-center justify-center"
+            label={`Copy the ${featureLabel(insight.feature)} draft`}
+            tooltip={copied ? "Copied" : "Copy this draft"}
           >
-            {copied ? <ClipboardCheck className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-          </Button>
-          <Button size="icon" variant="secondary"
-            type="button"
+            {copied ? <ClipboardCheck aria-hidden="true" className="text-emerald-600" /> : <Copy aria-hidden="true" />}
+          </IconButton>
+          <IconButton variant="secondary"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            title={open ? "Collapse" : "Read the full draft"}
-            aria-label={open ? "Collapse this draft" : "Read the full draft"}
-            className="items-center justify-center"
+            label={open ? "Collapse this draft" : "Read the full draft"}
+            tooltip={open ? "Collapse" : "Read the full draft"}
           >
-            <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-180")} />
-          </Button>
+            <ChevronDown aria-hidden="true" className={cn("transition-transform duration-200", open && "rotate-180")} />
+          </IconButton>
         </div>
       </div>
     </li>

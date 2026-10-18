@@ -19,6 +19,7 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
@@ -403,7 +404,7 @@ function LegacyReportCardsPanel({
                       ? "bg-emerald-500"
                       : step.state === "ready"
                       ? "bg-primary"
-                      : "bg-[#d9d2de] text-[#6f6579]",
+                      : "bg-surface-sunken text-ink-muted",
                   )}
                 >
                   {step.state === "done" ? (
@@ -414,11 +415,11 @@ function LegacyReportCardsPanel({
                 </span>
 
                 <div className="min-w-[12rem] flex-1">
-                  <p className="text-[13px] font-bold tracking-tight text-ink-strong">
-                    <span className="mr-1.5 text-ink-subtle tabular-nums">{i + 1}.</span>
+                  <p className="text-sm font-bold tracking-tight text-ink-strong">
+                    <span className="me-1.5 text-ink-subtle tabular-nums">{i + 1}.</span>
                     {step.label}
                   </p>
-                  <p className="mt-0.5 text-2xs font-semibold leading-snug text-ink-muted">
+                  <p className="mt-0.5 text-xs font-normal leading-relaxed text-ink-muted">
                     {step.blurb}
                   </p>
                   <p
@@ -472,11 +473,10 @@ function LegacyReportCardsPanel({
           isLocked ? (
             <>
               {needingRemarks > 0 && !published ? (
-                <Button variant="default"
+                <Tooltip content={tr("Approve every remark that has been written")}><Button variant="default"
                   type="button"
                   disabled={!!busy}
                   onClick={approveAll}
-                  title={tr("Approve every remark that has been written")}
                   className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
                 >
                   {busy === "approve-all" ? (
@@ -484,20 +484,19 @@ function LegacyReportCardsPanel({
                   ) : (
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   )}<UiText>{"Approve all ("}</UiText>{needingRemarks})
-                </Button>
+                </Button></Tooltip>
               ) : null}
-              <Button variant="outline"
+              <Tooltip content={tr("Rebuild every report card from the marks as they stand now")}><Button variant="outline"
                 type="button"
                 disabled={!!busy}
                 onClick={() => run("generate", "Report cards rebuilt")}
-                title={tr("Rebuild every report card from the marks as they stand now")}
                 className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
               >
                 {busy === "generate" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <RefreshCw className="h-3.5 w-3.5" />
-                )}<UiText>{"Rebuild"}</UiText></Button>
+                )}<UiText>{"Rebuild"}</UiText></Button></Tooltip>
             </>
           ) : null
         }
@@ -572,32 +571,30 @@ function LegacyReportCardsPanel({
                           {c.isSent ? tr("Sent") : tr("Approved")}
                         </span>
                       ) : (
-                        <Button variant="secondary"
+                        <Tooltip content={tr("Approve this remark so the results can be reviewed")}><span tabIndex={0} className="inline-flex"><Button variant="secondary"
                           type="button"
                           disabled={!!busy || published}
                           onClick={() => approveOne(c)}
-                          title={tr("Approve this remark so the results can be reviewed")}
                           className="justify-start inline-flex items-center gap-1 px-2.5 enabled:cursor-pointer"
                         >
                           {busy === `approve-${c.id}` ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <CheckCircle2 className="h-3 w-3" />
-                          )}<UiText>{"Approve"}</UiText></Button>
+                          )}<UiText>{"Approve"}</UiText></Button></span></Tooltip>
                       )}
                     </TableCell>
-                    <TableCell className="px-4 py-2.5 text-right">
+                    <TableCell className="px-4 py-2.5 text-end">
                       {/* A link, not a button running window.open after an
                           await — that loses the click's gesture and the popup
                           blocker eats the window silently (§83). */}
-                      <a
+                      <Tooltip content={tr("Open this report card as a PDF")}><a
                         href={`/api/reports/download?reportCardId=${c.id}&redirect=1`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title={tr("Open this report card as a PDF")}
                         className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-edge/30 px-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted transition-colors hover:border-primary/40 hover:text-primary"
                       >
-                        <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a>
+                        <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a></Tooltip>
                     </TableCell>
                   </TableRow>
                 ))}

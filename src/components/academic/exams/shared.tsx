@@ -149,7 +149,7 @@ export function ConflictPanel({
           <Button variant="ghost"
             type="button"
             onClick={onDismiss}
-            className="ml-auto"
+            className="ms-auto"
           >
             Hide
           </Button>
@@ -174,7 +174,7 @@ export function ConflictPanel({
               </span>
             </div>
             {!compact ? (
-              <ul className="mt-1.5 space-y-0.5 pl-3.5">
+              <ul className="mt-1.5 space-y-0.5 ps-3.5">
                 {items.slice(0, 6).map((c, i) => (
                   <li key={i} className="text-2xs font-semibold leading-snug text-ink-muted">
                     {c.message}
@@ -187,7 +187,7 @@ export function ConflictPanel({
                 ) : null}
               </ul>
             ) : null}
-            <p className="mt-1.5 flex items-start gap-1.5 pl-3.5 text-2xs font-semibold leading-snug text-primary">
+            <p className="mt-1.5 flex items-start gap-1.5 ps-3.5 text-2xs font-semibold leading-snug text-primary">
               <Info className="mt-px h-3 w-3 shrink-0" />
               {CONFLICT_FIXES[kind as keyof typeof CONFLICT_FIXES] ?? "Review this paper."}
             </p>
@@ -243,7 +243,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-[24px] border border-edge/25 bg-white shadow-[0_2px_6px_rgba(31,26,35,0.05),0_16px_40px_-24px_rgba(129,39,207,0.28)]",
+        "overflow-hidden rounded-[24px] border border-edge/25 bg-white shadow-[0_2px_6px_rgba(120,70,180,0.05),0_16px_40px_-24px_rgba(129,39,207,0.28)]",
         className,
       )}
     >
@@ -256,7 +256,7 @@ export function Panel({
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
           {subtitle ? (
-            <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{subtitle}</p>
+            <p className="mt-0.5 text-xs font-normal leading-relaxed text-ink-muted">{subtitle}</p>
           ) : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -280,12 +280,12 @@ export function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <span className="mb-1 block pl-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+      <span className="mb-1 block ps-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
         {label}
       </span>
       {children}
       {hint ? (
-        <span className="mt-1 block pl-0.5 text-2xs font-semibold leading-snug text-ink-subtle">
+        <span className="mt-1 block ps-0.5 text-2xs font-semibold leading-snug text-ink-subtle">
           {hint}
         </span>
       ) : null}

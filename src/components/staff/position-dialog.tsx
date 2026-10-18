@@ -551,7 +551,7 @@ export function PositionDialog({
                 <SystemCheckbox  checked={form.isActing} onChange={(e) => update("isActing", e.target.checked)} className="h-4 w-4 accent-primary" />
                 <span className="text-xs font-bold text-ink">
                   Acting / officiating charge
-                  <span className="ml-1 font-semibold text-ink-muted">— holding the post without the rank</span>
+                  <span className="ms-1 font-medium text-ink-muted">— holding the post without the rank</span>
                 </span>
               </label>
             </div>
@@ -668,16 +668,16 @@ function ServiceRecord({
             Nothing recorded yet. The first change you save here starts the record.
           </p>
         ) : (
-          <ol className="relative space-y-3 border-l border-edge/50 pl-5">
+          <ol className="relative space-y-3 border-s border-edge/50 ps-5">
             {history.map((entry) => (
               <li key={entry.id} className="relative">
-                <span className={cn("absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white", entry.effectiveTo ? "bg-edge" : "bg-primary")} />
+                <span className={cn("absolute -start-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white", entry.effectiveTo ? "bg-edge" : "bg-primary")} />
                 <div className="rounded-2xl border border-edge/30 bg-white p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold text-ink">{CHANGE_KIND_LABELS[entry.changeKind] ?? entry.changeKind}</span>
                     {entry.isActing ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-bold text-amber-700">ACTING</span> : null}
                     {!entry.effectiveTo ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-bold text-emerald-600">CURRENT</span> : null}
-                    <span className="ml-auto text-2xs font-bold text-ink-muted">
+                    <span className="ms-auto text-2xs font-semibold tabular-nums text-ink-muted">
                       {new Date(entry.effectiveFrom).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                       {entry.effectiveTo ? ` → ${new Date(entry.effectiveTo).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
                     </span>

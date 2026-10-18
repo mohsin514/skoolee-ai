@@ -146,7 +146,7 @@ export function YearClosureChecklist({
                   ? "This year has not started yet"
                   : "Finish these before closing"}
             </h3>
-            <p className="mt-0.5 text-xs font-semibold text-ink-muted">
+            <p className="mt-0.5 text-xs font-medium leading-relaxed text-ink-muted">
               {data.canClose
                 ? "Everything is marked, approved and released. Closing lets you start the next year."
                 : isEmptyYear
@@ -161,7 +161,7 @@ export function YearClosureChecklist({
       {isEmptyYear ? (
         <div className="rounded-2xl border border-edge/25 bg-surface-subtle px-4 py-5 text-center">
           <p className="text-sm font-bold text-ink-strong">Nothing to close here</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
+          <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-relaxed text-ink-muted">
             Once exams are created and results released for {data.openCycle.label}, this checklist
             will show what is left before the year can be closed.
           </p>
@@ -201,7 +201,7 @@ export function YearClosureChecklist({
                     {s.owner}
                   </span>
                 </div>
-                <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{s.detail}</p>
+                <p className="mt-0.5 text-2xs font-medium text-ink-muted">{s.detail}</p>
               </div>
             </div>
             {!s.done ? (

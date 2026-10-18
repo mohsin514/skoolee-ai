@@ -3,12 +3,16 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { RefreshCw, ClipboardList, ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
+import { RefreshCw, ClipboardList, ArrowLeft, ArrowRight, AlertCircle, SearchX } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LocaleProvider, useLocale } from "@/components/locale/LocaleProvider";
 import { useJobActivity, type JobDetail } from "@/components/jobs/use-job-activity";
 import { jobMessages } from "@/lib/jobs/messages";
@@ -16,14 +20,22 @@ import { outcomes } from "@/lib/jobs/contract";
 import { workflowCancelReasons, workflowRetryReasons, type WorkflowOperationReason } from "@/lib/queue/operation-contract";
 
 type Review = { action: "retry" | "cancel" | "reconcile"; items: JobDetail["items"]; source: string };
-const cardClass = "rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-sm sm:p-5";
+const cardClass = "sk-panel p-4 sm:p-5";
+const fieldLabel = "flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-ink-strong";
+/** Tone for each persisted item state; the words always come from the job copy. */
+const stateTone: Record<string, "neutral" | "info" | "success" | "danger"> = { queued: "neutral", running: "info", retrying: "info", completed: "success", failed: "danger", cancelled: "neutral" };
+
+/** Placeholder job cards while the first status read is in flight; the status text beside it announces the wait. */
+function JobCardsSkeleton() {
+  return <div aria-hidden="true" className="grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map(index => <div key={index} className="sk-panel space-y-3 p-5"><Skeleton delay={index * 60} className="h-5 w-2/3 rounded-full" /><Skeleton delay={index * 60} className="h-3.5 w-1/2 rounded-full" /><Skeleton delay={index * 60} className="h-3.5 w-3/4 rounded-full" /><Skeleton delay={index * 60} className="h-3 w-1/3 rounded-full" /></div>)}</div>;
+}
 
 export default function JobsPage() {
   return <LocaleProvider><Suspense fallback={<InitialLoading />}><JobsRoute /></Suspense></LocaleProvider>;
 }
 function InitialLoading() {
   const { language } = useLocale();
-  return <main className="mx-auto max-w-6xl p-4 sm:p-8"><h1 className="text-2xl font-semibold">{jobMessages[language].title}</h1><p role="status">{jobMessages[language].loading}</p></main>;
+  return <main className="mx-auto max-w-6xl space-y-5 p-4 sm:p-8"><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{jobMessages[language].title}</h1><p role="status" className="text-sm text-ink-muted">{jobMessages[language].loading}</p><JobCardsSkeleton /></main>;
 }
 function JobsRoute() {
   const params = useSearchParams();
@@ -150,64 +162,64 @@ function Jobs({ id }: { id: string }) {
     setNotice("exportSaved"); setBusy(false);
   };
   const filters = <section aria-label={t.filter} className={`${cardClass} grid gap-4 sm:grid-cols-2 lg:grid-cols-3`}>
-        <label className="min-w-0 space-y-1 text-sm font-medium">{t.search}<Input value={search} onChange={event => update(id ? "itemQ" : "q", event.target.value)} /></label>
-        <label className="min-w-0 space-y-1 text-sm font-medium">{t.stateFilter}<Select value={state} onChange={event => update(id ? "itemState" : "state", event.target.value)}><option value="all">{t.all}</option><option value="attention">{t.attention}</option>{outcomes.map(value => <option key={value} value={value}>{t[value]}</option>)}</Select></label>
+        <label className={fieldLabel}>{t.search}<Input value={search} onChange={event => update(id ? "itemQ" : "q", event.target.value)} /></label>
+        <label className={fieldLabel}>{t.stateFilter}<Select value={state} onChange={event => update(id ? "itemState" : "state", event.target.value)}><option value="all">{t.all}</option><option value="attention">{t.attention}</option>{outcomes.map(value => <option key={value} value={value}>{t[value]}</option>)}</Select></label>
         {!id ? <>
-          <label className="min-w-0 space-y-1 text-sm font-medium">{t.kindFilter}<Select value={kind} onChange={event => update("kind", event.target.value)}><option value="">{t.all}</option>{(["REPORT_DELIVERY","PDF","IMPORT"] as const).map(value => <option key={value} value={value}>{t[value]}</option>)}</Select></label>
-          <label className="min-w-0 space-y-1 text-sm font-medium">{t.campus}<Select value={campus} onChange={event => update("campus", event.target.value)}><option value="">{t.all}</option>{Array.from(new Map(jobs.map(job => [job.campus_id,job.campus_label || job.campus_id]))).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</Select></label>
-          <label className="min-w-0 space-y-1 text-sm font-medium">{t.started}<Input type="date" value={started} onChange={event => update("started", event.target.value)} /></label>
-        </> : <label className="min-w-0 space-y-1 text-sm font-medium">{t.channel}<Select value={channel} onChange={event => update("channel", event.target.value)}><option value="">{t.all}</option><option value="WHATSAPP">{t.WHATSAPP}</option><option value="EMAIL">{t.EMAIL}</option></Select></label>}
+          <label className={fieldLabel}>{t.kindFilter}<Select value={kind} onChange={event => update("kind", event.target.value)}><option value="">{t.all}</option>{(["REPORT_DELIVERY","PDF","IMPORT"] as const).map(value => <option key={value} value={value}>{t[value]}</option>)}</Select></label>
+          <label className={fieldLabel}>{t.campus}<Select value={campus} onChange={event => update("campus", event.target.value)}><option value="">{t.all}</option>{Array.from(new Map(jobs.map(job => [job.campus_id,job.campus_label || job.campus_id]))).map(([key,label]) => <option key={key} value={key}>{label}</option>)}</Select></label>
+          <label className={fieldLabel}>{t.started}<Input type="date" value={started} onChange={event => update("started", event.target.value)} /></label>
+        </> : <label className={fieldLabel}>{t.channel}<Select value={channel} onChange={event => update("channel", event.target.value)}><option value="">{t.all}</option><option value="WHATSAPP">{t.WHATSAPP}</option><option value="EMAIL">{t.EMAIL}</option></Select></label>}
       </section>;
   const errorText = error === "denied" ? t.denied : error === "missing" ? t.missing : t.unknown;
   return <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="mx-auto min-h-screen max-w-6xl space-y-5 bg-background p-4 text-foreground sm:p-8 [overflow-wrap:anywhere]">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0 flex-1"><h1 className="flex items-center gap-2 text-2xl font-semibold"><ClipboardList aria-hidden className="size-6 shrink-0 text-primary" />{t.title}</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t.description}</p></div>
-      <Button ref={refreshButton} variant="outline" disabled={busy || loading} onClick={() => void status.refresh()}><RefreshCw aria-hidden />{t.refresh}</Button>
+      <div className="flex min-w-0 flex-1 items-start gap-3"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-primary shadow-xs"><ClipboardList className="size-5" /></span><div className="min-w-0"><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{t.title}</h1><p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-muted">{t.description}</p></div></div>
+      <Button ref={refreshButton} variant="outline" loading={loading} disabled={busy} onClick={() => void status.refresh()}>{loading ? null : <RefreshCw aria-hidden />}{t.refresh}</Button>
     </header>
     {id && <Button variant="ghost" disabled={busy} onClick={() => open("")}><ArrowLeft aria-hidden className="rtl:rotate-180" />{t.back}</Button>}
-    {error && <div role="alert" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-4 text-status-warning-text">{errorText}</div>}
-    {notice && <p role={notice === "exportFailed" ? "alert" : "status"}>{t[notice]}</p>}
-    {checkedAt && <p className="text-sm text-muted-foreground">{t.updated}: <bdi>{date(checkedAt)}</bdi>{loading ? ` · ${t.refreshing}` : ""}</p>}
+    {error && <Alert tone="warning" live="assertive">{errorText}</Alert>}
+    {notice && <Alert tone={notice === "exportFailed" ? "danger" : "success"} live={notice === "exportFailed" ? "assertive" : "polite"} onDismiss={() => setNotice(null)}>{t[notice]}</Alert>}
+    {checkedAt && <p className="text-xs text-ink-subtle">{t.updated}: <bdi className="tabular-nums">{date(checkedAt)}</bdi>{loading ? ` · ${t.refreshing}` : ""}</p>}
     {permitted && <>
       {!id && filters}
-      {loading && !checkedAt && <p role="status">{t.loading}</p>}
+      {loading && !checkedAt && <><p role="status" className="text-sm text-ink-muted">{t.loading}</p><JobCardsSkeleton /></>}
       {!id ? <section className="grid gap-4 md:grid-cols-2" aria-label={t.title}>
-        {!loading && !error && !filteredJobs.length && <div className={cardClass}><p>{jobs.length ? t.filteredEmpty : t.empty}</p>{jobs.length > 0 && <Button className="mt-3" variant="outline" onClick={clear}>{t.clearFilters}</Button>}</div>}
-        {filteredJobs.map(job => <Button key={job.id} variant="choice" className="block h-auto min-w-0 w-full space-y-2 p-5 text-start" onClick={() => open(job.id)}><strong className="block text-lg">{job.source_label}</strong><span className="block text-sm text-muted-foreground">{t[job.kind as "PDF"] || job.kind} · {job.campus_label}</span><span className="block">{t.completed}: {job.counts.completed} / {job.counts.total} · {t.attention}: {job.attentionCount}</span><span className="block text-sm">{date(job.created_at)}</span><bdi dir="ltr" className="block break-all text-xs font-normal">{job.id}</bdi></Button>)}
+        {!loading && !error && !filteredJobs.length && <div className={`${cardClass} md:col-span-2`}><EmptyState size="sm" icon={jobs.length ? SearchX : ClipboardList} title={jobs.length ? t.filteredEmpty : t.empty} action={jobs.length > 0 ? <Button variant="outline" onClick={clear}>{t.clearFilters}</Button> : undefined} /></div>}
+        {filteredJobs.map(job => <Button key={job.id} variant="choice" className="sk-hover-lift sk-nudge-trigger block h-auto min-w-0 w-full space-y-2 rounded-2xl bg-white p-5 text-start font-normal shadow-xs" onClick={() => open(job.id)}><span className="flex items-start justify-between gap-3"><strong className="block min-w-0 text-base font-bold leading-snug text-ink-strong">{job.source_label}</strong><ArrowRight aria-hidden className="sk-nudge mt-0.5 size-4 shrink-0 text-ink-subtle rtl:rotate-180" /></span><span className="block text-sm text-ink-muted">{t[job.kind as "PDF"] || job.kind} · {job.campus_label}</span><span className="block text-sm tabular-nums text-ink">{t.completed}: {job.counts.completed} / {job.counts.total} · <span className={job.attentionCount > 0 ? "font-semibold text-status-warning-text" : undefined}>{t.attention}: {job.attentionCount}</span></span><span className="block text-xs text-ink-subtle">{date(job.created_at)}</span><bdi dir="ltr" className="block break-all font-mono text-2xs font-normal text-ink-subtle">{job.id}</bdi></Button>)}
       </section> : detail && <>
-        <section className={cardClass}><h2 className="text-xl font-semibold">{detail.source_label}</h2><p className="mt-2 text-sm text-muted-foreground">{t.jobId}: <bdi dir="ltr" className="break-all">{id}</bdi></p><Link href={detail.sourceHref} className="mt-3 inline-block underline underline-offset-4">{t.source}</Link></section>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{(["total",...outcomes] as const).map(outcome => <div key={outcome} className="min-w-0 rounded-xl border border-border bg-card p-3"><p className="text-sm">{t[outcome]}</p><strong className="text-2xl tabular-nums">{counts?.[outcome]}</strong></div>)}</div>
-        <p role="status" aria-live="polite" className="font-medium">{phase}{detail.cancel_requested_at ? ` · ${t.cancelRequested}` : ""}</p>
-        {detail.kind === "REPORT_DELIVERY" && <p className="text-sm text-muted-foreground">{t.processingNote}</p>}
-        <p className="rounded-xl border border-border-subtle bg-surface-subtle p-4 text-sm text-muted-foreground">{t.cancelNote}</p>
+        <section className={cardClass}><h2 className="text-lg font-bold leading-snug text-ink-strong sm:text-xl">{detail.source_label}</h2><p className="mt-1.5 text-xs text-ink-subtle">{t.jobId}: <bdi dir="ltr" className="break-all font-mono">{id}</bdi></p><Link href={detail.sourceHref} className="sk-link sk-nudge-trigger mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm">{t.source}<ArrowRight aria-hidden className="sk-nudge size-4 rtl:rotate-180" /></Link></section>
+        <div className="sk-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{(["total",...outcomes] as const).map(outcome => <div key={outcome} className="sk-panel min-w-0 p-3"><p className="truncate text-xs font-semibold text-ink-muted">{t[outcome]}</p><strong className="mt-1 block text-2xl font-bold tabular-nums text-ink-strong">{counts?.[outcome]}</strong></div>)}</div>
+        <p role="status" aria-live="polite" className="text-sm font-semibold text-ink-strong">{phase}{detail.cancel_requested_at ? ` · ${t.cancelRequested}` : ""}</p>
+        {detail.kind === "REPORT_DELIVERY" && <p className="text-sm leading-relaxed text-ink-muted">{t.processingNote}</p>}
+        <Alert tone="info" live="off">{t.cancelNote}</Alert>
         {filters}
-        {!detail.canEdit && <p>{t.readOnly}</p>}
+        {!detail.canEdit && <Alert tone="neutral" live="off" compact>{t.readOnly}</Alert>}
         <div className="flex flex-wrap gap-3">{detail.canEdit && <>
-          <Button disabled={busy || !!error || !allowedSelected.length || !!detail.cancel_requested_at} onClick={event => beginReview("retry", event.currentTarget)}>{t.retry} ({allowedSelected.length})</Button>
+          <Button disabled={busy || !!error || !allowedSelected.length || !!detail.cancel_requested_at} onClick={event => beginReview("retry", event.currentTarget)}>{t.retry} <span className="tabular-nums">({allowedSelected.length})</span></Button>
           <Button variant="outline" disabled={busy || !!error || !!detail.cancel_requested_at || !(counts!.queued + counts!.running + counts!.failed)} onClick={event => beginReview("cancel", event.currentTarget)}>{t.cancel}</Button>
         </>}<Button variant="outline" disabled={busy || !!error} onClick={() => void exportReceipt()}>{t.receipt}</Button></div>
-        {!error && !filteredItems.length && <div className={cardClass}><p>{t.filteredEmpty}</p><Button variant="outline" className="mt-3" onClick={clear}>{t.clearFilters}</Button></div>}
+        {!error && !filteredItems.length && <div className={cardClass}><EmptyState size="sm" icon={SearchX} title={t.filteredEmpty} action={<Button variant="outline" onClick={clear}>{t.clearFilters}</Button>} /></div>}
         <section className="space-y-3" aria-label={t.affected}>{filteredItems.map(item => <article key={item.id} className={`${cardClass} space-y-3`}>
-          <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 flex-1 items-start gap-3">{detail.canEdit && item.canRetry && <Checkbox aria-label={`${t.select}: ${item.label}`} className="mt-1" checked={allowedSelected.includes(item.id)} disabled={busy || !!error} onChange={event => setSelected(previous => event.target.checked ? [...new Set([...previous,item.id])] : previous.filter(value => value !== item.id))} />}<strong>{item.label}</strong></div><span className="rounded-lg bg-surface-subtle px-2 py-1 text-sm font-medium">{item.workflow_state === "retrying" ? t.retrying : t[item.state as "queued"]}</span></div>
-          {item.recipient && <p className="text-sm">{item.channel === "EMAIL" ? t.EMAIL : item.channel === "WHATSAPP" ? t.WHATSAPP : t.unsupported}: <bdi dir="ltr">{item.recipient}</bdi></p>}
-          {item.version_id && <p className="text-sm">{t.version}: <bdi dir="ltr" className="break-all">{item.version_id}</bdi></p>}
-          {(item.state === "failed" || item.uncertain) && <p className="flex items-start gap-2 text-status-warning-text"><AlertCircle aria-hidden className="mt-1 size-4 shrink-0" /><span>{failureMessage(item)}</span></p>}
-          {item.workflow_state === "retrying" && <p className="text-sm">{t.attempts}: <bdi dir="ltr">{item.attempts} / {item.max_attempts}</bdi> · {t.nextAttempt}: <bdi>{date(item.next_attempt_at)}</bdi></p>}
-          {item.delivery_failed_at && <p>{t.deliveryFailed} <bdi>{date(item.delivery_failed_at)}</bdi></p>}
-          {item.channel && <dl className="grid gap-3 border-t border-border-subtle pt-3 sm:grid-cols-3">{(["accepted","delivered","read"] as const).map(stage => <div key={stage} className="min-w-0"><dt className="text-sm text-muted-foreground">{t[stage]}</dt><dd className="text-sm"><bdi>{item.channel !== "EMAIL" && item.channel !== "WHATSAPP" ? t.unsupported : item[`${stage}_at`] ? date(item[`${stage}_at`]) : item.channel === "EMAIL" && stage !== "accepted" ? t.unsupported : t.noEvidence}</bdi></dd></div>)}</dl>}
+          <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 flex-1 items-start gap-3">{detail.canEdit && item.canRetry && <Checkbox aria-label={`${t.select}: ${item.label}`} className="mt-1" checked={allowedSelected.includes(item.id)} disabled={busy || !!error} onChange={event => setSelected(previous => event.target.checked ? [...new Set([...previous,item.id])] : previous.filter(value => value !== item.id))} />}<strong className="min-w-0 font-semibold text-ink-strong">{item.label}</strong></div><Badge dot variant={stateTone[item.workflow_state === "retrying" ? "retrying" : item.state] ?? "neutral"}>{item.workflow_state === "retrying" ? t.retrying : t[item.state as "queued"]}</Badge></div>
+          {item.recipient && <p className="text-sm text-ink-muted">{item.channel === "EMAIL" ? t.EMAIL : item.channel === "WHATSAPP" ? t.WHATSAPP : t.unsupported}: <bdi dir="ltr">{item.recipient}</bdi></p>}
+          {item.version_id && <p className="text-xs text-ink-subtle">{t.version}: <bdi dir="ltr" className="break-all font-mono">{item.version_id}</bdi></p>}
+          {(item.state === "failed" || item.uncertain) && <p className="flex items-start gap-2 text-sm font-medium leading-relaxed text-status-warning-text"><AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" /><span>{failureMessage(item)}</span></p>}
+          {item.workflow_state === "retrying" && <p className="text-sm tabular-nums text-ink-muted">{t.attempts}: <bdi dir="ltr">{item.attempts} / {item.max_attempts}</bdi> · {t.nextAttempt}: <bdi>{date(item.next_attempt_at)}</bdi></p>}
+          {item.delivery_failed_at && <p className="text-sm text-status-error-text">{t.deliveryFailed} <bdi>{date(item.delivery_failed_at)}</bdi></p>}
+          {item.channel && <dl className="grid gap-3 border-t border-border-subtle pt-3 sm:grid-cols-3">{(["accepted","delivered","read"] as const).map(stage => <div key={stage} className="min-w-0"><dt className="text-xs font-semibold text-ink-muted">{t[stage]}</dt><dd className="mt-0.5 text-sm text-ink"><bdi>{item.channel !== "EMAIL" && item.channel !== "WHATSAPP" ? t.unsupported : item[`${stage}_at`] ? date(item[`${stage}_at`]) : item.channel === "EMAIL" && stage !== "accepted" ? t.unsupported : t.noEvidence}</bdi></dd></div>)}</dl>}
           {(item.uncertain || item.delivery_failed_at) && <Button variant="outline" disabled={busy || !!error} onClick={event => beginReview("reconcile", event.currentTarget, item)}>{t.reviewOutcome}</Button>}
         </article>)}</section>
       </>}
     </>}
-    {review && permitted && detail && <Modal title={review.action === "retry" ? t.reviewRetry : review.action === "cancel" ? t.reviewCancel : t.reviewOutcome} subtitle={review.source} onClose={closeReview} dismissible={!busy} returnFocusRef={returnFocus} size="lg" footer={<div className="flex flex-wrap justify-end gap-3"><Button variant="outline" disabled={busy} onClick={closeReview}>{confirmed || review.action === "reconcile" ? t.done : t.keep}</Button>{!confirmed && review.action !== "reconcile" && <Button disabled={busy || !reason || !!error || !!changedSelection || !review.items.length} onClick={() => void act()}>{busy ? t.working : review.action === "retry" ? t.confirmRetry : t.confirmCancel}</Button>}</div>}>
+    {review && permitted && detail && <Modal title={review.action === "retry" ? t.reviewRetry : review.action === "cancel" ? t.reviewCancel : t.reviewOutcome} subtitle={review.source} onClose={closeReview} dismissible={!busy} returnFocusRef={returnFocus} size="lg" footer={<div className="flex flex-wrap justify-end gap-3"><Button variant="outline" disabled={busy} onClick={closeReview}>{confirmed || review.action === "reconcile" ? t.done : t.keep}</Button>{!confirmed && review.action !== "reconcile" && <Button variant={review.action === "cancel" ? "destructive" : "default"} loading={busy} disabled={!reason || !!error || !!changedSelection || !review.items.length} onClick={() => void act()}>{review.action === "retry" ? t.confirmRetry : t.confirmCancel}</Button>}</div>}>
       <div lang={language} dir={language === "en" ? "ltr" : "rtl"} className="space-y-4 [overflow-wrap:anywhere]">
-        <p>{review.action === "retry" ? t.retryNote : review.action === "cancel" ? t.cancelNote : t.outcomeNote}</p>
-        <p className="text-sm">{t.jobId}: <bdi dir="ltr" className="break-all">{id}</bdi></p>
-        {review.action === "cancel" && <p>{t.completed}: {counts?.completed} / {counts?.total} · {t.running}: {counts?.running} · {t.queued}: {counts?.queued}</p>}
-        {confirmed ? <div role="status" className="rounded-xl border border-border bg-surface-subtle p-4"><CheckCircle2 aria-hidden className="mb-2 size-5 text-primary" />{review.action === "retry" ? t.retrySaved : t.cancelSaved}</div> : <>
-          {(actionError || changedSelection) && <p role="alert" id="job-action-error" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-status-warning-text">{!detail.canEdit ? t.readOnly : changedSelection ? t.selectionChanged : t.actionFailed}</p>}
-          <h3 className="font-semibold">{t.affected}: {reviewItems.length}</h3><ul className="space-y-2">{reviewItems.map(item => <li key={item.id} className="rounded-xl border border-border p-3"><strong>{item.label}</strong>{item.version_id && <p className="mt-1 text-sm">{t.version}: <bdi dir="ltr" className="break-all">{item.version_id}</bdi></p>}<p className="mt-1 text-xs"><bdi dir="ltr" className="break-all">{item.communication_id || item.id}</bdi></p>{review.action === "reconcile" && <dl className="mt-3 space-y-2 text-sm">{(["accepted","delivered","read"] as const).map(stage => <div key={stage}><dt className="text-muted-foreground">{t[stage]}</dt><dd><bdi>{item.channel !== "EMAIL" && item.channel !== "WHATSAPP" ? t.unsupported : item[`${stage}_at`] ? date(item[`${stage}_at`]) : item.channel === "EMAIL" && stage !== "accepted" ? t.unsupported : t.noEvidence}</bdi></dd></div>)}{item.delivery_failed_at && <div><dt>{t.deliveryFailed}</dt><dd><bdi>{date(item.delivery_failed_at)}</bdi></dd></div>}</dl>}</li>)}</ul>
-          {review.action !== "reconcile" && <label className="block space-y-1 font-medium">{t.reason}<Select value={reason} disabled={busy} aria-describedby={actionError || changedSelection ? "job-action-error" : undefined} onChange={event => setReason(event.target.value as WorkflowOperationReason | "")}><option value="">{t.chooseReason}</option>{(review.action === "retry" ? workflowRetryReasons : workflowCancelReasons).map(value => <option key={value} value={value}>{t[value]}</option>)}</Select></label>}
+        <p className="text-sm leading-relaxed text-ink-muted">{review.action === "retry" ? t.retryNote : review.action === "cancel" ? t.cancelNote : t.outcomeNote}</p>
+        <p className="text-xs text-ink-subtle">{t.jobId}: <bdi dir="ltr" className="break-all font-mono">{id}</bdi></p>
+        {review.action === "cancel" && <p className="text-sm tabular-nums text-ink">{t.completed}: {counts?.completed} / {counts?.total} · {t.running}: {counts?.running} · {t.queued}: {counts?.queued}</p>}
+        {confirmed ? <Alert tone="success" live="polite">{review.action === "retry" ? t.retrySaved : t.cancelSaved}</Alert> : <>
+          {(actionError || changedSelection) && <Alert tone="warning" live="assertive" id="job-action-error">{!detail.canEdit ? t.readOnly : changedSelection ? t.selectionChanged : t.actionFailed}</Alert>}
+          <h3 className="text-sm font-bold text-ink-strong">{t.affected}: <span className="tabular-nums">{reviewItems.length}</span></h3><ul className="space-y-2">{reviewItems.map(item => <li key={item.id} className="rounded-xl border border-border-subtle bg-surface-subtle p-3"><strong className="font-semibold text-ink-strong">{item.label}</strong>{item.version_id && <p className="mt-1 text-xs text-ink-muted">{t.version}: <bdi dir="ltr" className="break-all font-mono">{item.version_id}</bdi></p>}<p className="mt-1 text-xs text-ink-subtle"><bdi dir="ltr" className="break-all font-mono">{item.communication_id || item.id}</bdi></p>{review.action === "reconcile" && <dl className="mt-3 space-y-2 text-sm">{(["accepted","delivered","read"] as const).map(stage => <div key={stage}><dt className="text-xs font-semibold text-ink-muted">{t[stage]}</dt><dd><bdi>{item.channel !== "EMAIL" && item.channel !== "WHATSAPP" ? t.unsupported : item[`${stage}_at`] ? date(item[`${stage}_at`]) : item.channel === "EMAIL" && stage !== "accepted" ? t.unsupported : t.noEvidence}</bdi></dd></div>)}{item.delivery_failed_at && <div><dt>{t.deliveryFailed}</dt><dd><bdi>{date(item.delivery_failed_at)}</bdi></dd></div>}</dl>}</li>)}</ul>
+          {review.action !== "reconcile" && <label className={fieldLabel}>{t.reason}<Select value={reason} disabled={busy} aria-describedby={actionError || changedSelection ? "job-action-error" : undefined} onChange={event => setReason(event.target.value as WorkflowOperationReason | "")}><option value="">{t.chooseReason}</option>{(review.action === "retry" ? workflowRetryReasons : workflowCancelReasons).map(value => <option key={value} value={value}>{t[value]}</option>)}</Select></label>}
         </>}
       </div>
     </Modal>}

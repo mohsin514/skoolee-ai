@@ -7,7 +7,6 @@ import {
   BarChart3,
   BookOpen,
   FileText,
-  Loader2,
   Receipt,
   Wallet,
   Landmark,
@@ -35,7 +34,7 @@ export function FeesPanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
+      <div role="group" aria-label={t("Fee sections")} className="flex items-center gap-2 overflow-x-auto rounded-2xl bg-muted p-1">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.key;
@@ -44,11 +43,9 @@ export function FeesPanel({ campusId }: { campusId?: string }) {
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={"justify-start " + (`flex items-center gap-1.5 px-4 py-2 whitespace-nowrap ${
-                ""
-              } `)}
+              className="min-h-10 shrink-0 justify-start gap-1.5 px-4 py-2 whitespace-nowrap"
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className="size-3.5" aria-hidden="true" />
               {t(tab.label)}
             </Button>
           );

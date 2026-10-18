@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Alert } from "@/components/ui/alert";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-471: the learning transfer bridge. Staff import evidence, the family consents, teachers review each
@@ -130,7 +131,7 @@ function TransferCase({ id, onChanged }: { id: string; onChanged: () => Promise<
         </div>
         <div className="min-w-0 space-y-2">
           <p className="text-xs font-semibold text-ink-muted">{ui("Destination objectives")} · v{detail.destination?.version}</p>
-          {o.mapping?.suggestion?.kind === "NOT_COMPARABLE" ? <p className="text-xs">{ui("No comparable objective found. You can still choose one.")}</p> : (o.mapping?.suggestion?.targets ?? []).map(t => <p key={t.id} className="text-xs">{ui("Suggested")}: <bdi>{outcome(t.id)?.title ?? t.id}</bdi> · {ui("shared words")}: <bdi>{t.sharedWords.join(", ")}</bdi></p>)}
+          {o.mapping?.suggestion?.kind === "NOT_COMPARABLE" ? <Alert compact tone="info" live="off">{ui("No comparable objective found. You can still choose one.")}</Alert> : (o.mapping?.suggestion?.targets ?? []).map(t => <p key={t.id} className="text-xs text-ink-subtle">{ui("Suggested")}: <bdi>{outcome(t.id)?.title ?? t.id}</bdi> · {ui("shared words")}: <bdi>{t.sharedWords.join(", ")}</bdi></p>)}
           <fieldset className="space-y-1 text-sm"><legend className="sr-only">{ui("Destination objectives")}</legend>{detail.outcomes.map(out => <label key={out.id} className="flex items-start gap-2"><Checkbox checked={(targets[o.id] ?? []).includes(out.id)} onChange={event => setTargets(t => ({ ...t, [o.id]: event.target.checked ? [...(t[o.id] ?? []), out.id] : (t[o.id] ?? []).filter(x => x !== out.id) }))} /><bdi>{out.title}</bdi></label>)}</fieldset>
           <div className="grid gap-1 text-xs font-semibold"><label htmlFor={`${fid}-${o.id}-note`}>{ui("Note")}</label><Input id={`${fid}-${o.id}-note`} value={notes[o.id] ?? o.mapping?.note ?? ""} onChange={event => setNotes(n => ({ ...n, [o.id]: event.target.value }))} /></div>
           <div className="flex flex-wrap items-center gap-2">

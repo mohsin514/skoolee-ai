@@ -2,10 +2,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Eye, LogIn, LogOut, PencilLine, ShieldAlert } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -88,22 +93,22 @@ export function VisitorRegister({ canManage = true }: { canManage?: boolean }) {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <PanelTitle icon={Eye} title={ui("Visitor register")} />
       <div className="flex flex-wrap gap-2">
-        <a className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-bold" href={`/api/front-desk/visitors?${exportParams}`}><Download className="size-4" aria-hidden="true" />{ui("Export (CSV)")}</a>
+        <a className={buttonVariants({ variant: "outline" })} href={`/api/front-desk/visitors?${exportParams}`}><Download className="size-4" aria-hidden="true" />{ui("Export (CSV)")}</a>
         {canManage ? <Button onClick={() => { setMode("check-in"); setFormError(""); setDuplicates([]); }}><LogIn className="size-4" aria-hidden="true" />{ui("Check in visitor")}</Button> : null}
         {canManage ? <Button variant="secondary" onClick={() => { setMode("refuse"); setFormError(""); setDuplicates([]); }}><ShieldAlert className="size-4" aria-hidden="true" />{ui("Record refused visitor")}</Button> : null}
       </div>
     </div>
-    <p className="flex flex-wrap gap-3 text-sm font-bold" aria-live="polite" data-visitor-counts>
+    <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-ink-strong" aria-live="polite" data-visitor-counts>
       <span data-on-site={counts.onSite}>{ui("On site now: {0}", [counts.onSite])}</span>
-      {counts.overdue ? <span className="text-amber-800" data-overdue={counts.overdue}>{ui("Still on site after {0} hours: {1}", [counts.overdueHours, counts.overdue])}</span> : null}
+      {counts.overdue ? <span className="text-status-warning-text" data-overdue={counts.overdue}>{ui("Still on site after {0} hours: {1}", [counts.overdueHours, counts.overdue])}</span> : null}
     </p>
-    <p className="rounded-xl bg-muted px-3 py-2 text-xs">{ui("A visitor entry does not allow anyone to collect a child. Use the pickup register for that.")}</p>
+    <Alert tone="info" compact live="off">{ui("A visitor entry does not allow anyone to collect a child. Use the pickup register for that.")}</Alert>
 
     {mode !== "closed" ? <section className="space-y-3 rounded-2xl border border-border p-4" data-visitor-form={mode} aria-label={mode === "refuse" ? ui("Record refused visitor") : ui("Check in visitor")}>
-      {formError ? <div role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-visitor-error>
+      {formError ? <Alert tone="danger" compact data-visitor-error>
         <p>{formError}</p>
         {duplicates.length ? <ul className="mt-1 list-disc ps-4 font-normal">{duplicates.map(item => <li key={item.id}>{ui("On site since {0}, seeing {1}", [dateTime(item.inTime), item.toMeet ?? "—"])}{item.reference ? ` · ${item.reference}` : ""}</li>)}</ul> : null}
-      </div> : null}
+      </Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="visitor-name" label={ui("Visitor name")}><Input value={form.name} maxLength={120} onChange={set("name")} autoComplete="off" /></FormField>
         <FormField name="visitor-purpose" label={ui("Purpose of visit")}><Input value={form.purpose} maxLength={200} onChange={set("purpose")} /></FormField>
@@ -114,7 +119,7 @@ export function VisitorRegister({ canManage = true }: { canManage?: boolean }) {
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => setMode("closed")} disabled={saving}>{ui("Cancel")}</Button>
-        <Button onClick={() => void submit()} disabled={saving} aria-busy={saving}>{saving ? ui("Saving…") : mode === "refuse" ? ui("Record refusal") : ui("Check in")}</Button>
+        <Button onClick={() => void submit()} loading={saving}>{mode === "refuse" ? ui("Record refusal") : ui("Check in")}</Button>
       </div>
     </section> : null}
 
@@ -124,17 +129,17 @@ export function VisitorRegister({ canManage = true }: { canManage?: boolean }) {
       <FormField name="visitor-filter-date" label={ui("Arrival date")}><Input type="date" value={date} onChange={event => setDate(event.target.value)} /></FormField>
     </div>
 
-    {loading && !rows.length ? <p role="status" className="text-sm text-ink-muted">{ui("Loading visitors…")}</p>
-      : loadError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{loadError}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
-      : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{status !== "all" || q || date ? ui("No visits match these filters.") : ui("No visitors recorded yet. Check in the first visitor when they arrive.")}</p>
+    {loading && !rows.length ? <SkeletonList rows={4} label={ui("Loading visitors…")} />
+      : loadError ? <ErrorState title={ui("The visitor register could not be loaded.")} description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
+      : !rows.length ? (status !== "all" || q || date ? <EmptyState size="sm" icon={Eye} title={ui("No visits match these filters.")} /> : <EmptyState size="sm" icon={Eye} title={ui("No visitors recorded yet. Check in the first visitor when they arrive.")} action={canManage ? <Button size="sm" onClick={() => { setMode("check-in"); setFormError(""); setDuplicates([]); }}><LogIn className="size-4" aria-hidden="true" />{ui("Check in visitor")}</Button> : undefined} />)
       : <ul className="space-y-2" aria-label={ui("Visits")}>
-        {rows.map(visit => <li key={visit.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${visit.overdue ? "border-amber-300 bg-amber-50/60" : "border-border"}`} data-visit={visit.id} data-visit-status={visit.status} data-visit-overdue={visit.overdue}>
+        {rows.map(visit => <li key={visit.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${visit.overdue ? "border-status-warning-border bg-status-warning-surface" : "border-border"}`} data-visit={visit.id} data-visit-status={visit.status} data-visit-overdue={visit.overdue}>
           <div className="min-w-0 flex-1">
-            <p className="font-bold"><bdi>{visit.name}</bdi>{visit.reference ? <span className="font-normal text-ink-muted"> · <bdi>{visit.reference}</bdi></span> : null}</p>
+            <p className="font-semibold text-ink-strong"><bdi>{visit.name}</bdi>{visit.reference ? <span className="font-normal text-ink-muted"> · <bdi>{visit.reference}</bdi></span> : null}</p>
             <p className="text-xs text-ink-muted">{visit.toMeet ? <>{ui("Seeing {0}", [visit.toMeet])} · </> : null}<bdi>{visit.purpose ?? ""}</bdi>{visit.phone ? <> · <bdi>{visit.phone}</bdi></> : null}</p>
             <p className="text-xs text-ink-muted">{ui("Arrived {0}", [dateTime(visit.inTime)])}{visit.outTime ? ` · ${ui("Left {0}", [dateTime(visit.outTime)])}` : ""}{visit.refusedReason ? ` · ${visit.refusedReason}` : ""}</p>
           </div>
-          <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${visit.status === "ON_SITE" ? (visit.overdue ? "bg-amber-100 text-amber-900" : "bg-emerald-50 text-emerald-700") : visit.status === "REFUSED" ? "bg-rose-50 text-rose-700" : "bg-muted text-ink-muted"}`}>{visit.overdue ? ui("Overdue") : ui(STATUS_LABEL[visit.status])}</span>
+          <Badge size="sm" dot variant={visit.status === "ON_SITE" ? (visit.overdue ? "warning" : "success") : visit.status === "REFUSED" ? "danger" : "neutral"}>{visit.overdue ? ui("Overdue") : ui(STATUS_LABEL[visit.status])}</Badge>
           {canManage && visit.status === "ON_SITE" ? <Button size="sm" onClick={() => setLeaving(visit)} aria-label={ui("Check out {0}", [visit.name])}><LogOut className="size-3.5" aria-hidden="true" />{ui("Check out")}</Button> : null}
           {canManage ? <Button size="sm" variant="ghost" onClick={() => setCorrecting(visit)} aria-label={ui("Correct visit of {0}", [visit.name])}><PencilLine className="size-3.5" aria-hidden="true" />{ui("Correct")}</Button> : null}
         </li>)}
@@ -176,7 +181,7 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
   const update = (field: keyof typeof fields) => (event: { target: { value: string } }) => setFields(current => ({ ...current, [field]: event.target.value }));
   return <ModalFrame title={ui("Correct visit of {0}", [visit.name])} eyebrow={ui("Visitor register")} subtitle={ui("The original values stay in the audit history.")} onClose={onClose} dirty={Boolean(reason)}>
     <div className="space-y-3" data-visitor-correct>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
+      {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="correct-name" label={ui("Visitor name")}><Input value={fields.name} onChange={update("name")} /></FormField>
       <FormField name="correct-purpose" label={ui("Purpose of visit")}><Input value={fields.purpose} onChange={update("purpose")} /></FormField>
       <FormField name="correct-host" label={ui("Person to meet")}><Input value={fields.toMeet} onChange={update("toMeet")} /></FormField>
@@ -184,7 +189,7 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
       <FormField name="correct-in" label={ui("Arrived")}><Input type="datetime-local" value={fields.inTime} onChange={update("inTime")} /></FormField>
       {visit.outTime ? <FormField name="correct-out" label={ui("Left")}><Input type="datetime-local" value={fields.outTime} onChange={update("outTime")} /></FormField> : null}
       <FormField name="correct-reason" label={ui("Reason for the correction")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} disabled={busy} aria-busy={busy}>{busy ? ui("Saving…") : ui("Save correction")}</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy}>{ui("Save correction")}</Button></div>
     </div>
   </ModalFrame>;
 }

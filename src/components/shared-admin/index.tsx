@@ -1,5 +1,6 @@
 "use client";
 import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
+import { IconButton } from "@/components/ui/icon-button";
 import { Button as SystemButton } from "@/components/ui/button";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
@@ -314,8 +315,8 @@ export function LeadershipPanel({
 
   return (
     <div className="space-y-7">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-brand-100 rounded-[32px] border border-edge/25 p-7 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-primary/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 pointer-events-none" />
+      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-brand-100 rounded-[32px] border border-edge/25 p-7 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="absolute top-0 end-0 w-80 h-80 bg-gradient-to-bl from-primary/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 rtl:-translate-x-1/4 pointer-events-none" />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           {/* Eyebrow → title → explanation, in that order, matching the
               academics overview. It previously led with the campus name in
@@ -502,7 +503,7 @@ export function LeadershipPanel({
                   <div className="relative h-16 w-16 rounded-2xl bg-white border-2 border-emerald-100 shadow-sm flex items-center justify-center overflow-hidden">
                     <AvatarImage name={data.principal.email} alt="" className="h-full w-full object-cover" />
                   </div>
-                  <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
+                  <div className="absolute -top-1 -end-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h4 className="text-base font-bold text-ink-strong tracking-tight truncate">{data.principal.fullName}</h4>
@@ -953,7 +954,7 @@ export function ExamDetailModal({
                     <p className="text-sm font-bold text-ink-subtle">No students found for this exam</p>
                   </div>
                 ) : (
-                  <table className="w-full text-left">
+                  <table className="w-full text-start">
                     <thead>
                       <tr className="border-b border-edge/10 bg-brand-50/30">
                         <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">#</th>
@@ -1013,7 +1014,7 @@ export function ExamDetailModal({
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {reportCards.map((rc: any) => (
                       <SystemButton variant="ghost" key={rc.id} type="button" onClick={() => { onClose(); onViewReportCard(rc); }}
-                        className="text-left p-4">
+                        className="text-start p-4">
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-ink-strong truncate">{rc.student?.fullName}</p>
@@ -1024,7 +1025,7 @@ export function ExamDetailModal({
                         <div className="flex items-center gap-3 mt-3 pt-3 border-t border-edge/10">
                           <span className="text-xl font-bold text-primary">{rc.grade || "—"}</span>
                           <span className="text-sm font-bold text-ink-muted">{Math.round(rc.percentage || 0)}%</span>
-                          <span className="ml-auto text-2xs font-bold text-ink-subtle">Rank #{rc.rank || "—"}</span>
+                          <span className="ms-auto text-2xs font-bold text-ink-subtle">Rank #{rc.rank || "—"}</span>
                         </div>
                       </SystemButton>
                     ))}
@@ -1557,7 +1558,7 @@ export function ReportCardsPanel({
                   {report.student?.class ? classLabel(report.student.class) : "—"}
                   {report.student?.rollNo ? ` · ${report.student.rollNo}` : ""}
                 </p>
-                <div className="text-right">
+                <div className="text-end">
                   {report.percentage == null ? (
                     <p className="text-xs font-bold text-ink-subtle">No marks</p>
                   ) : (
@@ -1693,7 +1694,7 @@ export function FacultyPanel({
   return (
     <div className="space-y-6">
       {/* ── Header: same anatomy as the academics overview ── */}
-      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
@@ -1787,7 +1788,7 @@ export function FacultyPanel({
               <X className="h-3 w-3" /> Clear
             </SystemButton>
           ) : null}
-          <div className="ml-auto">
+          <div className="ms-auto">
             <ViewSwitch
               value={facultyPrefs.view}
               onChange={(v) => patchFacultyPrefs({ view: v })}
@@ -1897,7 +1898,7 @@ export function FacultyPanel({
 
           {filteredInvites.length ? (
             <>
-              <p className="pt-2 pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <p className="pt-2 ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 Invited, not signed up yet
               </p>
               {filteredInvites.map((invite: any) => (
@@ -1958,7 +1959,7 @@ function MetricCard({
   } as const;
   const interactive = Boolean(onClick);
   const className = cn(
-    "rounded-[24px] border bg-white p-5 text-left transition-all duration-200",
+    "rounded-[24px] border bg-white p-5 text-start transition-all duration-200",
     active
       ? "border-primary shadow-[0_4px_16px_-4px_rgba(129,39,207,0.30)]"
       : "border-edge/25 shadow-sm",
@@ -2327,7 +2328,7 @@ export function ClassDetailModal({
                     disabled={teachingModeBusy}
                     onClick={() => { if (!active) onChangeTeachingMode(cls.id, option.mode); }}
                     className={cn(
-                      "p-4 text-left",
+                      "p-4 text-start",
                       active
                         ? "border-primary bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
                         : "border-transparent bg-white/60 hover:border-primary/25 hover:bg-white"
@@ -2396,7 +2397,7 @@ export function ClassDetailModal({
                 </p>
               ) : null}
               {teacherBusy ? (
-                <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-primary" />
+                <Loader2 className="absolute end-4 top-[42px] h-4 w-4 animate-spin text-primary" />
               ) : null}
             </div>
           </div>
@@ -2508,22 +2509,12 @@ export function ClassDetailModal({
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <SystemButton variant="ghost"
-                            type="button"
-                            onClick={() => startEditingSubject(subject)}
-                            className="flex items-center justify-center"
-                            title="Edit subject"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </SystemButton>
-                          <SystemButton variant="ghost"
-                            type="button"
-                            onClick={() => onDeleteSubject(subject)}
-                            className="flex items-center justify-center"
-                            title="Delete subject"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </SystemButton>
+                          <IconButton label="Edit subject" variant="ghost" size="sm" onClick={() => startEditingSubject(subject)}>
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          </IconButton>
+                          <IconButton label="Delete subject" variant="ghost" size="sm" onClick={() => onDeleteSubject(subject)}>
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </IconButton>
                         </div>
                       </div>
                       {teachingMode === "SUBJECT" ? (
@@ -2545,7 +2536,7 @@ export function ClassDetailModal({
                             showUnassignedHint={!subject.teacher?.id}
                           />
                           {subjectBusyId === subject.id ? (
-                            <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-primary" />
+                            <Loader2 className="absolute end-4 top-[42px] h-4 w-4 animate-spin text-primary" />
                           ) : null}
                         </div>
                       ) : null}
@@ -2573,7 +2564,7 @@ export function ClassDetailModal({
               <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setApplyToAllSections((v) => !v)}
-                className="mt-3 flex w-full items-center gap-3 p-3 text-left justify-start"
+                className="mt-3 flex w-full items-center gap-3 p-3 text-start justify-start"
               >
                 <span
                   className={cn(
@@ -2610,13 +2601,13 @@ export function ClassDetailModal({
               Add Student
             </BrandButton>
           </div>
-          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+          <div className="max-h-[420px] space-y-2 overflow-y-auto pe-1 custom-scrollbar">
             {students.map((student) => (
               <SystemButton variant="ghost"
                 key={student.id}
                 type="button"
                 onClick={() => onViewStudent(student)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left justify-start"
+                className="flex w-full items-center gap-3 px-4 py-3 text-start justify-start"
               >
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
                   <img
@@ -2988,7 +2979,7 @@ export function StudentDetailModal({
             setEditing(!editing);
           }}
           className={cn(
-            "ml-auto flex shrink-0 items-center gap-1.5 px-3 justify-start",
+            "ms-auto flex shrink-0 items-center gap-1.5 px-3 justify-start",
             editing ? "bg-muted text-ink-muted" : "bg-brand-50 text-primary hover:bg-brand-100"
           )}
         >
@@ -3635,9 +3626,9 @@ export function StudentAdmissionsPanel({
       ) : (
         <div className="space-y-0">
           {timeline.map((ev, idx) => (
-            <div key={ev.id} className="relative flex gap-3 pl-5">
-              {idx < timeline.length - 1 ? <div className="absolute left-[5px] top-5 h-full w-px bg-edge/40" /> : null}
-              <div className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-primary bg-white" />
+            <div key={ev.id} className="relative flex gap-3 ps-5">
+              {idx < timeline.length - 1 ? <div className="absolute start-[5px] top-5 h-full w-px bg-edge/40" /> : null}
+              <div className="absolute start-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-primary bg-white" />
               <div className="pb-4">
                 <p className="text-sm font-bold text-ink-strong">{ev.title}</p>
                 {ev.detail ? <p className="text-xs font-semibold text-ink-muted">{ev.detail}</p> : null}
@@ -4041,10 +4032,10 @@ export function TeacherDetailModal({
               <div>
                 <span className="sk-field-label">Email</span>
                 <div className="flex h-14 w-full items-center rounded-2xl border border-edge/20 bg-muted px-4 text-sm font-bold text-ink-muted">
-                  <Lock className="mr-2 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
+                  <Lock className="me-2 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
                   <span className="truncate">{teacher.email || "No email"}</span>
                 </div>
-                <p className="mt-1.5 pl-2 text-2xs font-semibold text-ink-subtle">
+                <p className="mt-1.5 ps-2 text-2xs font-semibold text-ink-subtle">
                   This is the teacher&apos;s sign-in address and cannot be changed here.
                 </p>
               </div>
@@ -4375,7 +4366,7 @@ export function TeacherDetailModal({
 
             <div className="sk-panel p-5">
               <PanelTitle icon={History} title="Timeline" />
-              <div className="mt-4 space-y-2 max-h-80 overflow-y-auto custom-scrollbar pr-1">
+              <div className="mt-4 space-y-2 max-h-80 overflow-y-auto custom-scrollbar pe-1">
                 {staffTimeline.length === 0 ? (
                   <EmptyInline text="No staff record events yet." />
                 ) : (
@@ -4691,7 +4682,7 @@ export function ClassGroupCard({
     <div className={cn(
       "sk-panel sk-rise group transition-all self-start",
       open
-        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-edge/5 hover:border-primary/10",
       // Expanded, the card carries per-section rows with their own metadata and
       // action buttons. In a half-width grid column those wrapped into a jumble,
@@ -4713,7 +4704,7 @@ export function ClassGroupCard({
           }
         }}
         className={cn(
-          "group/classrow flex w-full cursor-pointer items-center justify-between gap-4 text-left transition-all",
+          "group/classrow flex w-full cursor-pointer items-center justify-between gap-4 text-start transition-all",
           open ? "p-5" : "px-4 py-3"
         )}
         aria-expanded={open}
@@ -5036,7 +5027,7 @@ export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; curre
 
   return (
     <div className="group/row relative bg-gradient-to-br from-brand-50/50 via-white to-brand-50/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-primary/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/row:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="absolute -top-12 -end-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/row:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div className="relative flex items-center justify-between gap-4">
         <div className="flex items-center gap-5 min-w-0">
           <div className="relative shrink-0">
@@ -5044,7 +5035,7 @@ export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; curre
             <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-primary/10 shadow-sm flex items-center justify-center overflow-hidden transition-all duration-300 group-hover/row:border-primary/30 group-hover/row:shadow-md">
               <AvatarImage name={admin.email} alt="" className="h-full w-full object-cover" />
             </div>
-            <div className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${isCurrentUser ? "bg-emerald-500" : "bg-primary"}`} />
+            <div className={`absolute -top-1 -end-1 h-3.5 w-3.5 rounded-full border-2 border-white ${isCurrentUser ? "bg-emerald-500" : "bg-primary"}`} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -5089,7 +5080,7 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
 
   return (
     <div className="group/pending relative bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-5 rounded-[28px] border border-amber-200/60 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-amber-300/10 to-transparent rounded-full blur-[50px] pointer-events-none" />
+      <div className="absolute -top-12 -end-12 w-24 h-24 bg-gradient-to-bl from-amber-300/10 to-transparent rounded-full blur-[50px] pointer-events-none" />
       <div className="relative flex items-center justify-between gap-4">
         <div className="flex items-center gap-5 min-w-0">
           <div className="relative shrink-0">
@@ -5097,7 +5088,7 @@ export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any;
             <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-amber-200 shadow-sm flex items-center justify-center transition-all duration-300 group-hover/pending:border-amber-300 group-hover/pending:shadow-md">
               <Clock className={`w-6 h-6 ${expired ? "text-rose-500" : "text-amber-500"}`} />
             </div>
-            <div className={`absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white ${expired ? "bg-rose-500" : "bg-amber-400"}`} />
+            <div className={`absolute -top-1 -end-1 h-3.5 w-3.5 rounded-full border-2 border-white ${expired ? "bg-rose-500" : "bg-amber-400"}`} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -5138,7 +5129,7 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
 
   return (
     <div className="sk-rise group/faculty relative bg-gradient-to-br from-brand-50/50 via-white to-brand-50/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-primary/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      <div className="absolute -top-12 -end-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500 pointer-events-none" />
       <div className="relative flex items-center justify-between gap-4">
         <div className="flex items-center gap-5 min-w-0">
           <div className="relative shrink-0">
@@ -5237,14 +5228,14 @@ export function SnapshotColumn({ icon: Icon, title, after, count, children }: { 
     <div className={cn(
       "sk-panel sk-rise group transition-all self-start",
       open
-        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
         : "border-edge/5 hover:border-primary/10"
     )}>
       <SystemButton variant="ghost"
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex w-full items-center justify-between gap-4 text-left",
+          "flex w-full items-center justify-between gap-4 text-start",
           open ? "p-5" : "px-4 py-3"
         )}
         aria-expanded={open}
@@ -5299,7 +5290,7 @@ export function DetailRow({ label, value }: { label: string; value: ReactNode })
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/70 px-4 py-3 transition-colors duration-200 hover:bg-white">
       <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle shrink-0">{label}</span>
-      <span className="min-w-0 truncate text-right text-sm font-bold text-ink-strong">{value}</span>
+      <span className="min-w-0 truncate text-end text-sm font-bold text-ink-strong">{value}</span>
     </div>
   );
 }
@@ -5405,14 +5396,14 @@ export function SpecialtyEditor({
 }) {
   return (
     <div className="rounded-2xl border border-edge/25 bg-brand-50/40 p-4">
-      <p className="mb-2 pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+      <p className="mb-2 ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
         Teaching specialities
       </p>
 
       <SystemButton variant="ghost"
         type="button"
         onClick={onToggleAll}
-        className="mb-3 flex w-full items-center gap-3 p-3 text-left justify-start"
+        className="mb-3 flex w-full items-center gap-3 p-3 text-start justify-start"
       >
         <span
           className={cn(
@@ -5587,7 +5578,7 @@ export function StudentSetupPanel({
     <div className="space-y-8">
       {/* Header matches the academics overview so the students section of the
           admin does not read as a different application. */}
-      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
+      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
@@ -5783,7 +5774,7 @@ function TagListCard({
                     className="flex shrink-0 items-center gap-1 px-2.5 py-1 justify-start"
                   >
                     {studentCount} student{studentCount === 1 ? "" : "s"}
-                    <ArrowRight className="h-3 w-3" />
+                    <ArrowRight className="h-3 w-3 rtl:rotate-180" aria-hidden="true" />
                   </SystemButton>
                 ) : (
                   <span
@@ -5870,7 +5861,7 @@ function TagFormModal({
             if (error) setError("");
           }}
         />
-        {error ? <p className="pl-2 text-xs font-semibold text-rose-500">{error}</p> : null}
+        {error ? <p className="ps-2 text-xs font-semibold text-rose-500">{error}</p> : null}
         <label className="block group/input">
           <span className="sk-field-label">Description</span>
           <SystemTextarea
@@ -5885,7 +5876,7 @@ function TagFormModal({
           <SystemButton variant="ghost"
             type="button"
             onClick={() => setIsActive((v) => !v)}
-            className="flex w-full items-center gap-3 p-3 text-left justify-start"
+            className="flex w-full items-center gap-3 p-3 text-start justify-start"
           >
             <span
               className={cn(
@@ -6192,7 +6183,7 @@ export function AdmissionQueriesPanel({
           <SystemButton variant="ghost"
             type="button"
             onClick={() => { setStatusFilter("ALL"); setShowOverdue(true); setSourceFilter("ALL"); }}
-            className="mb-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:brightness-95"
+            className="mb-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-start hover:brightness-95"
           >
             <span className="flex items-center gap-3">
               <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
@@ -6200,7 +6191,7 @@ export function AdmissionQueriesPanel({
                 {counts.OVERDUE} follow-up{counts.OVERDUE === 1 ? " is" : "s are"} overdue
               </span>
             </span>
-            <ArrowRight className="h-4 w-4 text-rose-600" />
+            <ArrowRight className="h-4 w-4 text-rose-600 rtl:rotate-180" aria-hidden="true" />
           </SystemButton>
         ) : null}
 
@@ -6254,7 +6245,7 @@ export function AdmissionQueriesPanel({
             ]}
           />
           <StatusPill status={`${filtered.length} shown`} />
-          <div className="ml-auto">
+          <div className="ms-auto">
             <ViewSwitch
               value={queryPrefs.view}
               onChange={(v) => patchQueryPrefs({ view: v })}
@@ -6382,7 +6373,7 @@ export function AdmissionQueriesPanel({
                 type="button"
                 onClick={() => setSelected(q)}
                 className={cn(
-                  "group/q relative w-full overflow-hidden p-4 text-left hover:-translate-y-0.5",
+                  "group/q relative w-full overflow-hidden p-4 text-start hover:-translate-y-0.5",
                   overdue
                     ? "border-rose-300/70 bg-rose-50/40 hover:border-rose-400/60"
                     : "border-edge/25 hover:border-primary/30"
@@ -6390,7 +6381,7 @@ export function AdmissionQueriesPanel({
                 style={{ animationDelay: `${i * 50}ms` }}
               >
                 {overdue ? (
-                  <span className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-rose-500" />
+                  <span className="absolute start-0 top-4 bottom-4 w-1 rounded-r-full bg-rose-500" />
                 ) : null}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -6813,7 +6804,7 @@ function QueryDetailModal({
           <div className="mb-3">
             <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Follow-up Timeline</p>
           </div>
-          <div className="max-h-[420px] space-y-3 overflow-y-auto custom-scrollbar pr-1">
+          <div className="max-h-[420px] space-y-3 overflow-y-auto custom-scrollbar pe-1">
             {followUps.length === 0 ? (
               <EmptyInline text="No follow-ups yet — log the first call below" />
             ) : (
@@ -6857,7 +6848,7 @@ function QueryDetailModal({
                   className="h-11 w-full px-4 transition-all duration-250"
                 />
               </div>
-              <BrandButton variant="dark" icon={<Send className="w-4 h-4" />} onClick={addFollowUp} disabled={busy} className="ml-auto">
+              <BrandButton variant="dark" icon={<Send className="w-4 h-4" />} onClick={addFollowUp} disabled={busy} className="ms-auto">
                 Log follow-up
               </BrandButton>
             </div>
@@ -7077,7 +7068,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
           {filtered.map((s, i) => (
             <div
               key={s.id}
-              className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               style={{ animationDelay: `${i * 50}ms` }}
             >
               <SystemCheckbox
@@ -7497,7 +7488,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
           <SystemButton variant="ghost"
             type="button"
             onClick={() => { setTab("requests"); setStatusFilter("PENDING"); }}
-            className="mt-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:brightness-95"
+            className="mt-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-start hover:brightness-95"
           >
             <span className="flex items-center gap-3">
               <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
@@ -7505,7 +7496,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 {pendingCount} leave request{pendingCount === 1 ? "" : "s"} waiting on you
               </span>
             </span>
-            <ArrowRight className="h-4 w-4 text-amber-700" />
+            <ArrowRight className="h-4 w-4 text-amber-700 rtl:rotate-180" aria-hidden="true" />
           </SystemButton>
         ) : null}
       </div>
@@ -7845,8 +7836,8 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-edge/15 text-ink-muted text-xs uppercase tracking-wider">
-                    <th className="text-left py-2 px-3 font-medium">Staff Member</th>
-                    <th className="text-left py-2 px-3 font-medium">Role</th>
+                    <th className="text-start py-2 px-3 font-medium">Staff Member</th>
+                    <th className="text-start py-2 px-3 font-medium">Role</th>
                     {types.map((t: any) => (
                       <th key={t.id} className="text-center py-2 px-3 font-medium" colSpan={3}>{t.name}</th>
                     ))}
@@ -8109,15 +8100,15 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-edge/15 text-ink-muted text-xs uppercase tracking-wider">
-                <th className="text-left py-2 px-3 font-medium">Staff Member</th>
-                <th className="text-left py-2 px-3 font-medium">Role</th>
-                <th className="text-right py-2 px-3 font-medium">Basic</th>
-                <th className="text-right py-2 px-3 font-medium">Allowances</th>
-                <th className="text-right py-2 px-3 font-medium">Deductions</th>
-                <th className="text-right py-2 px-3 font-medium">Bonus</th>
-                <th className="text-right py-2 px-3 font-medium">Net</th>
+                <th className="text-start py-2 px-3 font-medium">Staff Member</th>
+                <th className="text-start py-2 px-3 font-medium">Role</th>
+                <th className="text-end py-2 px-3 font-medium">Basic</th>
+                <th className="text-end py-2 px-3 font-medium">Allowances</th>
+                <th className="text-end py-2 px-3 font-medium">Deductions</th>
+                <th className="text-end py-2 px-3 font-medium">Bonus</th>
+                <th className="text-end py-2 px-3 font-medium">Net</th>
                 <th className="text-center py-2 px-3 font-medium">Status</th>
-                <th className="text-right py-2 px-3 font-medium">Action</th>
+                <th className="text-end py-2 px-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -8145,7 +8136,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                     disabled={line.status === "PAID" || savingId === line.id}
                     onSave={(raw) => saveLine(line.id, "bonus", raw)}
                   />
-                  <td className="text-right py-2 px-3 font-bold text-ink-strong">{paisa(line.net)}</td>
+                  <td className="text-end py-2 px-3 font-bold text-ink-strong">{paisa(line.net)}</td>
                   <td className="text-center py-2 px-3">
                     <span
                       className={cn(
@@ -8157,7 +8148,7 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                       {line.status}
                     </span>
                   </td>
-                  <td className="text-right py-2 px-3">
+                  <td className="text-end py-2 px-3">
                     {line.status === "PAID" ? (
                       <span className="text-xs font-semibold text-ink-subtle">{line.paidAt ? new Date(line.paidAt).toLocaleDateString() : ""}</span>
                     ) : (
@@ -8172,11 +8163,11 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                 <td className="py-2.5 px-3" colSpan={2}>
                   Totals
                 </td>
-                <td className="text-right py-2.5 px-3">{paisa(totals.basic)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(totals.allowances)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(totals.deductions)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(totals.bonus)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(totals.net)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(totals.basic)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(totals.allowances)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(totals.deductions)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(totals.bonus)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(totals.net)}</td>
                 <td className="text-center py-2.5 px-3 text-ink-muted">
                   {run.lines.filter((l: any) => l.status === "PAID").length}/{run.lines.length} paid
                 </td>
@@ -8209,13 +8200,13 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-edge/15 bg-surface-sunken text-ink-muted text-xs uppercase tracking-wider">
-                <th className="text-left py-2 px-3 font-medium">Run</th>
-                <th className="text-right py-2 px-3 font-medium">Basic</th>
-                <th className="text-right py-2 px-3 font-medium">Allowances</th>
-                <th className="text-right py-2 px-3 font-medium">Deductions</th>
-                <th className="text-right py-2 px-3 font-medium">Bonus</th>
-                <th className="text-right py-2 px-3 font-medium">Net</th>
-                <th className="text-right py-2 px-3 font-medium">Paid</th>
+                <th className="text-start py-2 px-3 font-medium">Run</th>
+                <th className="text-end py-2 px-3 font-medium">Basic</th>
+                <th className="text-end py-2 px-3 font-medium">Allowances</th>
+                <th className="text-end py-2 px-3 font-medium">Deductions</th>
+                <th className="text-end py-2 px-3 font-medium">Bonus</th>
+                <th className="text-end py-2 px-3 font-medium">Net</th>
+                <th className="text-end py-2 px-3 font-medium">Paid</th>
               </tr>
             </thead>
             <tbody>
@@ -8224,22 +8215,22 @@ export function PayrollPanel({ campusId }: { campusId?: string }) {
                   <td className="py-2 px-3 font-medium text-ink">
                     {r.year}-{String(r.month).padStart(2, "0")} <span className="text-ink-subtle font-semibold">({r.lines.length} lines)</span>
                   </td>
-                  <td className="text-right py-2 px-3">{paisa(r.totals.basic)}</td>
-                  <td className="text-right py-2 px-3">{paisa(r.totals.allowances)}</td>
-                  <td className="text-right py-2 px-3">{paisa(r.totals.deductions)}</td>
-                  <td className="text-right py-2 px-3">{paisa(r.totals.bonus)}</td>
-                  <td className="text-right py-2 px-3 font-bold">{paisa(r.totals.net)}</td>
-                  <td className="text-right py-2 px-3 font-bold text-emerald-600">{paisa(r.totals.paid)}</td>
+                  <td className="text-end py-2 px-3">{paisa(r.totals.basic)}</td>
+                  <td className="text-end py-2 px-3">{paisa(r.totals.allowances)}</td>
+                  <td className="text-end py-2 px-3">{paisa(r.totals.deductions)}</td>
+                  <td className="text-end py-2 px-3">{paisa(r.totals.bonus)}</td>
+                  <td className="text-end py-2 px-3 font-bold">{paisa(r.totals.net)}</td>
+                  <td className="text-end py-2 px-3 font-bold text-emerald-600">{paisa(r.totals.paid)}</td>
                 </tr>
               ))}
               <tr className="bg-surface-sunken font-bold text-ink-strong">
                 <td className="py-2.5 px-3">Grand Total</td>
-                <td className="text-right py-2.5 px-3">{paisa(report.grand.basic)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(report.grand.allowances)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(report.grand.deductions)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(report.grand.bonus)}</td>
-                <td className="text-right py-2.5 px-3">{paisa(report.grand.net)}</td>
-                <td className="text-right py-2.5 px-3 text-emerald-600">{paisa(report.grand.paid)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(report.grand.basic)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(report.grand.allowances)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(report.grand.deductions)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(report.grand.bonus)}</td>
+                <td className="text-end py-2.5 px-3">{paisa(report.grand.net)}</td>
+                <td className="text-end py-2.5 px-3 text-emerald-600">{paisa(report.grand.paid)}</td>
               </tr>
             </tbody>
           </table>
@@ -8256,12 +8247,12 @@ function EditableAmountCell({ value, disabled, onSave }: { value: number; disabl
   }, [value]);
 
   if (disabled) {
-    return <td className="text-right py-2 px-3 text-ink-muted">{paisa(value)}</td>;
+    return <td className="text-end py-2 px-3 text-ink-muted">{paisa(value)}</td>;
   }
   return (
-    <td className="py-1 px-3 text-right">
+    <td className="py-1 px-3 text-end">
       <SystemInput
-        className="w-24 px-2 py-1 text-right"
+        className="w-24 px-2 py-1 text-end"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
@@ -8443,7 +8434,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
       {showAdd ? (
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-edge/20 bg-surface-sunken p-4">
           <div>
-            <label className="mb-1 block pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period #</label>
+            <label className="mb-1 block ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period #</label>
             <SystemInput
               type="number"
               min={1}
@@ -8453,7 +8444,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Start</label>
+            <label className="mb-1 block ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Start</label>
             <SystemInput
               type="time"
               className="h-10 w-28 px-3"
@@ -8462,7 +8453,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             />
           </div>
           <div>
-            <label className="mb-1 block pl-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">End</label>
+            <label className="mb-1 block ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">End</label>
             <SystemInput
               type="time"
               className="h-10 w-28 px-3"
@@ -8589,7 +8580,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
               <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setConfirmPeriod(p)}
-                className="ml-auto p-1.5"
+                className="ms-auto p-1.5"
                 aria-label={`Delete period ${p.periodNumber}`}
               >
                 <Trash2 className="h-4 w-4" />

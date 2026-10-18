@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "@/components/ui/toast";
+import { friendlyErrorMessage } from "@/components/ui/toast";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Calendar, Clock } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { StudentErrorState, TimetableSkeleton } from "@/components/student/student-components";
-import { StudentEmptyState } from "@/components/student/student-ui";
 
 interface ClassTimetableData {
   classId: string;
@@ -41,12 +41,12 @@ export default function StudentTimetablePage() {
       ]);
       const json = await ttRes.json();
       if (json.success) setData(json.data);
-      else setError(json.error || "Failed to load timetable");
+      else setError(friendlyErrorMessage(json.error, "We couldn't load your timetable. Please try again."));
       const calJson = await calRes.json();
       if (calJson.success) setWeekendDays(calJson.data.weekends || []);
-    } catch {
-      setError("Failed to load timetable");
-      toast.error("Failed to load timetable");
+    } catch (err) {
+      // The full-page error below already says this and offers a retry, so no toast on top of it.
+      setError(friendlyErrorMessage(err, "We couldn't load your timetable. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export default function StudentTimetablePage() {
       summary={
         <>
           {data
-            ? `${data.className}${data.classSection ? ` - ${data.classSection}` : ""}`
+            ? `${data.className}${data.classSection ? ` · ${data.classSection}` : ""}`
             : "Your class timetable"}
         </>
       }
@@ -75,8 +75,9 @@ export default function StudentTimetablePage() {
         {data ? (
           <TimetableReadOnly slots={data.slots} weekendDays={weekendDays} />
         ) : (
-          <StudentEmptyState
+          <EmptyState
             icon={Calendar}
+            className="sk-panel"
             title="No timetable published"
             description="Your class timetable appears here once the administration publishes it."
           />

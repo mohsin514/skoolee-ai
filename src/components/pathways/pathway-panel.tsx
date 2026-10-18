@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +65,7 @@ export function PathwayPanel() {
   const flag = (key: string) => !!flags[key];
   const setFlag = (key: string) => (e: { target: { checked: boolean } }) => setFlags((m) => ({ ...m, [key]: e.target.checked }));
   const chosen = () => AUDIENCE_KEYS.filter((k) => flags[SHARE_FLAG[k]]);
-  if (!view) return <section className="sk-panel p-4"><p role="status" className="text-sm text-ink-subtle">{error ?? ui("Loading permitted goals and verified opportunities…")}</p></section>;
+  if (!view) return error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /> : <section className="sk-panel p-4"><p role="status" className="text-sm text-ink-subtle">{ui("Loading permitted goals and verified opportunities…")}</p></section>;
 
   const actionList = (goal: Goal, canComplete: boolean) => (
     <ul className="space-y-1 text-sm">{goal.actions.map((a) => (
@@ -91,9 +93,9 @@ export function PathwayPanel() {
         <h2 id="pathways" className="text-lg font-bold">{ui("Careers and pathways")}</h2>
         <p className="text-sm text-ink-subtle">{ui("Suggestions are options, not predictions. Private counselling notes are never part of a plan or an export.")}</p>
       </div>
-      <div aria-live="polite">
-        {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
-        {notice ? <p role="status" className="text-sm font-semibold text-emerald-800">{notice}</p> : null}
+      <div className="space-y-2">
+        {error ? <Alert tone="danger" compact>{error}</Alert> : null}
+        {notice ? <Alert tone="success" compact>{notice}</Alert> : null}
       </div>
 
       {view.mode === "STUDENT" ? (

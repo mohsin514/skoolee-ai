@@ -136,7 +136,7 @@ export function LearnerInsights({
                 ]}
               />
               {derived.best && derived.weakest && derived.best.subject !== derived.weakest.subject ? (
-                <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-subtle">
+                <p className="mt-2 text-2xs font-medium leading-relaxed text-ink-subtle">
                   Strongest in {derived.best.subject} at {derived.best.percentage}%; {derived.weakest.subject} is the
                   one to work on at {derived.weakest.percentage}%.
                 </p>
@@ -192,7 +192,7 @@ export function LearnerInsights({
                 items={derived.split.map((s) => ({ label: s.name, color: s.color, value: s.value }))}
               />
               {series.attendance.rate !== null ? (
-                <p className="mt-2 text-center text-2xs font-bold text-ink-subtle">
+                <p className="mt-2 text-center text-2xs font-medium text-ink-subtle">
                   {/* The school's rate counts approved leave as attending, so
                       this is not the same as the present slice above. */}
                   {series.attendance.rate}% attendance

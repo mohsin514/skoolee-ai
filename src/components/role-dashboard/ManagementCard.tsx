@@ -48,9 +48,9 @@ export function ManagementCard({
   return (
     <div className="sk-panel sk-rise relative overflow-hidden">
       <CornerSparkles />
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-brand-300 to-primary opacity-60" />
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[80px] pointer-events-none" />
-      <div className="relative p-8">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-brand-300 to-primary opacity-60" />
+      <div className="absolute -top-24 -end-24 w-48 h-48 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[80px] pointer-events-none" />
+      <div className="relative p-5 sm:p-8">
         <div className="flex items-center gap-4 mb-5">
           <div className="relative">
             <div className="relative h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/10 to-brand-300/10 flex items-center justify-center text-primary">

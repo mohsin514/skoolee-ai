@@ -502,14 +502,18 @@ function LayerChip({ label, color, active, onClick }: { label: string; color: st
         ""
       ))}
     >
-      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: active ? color : "#cfc2d6" }} />
+      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: active ? color : "var(--color-ink-faint)" }} />
       {label}
     </Button>
   );
 }
 
 function Dot({ color, title }: { color: string; title: string }) {
-  return <span title={title} className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />;
+  return (
+    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }}>
+      <span className="sr-only">{title}</span>
+    </span>
+  );
 }
 
 function DayPopover({
@@ -588,7 +592,7 @@ function DayPopover({
       dismissible={!saving}
     >
       {events.length === 0 ? (
-        <p className="py-2 text-xs font-semibold text-ink-subtle"><UiText>{"No events scheduled."}</UiText></p>
+        <p className="py-2 text-sm font-normal leading-relaxed text-ink-muted"><UiText>{"No events scheduled."}</UiText></p>
       ) : (
         <ul className="max-h-44 space-y-2 overflow-y-auto custom-scrollbar">
           {events.map((ev, i) => (
@@ -742,7 +746,7 @@ function AgendaList({
       {future.length > 0 ? (
         <ul className="divide-y divide-edge/10">{future.map((g) => renderDay(g, false))}</ul>
       ) : (
-        <p className="px-5 py-6 text-center text-sm font-semibold text-ink-muted"><UiText>{"Nothing else is scheduled this year."}</UiText></p>
+        <p className="px-5 py-6 text-center text-sm font-normal leading-relaxed text-ink-muted"><UiText>{"Nothing else is scheduled this year."}</UiText></p>
       )}
       {past.length > 0 ? (
         <>

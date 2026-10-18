@@ -104,7 +104,7 @@ export function ConsolePage<T extends string>({
         <span aria-hidden className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", t.rail)} />
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full blur-2xl"
+          className="pointer-events-none absolute -end-20 -top-20 h-48 w-48 rounded-full blur-2xl"
           style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
         />
         <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
@@ -200,7 +200,7 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { 
             {[...Array(cards)].map((_, i) => (
               <div
                 key={i}
-                className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]"
+                className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]"
               >
                 <SkeletonBlock className="mb-3 h-9 w-9 rounded-xl" />
                 <SkeletonBlock className="h-4 w-24" />
@@ -208,7 +208,7 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { 
               </div>
             ))}
           </div>
-          <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+          <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
             <div className="mb-3 flex items-center gap-2.5">
               <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
               <SkeletonBlock className="h-4 w-40" />
@@ -251,11 +251,11 @@ export function ConsoleQuickLink({
     <Button variant="outline"
       type="button"
       onClick={onClick}
-      className="sk-panel block group relative overflow-hidden p-4 text-left"
+      className="sk-panel block group relative overflow-hidden p-4 text-start"
     >
       <span
         aria-hidden
-        className={cn("absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 bg-gradient-to-b", t.tile)}
+        className={cn("absolute inset-y-0 start-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 bg-gradient-to-b", t.tile)}
       />
       <span
         className={cn(

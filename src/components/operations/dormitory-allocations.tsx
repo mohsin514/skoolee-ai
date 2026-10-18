@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -60,7 +61,7 @@ export function DormitoryAllocations({ canManage = true }: { canManage?: boolean
 
     {loading && !data ? <p role="status" className="text-sm text-ink-muted">{ui("Loading allocations…")}</p>
       : error ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
-      : !rooms.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{ui("No rooms yet. Add room types and rooms first, then allocate students.")}</p>
+      : !rooms.length ? <EmptyState size="sm" icon={BedDouble} title={ui("No rooms yet. Add room types and rooms first, then allocate students.")} />
       : <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label={ui("Rooms")}>
         {rooms.map(room => {
           const residents = (data?.stays ?? []).filter(stay => stay.roomId === room.id && (stay.state === "CURRENT" || stay.state === "UPCOMING"));

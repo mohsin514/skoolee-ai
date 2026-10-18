@@ -3,9 +3,15 @@
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
-import { AlertCircle, CalendarDays, CheckCircle2, Clock, Loader2, Plane, Plus, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock, History, Plane, Plus, X } from "lucide-react";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { cn } from "@/lib/utils";
+import { Alert } from "@/components/ui/alert";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { FormField } from "@/components/ui/form-field";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip } from "@/components/ui/tooltip";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { BrandButton } from "@/components/role-dashboard";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -14,12 +20,19 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
-const STATUS_STYLES: Record<string, string> = {
-  PENDING: "bg-amber-50 text-amber-700 border-amber-200",
-  APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
-  CANCELLED: "bg-muted text-ink-muted border-edge/20",
+const STATUS_BADGES: Record<string, NonNullable<BadgeProps["variant"]>> = {
+  PENDING: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+  CANCELLED: "neutral",
 };
+
+/** "PENDING" reads as a database value; "Pending" reads as a status. */
+function statusLabel(status?: string) {
+  if (!status) return "Pending";
+  const lower = status.toLowerCase().replaceAll("_", " ");
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
 
 const STATUS_ICONS: Record<string, any> = {
   PENDING: Clock,
@@ -43,6 +56,9 @@ function daysLabel(tenths: number) {
 
 export default function LeavePage() {
   const [loading, setLoading] = useState(true);
+  // A failed load used to toast and then render the empty page — "no
+  // balances, no requests" — which reads as fact rather than as an outage.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [requests, setRequests] = useState<any[]>([]);
   const [balances, setBalances] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]);
@@ -57,6 +73,7 @@ export default function LeavePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch("/api/leave?mode=my");
       const json = await res.json();
@@ -66,10 +83,10 @@ export default function LeavePage() {
         setTypes(json.data.types || []);
         setAcademicYear(json.data.academicYear);
       } else {
-        toast.error(json.error || "Could not load leave data");
+        setLoadFailed(true);
       }
     } catch {
-      toast.error("Could not load leave data");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -107,11 +124,11 @@ export default function LeavePage() {
 
   const applyLeave = async () => {
     if (!applyForm.leaveTypeId) {
-      toast.error("Select a leave type");
+      toast.error("Choose a leave type before submitting.");
       return;
     }
     if (!applyForm.fromDate || !applyForm.toDate) {
-      toast.error("Select from and to dates");
+      toast.error("Pick both a from and a to date before submitting.");
       return;
     }
     setApplying(true);
@@ -128,12 +145,12 @@ export default function LeavePage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Could not apply for leave");
-      toast.success("Leave request submitted");
+      toast.success("Leave request submitted for approval.");
       setShowApply(false);
       setApplyForm({ leaveTypeId: "", fromDate: "", toDate: "", reason: "" });
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not apply for leave");
+      toast.error(error instanceof Error ? error.message : "Could not send your leave request. Please try again.");
     } finally {
       setApplying(false);
     }
@@ -149,10 +166,10 @@ export default function LeavePage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Could not cancel request");
-      toast.success("Request cancelled");
+      toast.success("Leave request withdrawn.");
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not cancel request");
+      toast.error(error instanceof Error ? error.message : "Could not withdraw the request. Please try again.");
     } finally {
       setCancelling(null);
     }
@@ -189,80 +206,89 @@ export default function LeavePage() {
       title="My Leave"
       summary={`Academic year ${academicYear} · ${daysLabel(totalRemaining)} remaining across ${balances.length} leave type${balances.length === 1 ? "" : "s"}`}
       actions={
-        <BrandButton
-          variant="dark"
-          className="min-h-10"
-          icon={<Plus className="h-4 w-4" />}
-          onClick={() => setShowApply(true)}
-          disabled={types.length === 0}
-          title={types.length === 0 ? "No leave types have been configured for your campus yet" : "Submit a new leave request"}
-        >
-          Apply for Leave
-        </BrandButton>
+        types.length === 0 ? (
+          // A disabled button fires no pointer or focus events, so the reason
+          // sits on a focusable wrapper where hover, focus and long-press reach it.
+          <Tooltip content={loadFailed ? "Your leave types could not be loaded. Try again below." : "No leave types have been configured for your campus yet"}>
+            <span tabIndex={0} className="inline-flex rounded-2xl">
+              <BrandButton
+                variant="dark"
+                icon={<Plus aria-hidden="true" className="h-4 w-4" />}
+                onClick={() => setShowApply(true)}
+                disabled
+              >
+                Apply for Leave
+              </BrandButton>
+            </span>
+          </Tooltip>
+        ) : (
+          <Tooltip content="Submit a new leave request">
+            <BrandButton
+              variant="dark"
+              icon={<Plus aria-hidden="true" className="h-4 w-4" />}
+              onClick={() => setShowApply(true)}
+            >
+              Apply for Leave
+            </BrandButton>
+          </Tooltip>
+        )
       }
     >
       <div className="space-y-3">
       {loading ? (
         <SkeletonList rows={4} label="Loading leave requests" />
+      ) : loadFailed ? (
+        <div className="sk-panel">
+          <ErrorState
+            title="Couldn't load your leave"
+            description="Your balances and requests could not be loaded. Check your connection and try again. No request has been changed."
+            onRetry={load}
+          />
+        </div>
       ) : (
         <>
           {nextLeave ? (
-            <div className={cn(
-              "sk-rise flex flex-wrap items-center gap-4 rounded-[24px] border p-5",
-              nextLeave.status === "APPROVED"
-                ? "border-emerald-200/70 bg-gradient-to-r from-emerald-50 to-emerald-50/20"
-                : "border-amber-200/70 bg-gradient-to-r from-amber-50 to-amber-50/20",
-            )}>
-              <span className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
-                nextLeave.status === "APPROVED" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700",
-              )}>
-                <CalendarDays className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className={cn(
-                  "text-2xs font-semibold uppercase tracking-wider",
-                  nextLeave.status === "APPROVED" ? "text-emerald-700" : "text-amber-700",
-                )}>
-                  {nextLeave.status === "APPROVED" ? "Your next leave" : "Awaiting approval"}
-                </p>
-                <p className="mt-0.5 text-sm font-bold text-ink-strong">
-                  {nextLeave.leaveType?.name || "Leave"} · {formatDate(nextLeave.fromDate)}
-                  {nextLeave.fromDate !== nextLeave.toDate ? ` → ${formatDate(nextLeave.toDate)}` : ""}
-                </p>
-                <p className="mt-0.5 text-2xs font-semibold text-ink-muted">
-                  {daysLabel(nextLeave.days)}
-                  {(() => {
-                    const startOfToday = new Date();
-                    startOfToday.setHours(0, 0, 0, 0);
-                    const days = Math.round(
-                      (new Date(nextLeave.fromDate).setHours(0, 0, 0, 0) - startOfToday.getTime()) / 86400000,
-                    );
-                    if (days > 1) return ` · in ${days} days`;
-                    if (days === 1) return " · tomorrow";
-                    if (days === 0) return " · today";
-                    return " · in progress";
-                  })()}
-                </p>
-              </div>
-            </div>
+            <Alert
+              tone={nextLeave.status === "APPROVED" ? "success" : "warning"}
+              icon={CalendarDays}
+              live="off"
+              title={nextLeave.status === "APPROVED" ? "Your next leave" : "Awaiting approval"}
+              className="sk-enter"
+            >
+              <p className="text-sm font-semibold text-ink-strong">
+                {nextLeave.leaveType?.name || "Leave"} · {formatDate(nextLeave.fromDate)}
+                {nextLeave.fromDate !== nextLeave.toDate ? <> <span className="inline-block rtl:rotate-180" aria-hidden="true">→</span><span className="sr-only">to</span> {formatDate(nextLeave.toDate)}</> : ""}
+              </p>
+              <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
+                {daysLabel(nextLeave.days)}
+                {(() => {
+                  const startOfToday = new Date();
+                  startOfToday.setHours(0, 0, 0, 0);
+                  const days = Math.round(
+                    (new Date(nextLeave.fromDate).setHours(0, 0, 0, 0) - startOfToday.getTime()) / 86400000,
+                  );
+                  if (days > 1) return ` · in ${days} days`;
+                  if (days === 1) return " · tomorrow";
+                  if (days === 0) return " · today";
+                  return " · in progress";
+                })()}
+              </p>
+            </Alert>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="sk-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {balances.map((b) => {
               const pct = b.allocated > 0 ? Math.min(100, Math.round((b.approved / b.allocated) * 100)) : 0;
               return (
-                <div key={b.leaveTypeId} className="sk-panel sk-rise p-6">
+                <div key={b.leaveTypeId} className="sk-panel min-w-0 p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-ink-strong">{b.name}</p>
-                    <span className={`rounded-full border px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider ${b.remaining > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-600"}`}>
+                    <h2 className="min-w-0 truncate text-sm font-semibold text-ink-strong">{b.name}</h2>
+                    <Badge size="sm" dot data-numeric variant={b.remaining > 0 ? "success" : "danger"} className="shrink-0">
                       {daysLabel(b.remaining)} left
-                    </span>
+                    </Badge>
                   </div>
-                  <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-brand-50">
-                    <div className="h-full rounded-full bg-gradient-to-r from-primary to-[#55208b]" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="mt-3 flex items-center justify-between text-2xs font-bold text-ink-muted">
+                  <Progress className="mt-4" value={pct} label={`${b.name}: approved leave out of the allocation`} />
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs tabular-nums text-ink-subtle">
                     <span>{daysLabel(b.allocated)} allocated</span>
                     <span>{daysLabel(b.approved)} approved{b.pending > 0 ? ` · ${daysLabel(b.pending)} pending` : ""}</span>
                   </div>
@@ -274,97 +300,113 @@ export default function LeavePage() {
                  contradicted the UI: with no leave *types* configured at all
                  the Apply button is disabled, yet the text promised requests
                  would still be submitted. Only the second case can apply. */
-              <div className="sk-panel p-6 sm:col-span-2 lg:col-span-3">
-                <p className="text-sm font-bold text-ink-muted">
-                  {types.length === 0
-                    ? "Your campus admin has not set up any leave types yet, so leave cannot be requested here for now."
-                    : "No leave allocations have been set for your role yet — your requests will still be submitted for approval."}
-                </p>
-              </div>
+              <Alert
+                tone={types.length === 0 ? "warning" : "info"}
+                live="off"
+                className="sm:col-span-2 lg:col-span-3"
+                title={types.length === 0 ? "Leave isn't set up yet" : "No leave allocations yet"}
+              >
+                {types.length === 0
+                  ? "Your campus admin has not set up any leave types yet, so leave cannot be requested here for now."
+                  : "No leave allocations have been set for your role yet — your requests will still be submitted for approval."}
+              </Alert>
             ) : null}
           </div>
 
-          <div className="sk-panel p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-ink-strong">
-                <Plane className="h-4 w-4 text-primary" /> Request History
-              </h3>
-              <div className="flex flex-wrap items-center gap-1.5">
+          <div className="sk-panel p-4 sm:p-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-base font-bold tracking-tight text-ink-strong">
+                <Plane aria-hidden="true" className="h-4 w-4 text-primary" /> Request History
+              </h2>
+              <div role="group" aria-label="Filter requests by status" className="flex flex-wrap items-center gap-1.5">
                 {statuses.length > 1 ? (
                   ["", ...statuses].map((st) => (
-                    <Button variant="choice"
+                    <Button variant="choice" size="sm"
                       key={st || "all"}
                       type="button"
                       onClick={() => setStatusFilter(st)}
                       aria-pressed={statusFilter === st}
-
                     >
-                      {st || "All"}
+                      {st ? statusLabel(st) : "All"}
                       {st === "PENDING" && pendingCount > 0 ? (
-                        <span className="ml-1 opacity-70">{pendingCount}</span>
+                        <span className="ms-1 tabular-nums opacity-70">{pendingCount}</span>
                       ) : null}
                     </Button>
                   ))
                 ) : (
-                  <span className="rounded-full border border-edge/20 bg-brand-50/60 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+                  <Badge variant={pendingCount > 0 ? "warning" : "neutral"} size="sm" dot data-numeric>
                     {pendingCount} pending
-                  </span>
+                  </Badge>
                 )}
               </div>
             </div>
 
             <div className="space-y-3">
               {requests.length === 0 ? (
-                <p className="rounded-2xl bg-brand-50/40 px-5 py-8 text-center text-sm font-bold text-ink-subtle">
-                  No leave requests yet — apply for leave and it will appear here.
-                </p>
+                <EmptyState
+                  size="sm"
+                  icon={History}
+                  title="No leave requests yet"
+                  description="Apply for leave and the request appears here, with its status as your approver reviews it."
+                  className="rounded-2xl bg-surface-subtle"
+                  action={types.length > 0 ? (
+                    <Button variant="secondary" size="sm" type="button" onClick={() => setShowApply(true)}>
+                      <Plus aria-hidden="true" /> Apply for Leave
+                    </Button>
+                  ) : undefined}
+                />
               ) : visibleRequests.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-2xl bg-brand-50/40 px-5 py-8 text-center">
-                  <p className="text-sm font-bold text-ink-subtle">
-                    No {String(statusFilter).toLowerCase()} requests.
-                  </p>
-                  <Button variant="ghost" type="button" onClick={() => setStatusFilter("")}
-                    className="items-center gap-1.5 justify-start">
-                    <X className="h-3.5 w-3.5" /> Show all
-                  </Button>
-                </div>
+                <EmptyState
+                  size="sm"
+                  icon={History}
+                  title={`No ${statusLabel(statusFilter).toLowerCase()} requests`}
+                  description="None of your requests have this status."
+                  className="rounded-2xl bg-surface-subtle"
+                  action={
+                    <Button variant="secondary" size="sm" type="button" onClick={() => setStatusFilter("")}>
+                      <X aria-hidden="true" /> Show all
+                    </Button>
+                  }
+                />
               ) : (
                 visibleRequests.map((r) => {
                   const Icon = STATUS_ICONS[r.status] || Clock;
                   return (
-                    <div key={r.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
+                    <div key={r.id} className="sk-panel flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
+                      <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-ink-strong">
-                          {r.leaveType?.name || "Leave"} · {daysLabel(r.days)}
+                        <p className="text-sm font-semibold text-ink-strong">
+                          {r.leaveType?.name || "Leave"} · <span className="tabular-nums">{daysLabel(r.days)}</span>
                         </p>
-                        <p className="mt-0.5 text-xs font-semibold text-ink-muted">
-                          {formatDate(r.fromDate)} → {formatDate(r.toDate)}
+                        <p className="mt-0.5 break-words text-xs text-ink-muted">
+                          {formatDate(r.fromDate)} <span className="inline-block rtl:rotate-180" aria-hidden="true">→</span><span className="sr-only">to</span> {formatDate(r.toDate)}
                           {r.reason ? ` · ${r.reason}` : ""}
                         </p>
                         {r.status === "REJECTED" && r.reviewNote ? (
-                          <p className="mt-1 text-2xs font-semibold text-rose-500">Reviewer note: {r.reviewNote}</p>
+                          <p className="mt-1 break-words text-xs font-medium text-rose-700">Reviewer note: {r.reviewNote}</p>
                         ) : null}
                       </div>
-                      <span className={`rounded-full border px-3 py-1 text-2xs font-semibold uppercase tracking-wider ${STATUS_STYLES[r.status] || STATUS_STYLES.PENDING}`}>
-                        {r.status}
-                      </span>
+                      <Badge variant={STATUS_BADGES[r.status] || STATUS_BADGES.PENDING} dot className="shrink-0">
+                        {statusLabel(r.status)}
+                      </Badge>
                       {r.status === "PENDING" ? (
-                        <BrandButton
-                          variant="soft"
-                          icon={<X className="w-4 h-4" />}
-                          disabled={cancelling === r.id}
-                          /* Cancelling withdraws the request outright; there
-                             is no undo, only re-applying and queueing behind
-                             everyone else. It used to fire on one click. */
-                          onClick={() => setConfirmCancel(r)}
-                          title="Withdraw this leave request"
-                          className="h-9"
-                        >
-                          {cancelling === r.id ? "..." : "Cancel"}
-                        </BrandButton>
+                        <Tooltip content="Withdraw this leave request">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            type="button"
+                            loading={cancelling === r.id}
+                            /* Cancelling withdraws the request outright; there
+                               is no undo, only re-applying and queueing behind
+                               everyone else. It used to fire on one click. */
+                            onClick={() => setConfirmCancel(r)}
+                          >
+                            {cancelling === r.id ? null : <X aria-hidden="true" />}
+                            Cancel
+                          </Button>
+                        </Tooltip>
                       ) : null}
                     </div>
                   );
@@ -386,7 +428,7 @@ export default function LeavePage() {
           footer={
             <ModalActions
               busy={applying}
-              busyLabel="Submitting..."
+              busyLabel="Submitting…"
               actionLabel="Submit Request"
               onClose={() => setShowApply(false)}
               onSave={applyLeave}
@@ -398,8 +440,13 @@ export default function LeavePage() {
             className="space-y-4"
             onSubmit={(e) => { e.preventDefault(); if (!applyBlockedReason && !applying) applyLeave(); }}
           >
-            <label className="block">
-              <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Leave Type</span>
+            <FormField
+              name="leaveTypeId"
+              id="teacher-leave-type"
+              label="Leave type"
+              required
+              hint="Each option shows the days you have left, or the default allowance when no balance has been set for you."
+            >
               <SystemSelect
                 value={applyForm.leaveTypeId}
                 onChange={(e) => setApplyForm((p) => ({ ...p, leaveTypeId: e.target.value }))}
@@ -415,20 +462,25 @@ export default function LeavePage() {
                   );
                 })}
               </SystemSelect>
-            </label>
+            </FormField>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">From Date</span>
+              <FormField name="fromDate" id="teacher-leave-from" label="From date" required>
                 <SystemInput
                   type="date"
                   value={applyForm.fromDate}
                   onChange={(e) => setApplyForm((p) => ({ ...p, fromDate: e.target.value }))}
                   className={"w-full"}
                 />
-              </label>
-              <label className="block">
-                <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">To Date</span>
+              </FormField>
+              <FormField
+                name="toDate"
+                id="teacher-leave-to"
+                label="To date"
+                required
+                hint="Both dates count as leave days."
+                error={datesReversed ? "The end date falls before the start date." : undefined}
+              >
                 <SystemInput
                   type="date"
                   value={applyForm.toDate}
@@ -436,42 +488,36 @@ export default function LeavePage() {
                      the reversed range is prevented rather than reported. */
                   min={applyForm.fromDate || undefined}
                   onChange={(e) => setApplyForm((p) => ({ ...p, toDate: e.target.value }))}
-                  className={`w-full ${
-                    datesReversed ? "" : ""
-                  } `}
+                  className={"w-full"}
                 />
-              </label>
+              </FormField>
             </div>
 
-            {datesReversed ? (
-              <p className="flex items-center gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
-                <AlertCircle className="h-4 w-4 shrink-0" /> The end date falls before the start date.
-              </p>
-            ) : computedDays ? (
+            {!datesReversed && computedDays ? (
               <div className="space-y-2">
-                <p className="flex items-center gap-2 rounded-2xl bg-brand-50/60 px-4 py-3 text-xs font-bold text-primary">
-                  <CalendarDays className="h-4 w-4" /> {daysLabel(computedDays * 10)} requested
-                  {remainingDays !== null ? (
-                    <span className="ml-auto font-semibold text-ink-muted">
-                      {daysLabel(selectedBalance.remaining)} available
-                    </span>
-                  ) : null}
-                </p>
+                <Alert tone="brand" icon={CalendarDays} compact live="polite">
+                  <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                    <span className="font-semibold tabular-nums text-ink-strong">{daysLabel(computedDays * 10)} requested</span>
+                    {remainingDays !== null ? (
+                      <span className="text-xs tabular-nums text-ink-muted">
+                        {daysLabel(selectedBalance.remaining)} available
+                      </span>
+                    ) : null}
+                  </span>
+                </Alert>
                 {/* Requesting more than the balance is the approver's call, not
                     a hard block — but the teacher should know before they send
                     it, not after it comes back rejected. */}
                 {overBalance ? (
-                  <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
+                  <Alert tone="warning" compact>
                     That is {daysLabel((computedDays - (remainingDays as number)) * 10)} more than your
                     remaining balance — it can still be submitted, but may be declined.
-                  </p>
+                  </Alert>
                 ) : null}
               </div>
             ) : null}
 
-            <label className="block">
-              <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Reason (optional)</span>
+            <FormField name="reason" id="teacher-leave-reason" label="Reason" optional>
               <SystemTextarea
                 value={applyForm.reason}
                 onChange={(e) => setApplyForm((p) => ({ ...p, reason: e.target.value }))}
@@ -479,7 +525,7 @@ export default function LeavePage() {
                 placeholder="Brief reason for the leave"
                 className={"w-full"}
               />
-            </label>
+            </FormField>
             <Button variant="ghost" type="submit" className="hidden" tabIndex={-1} aria-hidden />
           </form>
         </ModalFrame>

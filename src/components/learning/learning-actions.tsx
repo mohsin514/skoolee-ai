@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-425: learning actions. The next check-in and the responsible adult come
@@ -49,7 +50,7 @@ export function LearningActions() {
     </div>
     <p className="text-xs text-ink-muted">{ui("Specific support with a goal, a responsible adult and a review date. Describe skills and actions, not labels.")}</p>
     {creating ? <Editor ctx={ctx} onSaved={async id => { setCreating(false); await load(); setOpen(id); }} /> : null}
-    {!ctx.actions.length ? <p className="rounded-xl bg-muted p-3 text-sm" data-empty>{ui("No learning actions yet. Start from a specific concern and the evidence behind it.")}</p>
+    {!ctx.actions.length ? <div data-empty><EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions yet. Start from a specific concern and the evidence behind it.")} /></div>
       : <ul className="space-y-2">{ctx.actions.map(row => <li key={row.id} className={`rounded-2xl border p-3 ${row.checkInOverdue ? "border-amber-400" : "border-border"}`} data-action={row.id} data-status={row.status}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>

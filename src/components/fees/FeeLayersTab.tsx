@@ -8,6 +8,7 @@ import { CurrencySelect } from "@/components/locale/CurrencySelect";
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, Check, Layers, Loader2, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame, ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
@@ -27,7 +28,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const inputClass = "w-full";
-const labelClass = "block mb-2 pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
+const labelClass = "block mb-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
 
 export function FeeLayersTab({ campusId }: { campusId?: string }) {
  const tr = useUiText();
@@ -968,6 +969,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                 onChange={setValue}
               />
             </div>
+            <p className="-mt-2 text-xs text-ink-subtle">{type === "PERCENT" ? tr("Percent discounts take this share off the fee, up to 100%.") : tr("Flat discounts take this fixed amount off the fee.")}</p>
             <FormSelect label={tr("Auto-apply category (optional)")} value={categoryId} onChange={setCategoryId}>
               <option value=""><UiText>{"No category"}</UiText></option>
               {categories.map((c) => (
@@ -988,12 +990,12 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
             </label>
 
             <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Assigned ("}</UiText>{assigned.length})
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">{tr("Assigned ({0})", [assigned.length])}
               </p>
               {assigned.length === 0 ? (
-                <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"No students assigned yet."}</UiText></p>
+                <SharedEmptyState size="sm" icon={Users} title={tr("No students assigned yet.")} description={tr("Search for a student above to assign this discount.")} />
               ) : (
-                <div className="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pe-1">
                   {assigned.map((a) => (
                     <div key={a.id} className="flex items-center justify-between rounded-xl bg-brand-50/50 border border-edge/10 px-3 py-2">
                       <p className="text-xs font-bold text-ink-strong">
@@ -1013,7 +1015,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
 
             <div>
               <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Add student"}</UiText></p>
-              <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pr-1">
+              <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pe-1">
                 {students
                   .filter((s) => {
                     const q = search.trim().toLowerCase();
@@ -1167,13 +1169,13 @@ function CarryPanel({ campusId }: { campusId?: string }) {
             <div key={f.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p className="text-sm font-bold text-ink-strong">{f.student?.fullName ?? "Unknown"}</p>
-                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
+                <p className="text-2xs font-medium text-ink-subtle mt-0.5">
                   {f.fromAcademicYear}<UiText>{"&rarr;"}</UiText>{f.toAcademicYear}
                   {f.note ? ` · ${f.note}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-sm font-bold ${f.balance < 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                <span className={`text-sm font-bold ${f.balance < 0 ? "text-status-success-text" : "text-status-error-text"} tabular-nums`}>
                   {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance), f.currency)}
                 </span>
                 <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(f)} className="flex items-center justify-center">
@@ -1208,6 +1210,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
               <FormInput label={tr("To Year")} type="number" value={toYear} placeholder="2026" onChange={setToYear} />
             </div>
             <FormInput label={`${tr("Balance")} (${currency}, ${tr("Carried Credit")} < 0)`} type="number" value={balance} placeholder={tr("e.g. 2500 or -500")} onChange={setBalance} />
+            <p className="-mt-2 text-xs text-ink-subtle">{tr("A positive balance is owed by the student; a negative balance is a credit carried forward.")}</p>
             <FormInput label={tr("Note (optional)")} value={note} placeholder={tr("e.g. outstanding May dues")} onChange={setNote} />
             <ModalActions busy={saving} busyLabel="Saving..." actionLabel="Create Carry-Forward" onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
@@ -1348,7 +1351,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
         <div>
           <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Fine Rules"}</UiText></p>
           <p className="text-sm font-bold text-ink-strong"><UiText>{"Late-payment fines applied when collecting overdue invoices"}</UiText></p>
-          <p className="text-2xs font-semibold text-ink-subtle mt-0.5"><UiText>{"PERCENT = % of balance · FLAT = fixed PKR · PER_DAY = PKR per day past due"}</UiText></p>
+          <p className="text-2xs font-medium text-ink-subtle mt-0.5"><UiText>{"PERCENT = % of balance · FLAT = fixed PKR · PER_DAY = PKR per day past due"}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Fine Rule"}</UiText></BrandButton>
       </div>
@@ -1372,9 +1375,9 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-ink-strong">
                   {rule.name}
-                  {rule.description ? <span className="ml-2 text-2xs font-semibold text-ink-subtle">{rule.description}</span> : null}
+                  {rule.description ? <span className="ms-2 text-2xs font-medium text-ink-subtle">{rule.description}</span> : null}
                 </p>
-                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
+                <p className="text-2xs font-medium text-ink-subtle mt-0.5">
                   {rule.type === "PERCENT"
                     ? tr("{0}% of balance", [rule.value])
                     : rule.type === "PER_DAY"

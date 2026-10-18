@@ -1,4 +1,6 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 
 import { Button } from "@/components/ui/button";
 import React, { useMemo } from "react";
@@ -72,13 +74,11 @@ export function ExamTimelineView({
 
   if (days.length === 0 && unscheduled.length === 0) {
     return (
-      <div className="sk-panel flex flex-col items-center justify-center border-dashed p-16 text-center">
-        <CalendarDays className="mb-3 h-10 w-10 text-ink-subtle" />
-        <p className="text-sm font-bold text-ink-muted">Nothing is on the datesheet yet</p>
-        <p className="mt-1 text-xs font-semibold text-ink-subtle">
-          Open an exam and set its dates to see it here.
-        </p>
-      </div>
+      <EmptyState
+        icon={CalendarDays}
+        title="Nothing is on the datesheet yet"
+        description="Open an exam and set its dates to see it here."
+      />
     );
   }
 
@@ -147,7 +147,7 @@ export function ExamTimelineView({
                     <Button variant="secondary"
                       type="button"
                       onClick={() => onOpen(p.examId, "schedule")}
-                      className="justify-start flex w-full flex-wrap items-center gap-3 px-5 py-3 text-left"
+                      className="sk-row-interactive justify-start flex w-full flex-wrap items-center gap-3 px-5 py-3 text-start"
                     >
                       <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-bold text-primary">
                         <Clock className="h-3.5 w-3.5" />
@@ -164,20 +164,20 @@ export function ExamTimelineView({
                         </span>
                       </span>
                       {p.periodDefinition ? (
-                        <span className="rounded-full bg-muted px-2.5 py-1 text-2xs font-bold text-ink-muted">
+                        <Badge variant="neutral" size="sm" className="tabular-nums">
                           Period {p.periodDefinition.periodNumber} ·{" "}
                           {p.periodDefinition.startTime}–{p.periodDefinition.endTime}
-                        </span>
+                        </Badge>
                       ) : null}
                       {roomNames.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-2xs font-bold text-teal-700">
-                          <DoorOpen className="h-3 w-3" />
+                        <Badge variant="success" size="sm">
+                          <DoorOpen className="h-3 w-3" aria-hidden="true" />
                           {roomNames.join(" + ")}
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-bold text-amber-700">
-                          <MapPin className="h-3 w-3" /> No room
-                        </span>
+                        <Badge variant="warning" size="sm">
+                          <MapPin className="h-3 w-3" aria-hidden="true" /> No room
+                        </Badge>
                       )}
                     </Button>
                   </li>
@@ -204,7 +204,7 @@ export function ExamTimelineView({
                 <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(e.id, "schedule")}
-                  className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-3 text-start"
                 >
                   <span>
                     <span className="block text-sm font-bold text-ink-strong">{e.title}</span>

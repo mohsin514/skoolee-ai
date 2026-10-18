@@ -4,9 +4,9 @@ import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLif
 
 export default function BillingPage() {
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-1 flex-col">
       <Header title="Billing & plan" description="Institution software subscription, usage, software invoices, and renewal. Family tuition is under Fees." />
-      <div className="p-6 space-y-6">
+      <div className="sk-stagger space-y-6 p-4 sm:p-6">
         <SubscriptionLifecyclePanel />
         <PlansPanel />
       </div>

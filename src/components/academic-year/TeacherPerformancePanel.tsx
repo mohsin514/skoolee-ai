@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-461: "Teaching evidence" — bounded to the selected period, published
@@ -70,9 +73,8 @@ export function TeacherPerformancePanel({ self = false }: { self?: boolean } = {
     downloadCSV(`teaching-evidence-${data.period.start}-to-${data.period.end}.csv`, [header, ...visible.flatMap(row => row.measures.map(m => [row.fullName, MEASURE_LABEL[m.key] ?? m.key, m.value ?? "", m.source, m.coverage ?? "", m.freshness ?? "", m.unavailable ?? "", m.shared ? "yes" : "no", m.caution ?? ""]))]);
   };
 
-  if (error) return <section className="sk-panel space-y-3 p-6" role="alert" data-teaching-evidence data-state={error.denied ? "denied" : "error"}>
-    <p className="text-sm font-bold">{error.denied ? ui("You do not have access to teaching evidence for this campus.") : error.message}</p>
-    {!error.denied ? <Button variant="secondary" size="sm" onClick={() => void load()}>{ui("Retry")}</Button> : null}
+  if (error) return <section role="alert" data-teaching-evidence data-state={error.denied ? "denied" : "error"}>
+    <ErrorState title={error.denied ? ui("You do not have access to teaching evidence for this campus.") : ui("Teaching evidence could not be loaded.")} description={error.denied ? undefined : error.message} onRetry={error.denied ? undefined : () => void load()} retryLabel={ui("Retry")} />
   </section>;
 
   return <section className="space-y-4" aria-labelledby="evidence-title" data-teaching-evidence data-state={data ? "ready" : "loading"}>
@@ -91,7 +93,7 @@ export function TeacherPerformancePanel({ self = false }: { self?: boolean } = {
       {data ? <details className="text-xs" data-policy><summary className="cursor-pointer font-bold">{ui("How these measures are counted")}</summary><ul className="mt-2 list-disc space-y-1 ps-5">{data.policy.map(line => <li key={line}>{ui(line)}</li>)}</ul></details> : null}
     </div>
 
-    {!data ? <p role="status" className="sk-panel p-5 text-sm">{ui("Loading teaching evidence…")}</p>
+    {!data ? <div role="status" aria-label={ui("Loading teaching evidence…")}><SkeletonCards /></div>
       : !data.teachers.length ? <p className="sk-panel p-5 text-sm" data-empty>{ui("No active teachers in this campus.")}</p>
       : !visible.length ? <p className="sk-panel p-5 text-sm" data-empty-filter>{ui("No teacher matches this search.")} <Button size="sm" variant="secondary" onClick={() => setQuery("")}>{ui("Clear search")}</Button></p>
       : <ul className="space-y-3">{visible.map(row => <li key={row.teacherId} className="sk-panel space-y-3 p-4" data-teacher={row.teacherId}>
@@ -114,10 +116,10 @@ export function TeacherPerformancePanel({ self = false }: { self?: boolean } = {
           </table></div>
           {open === row.teacherId ? <div className="space-y-2 rounded-xl bg-muted/60 p-3" data-notes>
             <p className="text-xs text-ink-muted">{ui("Support notes are reviewed actions and responses. They are not employment decisions, which are made and recorded separately by an authorized person.")}</p>
-            {notes === null ? <p role="status" className="text-xs">{ui("Loading notes…")}</p> : !notes.length ? <p className="text-xs">{ui("No notes yet.")}</p>
+            {notes === null ? <div role="status" aria-label={ui("Loading notes…")}><SkeletonList /></div> : !notes.length ? <EmptyState size="sm" icon={MessageSquareText} title={ui("No notes yet.")} description={self ? ui("Add your response below.") : ui("Record the first support action below.")} />
               : <ol className="space-y-1 text-xs">{notes.map(note => <li key={note.id} data-note-kind={note.kind}><span className="font-bold">{ui(NOTE_LABEL[note.kind] ?? note.kind)}</span> · <bdi>{note.author}</bdi> · {dateTime(note.createdAt)}<span className="block"><bdi>{note.body}</bdi></span></li>)}</ol>}
             <FormField name={`note-${row.teacherId}`} label={self ? ui("Your response") : ui("Reviewed support action")}><Textarea maxLength={2000} value={draft} onChange={event => setDraft(event.target.value)} /></FormField>
-            <Button size="sm" disabled={saving || draft.trim().length < 10} onClick={() => void saveNote(row.teacherId)}>{saving ? ui("Saving…") : self ? ui("Add your response") : ui("Record support action")}</Button>
+            <Button size="sm" loading={saving} disabled={saving || draft.trim().length < 10} onClick={() => void saveNote(row.teacherId)}>{self ? ui("Add your response") : ui("Record support action")}</Button>
           </div> : null}
         </li>)}</ul>}
   </section>;

@@ -6,6 +6,7 @@ import { CalendarClock, CalendarDays, Loader2, Printer } from "lucide-react";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 
 const WEEKDAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -216,9 +217,9 @@ export function ExamDateSheet({
               {selectedExam.term} · {selectedExam.academicYear}
             </span>
             {weekends.length > 0 && (
-              <span className="ml-auto text-2xs font-bold text-amber-600">
+              <Badge variant="warning" size="sm" dot className="ms-auto">
                 Off days: {weekends.map((d) => WEEKDAY_LABELS[d]).join(", ")}
-              </span>
+              </Badge>
             )}
           </div>
 

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { LANGUAGE_COOKIE, parseLanguage } from "@/lib/locale/language-cookie";
 import { ShieldAlert } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { getAuthUser } from "@/lib/auth";
 import { dashboardPathForRole } from "@/lib/roles";
 import { SignOutLink } from "./sign-out-link";
@@ -30,34 +31,25 @@ export default async function ForbiddenPage() {
   };
 
   return (
-    <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="flex min-h-screen items-center justify-center bg-muted p-6 text-ink-strong">
-      <section
-        className="sk-panel sk-rise max-w-md p-10 text-center"
-        style={{ animationDelay: "0ms" }}
-      >
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[24px] bg-brand-50 text-primary">
+    <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="sk-app-canvas flex min-h-screen items-center justify-center p-4 text-ink-strong sm:p-6">
+      <section className="sk-panel sk-enter-scale sk-elevation-3 w-full max-w-md p-6 text-center sm:p-10">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-brand-50 text-primary ring-1 ring-brand-100">
           <ShieldAlert aria-hidden="true" className="h-8 w-8" />
         </div>
-        <h1 className="mb-2 text-2xl font-bold tracking-normal">{copy.title}</h1>
-        <p className="mb-6 text-sm font-semibold leading-relaxed text-ink-muted">
+        <h1 className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{copy.title}</h1>
+        <p className="mb-6 text-sm font-normal leading-relaxed text-ink-muted">
           {copy.description}
         </p>
 
         {home ? (
           <div className="space-y-3">
-            <Link
-              href={home}
-              className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-primary px-6 text-sm font-bold text-white transition-colors hover:bg-[#6d1fae]"
-            >
+            <Link href={home} className={buttonVariants({ className: "w-full" })}>
               {copy.home}
             </Link>
             <SignOutLink label={copy.signOut} />
           </div>
         ) : (
-          <Link
-            href="/login"
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-ink-strong px-6 text-sm font-bold text-white"
-          >
+          <Link href="/login" className={buttonVariants({ variant: "dark", className: "w-full sm:w-auto sm:px-6" })}>
             {copy.login}
           </Link>
         )}

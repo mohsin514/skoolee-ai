@@ -26,6 +26,7 @@ import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import {
@@ -508,7 +509,7 @@ export function StudentsPanel({
         <SystemButton variant="ghost"
           type="button"
           onClick={() => onViewStudent(s, filtered)}
-          className="flex items-center gap-2.5 text-left justify-start"
+          className="flex items-center gap-2.5 text-start justify-start"
         >
           <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-edge/30 bg-brand-50">
             <AvatarImage
@@ -533,13 +534,13 @@ export function StudentsPanel({
     {
       key: "identity",
       label: "Pupil ID",
-      render: (s) => <a className="block max-w-40 truncate text-xs text-purple-700 underline" href={`/pupils/${s.id}`} title={s.id} onClick={e => e.stopPropagation()}><bdi>{s.id}</bdi></a>,
+      render: (s) => <a className="sk-link block max-w-40 truncate text-xs text-primary" href={`/pupils/${s.id}`} title={s.id} onClick={e => e.stopPropagation()}><bdi>{s.id}</bdi></a>,
     },
     {
       key: "classOrder",
       label: "Class",
       sortable: true,
-      render: (s) => <span className="text-xs font-bold text-ink">{classLabel(s.class)}</span>,
+      render: (s) => <span className="text-xs font-medium text-ink">{classLabel(s.class)}</span>,
     },
     {
       key: "tags",
@@ -574,7 +575,7 @@ export function StudentsPanel({
             <p className="truncate text-xs font-bold text-ink">{s.guardianName || "Not linked"}</p>
             <p
               className={cn(
-                "truncate text-2xs font-bold",
+                "truncate text-2xs font-medium",
                 noContact ? "text-amber-600" : "text-ink-subtle",
               )}
             >
@@ -909,7 +910,7 @@ function StudentCard({
         }
       }}
       className={cn(
-        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[20px] border bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_20px_-12px_rgba(31,26,35,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]",
+        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg",
         selected ? "border-primary ring-2 ring-primary/20" : "border-edge/25 hover:border-primary/30",
       )}
       style={{ animationDelay: `${index * 60}ms` }}
@@ -977,7 +978,7 @@ function StudentCard({
               </p>
               <p
                 className={cn(
-                  "truncate text-2xs font-bold",
+                  "truncate text-2xs font-medium",
                   noContact ? "text-amber-600" : "text-ink-subtle",
                 )}
               >
@@ -1010,32 +1011,37 @@ function ContactActions({ student }: { student: Student }) {
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const cls =
-    "flex h-7 w-7 items-center justify-center rounded-full border border-edge/25 bg-white text-ink-muted transition-colors hover:border-primary/40 hover:text-primary";
+    "flex h-10 w-10 items-center justify-center rounded-full border border-edge/25 bg-white sm:h-8 sm:w-8 text-ink-muted transition-colors hover:border-primary/40 hover:text-primary";
 
   return (
     <div className="flex shrink-0 items-center gap-1">
       {tel ? (
-        <a href={tel} onClick={stop} title={`Call ${student.guardianPhone}`} aria-label="Call guardian" className={cls}>
-          <PhoneCall className="h-3 w-3" />
-        </a>
+        <Tooltip content={`Call ${student.guardianPhone}`}>
+          <a href={tel} onClick={stop} aria-label="Call guardian" className={cls}>
+            <PhoneCall aria-hidden="true" className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
       {wa ? (
-        <a
-          href={wa}
-          onClick={stop}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Message on WhatsApp"
-          aria-label="Message guardian on WhatsApp"
-          className={cls}
-        >
-          <MessageCircle className="h-3 w-3" />
-        </a>
+        <Tooltip content="Message on WhatsApp">
+          <a
+            href={wa}
+            onClick={stop}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Message guardian on WhatsApp"
+            className={cls}
+          >
+            <MessageCircle aria-hidden="true" className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
       {mail ? (
-        <a href={mail} onClick={stop} title={student.guardianEmail || ""} aria-label="Email guardian" className={cls}>
-          <Mail className="h-3 w-3" />
-        </a>
+        <Tooltip content={student.guardianEmail || "Email guardian"}>
+          <a href={mail} onClick={stop} aria-label="Email guardian" className={cls}>
+            <Mail aria-hidden="true" className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
     </div>
   );

@@ -46,7 +46,7 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
     if (match) setSelected(`${match.id}:${match.studentId}`); else setMissing(true);
   }, [items, requested]);
 
-  if (!items) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <p className="text-sm text-slate-600" aria-busy="true">{t.loading}</p>}</div>;
+  if (!items) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <p className="text-sm text-ink-muted" aria-busy="true">{t.loading}</p>}</div>;
   const current = items.find(item => `${item.id}:${item.studentId}` === selected);
   if (current) return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
     {fromToday ? <Link href="/student" className="text-sm font-semibold text-primary underline" data-back-today>{ui("Back to Today")}</Link> : null}
@@ -56,14 +56,14 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
   </div>;
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
     <Banner status={status} />
-    {missing ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-task-unavailable>{ui("This task is no longer assigned to your account.")} {fromToday ? <Link href="/student" className="font-semibold underline">{ui("Back to Today")}</Link> : null}</div> : null}
-    {audience === "guardian" && <p className="text-xs text-slate-600">{t.workHidden}</p>}
-    {items.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-600">{audience === "guardian" ? t.guardianEmpty : t.learnerEmpty}</p>
-      : <ul className="grid gap-3" aria-label={t.title}>{items.map(item => { const latest = item.versions[0]; return <li key={`${item.id}:${item.studentId}`} className="min-w-0 rounded-xl border bg-white p-4">
+    {missing ? <div role="alert" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-status-warning-text" data-task-unavailable>{ui("This task is no longer assigned to your account.")} {fromToday ? <Link href="/student" className="font-semibold underline">{ui("Back to Today")}</Link> : null}</div> : null}
+    {audience === "guardian" && <p className="text-xs text-ink-muted">{t.workHidden}</p>}
+    {items.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-muted">{audience === "guardian" ? t.guardianEmpty : t.learnerEmpty}</p>
+      : <ul className="grid gap-3" aria-label={t.title}>{items.map(item => { const latest = item.versions[0]; return <li key={`${item.id}:${item.studentId}`} className="min-w-0 sk-panel p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="font-semibold [overflow-wrap:anywhere]" dir="auto">{item.title}</p>
-            <p className="text-xs text-slate-500">{audience === "guardian" && <><bdi>{item.studentName}</bdi> · </>}{t.due} {formatAt(item.effectiveDueAt, language, item.timezone)}{item.extension ? ` · ${t.extended}` : ""}</p>
+            <p className="text-xs text-ink-subtle">{audience === "guardian" && <><bdi>{item.studentName}</bdi> · </>}{t.due} {formatAt(item.effectiveDueAt, language, item.timezone)}{item.extension ? ` · ${t.extended}` : ""}</p>
           </div>
           <span className="flex flex-wrap gap-1"><Pill tone={stateTone(item.state)}>{t.states[item.state]}</Pill>{latest?.late && <Pill tone="amber">{t.lateTag}</Pill>}{!latest && item.overdue && <Pill tone="red">{t.overdue}</Pill>}</span>
         </div>
@@ -78,42 +78,42 @@ function AssignmentView({ t, language, item, audience, reload, setStatus, receip
   const labels = { criterion: t.criterion, points: t.points, comment: t.criterionComment, total: t.total, outOf: t.outOf };
   const latest = item.versions[0];
   return <article aria-labelledby="asg-title" className="min-w-0 space-y-4">
-    <header className="min-w-0 rounded-xl border bg-white p-4">
+    <header className="min-w-0 sk-panel p-4">
       <div className="flex flex-wrap items-start justify-between gap-2"><h2 id="asg-title" className="min-w-0 text-lg font-semibold [overflow-wrap:anywhere]" dir="auto">{item.title}</h2><Pill tone={stateTone(item.state)}>{t.states[item.state]}</Pill></div>
-      <p className="mt-1 text-sm text-slate-700">{t.due} {formatAt(item.effectiveDueAt, language, item.timezone)} <span className="text-xs text-slate-500">({item.timezone})</span> · {t.version} {item.version}{item.rubric ? ` · ${t.rubricVersion} ${item.rubric.version}` : ""}</p>
-      {item.extension && <p className="mt-1 text-sm text-emerald-800">{fill(t.extensionGranted, { time: formatAt(item.extension.dueAt, language, item.timezone) })}</p>}
-      {item.state === "RETURNED" && <p className="mt-1 text-sm font-semibold text-emerald-800">{t.returnedNote}</p>}
-      {item.state === "REOPENED" && <p className="mt-1 text-sm font-semibold text-amber-800">{t.revisionNote}</p>}
+      <p className="mt-1 text-sm text-ink">{t.due} {formatAt(item.effectiveDueAt, language, item.timezone)} <span className="text-xs text-ink-subtle">({item.timezone})</span> · {t.version} {item.version}{item.rubric ? ` · ${t.rubricVersion} ${item.rubric.version}` : ""}</p>
+      {item.extension && <p className="mt-1 text-sm text-status-success-text">{fill(t.extensionGranted, { time: formatAt(item.extension.dueAt, language, item.timezone) })}</p>}
+      {item.state === "RETURNED" && <p className="mt-1 text-sm font-semibold text-status-success-text">{t.returnedNote}</p>}
+      {item.state === "REOPENED" && <p className="mt-1 text-sm font-semibold text-status-warning-text">{t.revisionNote}</p>}
       {audience === "guardian" && <p className="mt-1 text-sm"><bdi>{item.studentName}</bdi></p>}
     </header>
-    <section aria-labelledby="asg-what" className="min-w-0 space-y-3 rounded-xl border bg-white p-4">
+    <section aria-labelledby="asg-what" className="min-w-0 space-y-3 sk-panel p-4">
       <h3 id="asg-what" className="text-sm font-semibold">{t.instructionsTitle}</h3>
       <p className="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]" dir="auto">{item.instructions}</p>
       {item.resources.length > 0 && <div><h4 className="text-xs font-semibold">{t.materials}</h4><ul className="mt-1 grid gap-1">{item.resources.map(r => <li key={r.id}><a className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-violet-700 underline" href={`/api/resources/${r.id}/file`} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden /><bdi>{r.title}</bdi></a></li>)}</ul></div>}
-      <p className="text-xs text-slate-600">{t.acceptedFormats}: {item.submissionMode === "PAPER" ? t.modes.PAPER : [t.textAnswers, ...item.allowedTypes.map(g => t.fileTypeNames[g as keyof typeof t.fileTypeNames] ?? g)].join(", ")} · {t.latePolicies[item.latePolicy as keyof typeof t.latePolicies]} · {t.resubmissions[item.resubmission as keyof typeof t.resubmissions]}</p>
+      <p className="text-xs text-ink-muted">{t.acceptedFormats}: {item.submissionMode === "PAPER" ? t.modes.PAPER : [t.textAnswers, ...item.allowedTypes.map(g => t.fileTypeNames[g as keyof typeof t.fileTypeNames] ?? g)].join(", ")} · {t.latePolicies[item.latePolicy as keyof typeof t.latePolicies]} · {t.resubmissions[item.resubmission as keyof typeof t.resubmissions]}</p>
       {item.rubric && <div><h4 className="mb-1 text-xs font-semibold">{t.rubric} · {t.version} {item.rubric.version}</h4><RubricTable criteria={item.rubric.criteria} labels={labels} /></div>}
     </section>
     {audience === "learner" && item.submissionMode === "PAPER" && !latest && <p className="rounded-xl border bg-slate-50 p-3 text-sm">{t.handInOnPaper}</p>}
-    {receipt && <div ref={receiptRef} tabIndex={-1} role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+    {receipt && <div ref={receiptRef} tabIndex={-1} role="status" className="rounded-xl border border-status-success-border bg-status-success-surface p-3 text-sm text-status-success-text">
       <p className="font-semibold">{fill(t.receiptSaved, { time: formatAt(receipt.submittedAt, language, item.timezone), code: receipt.receiptCode })}</p>
       <p className="text-xs">{t.version} {receipt.version} · {t.checksum} <bdi className="font-mono">{shortSha(receipt.artifactSha256)}</bdi>{receipt.late ? ` · ${t.lateTag}` : ""}{receipt.replayed ? ` · ${t.replayed}` : ""}</p>
     </div>}
     {audience === "learner" && item.canEditDraft && (item.state === "SUBMITTED"
-      ? <details className="rounded-xl border bg-white p-4"><summary className="min-h-11 cursor-pointer content-center text-sm font-semibold">{t.replace}</summary><div className="mt-3"><Work key={`${item.id}:${latest?.version ?? 0}:${item.state}`} t={t} language={language} item={item} reload={reload} setStatus={setStatus} onReceipt={setReceipt} /></div></details>
+      ? <details className="sk-panel p-4"><summary className="min-h-11 cursor-pointer content-center text-sm font-semibold">{t.replace}</summary><div className="mt-3"><Work key={`${item.id}:${latest?.version ?? 0}:${item.state}`} t={t} language={language} item={item} reload={reload} setStatus={setStatus} onReceipt={setReceipt} /></div></details>
       : <Work key={`${item.id}:${latest?.version ?? 0}:${item.state}`} t={t} language={language} item={item} reload={reload} setStatus={setStatus} onReceipt={setReceipt} />)}
-    {audience === "learner" && !item.canEditDraft && item.state !== "RETURNED" && item.state !== "SUBMITTED" && !latest && item.submissionMode !== "PAPER" && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{t.cannotSubmit}</p>}
+    {audience === "learner" && !item.canEditDraft && item.state !== "RETURNED" && item.state !== "SUBMITTED" && !latest && item.submissionMode !== "PAPER" && <p role="status" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-status-warning-text">{t.cannotSubmit}</p>}
     <section aria-labelledby="asg-versions" className="min-w-0 space-y-3">
       <h3 id="asg-versions" className="text-sm font-semibold">{audience === "guardian" ? t.childVersions : t.yourVersions} ({item.versions.length})</h3>
-      {item.versions.length === 0 ? <p className="text-sm text-slate-600">{t.notSubmitted}</p> : <ol className="grid gap-3">{item.versions.map(v => <li key={v.id} className="min-w-0 rounded-xl border bg-white p-4">
+      {item.versions.length === 0 ? <p className="text-sm text-ink-muted">{t.notSubmitted}</p> : <ol className="grid gap-3">{item.versions.map(v => <li key={v.id} className="min-w-0 sk-panel p-4">
         <p className="flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold">{t.version} {v.version}</span><span>{t.receipt} <bdi className="font-semibold">{v.receiptCode}</bdi></span>{v.late && <Pill tone="amber">{t.lateTag}</Pill>}{v.mode === "PAPER" && <Pill>{t.paperTag}</Pill>}</p>
-        <p className="text-xs text-slate-600">{v.mode === "PAPER" ? t.receivedAt : t.submittedAt} {formatAt(v.receivedAt, language, item.timezone)}{audience === "learner" ? <> · {t.checksum} <bdi className="font-mono">{shortSha(v.artifactSha256)}</bdi></> : null}</p>
+        <p className="text-xs text-ink-muted">{v.mode === "PAPER" ? t.receivedAt : t.submittedAt} {formatAt(v.receivedAt, language, item.timezone)}{audience === "learner" ? <> · {t.checksum} <bdi className="font-mono">{shortSha(v.artifactSha256)}</bdi></> : null}</p>
         {v.text && <p className="mt-2 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]" dir="auto">{v.text}</p>}
         {audience === "learner" && v.file && <a className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-violet-700 underline" href={fileHref(item.id, v.id)}><Download className="h-4 w-4" aria-hidden />{t.download}: <bdi>{v.file.name}</bdi></a>}
         <div className="mt-3 border-t pt-3">{v.feedback ? <div className="space-y-2">
-          <p className="text-sm font-semibold text-emerald-800">{t.feedback} · {t.returnedOn} <bdi>{formatAt(v.feedback.returnedAt, language, item.timezone)}</bdi> · {t.total} <span dir="ltr">{v.feedback.totalPoints} / {v.rubric.reduce((n, c) => n + c.maxPoints, 0)}</span> · {t.formative}</p>
+          <p className="text-sm font-semibold text-status-success-text">{t.feedback} · {t.returnedOn} <bdi>{formatAt(v.feedback.returnedAt, language, item.timezone)}</bdi> · {t.total} <span dir="ltr">{v.feedback.totalPoints} / {v.rubric.reduce((n, c) => n + c.maxPoints, 0)}</span> · {t.formative}</p>
           <RubricTable criteria={v.rubric} scores={v.feedback.criteria} labels={labels} />
           {v.feedback.comment && <p className="text-sm" dir="auto">{v.feedback.comment}</p>}
-        </div> : <p className="text-xs text-slate-500">{t.noFeedback}</p>}</div>
+        </div> : <p className="text-xs text-ink-subtle">{t.noFeedback}</p>}</div>
       </li>)}</ol>}
     </section>
   </article>;
@@ -163,27 +163,27 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
       setStatus({ tone: "error", text: `${error instanceof Error && error.message !== "Request failed" ? `${error.message} ` : ""}${t.submitFailed}` });
     }
   }
-  return <section aria-labelledby="asg-work" className="min-w-0 space-y-3 rounded-xl border bg-white p-4">
+  return <section aria-labelledby="asg-work" className="min-w-0 space-y-3 sk-panel p-4">
     <h3 id="asg-work" className="text-sm font-semibold">{t.yourAnswer}</h3>
-    {item.overdue && <p className="text-sm text-amber-800">{item.canSubmit ? t.lateAccepted : t.overdue}</p>}
+    {item.overdue && <p className="text-sm text-status-warning-text">{item.canSubmit ? t.lateAccepted : t.overdue}</p>}
     <label className="grid gap-1 text-xs font-semibold"><span className="sr-only">{t.yourAnswer}</span>
       <Textarea dir="auto" rows={7} maxLength={20000} value={text} aria-describedby="asg-draft-state" className="min-h-40 rounded-md border px-3 py-2 text-sm font-normal"
         onChange={event => { setText(event.target.value); setSaved("local"); store.set(draftKey, JSON.stringify({ text: event.target.value, at: new Date().toISOString() })); }} /></label>
-    <p id="asg-draft-state" role="status" className={`text-xs ${saved === "local" ? "text-amber-800" : "text-slate-600"}`}>{saved === "server" ? `${t.savedDraft} ${item.draft?.savedAt ? formatAt(item.draft.savedAt, language, item.timezone) : ""}` : saved === "local" ? t.savedLocally : t.notSaved}</p>
+    <p id="asg-draft-state" role="status" className={`text-xs ${saved === "local" ? "text-status-warning-text" : "text-ink-muted"}`}>{saved === "server" ? `${t.savedDraft} ${item.draft?.savedAt ? formatAt(item.draft.savedAt, language, item.timezone) : ""}` : saved === "local" ? t.savedLocally : t.notSaved}</p>
     {item.allowedTypes.length > 0 && <div className="grid gap-1 text-xs">
       <span className="font-semibold">{t.attach}</span>
       <label className="flex min-w-0 flex-wrap items-center gap-2">
         <input type="file" accept={accept} className="peer sr-only" aria-label={t.attach} aria-describedby="asg-upload-state" onChange={event => { const file = event.target.files?.[0]; if (file) void sendFile(file); event.target.value = ""; }} />
         <span aria-hidden className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-field-border bg-white px-3 text-sm font-bold peer-focus-visible:ring-2 peer-focus-visible:ring-violet-500">{t.chooseFile}</span>
-        <span className="min-w-0 text-sm text-slate-600 [overflow-wrap:anywhere]"><bdi>{upload.name ?? t.noFile}</bdi></span>
+        <span className="min-w-0 text-sm text-ink-muted [overflow-wrap:anywhere]"><bdi>{upload.name ?? t.noFile}</bdi></span>
       </label>
       <p id="asg-upload-state" role="status" className="flex flex-wrap items-center gap-2">
         {upload.state === "uploading" && <><span className="inline-block h-2 w-24 animate-pulse rounded bg-violet-300 motion-reduce:animate-none" role="progressbar" aria-label={t.uploading} />{t.uploading} <bdi>{upload.name}</bdi></>}
-        {upload.state === "uploaded" && <span className="text-emerald-800">{t.uploaded}: <bdi>{upload.name}</bdi> · {t.checksum} <bdi className="font-mono">{shortSha(upload.sha256)}</bdi></span>}
-        {upload.state === "failed" && <><span className="text-rose-800">{t.uploadFailed} <bdi>{upload.name}</bdi></span>{upload.file && <Button type="button" size="sm" variant="outline" onClick={() => void sendFile(upload.file!)}><RotateCcw aria-hidden />{t.retry}</Button>}</>}
+        {upload.state === "uploaded" && <span className="text-status-success-text">{t.uploaded}: <bdi>{upload.name}</bdi> · {t.checksum} <bdi className="font-mono">{shortSha(upload.sha256)}</bdi></span>}
+        {upload.state === "failed" && <><span className="text-status-error-text">{t.uploadFailed} <bdi>{upload.name}</bdi></span>{upload.file && <Button type="button" size="sm" variant="outline" onClick={() => void sendFile(upload.file!)}><RotateCcw aria-hidden />{t.retry}</Button>}</>}
       </p>
     </div>}
-    {phase === "submitting" && <p role="status" className="text-sm text-slate-700">{t.submitting}</p>}
+    {phase === "submitting" && <p role="status" className="text-sm text-ink">{t.submitting}</p>}
     <div className="sticky bottom-2 z-10 flex flex-wrap gap-2 rounded-xl bg-white/95 py-1">
       <Button type="button" disabled={phase === "submitting" || upload.state === "uploading" || !item.canSubmit} onClick={() => void submit()}>{phase === "failed" ? t.retry : t.submit}</Button>
       <Button type="button" variant="outline" disabled={phase === "submitting"} onClick={() => saveServer().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }))}>{t.saveDraft}</Button>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle, ArrowRight, Calendar, CheckCircle2, ChevronDown, ChevronRight,
-  GraduationCap, History, Loader2, Lock, RefreshCw, Users, X,
+  GraduationCap, History, Lock, RefreshCw, Users, X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
@@ -13,6 +13,7 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
 
 interface ClassSummary {
@@ -105,6 +106,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
   const [gradeError, setGradeError] = useState("");
   const [studentDecisions, setStudentDecisions] = useState<Map<string, StudentDecision>>(new Map());
   const [promoting, setPromoting] = useState(false);
+  const [confirmCloseYear, setConfirmCloseYear] = useState<number | null>(null);
   const [promotionResults, setPromotionResults] = useState<{ promoted: number; retained: number } | null>(null);
 
   const qs = campusId ? `?campusId=${campusId}` : "";
@@ -143,7 +145,6 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
   }, [showPromoteModal, historyYear, historyClassId, closePromotionWizard]);
 
   const handleCloseYear = useCallback(async (year: number) => {
-    if (!confirm(`Close academic year ${year}? This will:\n• Save final grades to student history\n• Mark all classes as COMPLETED\n• Generate admission numbers for students without one\n\nYou can still view past year data after closing.`)) return;
     setClosing(true);
     try {
       const res = await fetch("/api/academic-year", {
@@ -304,8 +305,19 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-6">
+      <ConfirmAction
+        open={confirmCloseYear !== null}
+        tone="danger"
+        title={`Close academic year ${confirmCloseYear ?? ""}?`}
+        description="You can still view past year data after closing."
+        detail={<ul className="list-disc space-y-1 ps-5 text-sm text-ink-muted"><li>Save final grades to student history</li><li>Mark all classes as COMPLETED</li><li>Generate admission numbers for students without one</li></ul>}
+        confirmLabel="Close Year"
+        busy={closing}
+        onCancel={() => setConfirmCloseYear(null)}
+        onConfirm={() => { const y = confirmCloseYear; setConfirmCloseYear(null); if (y !== null) void handleCloseYear(y); }}
+      />
       <div className="flex flex-wrap gap-3">
-        <BrandButton variant="dark" icon={<ArrowRight className="w-4 h-4" />} onClick={() => openPromotionWizard()}>
+        <BrandButton variant="dark" icon={<ArrowRight className="w-4 h-4 rtl:rotate-180" />} onClick={() => openPromotionWizard()}>
           Promote Students
         </BrandButton>
       </div>
@@ -320,7 +332,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 role="button" tabIndex={0}
                 onClick={() => setExpandedYear(expandedYear === yg.year ? null : yg.year)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedYear(expandedYear === yg.year ? null : yg.year); } }}
-                className="w-full flex items-center justify-between p-5 text-left cursor-pointer hover:bg-brand-50/30 transition-colors"
+                className="w-full flex items-center justify-between p-5 text-start cursor-pointer hover:bg-brand-50/30 transition-colors"
               >
                 <div className="flex items-center gap-4">
                   <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
@@ -341,8 +353,9 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   {yg.status === "ACTIVE" && (
                     <BrandButton
                       variant="soft"
-                      icon={closing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleCloseYear(yg.year); }}
+                      icon={closing ? null : <Lock className="w-4 h-4" />}
+                      loading={closing}
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); setConfirmCloseYear(yg.year); }}
                       disabled={closing}
                     >
                       Close Year
@@ -533,7 +546,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {allClasses.filter((c) => c._count.students > 0).map((cls) => (
                     <Button aria-pressed={promoteSourceId === cls.id} variant="choice" key={cls.id} type="button" onClick={() => setPromoteSourceId(cls.id)}
-                      className="block text-left">
+                      className="block text-start">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h4 className="text-sm font-bold text-ink-strong">{clsLabel(cls)}</h4>
                         <span className={`text-2xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
@@ -549,10 +562,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   ))}
                 </div>
                 {allClasses.filter((c) => c._count.students > 0).length === 0 && (
-                  <div className="py-12 text-center">
-                    <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle">No classes with students found</p>
-                  </div>
+                  <EmptyState size="sm" icon={Users} title="No classes with students found" description="Enrol students in a class for this year, then come back to promote them." />
                 )}
                 <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={closePromotionWizard}>Cancel</BrandButton>
@@ -561,7 +571,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     setPromoteStep("review");
                     loadGrades(promoteSourceId, src?.academicYear ?? new Date().getFullYear());
                   }}>
-                    Next <ArrowRight className="w-4 h-4 ml-1" />
+                    Next <ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
                   </BrandButton>
                 </div>
               </div>
@@ -630,7 +640,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                         {/* Student list with checkboxes */}
                         <div className="overflow-x-auto rounded-2xl border border-edge/10">
-                          <table className="w-full text-left">
+                          <table className="w-full text-start">
                             <thead>
                               <tr className="border-b border-edge/10 bg-brand-50/30">
                                 <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
@@ -717,10 +727,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         </div>
                       </>
                     ) : (
-                      <div className="py-12 text-center">
-                        <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                        <p className="text-sm font-bold text-ink-subtle">No students found in this class</p>
-                      </div>
+                      <EmptyState size="sm" icon={Users} title="No students found in this class" description="Go back and choose a different source class." />
                     )}
                   </>
                 )}
@@ -730,7 +737,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     Back
                   </BrandButton>
                   <BrandButton variant="dark" disabled={studentsToPromote.length === 0} onClick={() => setPromoteStep("target")}>
-                    Next — Select Target <ArrowRight className="w-4 h-4 ml-1" />
+                    Next — Select Target <ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
                   </BrandButton>
                 </div>
               </div>
@@ -743,7 +750,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   {/* Left: target selection */}
                   <div>
                     <label className="block mb-4">
-                      <span className="mb-1.5 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
+                      <span className="mb-1.5 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
                       <SystemSelect value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
                         className="h-14 w-full px-4">
                         <option value="">Select target class</option>
@@ -758,7 +765,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     {!activeClasses.some((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1) ? (
                       <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-4 mb-3">
                         <p className="text-xs font-bold text-amber-700">
-                          <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                          <AlertTriangle className="h-3.5 w-3.5 inline me-1" />
                           No class exists for {sourceClass ? sourceClass.academicYear + 1 : "next year"} yet.
                         </p>
                         <p className="text-2xs font-semibold text-amber-700/70 mt-1">
@@ -769,7 +776,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                     <div className="rounded-2xl border border-primary/15 bg-brand-50/60 p-4 mb-3">
                       <p className="text-2xs font-bold text-primary">
-                        <Lock className="h-3.5 w-3.5 inline mr-1" />
+                        <Lock className="h-3.5 w-3.5 inline me-1" />
                         Class changes are only allowed via promotion
                       </p>
                       <p className="text-2xs font-semibold text-ink-muted mt-0.5">
@@ -806,10 +813,10 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                   {/* Right: roll number preview */}
                   <div>
-                    <p className="mb-1.5 pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">New Roll Number Preview</p>
+                    <p className="mb-1.5 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">New Roll Number Preview</p>
                     {promoteTargetId && targetClass ? (
                       <div className="max-h-[400px] overflow-y-auto rounded-2xl border border-edge/10 custom-scrollbar">
-                        <table className="w-full text-left">
+                        <table className="w-full text-start">
                           <thead>
                             <tr className="border-b border-edge/10 bg-brand-50/30 sticky top-0">
                               <th className="px-3 py-2 text-2xs font-semibold uppercase text-ink-muted">Student</th>
@@ -843,7 +850,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 {studentsToRetain.length > 0 && (
                   <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-4">
                     <p className="text-xs font-bold text-amber-700 mb-2">
-                      <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                      <AlertTriangle className="h-3.5 w-3.5 inline me-1" />
                       {studentsToRetain.length} student{studentsToRetain.length !== 1 ? "s" : ""} will be retained in {sourceClass ? clsLabel(sourceClass) : "current class"}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
@@ -858,8 +865,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   <BrandButton variant="soft" onClick={() => setPromoteStep(gradeResults.length > 0 ? "review" : "source")}>
                     Back
                   </BrandButton>
-                  <BrandButton variant="dark" disabled={promoting || !promoteTargetId || studentsToPromote.length === 0} onClick={handlePromote}>
-                    {promoting ? <><Loader2 className="w-4 h-4 animate-spin" /> Promoting...</> : `Promote ${studentsToPromote.length} Students`}
+                  <BrandButton variant="dark" loading={promoting} disabled={promoting || !promoteTargetId || studentsToPromote.length === 0} onClick={handlePromote}>
+                    {`Promote ${studentsToPromote.length} Students`}
                   </BrandButton>
                 </div>
               </div>

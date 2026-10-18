@@ -5,7 +5,7 @@ import { InputGroup } from "@/components/ui/input-group";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDialogBehaviour } from "@/components/ui/modal";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Loader2, Search, UserRoundSearch, Users, X } from "lucide-react";
+import { Check, Search, UserRoundSearch, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { useChat } from "./chat-provider";
@@ -14,6 +14,9 @@ import { ChatPortal } from "./chat-portal";
 import type { DirectoryContact } from "@/lib/chat/types";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { fill } from "./chat-text";
 
@@ -186,7 +189,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 420, damping: 34 }}
-              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(31,26,35,0.4)] sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(31,26,35,0.5)]"
+              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(120,70,180,0.4)] sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(120,70,180,0.5)]"
             >
               {/* ── Head ── */}
               <header className="relative shrink-0 overflow-hidden border-b border-edge/25 bg-gradient-to-br from-white via-white to-brand-50/70 px-5 pb-4 pt-4">
@@ -207,7 +210,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       >
                         {mode === "group" ? ui("New group") : ui("New conversation")}
                       </h2>
-                      <p className="truncate text-2xs font-semibold text-ink-muted">
+                      <p className="truncate text-2xs font-normal text-ink-muted">
                         {total === 1 ? ui("{0} person you can reach", [total]) : ui("{0} people you can reach", [total])}
                       </p>
                     </div>
@@ -238,16 +241,16 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       className="shrink-0"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-2xs font-bold text-ink-strong">
+                      <span className="block truncate text-sm font-semibold text-ink-strong">
                         <bdi>{viewer.fullName}</bdi>
                       </span>
-                      <span className="block truncate text-2xs font-semibold text-ink-muted">
+                      <span className="block truncate text-2xs font-normal text-ink-muted">
                         {fill(ui("Signed in as {0} · you are not in this list"), [roleLabel(viewer.role, language)])}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-white">
+                    <Badge variant="default" size="sm" className="shrink-0">
                       {ui("You")}
-                    </span>
+                    </Badge>
                   </div>
                 )}
               </header>
@@ -256,7 +259,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               <div className="shrink-0 space-y-3 border-b border-edge/25 px-5 py-4">
                 {canCreateGroup && (
                   <div
-                    className="relative flex gap-1 rounded-xl bg-[#f4ecf8]/70 p-1"
+                    className="relative flex gap-1 rounded-xl bg-brand-50/70 p-1"
                     role="tablist"
                     aria-label={ui("Conversation type")}
                   >
@@ -305,7 +308,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                               key={c.id}
                               initial={{ opacity: 0, scale: 0.85 }}
                               animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-1 rounded-full bg-brand-50 py-0.5 ps-0.5 pe-1.5 text-2xs font-bold text-primary ring-1 ring-primary/20"
+                              className="flex items-center gap-1 rounded-full bg-brand-50 py-0.5 ps-0.5 pe-1.5 text-2xs font-semibold text-primary ring-1 ring-primary/20"
                             >
                               <ChatAvatar name={c.fullName} seed={c.id} size="sm" className="scale-[0.78]" />
                               <bdi className="max-w-[110px] truncate">{c.fullName}</bdi>
@@ -358,32 +361,25 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               <div className="relative flex min-h-0 flex-1 flex-col">
                 <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pb-5">
                   {isLoading ? (
-                    <p className="flex items-center justify-center gap-2 py-12 text-xs font-bold text-ink-muted">
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      {ui("Loading your contacts")}
-                    </p>
+                    <SkeletonList rows={5} className="px-5 py-4" label={ui("Loading your contacts")} />
                   ) : total === 0 ? (
-                    <div className="flex flex-col items-center gap-3 px-8 py-12 text-center">
-                      <span className="sk-float grid h-14 w-14 place-items-center rounded-3xl bg-gradient-to-br from-primary to-berry text-white shadow-[0_16px_36px_-14px_rgba(129,39,207,0.75)]">
-                        <Users className="h-6 w-6" />
-                      </span>
-                      <div>
-                        <p className="text-xs font-bold text-ink-strong">
-                          {query ? ui("Nobody matches that") : ui("No contacts available")}
-                        </p>
-                        <p className="mt-1 max-w-[260px] text-2xs font-semibold leading-relaxed text-ink-muted">
-                          {query
-                            ? ui("Try a different name.")
-                            : ui("Your school decides who you can message. Contact the office if someone is missing.")}
-                        </p>
-                      </div>
-                    </div>
+                    <EmptyState
+                      size="sm"
+                      icon={Users}
+                      className="px-6 py-10"
+                      title={query ? ui("Nobody matches that") : ui("No contacts available")}
+                      description={
+                        query
+                          ? ui("Try a different name.")
+                          : ui("Your school decides who you can message. Contact the office if someone is missing.")
+                      }
+                    />
                   ) : (
                     grouped.map((group) => (
                       <section key={group.label}>
-                        <h3 className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-edge/20 bg-white/95 px-5 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint backdrop-blur-md">
+                        <h3 className="sticky top-0 z-10 flex items-center gap-1.5 border-b border-edge/20 bg-white/95 px-5 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle backdrop-blur-md">
                           {group.heading}
-                          <span className="font-bold text-ink-faint/70">{group.contacts.length}</span>
+                          <span className="font-semibold tabular-nums text-ink-subtle">{group.contacts.length}</span>
                         </h3>
 
                         <ul className="px-2 py-1">
@@ -395,7 +391,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                   type="button"
                                   disabled={isSubmitting}
                                   onClick={() => choose(contact)}
-                                  className="flex justify-start w-full items-center gap-3 text-start"
+                                  className="sk-row-interactive flex justify-start w-full items-center gap-3 text-start"
                                 >
                                   <ChatAvatar
                                     name={contact.fullName}
@@ -405,7 +401,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                   />
 
                                   <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-xs font-bold text-ink-strong">
+                                    <span className="block truncate text-sm font-semibold text-ink-strong">
                                       <bdi>{contact.fullName}</bdi>
                                     </span>
                                     {/* Never the bare role label — it only
@@ -416,7 +412,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                         so a second "Campus Admin" is visibly
                                         somebody else. */}
                                     {(contact.context ?? contact.email ?? contact.campusName) && (
-                                      <span className="block truncate text-2xs font-semibold text-ink-muted">
+                                      <span className="block truncate text-2xs font-normal text-ink-muted">
                                         <bdi>{contact.context ?? contact.email ?? contact.campusName}</bdi>
                                       </span>
                                     )}

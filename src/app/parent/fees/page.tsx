@@ -23,11 +23,18 @@ export default function ParentFeesPage() {
   if (error) return <ParentErrorState error={error} onRetry={refetch} />;
   if (loading || !data) return <ParentListSkeleton />;
   const studentId = selectedStudentId ?? undefined;
+  // Until the statement reports back there is no balance to state, so the
+  // header must not claim "All fees cleared" while the invoices still load.
+  const eyebrow = summary === null
+    ? tr("Fee statement")
+    : summary.outstanding
+      ? `${money(summary.outstanding, summary.currency ?? "PKR")} · ${tr("Outstanding")}`
+      : tr("All fees cleared");
   return (
     <ParentPage
       tone="fees"
       icon={CreditCard}
-      eyebrow={<>{summary?.outstanding ? `${money(summary.outstanding, summary.currency ?? "PKR")} · ${tr("Outstanding")}` : tr("All fees cleared")}</>}
+      eyebrow={<>{eyebrow}</>}
       title={tr("Fee Status")}
       summary={`${tr("Invoices and payment progress")} · ${data.student.fullName}`}
     >

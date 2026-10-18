@@ -803,7 +803,7 @@ export function CreateClassWizard({
 
           {step === 4 ? (
             <div className="space-y-4">
-              <div className="rounded-3xl bg-gradient-to-br from-brand-50 via-white to-brand-100 border border-edge/25 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+              <div className="rounded-3xl bg-gradient-to-br from-brand-50 via-white to-brand-100 border border-edge/25 p-6 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]">
                     <GraduationCap className="h-5 w-5 text-white" />

@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = [
@@ -381,7 +382,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                 {holidayMode ? (holidayPick ? `Finish range → ${holidayPick}` : "Pick end day…") : "✚ Mark holiday range"}
               </Button>
             </div>
-            <p className="text-2xs font-semibold text-ink-muted">
+            <p className="text-2xs font-medium text-ink-muted">
               Tip: click any calendar day to toggle that weekday as a weekend. Use “Mark holiday range” then click two days to draft a holiday.
             </p>
             <YearCalendar year={year} weekends={weekends} holidays={holidays} isHoliday={isHoliday} holidayOn={holidayOn} holidayMode={holidayMode} holidayPick={holidayPick} onDayClick={onDayClick} />
@@ -460,7 +461,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                   <Button variant="ghost" onClick={() => deleteRoom(r.id)} className=""><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
-              {rooms.length === 0 && <p className="sm:col-span-3 rounded-2xl border border-dashed border-edge/30 bg-surface-subtle py-6 text-center text-sm text-ink-muted">No rooms yet — optional, skip if not used</p>}
+              {rooms.length === 0 && <div className="sm:col-span-3"><EmptyState size="sm" icon={Building2} title="No rooms yet" description="Optional. Skip this step if you do not use rooms." /></div>}
             </div>
             <div className="flex justify-end">
               <Button variant="default" onClick={completeSetup} disabled={saving} className="justify-start flex items-center gap-2 px-6 py-3">
@@ -601,7 +602,6 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
                   key={dayNum}
                   type="button"
                   onClick={() => onDayClick(iso)}
-                  title={hol ? holidays.find((h) => iso >= h.fromDate && iso <= h.toDate)?.name : holidayMode ? "Select for holiday range" : isWeekend ? "Make this weekday a working day" : "Make this weekday a weekend"}
                   className={`min-h-11 min-w-0 px-0 py-1 ${hol ? "bg-teal-50 text-teal-800" : isWeekend ? "bg-surface-subtle text-ink-muted" : ""}`}
                 >
                   {dayNum}

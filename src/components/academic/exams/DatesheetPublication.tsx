@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -79,11 +80,10 @@ export function DatesheetPublication({ sessionId }: { sessionId: string }) {
     </div>
 
     {issues.length
-      ? <div role="alert" className="space-y-1 rounded-xl bg-rose-50 p-3 text-sm text-rose-900" data-publication-issues>
-          <p className="flex items-center gap-2 font-bold"><CircleAlert className="size-4" aria-hidden />{ui("Publication is blocked by {0} problem(s).", [issues.length])}</p>
+      ? <div data-publication-issues><Alert tone="danger" live="assertive" title={ui("Publication is blocked by {0} problem(s).", [issues.length])}>
           <ul className="list-disc space-y-0.5 ps-5">{issues.map((issue, index) => <li key={`${issue.scheduleId}-${issue.kind}-${index}`} data-issue={issue.kind}>{issue.paper ? <><bdi className="font-semibold">{issue.paper}</bdi>: </> : null}{ui(issue.message)}</li>)}</ul>
-        </div>
-      : <p className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-900" data-publication-ready><CheckCircle2 className="size-4" aria-hidden />{ui("All checks pass: {0} papers, {1} of {2} candidates seated.", [status.papers.length, seated, candidates])}</p>}
+        </Alert></div>
+      : <div data-publication-ready><Alert tone="success" live="off" compact>{ui("All checks pass: {0} papers, {1} of {2} candidates seated.", [status.papers.length, seated, candidates])}</Alert></div>}
 
     {status.latest ? <div className="space-y-2" data-pending-changes>
       <h4 className="text-sm font-bold">{ui("Changes since version {0}", [status.latest.version])}</h4>
@@ -98,7 +98,7 @@ export function DatesheetPublication({ sessionId }: { sessionId: string }) {
     </div> : null}
 
     <div className="flex flex-wrap items-center gap-3">
-      <Button disabled={busy || !canPublish} onClick={() => void publish()}>{busy ? ui("Publishing…") : ui("Publish version {0}", [next])}</Button>
+      <Button loading={busy} disabled={busy || !canPublish} onClick={() => void publish()}>{busy ? ui("Publishing…") : ui("Publish version {0}", [next])}</Button>
       {nothingNew ? <span className="text-xs text-ink-muted">{ui("Make a change before publishing a new version.")}</span> : null}
     </div>
     {result ? <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900" data-publication-result>{ui("Version {0} published for {1} classes: {2} students and {3} staff are affected; {4} people are told once.", [result.version, result.affected.classes, result.affected.students, result.affected.staff, result.recipients])}</p> : null}

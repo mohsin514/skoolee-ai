@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/header";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTip } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import {
   Users,
   GraduationCap,
@@ -14,6 +18,8 @@ import {
   TrendingUp,
   ArrowUpRight,
   Sparkles,
+  Check,
+  Lock,
 } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -59,97 +65,104 @@ export default async function DashboardPage() {
   const studentById = new Map(topStudents.map((student) => [student.id, student]));
 
   const setupSteps = [
-    { label: "1. Create Classes", href: "/dashboard/classes", done: totalClasses > 0 },
-    { label: "2. Add Students", href: "/dashboard/students", done: totalStudents > 0 },
-    { label: "3. Assign Subjects", href: "/dashboard/classes", done: totalSubjects > 0 },
+    { label: "Create classes", href: "/dashboard/classes", done: totalClasses > 0 },
+    { label: "Add students", href: "/dashboard/students", done: totalStudents > 0 },
+    { label: "Assign subjects", href: "/dashboard/classes", done: totalSubjects > 0 },
   ];
+  const setupDone = setupSteps.filter((step) => step.done).length;
 
   const stats = [
     {
-      title: "Total Students",
+      title: "Total students",
       value: totalStudents,
       icon: Users,
       color: "text-blue-600 bg-blue-500/10",
-      glow: "bg-blue-500/18",
     },
     {
-      title: "Active Classes",
+      title: "Active classes",
       value: totalClasses,
       icon: GraduationCap,
       color: "text-emerald-600 bg-emerald-500/10",
-      glow: "bg-emerald-500/18",
     },
     {
       title: "Subjects",
       value: totalSubjects,
       icon: BookOpen,
       color: "text-violet-600 bg-violet-500/10",
-      glow: "bg-violet-500/18",
     },
     {
-      title: "AI Credits Used",
+      title: "AI credits used",
       value: `${school?.aiCreditsUsed || 0} / ${school?.aiCreditsLimit || 100}`,
       icon: Brain,
       color: "text-amber-600 bg-amber-500/10",
-      glow: "bg-amber-500/18",
+      info: "Each AI request uses credits from your plan's allowance.",
     },
-  ];
+  ] as Array<{ title: string; value: string | number; icon: typeof Users; color: string; info?: string }>;
 
   const creditLimit = school?.aiCreditsLimit || 100;
   const creditUsed = school?.aiCreditsUsed || 0;
   const creditPercent = creditLimit ? Math.min(Math.round((creditUsed / creditLimit) * 100), 100) : 0;
+  const creditTone = creditPercent >= 90 ? "danger" : creditPercent >= 75 ? "warning" : "brand";
+  const marksLink = cn(buttonVariants({ variant: "outline", size: "sm" }), "sk-nudge-trigger");
 
   return (
     <>
       <Header title="Dashboard" description="Overview of your school's live operational records" />
 
-      <div className="p-6 space-y-8">
-        <Card className="sk-rise border-primary/20 bg-primary/5 shadow-none" style={{ animationDelay: "0ms" }}>
+      <div className="space-y-6 p-4 sm:p-6">
+        <Card variant="featured" className="sk-enter">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Complete your core setup
-            </CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Sparkles aria-hidden="true" className="h-5 w-5 text-primary" />
+                Complete your core setup
+              </CardTitle>
+              <Badge variant={setupDone === setupSteps.length ? "success" : "secondary"} dot>
+                <span className="tabular-nums">{setupDone} of {setupSteps.length} done</span>
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <ol className="sk-stagger grid gap-3 md:grid-cols-3">
               {setupSteps.map((step, index) => (
-                <div key={step.label} className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-sidebar-border rounded-lg group hover:border-primary/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold ${step.done ? "border-emerald-500 text-emerald-600" : "border-muted text-muted-foreground"}`}>
-                      {step.done ? "OK" : index + 1}
-                    </div>
-                    <span className="text-sm font-medium">{step.label}</span>
+                <li key={step.label} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-white p-3 transition-colors hover:border-primary/40">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold tabular-nums",
+                        step.done ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-border-subtle text-ink-muted",
+                      )}
+                    >
+                      {step.done ? <Check aria-hidden="true" className="h-4 w-4" strokeWidth={3} /> : index + 1}
+                    </span>
+                    <span className="min-w-0 text-sm font-semibold text-ink-strong">
+                      {step.label}
+                      {step.done ? <span className="sr-only"> (done)</span> : null}
+                    </span>
                   </div>
-                  <Link href={step.href}>
-                    <Button variant="ghost" size="sm" className="h-8 px-2">
-                      Open <ArrowUpRight className="ml-1 h-3 w-3" />
-                    </Button>
+                  <Link href={step.href} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "sk-nudge-trigger shrink-0 px-3")}>
+                    Open <ArrowUpRight aria-hidden="true" className="sk-nudge h-3.5 w-3.5 rtl:-scale-x-100" />
                   </Link>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat, index) => (
-            <Card
-              key={stat.title}
-              className="sk-rise group relative overflow-hidden border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
-              style={{ animationDelay: `${index * 60}ms` }}
-            >
+        <div className="sk-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <Card key={stat.title} className="group relative overflow-hidden hover:shadow-md">
               <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                    <p className="mt-2 text-2xl font-bold">{stat.value}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1 text-sm font-medium text-ink-muted">
+                      {stat.title}
+                      {stat.info ? <InfoTip content={stat.info} /> : null}
+                    </p>
+                    <p className="mt-2 text-2xl font-bold tracking-tight text-ink-strong tabular-nums">{stat.value}</p>
                   </div>
-                  <div className="relative">
-                    <div className={`absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${stat.glow}`} />
-                    <div className={`relative flex h-10 w-10 items-center justify-center rounded-lg ${stat.color}`}>
-                      <stat.icon className="h-5 w-5" />
-                    </div>
+                  <div className={cn("sk-icon-tile flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", stat.color)}>
+                    <stat.icon aria-hidden="true" className="h-5 w-5" />
                   </div>
                 </div>
               </CardContent>
@@ -158,89 +171,99 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
+          <Card className="sk-enter" style={{ "--sk-delay": "120ms" } as React.CSSProperties}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                Recent Exams
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TrendingUp aria-hidden="true" className="h-4 w-4 text-primary" />
+                Recent exams
               </CardTitle>
             </CardHeader>
             <CardContent>
               {recentExams.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
-                  No exams yet. Create your first exam to get started.
-                </div>
+                <EmptyState
+                  size="sm"
+                  title="No exams yet"
+                  description="Create your first exam to get started."
+                  action={<Link href="/dashboard/marks" className={marksLink}>Create an exam <ArrowUpRight aria-hidden="true" className="sk-nudge h-3.5 w-3.5 rtl:-scale-x-100" /></Link>}
+                />
               ) : (
-                <div className="space-y-3">
+                <ul className="space-y-2">
                   {recentExams.map((exam) => (
-                    <div key={exam.id} className="flex items-center justify-between rounded-lg border border-border p-3">
-                      <div>
-                        <p className="font-medium">{exam.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {exam.class.name} {exam.class.section || ""} - {exam.term} {exam.academicYear}
+                    <li key={exam.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border-subtle p-3 transition-colors hover:bg-surface-hover">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink-strong">{exam.title}</p>
+                        <p className="truncate text-xs text-ink-subtle">
+                          {exam.class.name} {exam.class.section || ""} · {exam.term} <span className="tabular-nums">{exam.academicYear}</span>
                         </p>
                       </div>
-                      <Badge variant={exam.isLocked ? "success" : "secondary"}>
-                        {exam.isLocked ? "Locked" : `${exam._count.marks} marks`}
+                      <Badge variant={exam.isLocked ? "success" : "secondary"} className="shrink-0">
+                        {exam.isLocked ? <><Lock aria-hidden="true" /> Locked</> : <span className="tabular-nums">{exam._count.marks} marks</span>}
                       </Badge>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </CardContent>
           </Card>
 
-          <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "240ms" }}>
+          <Card className="sk-enter" style={{ "--sk-delay": "180ms" } as React.CSSProperties}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                Top Performing Students
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Users aria-hidden="true" className="h-4 w-4 text-primary" />
+                Top performing students
+                <InfoTip content="Ranked by the average marks obtained across every mark entered for the student, highest first." />
               </CardTitle>
             </CardHeader>
             <CardContent>
               {topMarkGroups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
-                  No results yet. Enter marks to see analytics.
-                </div>
+                <EmptyState
+                  size="sm"
+                  title="No results yet"
+                  description="Enter marks to see analytics."
+                  action={<Link href="/dashboard/marks" className={marksLink}>Enter marks <ArrowUpRight aria-hidden="true" className="sk-nudge h-3.5 w-3.5 rtl:-scale-x-100" /></Link>}
+                />
               ) : (
-                <div className="space-y-3">
-                  {topMarkGroups.map((group) => {
+                <ol className="space-y-2">
+                  {topMarkGroups.map((group, index) => {
                     const student = studentById.get(group.studentId);
                     return (
-                      <div key={group.studentId} className="flex items-center justify-between rounded-lg border border-border p-3">
-                        <div>
-                          <p className="font-medium">{student?.fullName || "Student"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {student?.rollNo || ""} {student?.class?.name || ""} {student?.class?.section || ""}
-                          </p>
+                      <li key={group.studentId} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border-subtle p-3 transition-colors hover:bg-surface-hover">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-primary tabular-nums">{index + 1}</span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-ink-strong">{student?.fullName || "Student"}</p>
+                            <p className="truncate text-xs text-ink-subtle">
+                              {student?.rollNo || ""} {student?.class?.name || ""} {student?.class?.section || ""}
+                            </p>
+                          </div>
                         </div>
-                        <Badge variant="success">{Math.round(group._avg.marksObtained || 0)} avg</Badge>
-                      </div>
+                        <Badge variant="success" className="shrink-0 tabular-nums">{Math.round(group._avg.marksObtained || 0)} avg</Badge>
+                      </li>
                     );
                   })}
-                </div>
+                </ol>
               )}
             </CardContent>
           </Card>
         </div>
 
-        <Card className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "320ms" }}>
+        <Card className="sk-enter" style={{ "--sk-delay": "240ms" } as React.CSSProperties}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-4 w-4 text-primary" />
-              AI Credit Usage
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Brain aria-hidden="true" className="h-4 w-4 text-primary" />
+              AI credit usage
+              <InfoTip content="Each AI request uses credits from your plan's allowance." />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Credits used this month</span>
-                <span className="font-medium">{creditUsed} / {creditLimit}</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-gradient-to-r from-primary to-violet-500 transition-all duration-500" style={{ width: `${creditPercent}%` }} />
-              </div>
-            </div>
+            <Progress
+              value={creditUsed}
+              max={creditLimit}
+              label="Credits used this month"
+              showValue
+              valueText={`${creditUsed} / ${creditLimit}`}
+              tone={creditTone}
+            />
           </CardContent>
         </Card>
       </div>

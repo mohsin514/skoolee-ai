@@ -2,10 +2,15 @@
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { FormField } from "@/components/ui/form-field";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Building2, Check, Loader2, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Building2, Check, Mail, ShieldCheck } from "lucide-react";
 import { ANNUAL_DISCOUNT } from "@/config/plans";
 import { getPackageCopy } from "./copy";
 
@@ -38,6 +43,50 @@ type Catalogue = {
 
 const order: Plan["type"][] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
 
+/** Strings this page owns that the shared package copy does not carry. */
+const pageCopy = {
+  en: {
+    loading: "Loading approved packages",
+    loadFailed: "Packages could not be loaded",
+    retry: "Try again",
+    sizingHint: "Used to show which packages fit, and sent with the package you choose.",
+  },
+  ar: {
+    loading: "جارٍ تحميل الباقات المعتمدة",
+    loadFailed: "تعذر تحميل الباقات",
+    retry: "إعادة المحاولة",
+    sizingHint: "تُستخدم لإظهار الباقات المناسبة، وتُرسل مع الباقة التي تختارها.",
+  },
+  ur: {
+    loading: "منظور شدہ پیکیجز لوڈ ہو رہے ہیں",
+    loadFailed: "پیکیجز لوڈ نہیں ہو سکے",
+    retry: "دوبارہ کوشش کریں",
+    sizingHint: "ان سے پتا چلتا ہے کہ کون سے پیکیج موزوں ہیں، اور یہ آپ کے منتخب کردہ پیکیج کے ساتھ بھیجے جاتے ہیں۔",
+  },
+} as const;
+
+/** Four package-shaped placeholders, so the grid does not jump when the catalogue lands. */
+function PackagesSkeleton({ label }: { label: string }) {
+  return (
+    <SkeletonRegion label={label} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {order.map((type, index) => (
+        <div key={type} className="sk-panel animate-skeleton-in flex min-h-[28rem] flex-col gap-3 p-5" style={{ animationDelay: `${index * 80}ms` }}>
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="mt-2 h-7 w-40" />
+          <Skeleton className="mt-3 h-10 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <div className="flex-1 space-y-2 pt-1">
+            <Skeleton className="h-3 w-4/5" />
+            <Skeleton className="h-3 w-3/5" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+          <Skeleton className="h-11 w-full rounded-2xl" />
+        </div>
+      ))}
+    </SkeletonRegion>
+  );
+}
+
 function PackageChoice() {
   const params = useSearchParams();
   const router = useRouter();
@@ -55,6 +104,7 @@ function PackageChoice() {
   const language = catalogue?.language.slice(0, 2).toLowerCase() || "en";
   const isRtl = language === "ar" || language === "ur";
   const copy = getPackageCopy(language);
+  const local = pageCopy[language === "ar" ? "ar" : language === "ur" ? "ur" : "en"];
   const resume = useMemo(() => {
     const allowed = ["structure", "identity", "package", "campuses", "academic", "review"];
     return allowed.includes(returnStep) ? returnStep : "package";
@@ -70,6 +120,11 @@ function PackageChoice() {
   useEffect(() => {
     load().catch((error) => setMessage(error instanceof Error ? error.message : "Package catalogue is unavailable."));
   }, [load]);
+
+  const retryLoad = () => {
+    setMessage("");
+    load().catch((error) => setMessage(error instanceof Error ? error.message : "Package catalogue is unavailable."));
+  };
 
   const startChoice = async (plan: Plan) => {
     if (!catalogue) return;
@@ -134,52 +189,57 @@ function PackageChoice() {
   return (
     <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-brand-50 px-4 py-6 text-ink-strong sm:px-8 sm:py-10">
       <div className="mx-auto max-w-7xl">
-        <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className={buttonVariants({ variant: "link", className: "gap-2" })}>
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className={buttonVariants({ variant: "link", className: "-ms-2 gap-2 px-2" })}>
+          <ArrowLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
           {copy.back}
         </Link>
 
-        <header className="mt-5 max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{copy.setup}</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{copy.title}</h1>
-          <p className="mt-3 text-sm leading-6 text-ink-muted">{copy.intro}</p>
+        <header className="sk-enter mt-5 max-w-3xl">
+          <p className="sk-eyebrow text-primary">{copy.setup}</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{copy.title}</h1>
+          <p className="mt-3 text-sm leading-relaxed text-ink-muted">{copy.intro}</p>
         </header>
 
-        <section aria-label={copy.sizing} className="sk-panel mt-7 grid gap-4 p-4 sm:grid-cols-2 sm:p-6">
-          <label className="grid gap-2 text-sm font-semibold" htmlFor="expected-campuses">
-            {copy.campuses}
-            <Input id="expected-campuses" type="number" min={1} max={1000} value={campuses} onChange={(event) => setCampuses(Math.max(1, Number(event.target.value) || 1))} className={"min-h-11"} />
-          </label>
-          <label className="grid gap-2 text-sm font-semibold" htmlFor="expected-enrollment">
-            {copy.enrollment}
-            <Input id="expected-enrollment" type="number" min={0} max={10000000} value={enrollment} onChange={(event) => setEnrollment(Math.max(0, Number(event.target.value) || 0))} className={"min-h-11"} />
-          </label>
+        <section aria-label={copy.sizing} className="sk-panel sk-enter mt-7 p-4 sm:p-6" style={{ "--sk-delay": "60ms" } as CSSProperties}>
+          <h2 className="text-base font-bold text-ink-strong">{copy.sizing}</h2>
+          <p id="sizing-hint" className="mt-1 text-sm leading-relaxed text-ink-muted">{local.sizingHint}</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <FormField name="expectedCampuses" label={copy.campuses}>
+              <Input id="expected-campuses" type="number" inputMode="numeric" min={1} max={1000} value={campuses} onChange={(event) => setCampuses(Math.max(1, Number(event.target.value) || 1))} aria-describedby="sizing-hint" className="min-h-11 tabular-nums" />
+            </FormField>
+            <FormField name="expectedEnrollment" label={copy.enrollment}>
+              <Input id="expected-enrollment" type="number" inputMode="numeric" min={0} max={10000000} value={enrollment} onChange={(event) => setEnrollment(Math.max(0, Number(event.target.value) || 0))} aria-describedby="sizing-hint" className="min-h-11 tabular-nums" />
+            </FormField>
+          </div>
         </section>
 
         {catalogue && (
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-ink-muted">
+            <p className="min-w-0 text-xs leading-relaxed text-ink-subtle">
               <span>{copy.catalogue}: </span>
               <bdi dir="ltr">{catalogue.commercialTermsVersion}</bdi>
-              <span className="mx-2">·</span>
+              <span aria-hidden="true" className="mx-2">·</span>
               <span>{copy.regionalCurrency}: </span>
               <bdi dir="ltr">{catalogue.regionalCurrency}</bdi>
             </p>
-            <div role="group" aria-label={copy.billingPeriod} className="inline-flex rounded-full border border-edge bg-white p-1">
+            <div role="group" aria-label={copy.billingPeriod} className="inline-flex max-w-full flex-wrap gap-1 rounded-2xl border border-edge bg-white p-1 shadow-xs">
               {(["monthly", "annual"] as const).map((choice) => (
-                <Button variant="choice" key={choice} type="button" aria-pressed={period === choice} onClick={() => setPeriod(choice)} >
+                <Button variant="choice" key={choice} type="button" aria-pressed={period === choice} onClick={() => setPeriod(choice)} className="border-transparent bg-transparent">
                   {choice === "monthly" ? copy.monthly : copy.annual}
-                  {choice === "annual" && <span className="ms-1">{copy.annualDiscount} ({Math.round(ANNUAL_DISCOUNT * 100)}%)</span>}
+                  {choice === "annual" && <span className="ms-1 text-xs font-medium text-primary">{copy.annualDiscount} (<span className="tabular-nums">{Math.round(ANNUAL_DISCOUNT * 100)}%</span>)</span>}
                 </Button>
               ))}
             </div>
           </div>
         )}
 
-        {message && <p role="alert" className="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900">{message}</p>}
-        {!catalogue && !message && <p aria-live="polite" className="mt-8 flex items-center gap-2 text-sm text-ink-muted"><Loader2 className="h-4 w-4 animate-spin" />{language === "ar" ? "جارٍ تحميل الباقات المعتمدة…" : language === "ur" ? "منظور شدہ پیکیجز لوڈ ہو رہے ہیں…" : "Loading approved packages…"}</p>}
+        {message && catalogue && <Alert tone="danger" className="mt-4">{message}</Alert>}
+        {message && !catalogue && (
+          <ErrorState className="sk-panel mt-6" title={local.loadFailed} description={message} onRetry={retryLoad} retryLabel={local.retry} />
+        )}
+        {!catalogue && !message && <PackagesSkeleton label={local.loading} />}
 
-        {catalogue && <section aria-label={copy.availablePackages} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {catalogue && <section aria-label={copy.availablePackages} className="sk-stagger mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {order.map((type) => {
             const plan = catalogue.plans[type];
             const fits = (plan.maxCampuses < 0 || campuses <= plan.maxCampuses) && (plan.maxStudents < 0 || enrollment <= plan.maxStudents);
@@ -187,60 +247,64 @@ function PackageChoice() {
             const paidType = type !== "FREE" && type !== "ENTERPRISE";
             const regionalQuote = paidType && catalogue.salesAssisted;
             const unavailablePaid = paidType && !regionalQuote && catalogue.paymentMethods.length === 0;
-            return <article key={plan.type} className={`sk-panel flex min-h-[28rem] flex-col p-5 ${recommendedCurrent ? "border-primary" : ""}`}>
+            return <article key={plan.type} className={`sk-panel flex min-h-[28rem] min-w-0 flex-col p-5 ${recommendedCurrent ? "sk-gradient-border shadow-md" : ""}`}>
               <div className="flex items-start justify-between gap-2">
-                <h2 className="text-base font-bold">{copy.planNames[plan.type] ?? plan.name}</h2>
-                {recommendedCurrent && <span className="rounded-full bg-[#f3e9fb] px-2.5 py-1 text-xs font-bold text-primary">{copy.current}</span>}
+                <h2 className="min-w-0 text-base font-bold text-ink-strong">{copy.planNames[plan.type] ?? plan.name}</h2>
+                {recommendedCurrent && <Badge variant="secondary" size="sm" dot className="shrink-0">{copy.current}</Badge>}
               </div>
-              <p className="mt-3 min-h-14 text-lg font-bold" dir="ltr"><bdi>{priceText(plan)}</bdi></p>
-              {type === "FREE" && <p className="text-xs leading-5 text-ink-muted">{copy.freeDescription}</p>}
-              {type === "ENTERPRISE" && <p className="text-xs leading-5 text-ink-muted">{copy.customDescription}</p>}
-              <p className={`mt-4 flex items-center gap-2 rounded-xl p-3 text-xs font-bold ${fits ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
+              <p className="mt-3 min-h-14 text-lg font-bold tabular-nums text-ink-strong" dir="ltr"><bdi>{priceText(plan)}</bdi></p>
+              {type === "FREE" && <p className="text-xs leading-relaxed text-ink-muted">{copy.freeDescription}</p>}
+              {type === "ENTERPRISE" && <p className="text-xs leading-relaxed text-ink-muted">{copy.customDescription}</p>}
+              <p className={`mt-4 flex items-center gap-2 rounded-xl border p-3 text-xs font-semibold ${fits ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-warning-border bg-status-warning-surface text-status-warning-text"}`}>
                 {fits ? <Check aria-hidden="true" className="h-4 w-4 shrink-0" /> : <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />}
                 {fits ? copy.fits : copy.exceeds}
               </p>
-              <dl className="mt-4 space-y-2 rounded-xl bg-[#fbf7fc] p-3 text-xs">
-                <div className="flex justify-between gap-2"><dt>{copy.students}</dt><dd className="font-bold" dir="ltr">{plan.maxStudents < 0 ? copy.unlimited : plan.maxStudents.toLocaleString()}</dd></div>
-                <div className="flex justify-between gap-2"><dt>{copy.teachers}</dt><dd className="font-bold" dir="ltr">{plan.maxTeachers < 0 ? copy.unlimited : plan.maxTeachers.toLocaleString()}</dd></div>
-                <div className="flex justify-between gap-2"><dt>{copy.branches}</dt><dd className="font-bold" dir="ltr">{plan.maxCampuses < 0 ? copy.unlimited : plan.maxCampuses.toLocaleString()}</dd></div>
-                <div className="flex justify-between gap-2"><dt>{copy.aiCredits}</dt><dd className="font-bold" dir="ltr">{plan.aiCredits.toLocaleString()}</dd></div>
+              <dl className="mt-4 space-y-2 rounded-xl border border-border-subtle bg-surface-subtle p-3 text-xs">
+                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.students}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxStudents < 0 ? copy.unlimited : plan.maxStudents.toLocaleString()}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxTeachers < 0 ? copy.unlimited : plan.maxTeachers.toLocaleString()}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.branches}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxCampuses < 0 ? copy.unlimited : plan.maxCampuses.toLocaleString()}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.aiCredits}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.aiCredits.toLocaleString()}</dd></div>
               </dl>
               <ul className="mt-4 flex-1 space-y-1.5 text-xs leading-5 text-ink-muted">
                 {plan.features.map((feature) => <li key={feature} className="flex gap-2"><Check aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /><span lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span></li>)}
               </ul>
               {type === "FREE" ? (
-                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
-                  {busy === type ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}{copy.continueFree}
+                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type} className="mt-5">
+                  {busy !== type && <ShieldCheck aria-hidden="true" className="h-4 w-4" />}{copy.continueFree}
                 </Button>
               ) : type === "ENTERPRISE" ? (
-                <Button variant="outline" type="button" onClick={() => startChoice(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
-                  <Mail className="h-4 w-4" />{copy.quote}
+                <Button variant="outline" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type} className="mt-5">
+                  {busy !== type && <Mail aria-hidden="true" className="h-4 w-4" />}{copy.quote}
                 </Button>
               ) : regionalQuote ? (
-                <Button variant="outline" type="button" onClick={() => requestRegionalQuote(plan)} disabled={!!busy} className="mt-5 items-center justify-center gap-2">
-                  <Mail className="h-4 w-4" />{copy.quote}
+                <Button variant="outline" type="button" onClick={() => requestRegionalQuote(plan)} disabled={!!busy} className="mt-5">
+                  <Mail aria-hidden="true" className="h-4 w-4" />{copy.quote}
                 </Button>
               ) : (
-                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy || unavailablePaid} className="mt-5 items-center justify-center gap-2">
-                  {busy === type && <Loader2 className="h-4 w-4 animate-spin" />}{unavailablePaid ? copy.checkoutUnavailable : copy.choose}
+                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy || unavailablePaid} loading={busy === type} className="mt-5">
+                  {unavailablePaid ? copy.checkoutUnavailable : copy.choose}
                 </Button>
               )}
-              {unavailablePaid && <p className="mt-2 text-xs text-ink-muted">{copy.paidUnavailable}</p>}
-              {regionalQuote && <p className="mt-2 text-xs leading-5 text-ink-muted">{copy.regionalQuote}</p>}
+              {unavailablePaid && <p className="mt-2 text-xs leading-relaxed text-ink-subtle">{copy.paidUnavailable}</p>}
+              {regionalQuote && <p className="mt-2 text-xs leading-relaxed text-ink-subtle">{copy.regionalQuote}</p>}
             </article>;
           })}
         </section>}
 
-        {catalogue && <p className="mt-5 rounded-xl border border-[#e6dce9] bg-white p-4 text-xs leading-5 text-ink-muted">
+        {catalogue && <Alert tone="neutral" live="off" className="mt-5 text-xs">
           {language === "en" ? catalogue.regionalPriceDisclosure : copy.priceDisclosure}
-          <span className="mx-2">·</span>
+          <span aria-hidden="true" className="mx-2">·</span>
           {copy.approvedTerms}: <bdi dir="ltr">{catalogue.catalogueVersion}</bdi>
-        </p>}
+        </Alert>}
       </div>
     </main>
   );
 }
 
 export default function OnboardingPackagePage() {
-  return <Suspense fallback={<main className="p-8 text-sm">Loading packages…</main>}><PackageChoice /></Suspense>;
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-brand-50 px-4 py-6 sm:px-8 sm:py-10"><div className="mx-auto max-w-7xl"><PackagesSkeleton label="Loading packages" /></div></main>}>
+      <PackageChoice />
+    </Suspense>
+  );
 }

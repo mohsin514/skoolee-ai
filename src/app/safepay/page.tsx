@@ -4,8 +4,12 @@ import { Button } from "@/components/ui/button";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { toast } from "@/components/ui/toast";
-import { Loader2, Shield, Lock, CreditCard, CheckCircle2 } from "lucide-react";
+import { Shield, Lock, CheckCircle2, FlaskConical } from "lucide-react";
 import { Input as SystemInput } from "@/components/ui/input";
+import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { safeReturnPath } from "@/lib/auth/return-path";
 
 function SafePayForm() {
@@ -72,7 +76,7 @@ function SafePayForm() {
         ),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Payment failed");
+      if (!res.ok) throw new Error(data.error || "The payment did not go through. Please try again.");
       setDone(true);
       setTimeout(
         () =>
@@ -87,7 +91,7 @@ function SafePayForm() {
       // A native alert() on top of the toast said the same thing twice, in a
       // dialog the page cannot style and the user must dismiss before doing
       // anything else. The underlying reason belongs in the toast itself.
-      toast.error(err?.message || "Payment failed. Please try again.");
+      toast.error(err?.message || "The payment did not go through. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -95,106 +99,105 @@ function SafePayForm() {
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
-        <div className="sk-panel sk-rise p-10 max-w-sm w-full text-center" style={{ animationDelay: "0ms" }}>
-          <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-ink-strong">Payment Successful!</h2>
-          <p className="text-sm text-ink-muted mt-2">Redirecting to billing...</p>
+      <div className="sk-brand-surface flex min-h-screen items-center justify-center p-4">
+        <div role="status" className="sk-panel sk-enter-scale w-full max-w-sm p-8 text-center sm:p-10">
+          <div aria-hidden="true" className="mx-auto mb-5 grid size-16 place-items-center rounded-full bg-status-success-surface ring-1 ring-status-success-border">
+            <CheckCircle2 className="size-9 text-emerald-600" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-ink-strong">Payment successful</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+            {kind === "FEE" ? "Taking you back to your fees…" : "Taking you back to billing…"}
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e] p-4">
-      <div className="sk-panel sk-rise p-8 max-w-md w-full" style={{ animationDelay: "0ms" }}>
-        <div className="group relative flex items-center gap-3 mb-6">
-          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-primary/18" />
-          <div className="relative w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <Shield className="w-5 h-5 text-white" />
+    <div className="sk-brand-surface flex min-h-screen items-center justify-center p-4">
+      <div className="sk-panel sk-enter-scale w-full max-w-md p-5 shadow-2xl sm:p-8">
+        <div className="mb-6 flex items-center gap-3">
+          <div aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-white shadow-brand">
+            <Shield className="size-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-ink-strong">SafePay</h1>
-            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider">Secured by HBL</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold tracking-tight text-ink-strong">SafePay</h1>
+            <p className="sk-eyebrow">Secured by HBL</p>
           </div>
         </div>
 
-        <div className="rounded-xl bg-muted p-4 mb-6">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Order Reference</p>
-          <p className="text-sm font-bold text-ink-strong">{orderRef}</p>
-          <div className="flex justify-between items-center mt-2 pt-2 border-t border-edge/20">
-            <p className="text-sm font-semibold text-ink-muted">
-              {kind === "FEE" ? "Invoice:" : "Plan:"}{" "}
-              <span className="text-ink-strong">
-                {kind === "FEE" ? "Fee Payment" : `${plan} · ${billingPeriod === "annual" ? "Annual" : "Monthly"}`}
-              </span>
-            </p>
-            {billingPeriod === "annual" && (
-              <p className="text-2xs font-bold text-emerald-600 mt-0.5">20% annual discount applied</p>
-            )}
-            <p className="text-lg font-bold text-primary">{amountLabel}</p>
+        <div className="mb-6 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+          <p className="sk-eyebrow">Order reference</p>
+          <p dir="ltr" className="mt-1 break-all text-start font-mono text-sm font-semibold text-ink-strong">{orderRef || "—"}</p>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-border-subtle pt-3">
+            <div className="min-w-0">
+              <p className="text-sm text-ink-muted">
+                {kind === "FEE" ? "Invoice:" : "Plan:"}{" "}
+                <span className="font-semibold text-ink-strong">
+                  {kind === "FEE" ? "Fee Payment" : `${plan} · ${billingPeriod === "annual" ? "Annual" : "Monthly"}`}
+                </span>
+              </p>
+              {billingPeriod === "annual" && (
+                <Badge variant="success" size="sm" dot className="mt-2">20% annual discount applied</Badge>
+              )}
+            </div>
+            <p className="text-xl font-bold tabular-nums text-primary">{amountLabel}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Cardholder Name</label>
+          <FormField name="safepay-card-name" label="Cardholder name" required>
             <SystemInput
               value={cardName}
               onChange={(e) => setCardName(e.target.value)}
               placeholder="John Doe"
-              className={"w-full"}
+              className="w-full"
               required
             />
-          </div>
-          <div>
-            <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Card Number</label>
+          </FormField>
+          <FormField name="safepay-card-number" label="Card number" required>
             <SystemInput
               value={cardNumber}
               onChange={(e) => setCardNumber(formatCard(e.target.value))}
               placeholder="4242 4242 4242 4242"
-              className={"w-full"}
+              inputMode="numeric"
+              dir="ltr"
+              className="w-full tabular-nums"
               required
             />
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">Expiry</label>
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField name="safepay-expiry" label="Expiry" hint="Month / year" required className="min-w-0">
               <SystemInput
                 value={expiry}
                 onChange={(e) => setExpiry(formatExpiry(e.target.value))}
                 placeholder="MM/YY"
-                className={"w-full"}
+                inputMode="numeric"
+                dir="ltr"
+                className="w-full tabular-nums"
                 required
               />
-            </div>
-            <div className="flex-1">
-              <label className="text-2xs font-semibold uppercase tracking-normal text-ink-subtle block mb-1">CVV</label>
+            </FormField>
+            <FormField name="safepay-cvv" label="CVV" hint="3 digits on the back" required className="min-w-0">
               <SystemInput
                 value={cvv}
                 onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 3))}
                 placeholder="123"
                 type="password"
-                className={"w-full"}
+                dir="ltr"
+                inputMode="numeric"
+                className="w-full"
                 required
               />
-            </div>
+            </FormField>
           </div>
-          <Button variant="default"
-            type="submit"
-            disabled={submitting}
-            className="w-full items-center justify-center gap-2 mt-2"
-          >
-            {submitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Lock className="w-4 h-4" />
-            )}
-            {submitting ? "Processing..." : `Pay ${amountLabel}`}
+          <Button variant="default" type="submit" loading={submitting} className="mt-2 w-full">
+            {submitting ? null : <Lock aria-hidden="true" />}
+            {`Pay ${amountLabel}`}
           </Button>
-          <p className="text-2xs text-center text-ink-subtle font-semibold">
+          <Alert tone="info" compact live="off" icon={FlaskConical}>
             This is a test payment page. No real payment will be charged.
-          </p>
+          </Alert>
         </form>
       </div>
     </div>
@@ -204,8 +207,18 @@ function SafePayForm() {
 export default function SafePayPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0c29] via-[#302b63] to-[#24243e]">
-        <Loader2 className="w-8 h-8 text-white animate-spin" />
+      <div className="sk-brand-surface flex min-h-screen items-center justify-center p-4">
+        <SkeletonRegion label="Loading the payment page" className="sk-panel w-full max-w-md space-y-5 p-5 sm:p-8">
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-11 rounded-2xl" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+          <Skeleton className="h-28 w-full rounded-2xl" />
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full rounded-xl" delay={i * 60} />)}
+        </SkeletonRegion>
       </div>
     }>
       <SafePayForm />

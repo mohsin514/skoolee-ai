@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Settings, MessageCircle } from "lucide-react";
 import { ChatSettingsDialog, ChatWorkspace, useChat } from "@/components/chat";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * Opens the conversation named in `?c=` — the link a chat notification points
@@ -27,26 +28,27 @@ function DeepLink() {
 
 export function MessagesWorkspace({ dashboardHref }: { dashboardHref: string }) {
   const { viewer } = useChat();
+  const tr = useUiText();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   return (
     <div className="flex h-dvh flex-col bg-background font-sans text-foreground">
-      <header className={`${chatHeader} relative z-30 md:px-6`}>
+      <header className={`${chatHeader} relative z-30 shadow-xs md:px-6`}>
 
         <Link
           href={dashboardHref}
-          aria-label="Back to dashboard"
+          aria-label={tr("Back to dashboard")}
           className={buttonVariants({ variant: "ghost", size: "sm", className: "shrink-0" })}
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Back to dashboard</span>
+          <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />
+          <span className="hidden sm:inline">{tr("Back to dashboard")}</span>
         </Link>
 
-        <span className="relative flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary">
-            <MessageCircle className="h-5 w-5" />
+        <span className="relative flex min-w-0 items-center gap-2.5">
+          <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-primary shadow-xs">
+            <MessageCircle className="size-5" />
           </span>
-          <h1 className="text-base font-semibold tracking-tight">Messages</h1>
+          <h1 className="truncate text-base font-bold tracking-tight text-ink-strong sm:text-lg">{tr("Messages")}</h1>
         </span>
 
         <span className="flex-1" />
@@ -54,11 +56,14 @@ export function MessagesWorkspace({ dashboardHref }: { dashboardHref: string }) 
         {viewer?.canManageSettings && (
           <Button variant="outline"
             type="button"
+            size="sm"
             onClick={() => setIsSettingsOpen(true)}
-            className="relative shrink-0 items-center gap-1.5 justify-start"
+            // The text label is hidden on phones; the name must not be.
+            aria-label={tr("Messaging policy")}
+            className="relative shrink-0 items-center justify-start gap-1.5"
           >
-            <Settings className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Messaging policy</span>
+            <Settings aria-hidden="true" />
+            <span className="hidden sm:inline">{tr("Messaging policy")}</span>
           </Button>
         )}
       </header>
@@ -72,7 +77,7 @@ export function MessagesWorkspace({ dashboardHref }: { dashboardHref: string }) 
         <Suspense fallback={null}>
           <DeepLink />
         </Suspense>
-        <ChatWorkspace layout="split" className="h-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm" />
+        <ChatWorkspace layout="split" className="sk-fade-in h-full overflow-hidden rounded-2xl border border-border-subtle bg-card shadow-md" />
       </main>
     </div>
   );

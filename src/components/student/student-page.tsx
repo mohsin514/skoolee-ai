@@ -125,7 +125,7 @@ export function StudentPage({
                 </span>
               </div>
               {summary ? (
-                <p className="mt-1 [overflow-wrap:anywhere] text-sm font-semibold leading-relaxed text-ink-muted">
+                <p className="mt-1 [overflow-wrap:anywhere] text-sm font-normal leading-relaxed text-ink-muted">
                   {summary}
                 </p>
               ) : null}

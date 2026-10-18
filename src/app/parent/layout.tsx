@@ -6,7 +6,9 @@ import { ParentDataProvider } from "./parent-data-context";
 import { ParentShell } from "./parent-shell";
 
 export const metadata = {
-  title: "Parent Portal - SkooleeAI",
+  // The root layout's "%s | SkooleeAI" template adds the brand; repeating it
+  // here rendered "Parent Portal - SkooleeAI | SkooleeAI" in the tab.
+  title: "Parent Portal",
   description: "View your child's academic results, attendance, and fee status",
 };
 

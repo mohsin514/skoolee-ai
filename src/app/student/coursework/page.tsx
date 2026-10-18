@@ -3,11 +3,24 @@
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { useMemo } from "react";
 import { Award, BookOpen, MapPin, TrendingUp, UserRound } from "lucide-react";
-import { Panel, PanelHeading, StatCard, StudentEmptyState } from "@/components/student/student-ui";
-import { cn } from "@/lib/utils";
+import { Panel, PanelHeading, StatCard } from "@/components/student/student-ui";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Progress } from "@/components/ui/progress";
 import { StudentPage } from "@/components/student/student-page";
 import { CourseworkSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
+
+type ScoreTone = "success" | "warning" | "danger";
+/** One threshold for every score on this page: 80+ strong, 60+ steady, below 60 needs attention. */
+const scoreTone = (score: number): ScoreTone => (score >= 80 ? "success" : score >= 60 ? "warning" : "danger");
+
+/** Exam workflow states in words a student reads; any other state shows as stored. */
+const EXAM_STATUS: Record<string, { label: string; variant: "success" | "warning" | "secondary" }> = {
+  PUBLISHED: { label: "Published", variant: "success" },
+  COMPLETED: { label: "Completed", variant: "success" },
+  DRAFT: { label: "Draft", variant: "warning" },
+};
 
 export default function CourseworkPage() {
   const { data, loading, error, refetch } = useStudentData();
@@ -38,55 +51,55 @@ export default function CourseworkPage() {
       <div className="space-y-3">
         {/* Moved here when the duplicate "Schedule" page was retired — this is
             the natural home for class and enrolment details. */}
-        <div className="sk-rise grid grid-cols-1 md:grid-cols-3 gap-4" style={{ animationDelay: "20ms" }}>
-          <div className="sk-panel md:col-span-2 p-4">
-            <div className="mb-3 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
-                <MapPin className="h-4 w-4" />
+        <div className="sk-rise grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4" style={{ animationDelay: "20ms" }}>
+          <div className="sk-panel min-w-0 p-4 md:col-span-2">
+            <div className="mb-3 flex min-w-0 items-center gap-2.5">
+              <div aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+                <MapPin className="size-4" />
               </div>
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Current Class</p>
-                <p className="text-base font-bold text-ink-strong">{user.className}</p>
+              <div className="min-w-0">
+                <p className="sk-eyebrow">Current Class</p>
+                <p className="truncate text-base font-bold text-ink-strong">{user.className}</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-edge/20 bg-brand-50/30 p-3">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Class Teacher</p>
-                <p className="mt-1.5 text-sm font-bold text-ink-strong">{user.classTeacher?.fullName || "Not assigned"}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 rounded-2xl border border-border-subtle bg-surface-subtle p-3">
+                <p className="sk-eyebrow">Class Teacher</p>
+                <p className="mt-1.5 truncate text-sm font-semibold text-ink-strong">{user.classTeacher?.fullName || "Not assigned"}</p>
                 {user.classTeacher?.email && (
-                  <p className="mt-0.5 text-2xs font-semibold text-ink-subtle">{user.classTeacher.email}</p>
+                  <p dir="ltr" className="mt-0.5 truncate text-start text-xs text-ink-subtle">{user.classTeacher.email}</p>
                 )}
               </div>
-              <div className="rounded-2xl border border-edge/20 bg-brand-50/30 p-3">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Enrolled Subjects</p>
-                <p className="mt-1.5 text-sm font-bold text-ink-strong">{user.subjects.length} subjects</p>
-                <p className="mt-0.5 text-2xs font-semibold text-ink-subtle line-clamp-2">
+              <div className="min-w-0 rounded-2xl border border-border-subtle bg-surface-subtle p-3">
+                <p className="sk-eyebrow">Enrolled Subjects</p>
+                <p className="mt-1.5 text-sm font-semibold tabular-nums text-ink-strong">{user.subjects.length} {user.subjects.length === 1 ? "subject" : "subjects"}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-muted">
                   {user.subjects?.length ? user.subjects.map((s: any) => s.name).join(", ") : "—"}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="sk-panel p-4">
-            <div className="mb-3 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <UserRound className="h-4 w-4" />
+          <div className="sk-panel min-w-0 p-4">
+            <div className="mb-3 flex min-w-0 items-center gap-2.5">
+              <div aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <UserRound className="size-4" />
               </div>
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Roll Number</p>
-                <p className="text-base font-bold text-ink-strong">{user.rollNo || "N/A"}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between gap-3 text-sm">
-                <span className="font-semibold text-ink-muted">Name</span>
-                <span className="font-bold text-ink-strong truncate">{user.fullName}</span>
-              </div>
-              <div className="flex justify-between gap-3 text-sm">
-                <span className="font-semibold text-ink-muted">Campus</span>
-                <span className="font-bold text-ink-strong truncate">{user.campusName}</span>
+              <div className="min-w-0">
+                <p className="sk-eyebrow">Roll Number</p>
+                <p className="truncate text-base font-bold text-ink-strong">{user.rollNo || "—"}</p>
               </div>
             </div>
+            <dl className="space-y-2 text-sm">
+              <div className="flex min-w-0 justify-between gap-3">
+                <dt className="shrink-0 font-medium text-ink-muted">Name</dt>
+                <dd className="min-w-0 truncate font-semibold text-ink-strong">{user.fullName}</dd>
+              </div>
+              <div className="flex min-w-0 justify-between gap-3">
+                <dt className="shrink-0 font-medium text-ink-muted">Campus</dt>
+                <dd className="min-w-0 truncate font-semibold text-ink-strong">{user.campusName}</dd>
+              </div>
+            </dl>
           </div>
         </div>
 
@@ -96,7 +109,7 @@ export default function CourseworkPage() {
             icon={Award}
             label="Average"
             value={`${averages.overall}%`}
-            sub={user.marks.length ? `From ${user.marks.length} scores` : "No data"}
+            sub={user.marks.length ? `From ${user.marks.length} ${user.marks.length === 1 ? "score" : "scores"}` : "No marks yet"}
             tone="green"
             ring={user.marks.length ? averages.overall : undefined}
           />
@@ -104,8 +117,8 @@ export default function CourseworkPage() {
           <StatCard icon={BookOpen} label="Exams" value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub="Attempted" tone="rose" />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-          <div className="sk-rise xl:col-span-2 space-y-3" style={{ animationDelay: "80ms" }}>
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-5 xl:gap-4">
+          <div className="sk-rise min-w-0 space-y-3 xl:col-span-2" style={{ animationDelay: "80ms" }}>
             <Panel>
               <PanelHeading
                 icon={BookOpen}
@@ -113,7 +126,7 @@ export default function CourseworkPage() {
                 sub={`${user.subjects.length} enrolled`}
               />
               {user.subjects.length ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {user.subjects.map((subject: any) => {
                     const mark = user.marks.find((m: any) => m.subject?.id === subject.id);
                     const score = mark ? Math.round((mark.marksObtained / (mark.subject?.totalMarks || 100)) * 100) : null;
@@ -129,7 +142,8 @@ export default function CourseworkPage() {
                   })}
                 </div>
               ) : (
-                <StudentEmptyState
+                <EmptyState
+                  size="sm"
                   icon={BookOpen}
                   title="No subjects yet"
                   description="Subjects appear here once the office adds them to your section."
@@ -156,7 +170,8 @@ export default function CourseworkPage() {
                   ))}
                 </div>
               ) : (
-                <StudentEmptyState
+                <EmptyState
+                  size="sm"
                   icon={TrendingUp}
                   title="No marks yet"
                   description="Your scores appear here once teachers publish marks for this cycle."
@@ -165,80 +180,66 @@ export default function CourseworkPage() {
             </Panel>
           </div>
 
-          <div className="xl:col-span-3">
-            <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "200ms" }}>
-              <div className="flex items-center justify-between gap-3 border-b border-edge/10 px-4 py-3">
-                <h3 className="text-sm font-bold tracking-tight text-ink-strong">All Marks</h3>
+          <div className="min-w-0 xl:col-span-3">
+            <section aria-labelledby="all-marks-title" className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "200ms" }}>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border-subtle px-4 py-3">
+                <h2 id="all-marks-title" className="text-sm font-bold tracking-tight text-ink-strong">All Marks</h2>
                 {user.marks.length > 0 && (
-                  <span className="text-2xs font-semibold text-ink-subtle">
+                  <span className="text-xs tabular-nums text-ink-subtle">
                     {user.marks.length} entr{user.marks.length === 1 ? "y" : "ies"}
                   </span>
                 )}
               </div>
-              <Table className="w-full text-left min-w-[480px]">
-                <TableHeader>
-                  <TableRow className="bg-brand-50/30 text-2xs font-semibold text-ink-subtle uppercase tracking-wider border-b border-edge/10">
-                    <TableHead className="px-4 py-3">Subject</TableHead>
-                    <TableHead className="px-3 py-3 text-center">Score</TableHead>
-                    <TableHead className="px-3 py-3 text-center">%</TableHead>
-                    <TableHead className="px-4 py-3 text-right">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-edge/10">
-                  {user.marks.length > 0 ? (
-                    user.marks.map((mark: any) => {
+              {user.marks.length > 0 ? (
+                <Table className="min-w-[480px]" containerClassName="rounded-none border-0">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Subject</TableHead>
+                      <TableHead className="px-3 text-center">Score</TableHead>
+                      <TableHead className="px-3 text-center">%</TableHead>
+                      <TableHead className="text-end">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {user.marks.map((mark: any) => {
                       const pct = Math.round((mark.marksObtained / (mark.subject?.totalMarks || 100)) * 100);
+                      const status = mark.exam?.status ? EXAM_STATUS[mark.exam.status] : undefined;
                       return (
-                        <TableRow key={mark.id} className="group transition-all duration-200 hover:bg-brand-50/40 hover:shadow-sm cursor-default">
+                        <TableRow key={mark.id}>
                           <TableCell className="px-4 py-3">
-                            <p className="text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary">{mark.subject?.name}</p>
-                            <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                            <p className="text-sm font-semibold text-ink-strong">{mark.subject?.name}</p>
+                            <p className="mt-0.5 text-xs text-ink-subtle">
                               {mark.exam?.title || "Exam"}
                             </p>
                           </TableCell>
-                          <TableCell className="px-3 py-3 text-center">
+                          <TableCell className="whitespace-nowrap px-3 py-3 text-center tabular-nums">
                             <span className="text-sm font-bold text-ink-strong">{mark.marksObtained}</span>
-                            <span className="text-2xs text-ink-subtle"> / {mark.subject?.totalMarks || 100}</span>
+                            <span className="text-xs text-ink-subtle"> / {mark.subject?.totalMarks || 100}</span>
                           </TableCell>
                           <TableCell className="px-3 py-3 text-center">
-                            <span className={cn(
-                              "inline-flex text-xs font-bold px-2.5 py-1 rounded-lg",
-                              pct >= 80 ? "bg-emerald-50 text-emerald-600" :
-                              pct >= 60 ? "bg-amber-50 text-amber-600" :
-                              "bg-rose-50 text-rose-600"
-                            )}>
+                            <Badge variant={scoreTone(pct)} size="sm" className="tabular-nums">
                               {pct}%
-                            </span>
+                            </Badge>
                           </TableCell>
-                          <TableCell className="px-4 py-3 text-right">
-                            <span className={cn(
-                              "rounded-lg px-3 py-1 text-2xs font-semibold uppercase tracking-wider",
-                              mark.exam?.status === "PUBLISHED" || mark.exam?.status === "COMPLETED"
-                                ? "bg-emerald-50 text-emerald-600"
-                                : mark.exam?.status === "DRAFT"
-                                  ? "bg-amber-50 text-amber-600"
-                                  : "bg-brand-50 text-primary",
-                            )}>
-                              {mark.exam?.status || "Entered"}
-                            </span>
+                          <TableCell className="px-4 py-3 text-end">
+                            <Badge variant={status?.variant ?? "secondary"} size="sm" dot>
+                              {status?.label ?? (mark.exam?.status || "Entered")}
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} className="px-4 py-12 text-center">
-                        <BookOpen className="mx-auto mb-3 h-8 w-8 text-primary/40" />
-                        <p className="text-sm font-bold tracking-tight text-ink-strong">No marks recorded yet</p>
-                        <p className="mt-1 text-xs font-semibold text-ink-muted">
-                          Marks appear here as teachers publish each exam.
-                        </p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <EmptyState
+                  size="sm"
+                  icon={BookOpen}
+                  title="No marks recorded yet"
+                  description="Marks appear here as teachers publish each exam."
+                />
+              )}
+            </section>
           </div>
         </div>
       </div>
@@ -247,27 +248,24 @@ export default function CourseworkPage() {
 }
 
 
+const SCORE_TEXT: Record<ScoreTone, string> = { success: "text-emerald-700", warning: "text-amber-700", danger: "text-rose-700" };
+
 function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teacher: string; totalMarks: number; score: number | null }) {
   return (
-    <div className="sk-panel group relative bg-brand-50/40 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-xl hover:bg-white">
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary">{name}</p>
-          <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{teacher}</p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {score !== null && (
-            <span className={cn(
-              "text-sm font-bold",
-              score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-rose-600"
-            )}>
-              {score}%
-            </span>
-          )}
-          <span className="rounded-full bg-white border border-edge/10 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-primary transition-all group-hover:bg-primary group-hover:text-white group-hover:border-transparent group-hover:shadow-md">
-            {totalMarks} marks
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle px-3 py-3 transition-colors duration-200 hover:border-border-subtle-hover hover:bg-white sm:px-4">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-ink-strong">{name}</p>
+        <p className="mt-0.5 truncate text-xs text-ink-subtle">{teacher}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2.5">
+        {score !== null && (
+          <span className={`text-sm font-bold tabular-nums ${SCORE_TEXT[scoreTone(score)]}`}>
+            {score}%
           </span>
-        </div>
+        )}
+        <Badge variant="outline" size="sm" className="tabular-nums">
+          {totalMarks} marks
+        </Badge>
       </div>
     </div>
   );
@@ -276,24 +274,18 @@ function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teach
 function PerfBar({ label, exam, score }: { label: string; exam?: string; score: number }) {
   // Colour by the score, not by the row's position in the list: the old
   // index % 3 cycle could paint a 95% rose and a 40% indigo.
-  const bar = score >= 80 ? "bg-emerald-500" : score >= 60 ? "bg-amber-500" : "bg-rose-500";
-  const text = score >= 80 ? "text-emerald-600" : score >= 60 ? "text-amber-600" : "text-rose-600";
+  const tone = scoreTone(score);
 
   return (
-    <div className="group transition-all duration-200 hover:-translate-y-0.5">
+    <div className="min-w-0">
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <span className="min-w-0 truncate text-xs font-semibold text-ink-strong transition-colors group-hover:text-primary">
+        <span className="min-w-0 truncate text-sm font-semibold text-ink-strong">
           {label}
-          {exam ? <span className="ml-1.5 font-medium text-ink-subtle">{exam}</span> : null}
+          {exam ? <span className="ms-1.5 text-xs font-normal text-ink-subtle">{exam}</span> : null}
         </span>
-        <span className={`shrink-0 text-2xs font-bold tabular-nums ${text}`}>{score}%</span>
+        <span className={`shrink-0 text-xs font-bold tabular-nums ${SCORE_TEXT[tone]}`}>{score}%</span>
       </div>
-      <div className="h-3 w-full bg-muted rounded-full overflow-hidden p-0.5 border border-edge/10 transition-all group-hover:shadow-md">
-        <div
-          className={`h-full ${bar} rounded-full transition-all duration-700`}
-          style={{ width: `${Math.max(0, Math.min(score, 100))}%` }}
-        />
-      </div>
+      <Progress value={score} label={exam ? `${label} · ${exam}` : label} tone={tone} />
     </div>
   );
 }

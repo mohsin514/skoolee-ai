@@ -1,16 +1,20 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { UiText, useUiText } from "@/components/locale/LocaleProvider";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
+import { InfoTip } from "@/components/ui/tooltip";
 
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { useEffect, useMemo, useState } from "react";
 import { ATTENDANCE_RISK_THRESHOLD, summarizeAttendance } from "@/lib/attendance";
-import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, X, Clock } from "lucide-react";
+import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, X, Clock } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { AttendanceSkeleton, StudentErrorState } from "@/components/student/student-components";
-import { StatCard, StudentEmptyState } from "@/components/student/student-ui";
+import { StatCard } from "@/components/student/student-ui";
 import { useStudentData } from "../student-data-context";
 
 export default function StudentAttendancePage() {
@@ -110,16 +114,10 @@ export default function StudentAttendancePage() {
     >
       <div className="space-y-3">
         {isAtRisk && (
-          <div className="flex items-center gap-3 rounded-[18px] border border-amber-200/60 bg-amber-50 px-4 py-3">
-            <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-amber-800"><UiText>{"Attendance Below 75%"}</UiText></p>
-              <p className="text-xs font-semibold text-amber-700/70"><UiText>{"Your attendance is at"}</UiText>{stats.rate}<UiText>{"%. Regular attendance is important for academic success."}</UiText>{consecutiveAbsences >= 3 && ` You have ${consecutiveAbsences} consecutive absences.`}
-              </p>
-            </div>
-          </div>
+          <Alert tone="warning" live="off" title={tr("Attendance below {0}%", [ATTENDANCE_RISK_THRESHOLD])}>
+            {tr("Your attendance is at {0}%. Regular attendance is important for academic success.", [stats.rate])}
+            {consecutiveAbsences >= 3 ? ` ${tr("You have {0} consecutive absences.", [consecutiveAbsences])}` : null}
+          </Alert>
         )}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -129,63 +127,51 @@ export default function StudentAttendancePage() {
           <StatCard icon={Clock} label={tr("Leave")} value={stats.leave} sub={tr("Approved leaves")} tone="amber" delay={160} />
         </div>
 
-        <div className="sk-panel sk-rise p-4" style={{ animationDelay: "120ms" }}>
+        <section aria-labelledby="attendance-calendar-title" className="sk-panel sk-rise p-3 sm:p-4" style={{ animationDelay: "120ms" }}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
-                <CalendarDays className="h-4 w-4" />
+              <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
+                <CalendarDays className="size-4" />
               </span>
               <div className="min-w-0">
-                <h3 className="truncate text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Monthly Calendar"}</UiText></h3>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  {monthStats.rate ?? 0}<UiText>{"% this month"}</UiText></p>
+                <h2 id="attendance-calendar-title" className="truncate text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Monthly Calendar"}</UiText></h2>
+                <p className="flex items-center gap-0.5 text-xs text-ink-subtle">
+                  <span className="tabular-nums">{monthStats.rate ?? 0}<UiText>{"% this month"}</UiText></span>
+                  <InfoTip content={tr("Days attended as a share of this month's counted school days, using your school's attendance rule.")} />
+                </p>
               </div>
             </div>
             {/* The arrows had no accessible name and no pointer cursor, and
                 their glow fired on any hover of the whole card. */}
-            <div className="flex items-center gap-2">
-              <Button variant="default" size="icon"
-                type="button"
-                onClick={() => adjustMonth(-1)}
-                aria-label={tr("Previous month")}
-                className="flex items-center justify-center"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="min-w-[130px] text-center text-xs font-bold tabular-nums text-ink-strong">
+            <div className="flex items-center gap-1.5">
+              <IconButton variant="outline" label={tr("Previous month")} onClick={() => adjustMonth(-1)}>
+                <ChevronLeft aria-hidden="true" className="rtl:rotate-180" />
+              </IconButton>
+              <span aria-live="polite" className="min-w-[8.5rem] text-center text-sm font-semibold tabular-nums text-ink-strong">
                 {monthLabel}
               </span>
-              <Button variant="default" size="icon"
-                type="button"
-                onClick={() => adjustMonth(1)}
-                aria-label={tr("Next month")}
-                className="flex items-center justify-center"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              <IconButton variant="outline" label={tr("Next month")} onClick={() => adjustMonth(1)}>
+                <ChevronRight aria-hidden="true" className="rtl:rotate-180" />
+              </IconButton>
             </div>
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {[
-              { label: tr("Present"), value: monthStats.present, dot: "bg-emerald-500", text: "text-emerald-600" },
-              { label: tr("Absent"), value: monthStats.absent, dot: "bg-rose-500", text: "text-rose-600" },
-              { label: tr("Leave"), value: monthStats.leave, dot: "bg-amber-500", text: "text-amber-600" },
+              { label: tr("Present"), value: monthStats.present, variant: "success" as const },
+              { label: tr("Absent"), value: monthStats.absent, variant: "danger" as const },
+              { label: tr("Leave"), value: monthStats.leave, variant: "warning" as const },
             ].map((k) => (
-              <span
-                key={k.label}
-                className={`inline-flex items-center gap-1.5 rounded-full bg-surface-subtle px-2.5 py-1 text-2xs font-bold ${k.text}`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${k.dot}`} />
+              <Badge key={k.label} variant={k.variant} size="sm" dot>
                 {k.label}
-                <span className="tabular-nums opacity-70">{k.value}</span>
-              </span>
+                <span className="tabular-nums opacity-80">{k.value}</span>
+              </Badge>
             ))}
           </div>
 
           <div className="grid grid-cols-7 gap-1">
             {Array.from({length:7}, (_, index) => new Intl.DateTimeFormat(localeTag(locale), {weekday:"short",timeZone:"UTC"}).format(new Date(Date.UTC(2024,0,7+(locale.weekStartsOn+index)%7)))).map(d => (
-              <div key={d} className="text-center text-2xs font-semibold text-ink-subtle uppercase tracking-wider py-2">{d}</div>
+              <div key={d} className="truncate py-2 text-center text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{d}</div>
             ))}
             {calendarDays.map((cell, i) => {
               if (!cell) return <div key={`empty-${i}`} />;
@@ -212,9 +198,9 @@ export default function StudentAttendancePage() {
                   title={label}
                   aria-label={label}
                   role="img"
-                  className={`relative flex flex-col items-center justify-center rounded-xl border py-2 transition-all ${bg} ${status ? "hover:-translate-y-0.5 hover:shadow-md" : ""}`}
+                  className={`relative flex min-h-11 flex-col items-center justify-center rounded-xl border py-1.5 transition-shadow duration-200 ${bg} ${status ? "hover:shadow-sm" : ""}`}
                 >
-                  <span className="text-xs font-bold">{cell.day}</span>
+                  <span className="text-xs font-bold tabular-nums">{cell.day}</span>
                   {status && (
                     <span className="text-3xs font-semibold uppercase tracking-wider mt-0.5">
                       {tr(status).slice(0,1)}
@@ -224,19 +210,19 @@ export default function StudentAttendancePage() {
               );
             })}
           </div>
-        </div>
+        </section>
 
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Attendance History"}</UiText></h3>
-            <span className="text-2xs font-semibold text-ink-subtle">
+        <section aria-labelledby="attendance-history-title">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <h2 id="attendance-history-title" className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Attendance History"}</UiText></h2>
+            <span className="text-xs tabular-nums text-ink-subtle">
               {tr("Days recorded: {0}", [stats.total])}</span>
           </div>
           {data.user.attendance.length > 0 ? (
             <div className="space-y-3">
               {groupedByMonth.map((group) => (
                 <div key={group.key}>
-                  <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-2.5 px-1">{group.label}</p>
+                  <p className="sk-eyebrow mb-2 px-1">{group.label}</p>
                   <div className="space-y-1.5">
                     {group.entries.map((entry: any) => (
                       <AttendanceRow key={entry.id} entry={entry} />
@@ -246,13 +232,14 @@ export default function StudentAttendancePage() {
               ))}
             </div>
           ) : (
-            <StudentEmptyState
+            <EmptyState
               icon={CalendarCheck}
+              className="sk-panel"
               title={tr("No attendance recorded yet")}
               description={tr("Attendance will appear here after your teacher marks it.")}
             />
           )}
-        </div>
+        </section>
       </div>
     </StudentPage>
   );
@@ -265,33 +252,32 @@ function AttendanceRow({ entry }: { entry: any }) {
   const dayName = date.toLocaleDateString(localeTag(locale), { weekday: "short", timeZone:"UTC" });
   const formatted = date.toLocaleDateString(localeTag(locale), { month: "short", day: "numeric", timeZone:"UTC" });
 
-  const statusConfig: Record<string, { label: string; bg: string; dot: string }> = {
-    PRESENT: { label: tr("Present"), bg: "bg-emerald-50 text-emerald-600 border-emerald-200/50 hover:bg-emerald-100 hover:border-emerald-300", dot: "bg-emerald-500" },
-    ABSENT: { label: tr("Absent"), bg: "bg-rose-50 text-rose-600 border-rose-200/50 hover:bg-rose-100 hover:border-rose-300", dot: "bg-rose-500" },
-    LEAVE: { label: tr("Leave"), bg: "bg-amber-50 text-amber-600 border-amber-200/50 hover:bg-amber-100 hover:border-amber-300", dot: "bg-amber-500" },
+  const statusConfig: Record<string, { label: string; variant: "success" | "danger" | "warning" }> = {
+    PRESENT: { label: tr("Present"), variant: "success" },
+    ABSENT: { label: tr("Absent"), variant: "danger" },
+    LEAVE: { label: tr("Leave"), variant: "warning" },
   };
-  const cfg = statusConfig[entry.status] || { label: entry.status, bg: "bg-brand-50 text-primary border-edge/20", dot: "bg-primary" };
+  const cfg: { label: string; variant: "success" | "danger" | "warning" | "secondary" } = statusConfig[entry.status] || { label: entry.status, variant: "secondary" };
 
   return (
-    <div className="sk-panel group flex items-center justify-between gap-3 px-5 py-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:border-edge/20">
-      <div className="flex items-center gap-4">
-        <div className="flex flex-col items-center w-10">
-          <span className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider">{dayName}</span>
-          <span className="text-sm font-bold text-ink-strong transition-colors group-hover:text-primary">{new Intl.NumberFormat(localeTag(locale)).format(date.getUTCDate())}</span>
+    <div className="sk-panel flex min-w-0 items-center justify-between gap-3 px-3 py-3 shadow-xs sm:px-5">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <div className="flex w-10 shrink-0 flex-col items-center">
+          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{dayName}</span>
+          <span className="text-sm font-bold tabular-nums text-ink-strong">{new Intl.NumberFormat(localeTag(locale)).format(date.getUTCDate())}</span>
         </div>
-        <div className="h-8 w-[1px] bg-edge/15" />
-        <div>
-          <p className="text-xs font-semibold text-ink">{formatted}</p>
-          {entry.notes && <p className="text-2xs font-semibold text-ink-subtle">{entry.notes}</p>}
+        <div aria-hidden="true" className="h-8 w-px shrink-0 bg-edge/15" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-ink">{formatted}</p>
+          {entry.notes && <p className="break-words text-xs text-ink-muted">{entry.notes}</p>}
           {entry.marker?.fullName && (
-            <p className="text-2xs font-semibold text-ink-subtle"><UiText>{"Marked by"}</UiText>{entry.marker.fullName}</p>
+            <p className="truncate text-xs text-ink-subtle"><UiText>{"Marked by"}</UiText>{entry.marker.fullName}</p>
           )}
         </div>
       </div>
-      <span className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-2xs font-semibold uppercase tracking-wider border shadow-sm transition-all duration-200 group-hover:shadow-md ${cfg.bg}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+      <Badge variant={cfg.variant} size="sm" dot className="shrink-0">
         {cfg.label}
-      </span>
+      </Badge>
     </div>
   );
 }

@@ -2,8 +2,14 @@
 import { Button } from "@/components/ui/button";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
-import { FormErrorSummary } from "@/components/ui/form-field";
+import { FormErrorSummary, FormField } from "@/components/ui/form-field";
 import { InputGroup } from "@/components/ui/input-group";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { IconButton } from "@/components/ui/icon-button";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 
 
 import { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from 'react';
@@ -16,7 +22,6 @@ import {
   CheckCircle2,
   ClipboardCheck,
   GraduationCap,
-  Loader2,
   MapPin,
   Phone,
   Plus,
@@ -32,7 +37,6 @@ import { getTeacherOnboardingSession, completeTeacherOnboarding, type TeacherRea
 import { dashboardPathForRole } from '@/lib/roles';
 import { useUiText } from '@/components/locale/LocaleProvider';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select as SystemSelect } from "@/components/ui/select";
 
 const STEPS = ["Personal Info", "Professional", "Address & Emergency", "Review"] as const;
@@ -119,6 +123,8 @@ export default function TeacherOnboardingPage() {
   const [context, setContext] = useState<{ school: string; campus: string; email: string } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [done, setDone] = useState<{ readiness: TeacherReadiness; alreadyComplete: boolean } | null>(null);
   const submitting = useRef(false);
   const statusRef = useRef<HTMLDivElement>(null);
@@ -168,7 +174,16 @@ export default function TeacherOnboardingPage() {
 
   useEffect(() => {
     const load = async () => {
-      const session = await getTeacherOnboardingSession();
+      // A dropped request used to leave the spinner up for good; it now
+      // offers a retry instead.
+      let session: Awaited<ReturnType<typeof getTeacherOnboardingSession>>;
+      try { session = await getTeacherOnboardingSession(); } catch {
+        // Signed out mid-load: the proxy redirects the action, so it throws.
+        const signedOut = await fetch("/api/auth/session", { cache: "no-store" }).then((r) => r.status === 401 || r.status === 403).catch(() => false);
+        if (signedOut) { router.replace('/login?redirect=/teacher-onboarding'); return; }
+        setLoadFailed(true);
+        return;
+      }
       if (!session) { router.replace('/login?redirect=/teacher-onboarding'); return; }
       if (session.redirect) { router.replace(dashboardPathForRole(session.role)); return; }
       if (session.error || !session.user) { router.replace('/login?redirect=/teacher-onboarding'); return; }
@@ -178,7 +193,7 @@ export default function TeacherOnboardingPage() {
       setLoading(false);
     };
     load();
-  }, [router]);
+  }, [router, loadAttempt]);
 
   // Move focus to the new step's heading so keyboard and screen-reader users
   // land on what changed rather than on a button that no longer exists.
@@ -286,11 +301,46 @@ export default function TeacherOnboardingPage() {
     }
   };
 
-  if (loading) {
+  if (loading && loadFailed) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-brand-50" aria-busy="true">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-        <p className="text-xs font-bold text-ink" role="status">{ui("Loading your profile…")}</p>
+      <main className="sk-hero-wash flex min-h-screen items-center justify-center px-4 py-12">
+        <ErrorState
+          variant="page"
+          title={ui("Your profile could not be opened")}
+          onRetry={() => { setLoadFailed(false); setLoadAttempt((attempt) => attempt + 1); }}
+        />
+      </main>
+    );
+  }
+
+  if (loading) {
+    // Same two-panel shape as the form, so nothing jumps when it arrives.
+    return (
+      <main className="grid min-h-screen w-full grid-cols-1 bg-brand-50 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]" aria-busy="true">
+        <div aria-hidden="true" className="hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 lg:block" />
+        <div className="flex min-h-screen items-center justify-center p-4 sm:p-10 lg:p-14">
+          <SkeletonRegion label={ui("Loading your profile…")} className="w-full max-w-lg">
+            <div className="mb-7 flex flex-col items-center gap-3">
+              <Skeleton className="h-9 w-40 rounded-xl" />
+              <Skeleton className="h-3 w-56 rounded-full" />
+            </div>
+            <div className="mb-6 flex items-center gap-2 px-1">
+              {STEPS.map((step) => <Skeleton key={step} className="h-6 flex-1 rounded-lg" />)}
+            </div>
+            <div className="sk-panel space-y-5 p-5 sm:p-9">
+              <Skeleton className="h-6 w-24 rounded-full" />
+              <Skeleton className="h-8 w-2/3 rounded-xl" />
+              <Skeleton className="h-4 w-full rounded-full" />
+              {[0, 1, 2].map((row) => (
+                <div key={row} className="space-y-2">
+                  <Skeleton className="h-4 w-28 rounded-full" delay={row * 60} />
+                  <Skeleton className="h-12 w-full rounded-2xl" delay={row * 60} />
+                </div>
+              ))}
+              <div className="flex justify-end pt-2"><Skeleton className="h-11 w-28 rounded-2xl" /></div>
+            </div>
+          </SkeletonRegion>
+        </div>
       </main>
     );
   }
@@ -308,13 +358,13 @@ export default function TeacherOnboardingPage() {
       >
         <div aria-hidden className="absolute inset-0 overflow-hidden">
           <div
-            className="sk-parallax absolute -top-1/4 -left-1/5 h-[72%] w-[72%]"
+            className="sk-parallax absolute -top-1/4 -start-1/5 h-[72%] w-[72%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0)" }}
           >
             <div className="sk-blob h-full w-full rounded-full bg-brand-400 opacity-70 blur-[90px]" />
           </div>
           <div
-            className="sk-parallax absolute top-1/4 -right-1/4 h-[68%] w-[68%]"
+            className="sk-parallax absolute top-1/4 -end-1/4 h-[68%] w-[68%]"
             style={{ transform: "translate3d(calc(var(--mx, 0) * -34px), calc(var(--my, 0) * -34px), 0)" }}
           >
             <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-brand-300 opacity-45 blur-[100px]" />
@@ -343,12 +393,14 @@ export default function TeacherOnboardingPage() {
 
         <div className="relative z-10 max-w-xl">
           <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-brand-200" />
+            <Sparkles aria-hidden="true" className="h-3.5 w-3.5 text-brand-200" />
             <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">{ui("Almost there")}</span>
           </div>
 
-          <h1
-            className="sk-rise mt-7 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-white text-balance xl:text-[3.1rem]"
+          {/* Display line, not a heading: the step title in the form is the
+              page's one h1. */}
+          <p
+            className="sk-rise mt-7 text-4xl font-extrabold leading-tight tracking-tight text-white text-balance xl:text-5xl"
             style={{ animationDelay: "80ms" }}
           >
             {ui("Your classroom")}
@@ -356,41 +408,41 @@ export default function TeacherOnboardingPage() {
             <span className="bg-gradient-to-r from-brand-200 to-fuchsia-300 bg-clip-text text-transparent">
               {ui("is ready for you.")}
             </span>
-          </h1>
+          </p>
 
           {/* Live preview of the profile card colleagues and the timetable
               builder will see — the form's payoff, visible while filling it in. */}
           <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl" style={{ animationDelay: "160ms" }}>
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20 text-lg font-bold text-white">
+              <div aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20 text-lg font-bold text-white">
                 {form.fullName.trim().charAt(0).toUpperCase() || "T"}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-md font-bold text-white">
                   {form.fullName.trim() || ui("Your name")}
                 </p>
-                <p className="mt-0.5 text-2xs font-bold text-brand-200">
+                <p className="mt-0.5 truncate text-xs font-medium text-brand-200">
                   {ui("Teacher")}{form.qualification ? ` · ${form.qualification}` : ""}
                   {form.experience.trim() ? ` · ${form.experience.trim()}` : ""}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {teachesAll ? (
-                    <span className="rounded-full bg-white/20 px-2.5 py-1 text-2xs font-bold text-white">
+                    <span className="rounded-full bg-white/20 px-2.5 py-1 text-2xs font-semibold text-white">
                       {ui("All subjects")}
                     </span>
                   ) : specialties.length > 0 ? (
                     specialties.slice(0, 5).map((s) => (
-                      <span key={s} className="rounded-full bg-white/20 px-2.5 py-1 text-2xs font-bold text-white">
+                      <span key={s} className="max-w-full truncate rounded-full bg-white/20 px-2.5 py-1 text-2xs font-semibold text-white">
                         {s}
                       </span>
                     ))
                   ) : (
-                    <span className="rounded-full border border-dashed border-white/30 px-2.5 py-1 text-2xs font-bold text-white/60">
+                    <span className="rounded-full border border-dashed border-white/30 px-2.5 py-1 text-2xs font-semibold text-white/75">
                       {ui("Subjects you teach")}
                     </span>
                   )}
                   {!teachesAll && specialties.length > 5 && (
-                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-2xs font-bold text-white/70">
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-2xs font-semibold tabular-nums text-white/75">
                       <bdi>+{specialties.length - 5}</bdi>
                     </span>
                   )}
@@ -400,25 +452,20 @@ export default function TeacherOnboardingPage() {
 
             <div className="mt-5 border-t border-white/15 pt-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">{ui("Profile completeness")}</span>
-                <span className="text-2xs font-bold text-white"><bdi>{completeness}%</bdi></span>
+                <span id="brand-completeness-label" className="text-2xs font-semibold uppercase tracking-wider text-brand-200">{ui("Profile completeness")}</span>
+                <span className="text-2xs font-semibold tabular-nums text-white"><bdi>{completeness}%</bdi></span>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-brand-200 to-white transition-all duration-500"
-                  style={{ width: `${completeness}%` }}
-                />
-              </div>
+              <Progress size="sm" value={completeness} aria-labelledby="brand-completeness-label" />
             </div>
           </div>
 
-          <p className="sk-rise mt-6 text-xs font-semibold leading-relaxed text-white/70" style={{ animationDelay: "240ms" }}>
+          <p className="sk-rise mt-6 text-sm leading-relaxed text-white/75" style={{ animationDelay: "240ms" }}>
             {ui("The subjects you list here are what the timetable builder matches against, so you are never quietly booked onto a class outside your field.")}
           </p>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 text-2xs font-bold text-white/75">
-          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {ui("Your details stay inside your school")}</span>
+        <div className="relative z-10 flex items-center gap-6 text-xs font-medium text-white/75">
+          <span className="flex items-center gap-1.5"><ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Your details stay inside your school")}</span>
         </div>
       </section>
 
@@ -429,16 +476,19 @@ export default function TeacherOnboardingPage() {
             <SkooleeLogo size="2.1rem" weight="heavy" />
             <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
             {context && (context.school || context.campus) ? (
-              <p className="mt-3 text-center text-xs font-bold text-ink-muted">
+              <p className="mt-3 text-center text-sm font-medium text-ink-muted">
                 {ui("Teacher profile for {0}", [[context.school, context.campus].filter(Boolean).join(" · ")])}
               </p>
             ) : null}
           </div>
 
           {sessionExpired ? (
-            <div className="sk-panel p-7 sm:p-9" role="alert" aria-labelledby="session-ended">
-              <h1 id="session-ended" tabIndex={-1} ref={headingRef} className="text-[1.4rem] font-bold tracking-[-0.02em] text-ink-strong">{ui("Your session has ended")}</h1>
-              <p className="mt-2 text-[13px] font-semibold text-ink-muted">{ui("Nothing was saved. Sign in again to finish your profile.")}</p>
+            <div className="sk-panel sk-enter-scale p-5 sm:p-9" role="alert" aria-labelledby="session-ended">
+              <div aria-hidden="true" className="mb-5 grid size-12 place-items-center rounded-2xl border border-status-warning-border bg-status-warning-surface text-amber-700">
+                <Shield className="size-5" />
+              </div>
+              <h1 id="session-ended" tabIndex={-1} ref={headingRef} className="text-2xl font-bold tracking-tight text-ink-strong outline-none">{ui("Your session has ended")}</h1>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">{ui("Nothing was saved. Sign in again to finish your profile.")}</p>
               <Button className="mt-6" onClick={() => window.location.assign("/login?redirect=/teacher-onboarding")}>{ui("Sign in again")}</Button>
             </div>
           ) : done ? (
@@ -462,7 +512,8 @@ export default function TeacherOnboardingPage() {
                     className="justify-start px-1"
                   >
                     <span
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-2xs font-bold transition-all duration-300 ${
+                      aria-hidden="true"
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-2xs font-bold tabular-nums transition-all duration-300 ${
                         complete
                           ? "bg-emerald-500 text-white"
                           : active
@@ -496,8 +547,8 @@ export default function TeacherOnboardingPage() {
                 <Sparkles className="h-3.5 w-3.5" aria-hidden />
                 {ui("Step {0} of {1}", [step + 1, STEPS.length])}
               </div>
-              <h1 ref={headingRef} tabIndex={-1} className="text-[1.6rem] font-bold tracking-[-0.03em] text-ink-strong outline-none">{ui(STEPS[step])}</h1>
-              <p className="mt-1.5 text-[13px] font-semibold text-ink-muted">
+              <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight text-ink-strong outline-none sm:text-3xl">{ui(STEPS[step])}</h1>
+              <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
                 {ui(step === 0
                   ? "How your name and number appear to staff and parents."
                   : step === 1
@@ -507,7 +558,7 @@ export default function TeacherOnboardingPage() {
                   : "Check your details. Only your name and phone are needed to start; the rest can be added later from your profile.")}
               </p>
               {step === 1 || step === 2 ? (
-                <p className="mt-2 inline-flex rounded-full border border-edge/40 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Optional — you can complete this later")}</p>
+                <Badge variant="neutral" size="sm" className="mt-3">{ui("Optional — you can complete this later")}</Badge>
               ) : null}
             </div>
 
@@ -515,9 +566,9 @@ export default function TeacherOnboardingPage() {
               <DraftRecovery recordLabel={ui("Teacher onboarding")} draft={recovery} saving={saving} excluded={ui("National ID, date of birth, home address and emergency contacts are not stored in device drafts.")} />
               <FormErrorSummary errors={Object.fromEntries(Object.entries(errors).map(([key, value]) => [key, ui(value)]))} onFocusField={(field) => { setStep(FIELD_STEP[field] ?? 0); requestAnimationFrame(() => document.getElementById(field === "dateOfBirth" ? "dob" : field)?.focus()); }} />
               {failure ? (
-                <div ref={statusRef} tabIndex={-1} role="alert" className="mb-4 rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs font-bold text-destructive outline-none">
+                <Alert ref={statusRef} tabIndex={-1} tone="danger" className="mb-4 outline-none">
                   {ui(failure)}
-                </div>
+                </Alert>
               ) : null}
               {/* Step 0 — Personal Info */}
               {step === 0 && (
@@ -536,7 +587,8 @@ export default function TeacherOnboardingPage() {
                     error={errors.phone ? ui(errors.phone) : form.phone && fieldErrors.phone ? ui(fieldErrors.phone) : undefined}
                   />
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Field label={ui("National ID")} id="cnic" value={form.cnic} placeholder={ui("CNIC, Emirates ID or Iqama")} onChange={(v) => set("cnic", v)} />
+                    <Field label={ui("National ID")} id="cnic" value={form.cnic} placeholder={ui("CNIC, Emirates ID or Iqama")} onChange={(v) => set("cnic", v)}
+                      tooltip={ui("Saved to your staff record only. It is not shown to parents and is not kept in device drafts.")} />
                     <Field label={ui("Date of Birth")} id="dob" value={form.dateOfBirth} placeholder="" onChange={(v) => set("dateOfBirth", v)} type="date"
                       error={errors.dateOfBirth ? ui(errors.dateOfBirth) : fieldErrors.dateOfBirth ? ui(fieldErrors.dateOfBirth) : undefined} />
                   </div>
@@ -568,13 +620,13 @@ export default function TeacherOnboardingPage() {
                   />
 
                   {/* ── Teaching specialities ── */}
-                  <fieldset className="space-y-3 rounded-3xl border border-edge/25 bg-brand-50 p-5">
+                  <fieldset className="space-y-3 rounded-3xl border border-edge/25 bg-brand-50 p-4 sm:p-5">
                     <legend className="sr-only">{ui("Subjects you teach")}</legend>
                     <div className="flex items-center gap-2" aria-hidden>
                       <BookOpen className="h-3.5 w-3.5 text-primary" />
                       <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Subjects you teach")}</p>
                     </div>
-                    <p className="text-2xs font-semibold text-ink-muted">{ui("These record what you can teach. Classes and subjects are assigned by your school, not by this form.")}</p>
+                    <p className="text-xs leading-relaxed text-ink-muted">{ui("These record what you can teach. Classes and subjects are assigned by your school, not by this form.")}</p>
 
                     <Button aria-pressed={teachesAll} variant="choice"
                       type="button"
@@ -582,6 +634,7 @@ export default function TeacherOnboardingPage() {
                       className="w-full justify-start text-start"
                     >
                       <span
+                        aria-hidden="true"
                         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
                           teachesAll ? "border-emerald-500 bg-emerald-500" : "border-edge/50 bg-white"
                         }`}
@@ -589,8 +642,8 @@ export default function TeacherOnboardingPage() {
                         {teachesAll ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-2xs font-bold text-ink-strong">{ui("I can teach all subjects")}</span>
-                        <span className="block text-2xs font-bold text-ink-muted">
+                        <span className="block text-sm font-semibold text-ink-strong">{ui("I can teach all subjects")}</span>
+                        <span className="block text-xs font-normal text-ink-muted">
                           {ui("Generalist — never warned about a subject mismatch.")}
                         </span>
                       </span>
@@ -603,17 +656,18 @@ export default function TeacherOnboardingPage() {
                             {specialties.map((s) => (
                               <li
                                 key={s}
-                                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-2xs font-bold text-white shadow-sm shadow-primary/25"
+                                className="sk-enter-scale inline-flex max-w-full items-center gap-1 rounded-full bg-primary py-0.5 ps-3 pe-0.5 text-xs font-semibold text-white shadow-sm shadow-primary/25"
                               >
-                                <bdi>{s}</bdi>
-                                <Button size="icon" variant="ghost"
-                                  type="button"
+                                <bdi className="min-w-0 truncate">{s}</bdi>
+                                <IconButton
+                                  size="sm"
+                                  variant="ghost"
                                   onClick={() => setSpecialties((cur) => cur.filter((x) => x !== s))}
-                                  className="focus-on-dark text-white actionable-hover:bg-white/15 actionable-hover:text-white"
-                                  aria-label={ui("Remove {0}", [s])}
+                                  className="focus-on-dark rounded-full text-white actionable-hover:bg-white/15 actionable-hover:text-white"
+                                  label={ui("Remove {0}", [s])}
                                 >
-                                  <X className="h-2.5 w-2.5" strokeWidth={3.5} />
-                                </Button>
+                                  <X aria-hidden="true" className="h-3 w-3" strokeWidth={3.5} />
+                                </IconButton>
                               </li>
                             ))}
                           </ul>
@@ -632,15 +686,14 @@ export default function TeacherOnboardingPage() {
                             maxLength={60}
                             className={"flex-1"}
                           />
-                          <Button size="icon" variant="default"
-                            type="button"
+                          <IconButton
+                            variant="default"
                             onClick={() => addSpecialty(draft)}
                             disabled={!draft.trim()}
-                            aria-label={ui("Add subject")}
-                            className="shrink-0"
+                            label={ui("Add subject")}
                           >
-                            <Plus className="h-4 w-4" />
-                          </Button>
+                            <Plus aria-hidden="true" className="h-4 w-4" />
+                          </IconButton>
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 border-t border-edge/20 pt-3">
@@ -652,8 +705,10 @@ export default function TeacherOnboardingPage() {
                                 type="button"
                                 onClick={() => addSpecialty(s)}
                                 aria-label={ui("Add {0}", [s])}
+                                className="gap-1"
                               >
-                                + {s}
+                                <Plus aria-hidden="true" />
+                                {s}
                               </Button>
                             ))}
                         </div>
@@ -676,7 +731,7 @@ export default function TeacherOnboardingPage() {
                   </div>
                   <Field label={ui("Postal Code")} id="postalCode" value={form.postalCode} placeholder={ui("Postal code")} onChange={(v) => set("postalCode", v)} />
 
-                  <fieldset className="space-y-4 rounded-3xl border border-edge/25 bg-brand-50 p-5">
+                  <fieldset className="space-y-4 rounded-3xl border border-edge/25 bg-brand-50 p-4 sm:p-5">
                     <legend className="sr-only">{ui("Emergency contact")}</legend>
                     <div className="flex items-center gap-2" aria-hidden>
                       <Shield className="h-3.5 w-3.5 text-primary" />
@@ -731,23 +786,20 @@ export default function TeacherOnboardingPage() {
                       key="next-step"
                       type="button"
                       onClick={goNext}
-                      className="items-center gap-2 justify-start"
+                      className="sk-nudge-trigger items-center gap-2 justify-start"
                     >
                       {ui("Next")}
-                      <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden />
+                      <ArrowRight className="sk-nudge h-4 w-4 rtl:rotate-180" aria-hidden />
                     </Button>
                   ) : (
                     <Button variant="default"
                       key="complete-profile"
                       type="submit"
-                      disabled={saving}
+                      loading={saving}
                       className="items-center gap-2 justify-start"
                     >
-                      {saving ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {ui("Saving…")}</>
-                      ) : (
-                        <>{ui("Complete Profile")} <CheckCircle2 className="h-4 w-4" aria-hidden /></>
-                      )}
+                      {ui("Complete Profile")}
+                      {saving ? null : <CheckCircle2 className="h-4 w-4" aria-hidden />}
                     </Button>
                   )}
                 </div>
@@ -757,13 +809,8 @@ export default function TeacherOnboardingPage() {
 
           {/* Mobile completeness readout — the brand panel is hidden here. */}
           <div className="mt-5 flex items-center gap-3 px-1 lg:hidden">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-edge/25" aria-hidden>
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500"
-                style={{ width: `${completeness}%` }}
-              />
-            </div>
-            <span className="text-2xs font-bold text-ink-muted">{ui("{0}% complete", [completeness])}</span>
+            <Progress size="sm" value={completeness} label={ui("Profile completeness")} className="flex-1" />
+            <span className="shrink-0 text-xs font-medium tabular-nums text-ink-muted">{ui("{0}% complete", [completeness])}</span>
           </div>
           </>
           )}
@@ -782,24 +829,24 @@ function ReviewPanel({ rows, privateCount, onEdit }: {
   const later = rows.filter((row) => !row.required && !row.value).length;
   return (
     <div className="space-y-4">
-      <dl className="divide-y divide-edge/25 rounded-3xl border border-edge/30">
+      <dl className="divide-y divide-edge/25 overflow-hidden rounded-3xl border border-edge/30 bg-white">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-start justify-between gap-3 px-4 py-3">
+          <div key={row.label} className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
             <div className="min-w-0">
               <dt className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                 {ui(row.label)} {row.required ? <span className="text-rose-500" aria-hidden>*</span> : null}
               </dt>
-              <dd className="mt-0.5 break-words text-[13px] font-bold text-ink-strong">
-                {row.value ? <bdi dir={row.ltr ? "ltr" : undefined}>{row.value}</bdi> : <span className="font-semibold text-ink-subtle">{ui("Add later")}</span>}
+              <dd className="mt-0.5 break-words text-sm font-semibold text-ink-strong">
+                {row.value ? <bdi dir={row.ltr ? "ltr" : undefined}>{row.value}</bdi> : <span className="font-medium text-ink-subtle">{ui("Add later")}</span>}
               </dd>
             </div>
-            <Button variant="ghost" size="sm" type="button" onClick={() => onEdit(row.step)} aria-label={ui("Edit {0}", [ui(row.label)])}>
+            <Button variant="ghost" size="sm" type="button" onClick={() => onEdit(row.step)} aria-label={ui("Edit {0}", [ui(row.label)])} className="shrink-0">
               {ui("Edit")}
             </Button>
           </div>
         ))}
       </dl>
-      <p className="text-xs font-semibold text-ink-muted">
+      <p className="text-xs leading-relaxed text-ink-muted">
         {later > 0 ? ui("{0} optional details can be added later from your profile.", [later]) : ui("Every listed detail is filled in.")}
         {" "}
         {privateCount > 0 ? ui("{0} private details (ID, date of birth, address) are saved to your staff record and not shown to parents.", [privateCount]) : null}
@@ -817,41 +864,41 @@ function ReadyPanel({ done, headingRef, onOpen }: {
   const { classTeacherOf, subjects, next } = done.readiness;
   const action = next.kind === "REGISTER" ? "Take today's register" : next.kind === "CLASSES" ? "Open your classes" : "Open your workspace";
   return (
-    <div className="sk-panel p-5 sm:p-9" role="status" aria-live="polite">
-      <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
-        <ClipboardCheck className="h-3.5 w-3.5" aria-hidden />
+    <div className="sk-panel sk-enter-scale p-5 sm:p-9" role="status" aria-live="polite">
+      <Badge variant="success" className="mb-3">
+        <ClipboardCheck aria-hidden="true" />
         {ui(done.alreadyComplete ? "Already saved" : "Profile saved")}
-      </div>
-      <h1 ref={headingRef} tabIndex={-1} className="text-[1.5rem] font-bold tracking-[-0.02em] text-ink-strong outline-none">{ui("You're ready to teach")}</h1>
-      <p className="mt-1.5 text-[13px] font-semibold text-ink-muted">
+      </Badge>
+      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight text-ink-strong outline-none sm:text-3xl">{ui("You're ready to teach")}</h1>
+      <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
         {ui(done.alreadyComplete ? "Your profile was already complete, so nothing was saved twice." : "Your profile is saved to your staff record.")}
       </p>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-5 space-y-4">
         {classTeacherOf.length ? (
           <div>
             <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Class teacher of")}</p>
-            <p className="mt-1 text-[13px] font-bold text-ink-strong"><bdi>{classTeacherOf.join(", ")}</bdi></p>
+            <p className="mt-1 text-sm font-semibold text-ink-strong"><bdi>{classTeacherOf.join(", ")}</bdi></p>
           </div>
         ) : null}
         {subjects.length ? (
           <div>
             <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Subjects assigned to you")}</p>
-            <ul className="mt-1 space-y-0.5 text-[13px] font-bold text-ink-strong">
+            <ul className="mt-1 space-y-0.5 text-sm font-semibold text-ink-strong">
               {subjects.slice(0, 6).map((row) => <li key={`${row.className}:${row.subject}`}><bdi>{row.subject} · {row.className}</bdi></li>)}
             </ul>
-            {subjects.length > 6 ? <p className="text-2xs font-semibold text-ink-muted">{ui("And {0} more", [subjects.length - 6])}</p> : null}
+            {subjects.length > 6 ? <p className="mt-1 text-xs text-ink-muted">{ui("And {0} more", [subjects.length - 6])}</p> : null}
           </div>
         ) : null}
         {next.kind === "UNASSIGNED" ? (
-          <p className="rounded-2xl border border-edge/40 bg-brand-50 px-4 py-3 text-xs font-semibold text-ink">
+          <Alert tone="info" live="off">
             {ui("No classes are assigned to you yet. Your school office assigns classes and subjects; they will appear in your workspace as soon as they do.")}
-          </p>
+          </Alert>
         ) : null}
       </div>
 
-      <Button className="mt-6 items-center gap-2" onClick={() => onOpen(next.href)}>
-        {ui(action)} <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden />
+      <Button className="sk-nudge-trigger mt-6 items-center gap-2" onClick={() => onOpen(next.href)}>
+        {ui(action)} <ArrowRight className="sk-nudge h-4 w-4 rtl:rotate-180" aria-hidden />
       </Button>
     </div>
   );
@@ -866,7 +913,7 @@ function ReadyPanel({ done, headingRef, onOpen }: {
 
 function Field({
   label, id, value, placeholder, onChange, required, type = "text",
-  icon: Icon, error, hint, inputClassName = "", list,
+  icon: Icon, error, hint, tooltip, inputClassName = "", list,
 }: {
   label: string;
   id: string;
@@ -878,14 +925,14 @@ function Field({
   icon?: React.ComponentType<{ className?: string }>;
   error?: string;
   hint?: string;
+  tooltip?: string;
   inputClassName?: string;
   list?: string;
 }) {
+  // FormField owns the label, the error/hint ids and the aria wiring on the
+  // nested input; the ids stay `id`, `${id}-error` and `${id}-hint`.
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="ms-1 text-2xs font-semibold uppercase tracking-wider text-ink">
-        {label} {required && <span className="text-rose-500">*</span>}
-      </Label>
+    <FormField name={id} id={id} label={label} required={required} error={error} hint={hint} tooltip={tooltip} className="min-w-0">
       <InputGroup surfaceClassName="bg-brand-50" className="group relative flex items-center">
         {Icon && (
           <Icon data-field-affix="start" className="pointer-events-none absolute start-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-primary" />
@@ -896,22 +943,12 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          aria-invalid={!!error}
-          aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
-          aria-required={required}
           list={list}
           dir={["email", "tel"].includes(type) ? "ltr" : undefined}
-          className={`w-full ${
-            Icon ? "" : ""
-          }  ${error ? "" : ""}  ${inputClassName} `}
+          className={`w-full ${inputClassName}`.trim()}
         />
       </InputGroup>
-      {error
-        ? <p id={`${id}-error`} role="alert" className="px-1 text-xs font-bold text-destructive">{error}</p>
-        : hint
-        ? <p id={`${id}-hint`} className="px-1 text-sm font-bold text-ink-subtle">{hint}</p>
-        : null}
-    </div>
+    </FormField>
   );
 }
 
@@ -923,8 +960,7 @@ function SelectField({ label, id, value, onChange, children }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="ms-1 text-2xs font-semibold uppercase tracking-wider text-ink">{label}</Label>
+    <FormField name={id} id={id} label={label} className="min-w-0">
       <SystemSelect
         id={id}
         value={value}
@@ -933,6 +969,6 @@ function SelectField({ label, id, value, onChange, children }: {
       >
         {children}
       </SystemSelect>
-    </div>
+    </FormField>
   );
 }

@@ -53,7 +53,7 @@ export default function LibrarianPage() {
       }
       setData(d);
     } catch {
-      toast.error("Failed to load dashboard");
+      toast.error("Could not load the library console. Please sign in again.");
       router.replace("/login");
     } finally {
       setLoading(false);
@@ -113,7 +113,7 @@ export default function LibrarianPage() {
                   onNavigate={(view) => setActiveView(view as LibrarianView)}
                 />
               ) : null}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {NAV.filter((item) => item.id !== "dashboard").map((item) => (
                   <ConsoleQuickLink
                     key={item.id}

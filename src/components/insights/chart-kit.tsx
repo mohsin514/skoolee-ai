@@ -14,6 +14,8 @@ import { BarChart3, Table2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { INK, compact } from "./palette";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 
 /* ─── Card shell ─────────────────────────────────────────── */
@@ -80,16 +82,15 @@ export function InsightCard({
         <div className="flex max-w-full flex-wrap items-center gap-[8px]">
           {actions}
           {table ? (
-            <Button variant="default" size="icon"
-              type="button"
+            <IconButton
+              variant="default"
+              label={showTable ? "Show chart" : "Show table"}
+              tooltip={showTable ? "Show chart" : "Show the numbers as a table"}
               onClick={() => setShowTable((v) => !v)}
               aria-pressed={showTable}
-              title={showTable ? "Show chart" : "Show the numbers as a table"}
-              className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]"
             >
-              {showTable ? <BarChart3 className="h-4 w-4" /> : <Table2 className="h-4 w-4" />}
-              <span className="sr-only">{showTable ? "Show chart" : "Show table"}</span>
-            </Button>
+              {showTable ? <BarChart3 aria-hidden="true" /> : <Table2 aria-hidden="true" />}
+            </IconButton>
           ) : null}
         </div>
       </header>
@@ -115,7 +116,7 @@ export function DataTable({ columns, rows }: TableTwin) {
                 scope="col"
                 className={cn(
                   "px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle",
-                  i > 0 && "text-right",
+                  i > 0 && "text-end",
                 )}
               >
                 {c}
@@ -131,7 +132,7 @@ export function DataTable({ columns, rows }: TableTwin) {
                   key={c}
                   className={cn(
                     "px-3 py-2 text-xs font-bold text-ink-strong",
-                    c > 0 && "text-right [font-variant-numeric:tabular-nums]",
+                    c > 0 && "text-end tabular-nums",
                   )}
                 >
                   {typeof cell === "number" ? cell.toLocaleString() : cell}
@@ -163,7 +164,7 @@ export function VizTooltip({ active, payload, label, unit = "", format, titleFor
   if (!active || !payload?.length) return null;
   const heading = titleFor ? titleFor(label, payload) : String(label ?? "");
   return (
-    <div className="pointer-events-none rounded-2xl border border-edge/30 bg-white/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(31,26,35,0.22)] backdrop-blur">
+    <div className="pointer-events-none rounded-2xl border border-edge/30 bg-white/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(120,70,180,0.22)] backdrop-blur">
       {heading ? (
         <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{heading}</p>
       ) : null}
@@ -179,7 +180,7 @@ export function VizTooltip({ active, payload, label, unit = "", format, titleFor
                 style={{ background: entry.color || entry.payload?.fill || INK.muted }}
               />
               <span className="text-2xs font-bold text-ink-muted">{name}</span>
-              <span className="ml-auto text-2xs font-bold text-ink-strong [font-variant-numeric:tabular-nums]">
+              <span className="ms-auto text-2xs font-bold text-ink-strong tabular-nums">
                 {format ? format(value, String(name), entry) : `${value.toLocaleString()}${unit}`}
               </span>
             </li>
@@ -208,7 +209,7 @@ export function SeriesLegend({ items, className }: { items: LegendItem[]; classN
           <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: item.color }} />
           <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{item.label}</span>
           {item.value !== undefined ? (
-            <span className="text-2xs font-bold text-ink-strong [font-variant-numeric:tabular-nums]">
+            <span className="text-2xs font-bold text-ink-strong tabular-nums">
               {typeof item.value === "number" ? item.value.toLocaleString() : item.value}
             </span>
           ) : null}
@@ -283,7 +284,7 @@ export function Meter({
         </span>
         <span
           className={cn(
-            "shrink-0 text-2xs font-bold [font-variant-numeric:tabular-nums]",
+            "shrink-0 text-2xs font-bold tabular-nums",
             onDark ? "text-white" : "text-ink-strong",
           )}
         >
@@ -512,7 +513,7 @@ export function StatTile({
     </>
   );
 
-  const className = cn("sk-panel sk-rise group/tile block p-5", onClick && "w-full cursor-pointer text-left");
+  const className = cn("sk-panel sk-rise group/tile block p-5", onClick && "w-full cursor-pointer text-start");
   const style = delay > 0 ? { animationDelay: `${delay}ms` } : undefined;
 
   if (onClick) {
@@ -565,9 +566,8 @@ export function SingleFigure({
 
 export function EmptyChart({ label = "No data for this period yet" }: { label?: string }) {
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-edge/40 bg-brand-50/25 px-4 py-8 text-center">
-      <BarChart3 className="h-6 w-6 text-edge" />
-      <p className="text-2xs font-bold text-ink-subtle">{label}</p>
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center">
+      <EmptyState size="sm" icon={BarChart3} title={label} />
     </div>
   );
 }

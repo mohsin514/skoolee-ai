@@ -147,7 +147,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
               <t.icon className="h-3.5 w-3.5" />
               {ui(t.label)}
               {t.key === "ladder" && needsLadder ? (
-                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-amber-500" aria-label="Needs setting up" />
+                <><span className="ms-1 h-1.5 w-1.5 rounded-full bg-status-warning-text" aria-hidden="true" /><span className="sr-only">{ui("Needs setting up")}</span></>
               ) : null}
             </Button>
           ))}

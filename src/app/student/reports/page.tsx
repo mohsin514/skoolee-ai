@@ -2,8 +2,11 @@
 
 import { useMemo } from "react";
 import { Award, CheckCircle2, FileText, GraduationCap } from "lucide-react";
-import { StatCard, StudentEmptyState } from "@/components/student/student-ui";
+import { StatCard } from "@/components/student/student-ui";
 import { cn } from "@/lib/utils";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StudentPage } from "@/components/student/student-page";
 import { ReportsSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
@@ -54,15 +57,16 @@ export default function ReportsPage() {
               <StatCard icon={CheckCircle2} label="Published" value={summary.published} sub={summary.draft ? `${summary.draft} still in draft` : "All released"} tone={summary.draft ? "amber" : "green"} delay={160} />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {user.reportCards.map((report: any, index: number) => (
                 <ReportCard key={report.id} report={report} index={index} />
               ))}
             </div>
           </>
         ) : (
-          <StudentEmptyState
+          <EmptyState
             icon={FileText}
+            className="sk-panel"
             title="No report cards yet"
             description="Report cards appear here after teachers publish them for your exams."
           />
@@ -76,67 +80,65 @@ export default function ReportsPage() {
 function ReportCard({ report, index }: { report: any; index: number }) {
   const pct = Math.round(report.percentage || 0);
   const status = (report.status || "Draft") as string;
+  const released = status === "PUBLISHED" || status === "SENT";
 
-  const scoreColor = pct >= 80 ? "from-emerald-500 to-emerald-400" : pct >= 60 ? "from-amber-500 to-amber-400" : "from-rose-500 to-rose-400";
-  const scoreText = pct >= 80 ? "text-emerald-600" : pct >= 60 ? "text-amber-600" : "text-rose-600";
+  const scoreColor = pct >= 80 ? "from-emerald-500 to-emerald-600" : pct >= 60 ? "from-amber-500 to-amber-600" : "from-rose-500 to-rose-600";
+  const scoreText = pct >= 80 ? "text-emerald-700" : pct >= 60 ? "text-amber-700" : "text-rose-700";
   const scoreLabel = pct >= 80 ? "Excellent" : pct >= 60 ? "Good" : "Needs improvement";
 
   return (
-    <div className="sk-panel sk-rise group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${200 + index * 60}ms` }}>
-      <div className="relative overflow-hidden bg-gradient-to-br from-brand-50/60 via-white to-white p-4 pb-3 border-b border-edge/8">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-primary/3 to-transparent rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
+    <article className="sk-panel sk-rise relative min-w-0 overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-primary/25 hover:shadow-md" style={{ animationDelay: `${200 + index * 60}ms` }}>
+      <div className="relative overflow-hidden border-b border-border-subtle bg-gradient-to-br from-brand-50/60 via-white to-white p-4 pb-3">
+        <div aria-hidden="true" className="pointer-events-none absolute -end-12 -top-24 size-48 rounded-full bg-gradient-to-bl from-primary/5 to-transparent blur-2xl" />
         <div className="relative flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-1 transition-colors group-hover:text-ink-muted">
+            <p className="sk-eyebrow mb-1 truncate">
               {report.exam?.term || "Exam"}
             </p>
-            <h3 className="text-lg font-bold text-ink-strong tracking-tight transition-colors group-hover:text-primary">
+            <h3 className="break-words text-lg font-bold tracking-tight text-ink-strong">
               {report.exam?.title || "Report Card"}
             </h3>
-            <div className="flex items-center gap-2.5 mt-2.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-white border border-primary/10 px-3 py-0.5 text-2xs font-semibold text-primary uppercase tracking-wider shadow-sm transition-all group-hover:bg-primary group-hover:text-white group-hover:border-transparent group-hover:shadow-md">
-                <Award className="w-3 h-3" />
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" size="sm">
+                <Award aria-hidden="true" />
                 {report.grade || "Pending"}
-              </span>
-              <span className={cn(
-                "text-2xs font-semibold uppercase tracking-wider",
-                status === "PUBLISHED" || status === "SENT" ? "text-emerald-600" : "text-amber-600"
-              )}>
-                {status === "PUBLISHED" || status === "SENT" ? "Published" : status === "DRAFT" ? "Draft" : status}
-              </span>
+              </Badge>
+              <Badge variant={released ? "success" : "warning"} size="sm" dot>
+                {released ? "Published" : status === "DRAFT" ? "Draft" : status}
+              </Badge>
             </div>
           </div>
-          <div className="flex flex-col items-center shrink-0">
+          <div className="flex shrink-0 flex-col items-center">
             <div className={cn(
-              "h-16 w-16 rounded-full flex items-center justify-center bg-gradient-to-br shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl",
+              "flex size-16 items-center justify-center rounded-full bg-gradient-to-br shadow-md",
               scoreColor
             )}>
-              <span className="text-xl font-bold text-white">{pct}</span>
+              <span className="text-xl font-bold tabular-nums text-white">{pct}</span>
             </div>
-            <span className={cn("text-2xs font-bold mt-1", scoreText)}>{scoreLabel}</span>
+            <span className={cn("mt-1 text-xs font-semibold", scoreText)}>{scoreLabel}</span>
           </div>
         </div>
       </div>
-      <div className="p-4 pt-3">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-2xs font-semibold text-ink-subtle">Academic Year {report.exam?.academicYear || "—"}</span>
-          <span className="h-3 w-[1px] bg-edge/20" />
-          <span className="text-2xs font-semibold text-ink-subtle">{Math.round(report.percentage || 0)}% overall</span>
+      <div className="space-y-3 p-4 pt-3">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-subtle">
+          <span>Academic Year <span className="tabular-nums">{report.exam?.academicYear || "—"}</span></span>
+          <span aria-hidden="true" className="h-3 w-px bg-edge/20" />
+          <span className="tabular-nums">{Math.round(report.percentage || 0)}% overall</span>
         </div>
-        <p className="mt-2 text-sm" dir="auto">{report.language === "ar" ? "النسخة المنشورة" : report.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi>v{report.version}</bdi></p>
-        {report.correctionReason && <p className="mt-2 rounded border p-3 text-sm" dir="auto">{report.language === "ar" ? "تصحيح:" : report.language === "ur" ? "تصحیح:" : "Correction:"} {report.correctionReason}</p>}
+        <p className="text-xs text-ink-muted" dir="auto">{report.language === "ar" ? "النسخة المنشورة" : report.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi className="font-semibold text-ink">v{report.version}</bdi></p>
+        {report.correctionReason && <Alert tone="info" compact live="off" dir="auto">{report.language === "ar" ? "تصحيح:" : report.language === "ur" ? "تصحیح:" : "Correction:"} {report.correctionReason}</Alert>}
         {report.remarksEn ? (
-          <div className="rounded-2xl border border-edge/10 bg-brand-50/30 p-3">
-            <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-3">
+            <p className="sk-eyebrow mb-1">
               Teacher Remarks
             </p>
-            <p className="text-xs font-medium leading-relaxed text-ink">{report.remarksEn}</p>
+            <p className="text-sm leading-relaxed text-ink">{report.remarksEn}</p>
           </div>
         ) : (
-          <p className="text-xs font-semibold text-ink-subtle">No remarks provided.</p>
+          <p className="text-xs text-ink-subtle">No remarks provided.</p>
         )}
       </div>
-    </div>
+    </article>
   );
 }
 

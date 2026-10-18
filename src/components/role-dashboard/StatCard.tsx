@@ -101,7 +101,7 @@ export function StatCard({
   const className = cn(
     "sk-panel relative isolate overflow-hidden p-5 sm:p-6",
     entranceDelay > 0 && "sk-rise",
-    onClick && "group w-full cursor-pointer text-start transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] active:scale-[0.99] motion-reduce:transform-none"
+    onClick && "group w-full cursor-pointer text-start transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(170,150,210,0.30),0_22px_50px_-16px_rgba(129,39,207,0.32)] active:scale-[0.99] motion-reduce:transform-none"
   );
   const content = (
     <>

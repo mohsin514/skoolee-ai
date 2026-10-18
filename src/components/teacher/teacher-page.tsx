@@ -134,7 +134,7 @@ export function TeacherPage({
                 </span>
               </div>
               {summary ? (
-                <p className="break-words text-sm font-semibold leading-tight text-ink-muted">
+                <p className="break-words text-sm font-medium leading-snug text-ink-muted">
                   {summary}
                 </p>
               ) : null}

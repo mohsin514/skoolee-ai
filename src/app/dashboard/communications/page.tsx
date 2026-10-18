@@ -6,7 +6,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  Loader2,
   Mail,
   MessageCircle,
   RefreshCw,
@@ -14,9 +13,12 @@ import {
   Smartphone,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { InfoTip, Tooltip } from "@/components/ui/tooltip";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import {
   Table,
@@ -48,13 +50,13 @@ interface Communication {
   campus?: { name: string } | null;
 }
 
-const statusMeta = {
-  ALL: { label: "All", className: "bg-slate-100 text-slate-700", icon: Clock },
-  SENT: { label: "Sent", className: "bg-emerald-100 text-emerald-700", icon: CheckCircle2 },
-  FAILED: { label: "Failed", className: "bg-red-100 text-red-700", icon: AlertCircle },
-  NO_RECIPIENT: { label: "No contact", className: "bg-amber-100 text-amber-700", icon: AlertCircle },
-  BLOCKED: { label: "Blocked", className: "bg-violet-100 text-violet-700", icon: ShieldAlert },
-  PENDING: { label: "Pending", className: "bg-slate-100 text-slate-700", icon: Clock },
+const statusMeta: Record<"ALL" | Communication["status"], { label: string; variant: NonNullable<BadgeProps["variant"]>; icon: typeof Clock }> = {
+  ALL: { label: "All", variant: "neutral", icon: Clock },
+  SENT: { label: "Sent", variant: "success", icon: CheckCircle2 },
+  FAILED: { label: "Failed", variant: "danger", icon: AlertCircle },
+  NO_RECIPIENT: { label: "No contact", variant: "warning", icon: AlertCircle },
+  BLOCKED: { label: "Blocked", variant: "secondary", icon: ShieldAlert },
+  PENDING: { label: "Pending", variant: "neutral", icon: Clock },
 };
 
 const channelIcon = {
@@ -73,9 +75,11 @@ export default function CommunicationsPage() {
   const [status, setStatus] = useState<keyof typeof statusMeta>("ALL");
   const [loading, setLoading] = useState(true);
   const [runningAutomation, setRunningAutomation] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const res = await fetch(`/api/communications?status=${status}`);
       const data = await res.json();
@@ -83,6 +87,7 @@ export default function CommunicationsPage() {
       setCommunications(data.communications || []);
       setSummary(data.summary || {});
     } catch (error) {
+      setLoadError(true);
       toast.error(error instanceof Error ? error.message : "Could not load communications");
     } finally {
       setLoading(false);
@@ -103,10 +108,10 @@ export default function CommunicationsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Automation failed");
-      toast.success(`Processed ${data.processed} communication actions`);
+      toast.success(data.processed === 1 ? "Automation ran: 1 reminder processed" : `Automation ran: ${data.processed} reminders processed`);
       await loadData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Automation failed");
+      toast.error(error instanceof Error ? error.message : "Automation could not run. Try again in a moment.");
     } finally {
       setRunningAutomation(false);
     }
@@ -122,78 +127,88 @@ export default function CommunicationsPage() {
     [summary]
   );
 
+  const stats = [
+    { label: "Sent", value: totals.sent, icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600" },
+    { label: "Failed", value: totals.failed, icon: AlertCircle, color: "bg-red-50 text-red-600", info: "Sending was tried and did not go through. The reason appears under the message in the history." },
+    { label: "Blocked", value: totals.blocked, icon: ShieldAlert, color: "bg-violet-50 text-violet-600", info: "Stopped before sending: the subscription is suspended, the channel is not in your plan, the message needs approved school data, or outbound messages are turned off." },
+    { label: "No Contact", value: totals.noContact, icon: MessageCircle, color: "bg-amber-50 text-amber-600", info: "No contact for this channel is on file for the recipient, so nothing was sent." },
+  ];
+
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-1 flex-col">
       <Header
         title="Parent Communications"
         description="Sent, failed, blocked, and no-contact delivery history"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw aria-hidden="true" className={loading ? "h-4 w-4 animate-spin motion-reduce:animate-none" : "h-4 w-4"} />
               Refresh
             </Button>
-            <Button size="sm" onClick={runAutomation} disabled={runningAutomation}>
-              {runningAutomation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-              Run Automation
-            </Button>
+            <Tooltip content="Sends the reminders that are due now: upcoming and overdue fees, marks-entry deadlines and pending principal reviews.">
+              <Button size="sm" onClick={runAutomation} loading={runningAutomation}>
+                {runningAutomation ? null : <Clock aria-hidden="true" className="h-4 w-4" />}
+                Run Automation
+              </Button>
+            </Tooltip>
           </div>
         }
       />
 
-      <div className="p-6 space-y-6">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: "Sent", value: totals.sent, icon: CheckCircle2, color: "text-emerald-600" },
-            { label: "Failed", value: totals.failed, icon: AlertCircle, color: "text-red-600" },
-            { label: "Blocked", value: totals.blocked, icon: ShieldAlert, color: "text-violet-600" },
-            { label: "No Contact", value: totals.noContact, icon: MessageCircle, color: "text-amber-600" },
-          ].map((stat, index) => (
-            <Card
-              key={stat.label}
-              className="sk-rise border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
-              style={{ animationDelay: `${index * 60}ms` }}
-            >
-              <CardContent className="pt-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
-                    <p className="mt-1 text-2xl font-semibold">{stat.value}</p>
+      <div className="space-y-6 p-4 sm:p-6">
+        <div className="sk-stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          {stats.map((stat) => (
+            <Card key={stat.label} className="group">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1 text-sm font-medium text-ink-muted">
+                      <span className="truncate">{stat.label}</span>
+                      {stat.info ? <InfoTip content={stat.info} /> : null}
+                    </p>
+                    <p className="mt-1 text-2xl font-bold tracking-tight text-ink-strong tabular-nums">{loading ? "–" : stat.value}</p>
                   </div>
-                  <stat.icon className={`h-8 w-8 ${stat.color}`} />
+                  <span aria-hidden="true" className={`sk-icon-tile hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:flex ${stat.color}`}>
+                    <stat.icon className="h-5 w-5" />
+                  </span>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div role="group" aria-label="Filter by delivery status" className="flex flex-wrap gap-2">
           {(Object.keys(statusMeta) as Array<keyof typeof statusMeta>).map((item) => {
             const active = status === item;
             const Icon = statusMeta[item].icon;
             return (
-              <Button className="justify-start" aria-pressed={active} variant="choice"
+              <Button className="justify-start" aria-pressed={active} variant="choice" size="sm"
                 key={item}
                 onClick={() => setStatus(item)}
-
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon aria-hidden="true" className="h-3.5 w-3.5" />
                 {statusMeta[item].label}
               </Button>
             );
           })}
         </div>
 
-        <Card className="sk-rise overflow-hidden border-edge/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]" style={{ animationDelay: "160ms" }}>
+        <Card className="sk-enter overflow-hidden" style={{ "--sk-delay": "120ms" } as React.CSSProperties}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <MessageCircle className="h-4 w-4 text-primary" />
+              <MessageCircle aria-hidden="true" className="h-4 w-4 text-primary" />
               Delivery History
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <SkeletonTable rows={6} columns={4} label="Loading messages" />
+            ) : loadError ? (
+              <ErrorState
+                title="Delivery history could not be loaded"
+                description="The message list did not load. Check your connection and try again."
+                onRetry={loadData}
+              />
             ) : (
               <Table>
                 <TableHeader>
@@ -212,42 +227,50 @@ export default function CommunicationsPage() {
                     const meta = statusMeta[item.status] || statusMeta.PENDING;
                     return (
                       <TableRow key={item.id}>
-                        <TableCell className="max-w-[360px]">
-                          <p className="font-medium">{templateLabel(item.templateKey)}</p>
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.body}</p>
+                        <TableCell className="min-w-60 max-w-[360px]">
+                          <p className="font-semibold text-ink-strong">{templateLabel(item.templateKey)}</p>
+                          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ink-muted">{item.body}</p>
                           {item.failedReason ? (
-                            <p className="mt-1 text-xs text-red-600">{item.failedReason}</p>
+                            <p className="mt-1 text-xs font-medium text-status-error-text">{item.failedReason}</p>
                           ) : null}
                         </TableCell>
-                        <TableCell>
-                          <p className="font-medium">{item.student?.fullName || "-"}</p>
-                          <p className="text-xs text-muted-foreground">
+                        <TableCell className="min-w-40">
+                          <p className="font-medium text-ink-strong">{item.student?.fullName || "-"}</p>
+                          <p className="text-xs text-ink-subtle">
                             {item.student?.rollNo || ""} {item.student?.class?.name || ""} {item.student?.class?.section || ""}
                           </p>
                         </TableCell>
                         <TableCell>
-                          <span className="inline-flex items-center gap-2">
-                            <ChannelIcon className="h-4 w-4 text-muted-foreground" />
+                          <span className="inline-flex items-center gap-2 text-sm text-ink">
+                            <ChannelIcon aria-hidden="true" className="h-4 w-4 text-ink-subtle" />
                             {item.channel}
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge className={meta.className}>{meta.label}</Badge>
+                          <Badge variant={meta.variant} size="sm" dot>{meta.label}</Badge>
                         </TableCell>
-                        <TableCell>
-                          <p>{item.recipientName || "Parent"}</p>
-                          <p className="text-xs text-muted-foreground">{item.recipient}</p>
+                        <TableCell className="min-w-40">
+                          <p className="text-ink">{item.recipientName || "Parent"}</p>
+                          <p className="break-all text-xs text-ink-subtle">{item.recipient}</p>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="whitespace-nowrap text-sm text-ink-muted tabular-nums">
                           {item.sentAt ? new Date(item.sentAt).toLocaleString() : new Date(item.createdAt).toLocaleString()}
                         </TableCell>
                       </TableRow>
                     );
                   })}
                   {communications.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        No communication history found.
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={6} className="p-0">
+                        <EmptyState
+                          size="sm"
+                          icon={MessageCircle}
+                          title={status === "ALL" ? "No communication history found." : `No ${statusMeta[status].label.toLowerCase()} messages`}
+                          description={status === "ALL" ? "Messages sent to parents by reminders and school workflows will appear here." : "Nothing matches this status. Show all messages to see the full history."}
+                          secondaryAction={status === "ALL" ? undefined : (
+                            <Button variant="outline" size="sm" onClick={() => setStatus("ALL")}>Show all</Button>
+                          )}
+                        />
                       </TableCell>
                     </TableRow>
                   ) : null}

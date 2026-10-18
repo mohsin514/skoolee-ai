@@ -122,7 +122,7 @@ export function TodaySchedule({
         {/* ── Header row ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-white shadow-[0_8px_20px_-4px_rgba(129,39,207,0.45)]">
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-white shadow-brand">
               {liveEntry ? (
                 <span className="absolute -right-1 -top-1 flex h-3 w-3">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -197,11 +197,10 @@ export function TodaySchedule({
                 key={slot.id}
                 type="button"
                 onClick={onOpenTimetable}
-                title="Open the full timetable"
                 className={cn(
-                  "sk-sweep-trigger block group relative isolate shrink-0 snap-start overflow-hidden p-4 text-left hover:-translate-y-1.5 min-w-[196px] w-[212px]",
+                  "sk-sweep-trigger block group relative isolate shrink-0 snap-start overflow-hidden p-4 text-start hover:-translate-y-1.5 min-w-[196px] w-[212px]",
                   active
-                    ? "border-transparent bg-gradient-to-br from-primary via-brand-400 to-berry shadow-[0_18px_44px_-12px_rgba(129,39,207,0.55)]"
+                    ? "border-transparent bg-gradient-to-br from-primary via-brand-400 to-berry shadow-glow"
                     : clashing
                     ? "border-rose-200 bg-rose-50/70"
                     : past

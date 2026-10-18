@@ -1,7 +1,5 @@
 'use client';
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
-
-
 import { useState, useEffect, useEffectEvent, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -10,12 +8,13 @@ import * as z from "zod";
 import { toast } from "@/components/ui/toast";
 import { requestPasswordReset, resetPassword, verifyToken } from "@/app/actions/auth/reset";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { FieldError, FormField } from "@/components/ui/form-field";
 import {
-  Loader2, ArrowRight, Mail, Lock, CheckCircle2, AlertCircle,
-  CheckCircle, XCircle, ShieldCheck, Eye, EyeOff, Sparkles,
+  Loader2, ArrowLeft, ArrowRight, Mail, Lock, CheckCircle2, AlertCircle, AlertTriangle,
+  CheckCircle, XCircle, ShieldCheck, Eye, EyeOff, Sparkles, KeyRound, RotateCcw,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import Link from "next/link";
 import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
@@ -61,7 +60,7 @@ const en = {
   tryAgain: "Try again",
   verifying: "Verifying link…",
   resetTitle: "New password",
-  resetIntro: "Define your new institutional access code.",
+  resetIntro: "Choose a new password for your Skoolee account.",
   newPassword: "New Password",
   showNew: "Show new password",
   hideNew: "Hide new password",
@@ -73,12 +72,12 @@ const en = {
   notMet: "Not yet met: ",
   saving: "Saving…",
   save: "Save new password",
-  remembered: "Nevermind, I remember it.",
+  remembered: "Remembered it? Back to sign in",
   requirements: ["Min 8 characters", "One uppercase", "One number", "Special character", "Passwords match"] as const,
   linkInvalid: "Your recovery link has expired or is invalid.",
-  linkSent: "Identity verification link sent to your email.",
+  linkSent: "Request received. If an account uses this email, a recovery link is on its way.",
   sendFailed: "Unable to send a recovery link. Please try again.",
-  updated: "Security credentials updated successfully.",
+  updated: "Password updated. Sign in with your new password.",
   saveFailed: "Unable to save your password. Please try again.",
   /** English validation sources → localized text. Server messages pass through unchanged. */
   messages: {} as Record<string, string>,
@@ -112,7 +111,7 @@ const copy: Record<Language, RecoveryCopy> = {
     tryAgain: "حاول مجدداً",
     verifying: "جارٍ التحقق من الرابط…",
     resetTitle: "كلمة مرور جديدة",
-    resetIntro: "عيّن رمز الوصول الجديد إلى مؤسستك.",
+    resetIntro: "اختر كلمة مرور جديدة لحسابك في Skoolee.",
     newPassword: "كلمة المرور الجديدة",
     showNew: "إظهار كلمة المرور الجديدة",
     hideNew: "إخفاء كلمة المرور الجديدة",
@@ -124,12 +123,12 @@ const copy: Record<Language, RecoveryCopy> = {
     notMet: "غير مكتمل بعد: ",
     saving: "جارٍ الحفظ…",
     save: "حفظ كلمة المرور الجديدة",
-    remembered: "لا بأس، تذكرتها.",
+    remembered: "تذكرتها؟ العودة لتسجيل الدخول",
     requirements: ["٨ أحرف على الأقل", "حرف كبير واحد", "رقم واحد", "رمز خاص", "كلمتا المرور متطابقتان"],
     linkInvalid: "انتهت صلاحية رابط الاستعادة أو أنه غير صالح.",
-    linkSent: "أُرسل رابط التحقق من الهوية إلى بريدك.",
+    linkSent: "تم استلام الطلب. إذا كان هناك حساب بهذا البريد، فرابط الاستعادة في طريقه إليك.",
     sendFailed: "تعذر إرسال رابط الاستعادة. حاول مجدداً.",
-    updated: "تم تحديث بيانات الاعتماد بنجاح.",
+    updated: "تم تحديث كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.",
     saveFailed: "تعذر حفظ كلمة المرور. حاول مجدداً.",
     messages: {
       "Invalid email address": "عنوان البريد الإلكتروني غير صالح",
@@ -166,7 +165,7 @@ const copy: Record<Language, RecoveryCopy> = {
     tryAgain: "دوبارہ کوشش کریں",
     verifying: "لنک کی تصدیق ہو رہی ہے…",
     resetTitle: "نیا پاس ورڈ",
-    resetIntro: "اپنے ادارے کے لیے نیا رسائی کوڈ مقرر کریں۔",
+    resetIntro: "اپنے Skoolee اکاؤنٹ کے لیے نیا پاس ورڈ منتخب کریں۔",
     newPassword: "نیا پاس ورڈ",
     showNew: "نیا پاس ورڈ دکھائیں",
     hideNew: "نیا پاس ورڈ چھپائیں",
@@ -178,12 +177,12 @@ const copy: Record<Language, RecoveryCopy> = {
     notMet: "ابھی باقی: ",
     saving: "محفوظ ہو رہا ہے…",
     save: "نیا پاس ورڈ محفوظ کریں",
-    remembered: "رہنے دیں، مجھے یاد آ گیا۔",
+    remembered: "یاد آ گیا؟ سائن اِن پر واپس جائیں",
     requirements: ["کم از کم ۸ حروف", "ایک بڑا انگریزی حرف", "ایک عدد", "ایک خاص علامت", "پاس ورڈ ایک جیسے ہیں"],
     linkInvalid: "آپ کے بحالی لنک کی مدت ختم ہو گئی ہے یا یہ درست نہیں۔",
-    linkSent: "شناخت کی تصدیق کا لنک آپ کی ای میل پر بھیج دیا گیا۔",
+    linkSent: "درخواست موصول ہو گئی۔ اگر اس ای میل سے کوئی اکاؤنٹ موجود ہے تو بحالی لنک بھیج دیا گیا ہے۔",
     sendFailed: "بحالی لنک نہیں بھیجا جا سکا۔ دوبارہ کوشش کریں۔",
-    updated: "سیکیورٹی اسناد کامیابی سے اپ ڈیٹ ہو گئیں۔",
+    updated: "پاس ورڈ اپ ڈیٹ ہو گیا۔ نئے پاس ورڈ سے سائن اِن کریں۔",
     saveFailed: "آپ کا پاس ورڈ محفوظ نہیں ہو سکا۔ دوبارہ کوشش کریں۔",
     messages: {
       "Invalid email address": "ای میل ایڈریس درست نہیں",
@@ -320,9 +319,9 @@ export default function ForgotPasswordPage() {
       {/* ─── BRAND PANEL ─────────────────────────────── */}
       <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-brand-700 to-brand-800 p-12 xl:p-14">
         <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <div className="sk-blob absolute -top-1/4 -left-1/5 h-[72%] w-[72%] rounded-full bg-brand-400 opacity-70 blur-[90px]" />
-          <div className="sk-blob sk-blob-2 absolute top-1/4 -right-1/4 h-[68%] w-[68%] rounded-full bg-brand-300 opacity-45 blur-[100px]" />
-          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 left-1/5 h-[62%] w-[62%] rounded-full bg-brand-50 opacity-[0.14] blur-[110px]" />
+          <div className="sk-blob absolute -top-1/4 -start-1/5 h-[72%] w-[72%] rounded-full bg-brand-400 opacity-70 blur-[90px]" />
+          <div className="sk-blob sk-blob-2 absolute top-1/4 -end-1/4 h-[68%] w-[68%] rounded-full bg-brand-300 opacity-45 blur-[100px]" />
+          <div className="sk-blob sk-blob-3 absolute -bottom-1/3 start-1/5 h-[62%] w-[62%] rounded-full bg-brand-50 opacity-[0.14] blur-[110px]" />
           <div
             className="absolute inset-0 opacity-[0.07]"
             style={{
@@ -331,25 +330,25 @@ export default function ForgotPasswordPage() {
               backgroundSize: "56px 56px",
             }}
           />
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-brand-50/12 to-transparent" />
+          <div className="absolute inset-y-0 end-0 w-32 bg-gradient-to-l from-brand-50/12 to-transparent rtl:bg-gradient-to-r" />
         </div>
 
         <div className="relative z-10 flex items-center gap-2.5">
-          <span className="h-8 w-1 rounded-full bg-white/70" />
+          <span aria-hidden="true" className="h-8 w-1 rounded-full bg-white/70" />
           <p className="text-2xs font-semibold uppercase tracking-wider text-white/80">
             Skoolee AI
           </p>
         </div>
 
         <div className="relative z-10 max-w-xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-brand-200" />
+          <div className="sk-enter inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
+            <Sparkles aria-hidden="true" className="h-3.5 w-3.5 text-brand-200" />
             <span className="text-2xs font-semibold uppercase tracking-wider text-brand-200">
               {t.eyebrow}
             </span>
           </div>
 
-          <h2 className="mt-7 text-[2.6rem] xl:text-[3.1rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-white text-balance">
+          <h2 className="sk-enter mt-7 text-4xl font-extrabold leading-tight tracking-tight text-white text-balance xl:text-5xl" style={{ "--sk-delay": "80ms" } as React.CSSProperties}>
             {t.brandLine1}
             {t.brandLine2 ? <><br />{t.brandLine2}</> : null}
             <span className="bg-gradient-to-r from-brand-200 to-fuchsia-300 bg-clip-text text-transparent">
@@ -357,16 +356,16 @@ export default function ForgotPasswordPage() {
             </span>
           </h2>
 
-          <div className="sk-rise mt-9 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl">
+          <div className="sk-enter mt-9 rounded-3xl border border-white/25 bg-brand-900/40 p-6 shadow-xl backdrop-blur-xl" style={{ "--sk-delay": "160ms" } as React.CSSProperties}>
             <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
+              <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
                 <ShieldCheck className="h-5 w-5 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-md font-semibold leading-relaxed text-white">
+                <p className="text-md font-medium leading-relaxed text-white">
                   {t.brandBody}
                 </p>
-                <p className="mt-2.5 text-xs font-bold text-brand-200">
+                <p className="mt-2.5 text-xs font-semibold text-brand-200">
                   {t.brandNote}
                 </p>
               </div>
@@ -374,36 +373,36 @@ export default function ForgotPasswordPage() {
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 text-2xs font-bold text-white/75">
-          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> {t.encrypted}</span>
-          <span className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5" /> {t.singleUse}</span>
+        <div className="relative z-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-white/80">
+          <span className="flex items-center gap-1.5"><ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" /> {t.encrypted}</span>
+          <span className="flex items-center gap-1.5"><KeyRound aria-hidden="true" className="h-3.5 w-3.5" /> {t.singleUse}</span>
         </div>
       </section>
 
       {/* ─── FORM PANEL ──────────────────────────────── */}
       <section className="relative flex flex-col items-center justify-center p-4 sm:p-10 lg:p-14">
         <div className="w-full max-w-[30rem]">
-          <div className="mb-9 flex flex-col items-center">
+          <div className="sk-enter mb-9 flex flex-col items-center">
             <SkooleeLogo size="2.35rem" weight="heavy" />
-            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
+            <div aria-hidden="true" className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
           </div>
 
-          <div className="rounded-[30px] border border-edge/30 bg-white p-6 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9">
+          <div className="sk-enter sk-panel p-6 shadow-xl sm:p-9" style={{ "--sk-delay": "70ms" } as React.CSSProperties}>
             {!token ? (
               // ── REQUEST RESET ──
               !isSubmitted ? (
                 <>
                   <div className="mb-7 text-center">
-                    <h1 className="text-[1.75rem] font-bold leading-tight tracking-[-0.035em] text-ink-strong">
+                    <h1 className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">
                       {t.requestTitle}
                     </h1>
-                    <p className="mt-2 text-md font-semibold text-ink-muted">
+                    <p className="mt-2 text-md leading-relaxed text-ink-muted">
                       {t.requestIntro}
                     </p>
                   </div>
 
                   <form onSubmit={requestForm.handleSubmit(handleRequest)} className="space-y-4" aria-busy={isLoading} noValidate>
-                    {requestError && <div ref={requestErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-request-error"><FieldError id="recover-request-error">{requestError}</FieldError></div>}
+                    {requestError && <div ref={requestErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-request-error" className="sk-shake rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 shadow-xs"><FieldError id="recover-request-error">{requestError}</FieldError></div>}
                     <FormField name="email" id="recover-email" label={t.email} error={localize(requestForm.formState.errors.email?.message)} required>
                       <InputGroup>
                         <Mail data-field-affix="start" aria-hidden="true" className="h-4 w-4 text-ink-subtle" />
@@ -418,65 +417,72 @@ export default function ForgotPasswordPage() {
                       </InputGroup>
                     </FormField>
                     <p role="status" className="sr-only">{isLoading ? t.sending : ""}</p>
-                    <Button type="submit" disabled={isLoading} className="mt-1 w-full">
-                      {isLoading ? <><Loader2 aria-hidden="true" className="motion-safe:animate-spin" /><span>{t.sending}</span></> : <><span>{t.send}</span><ArrowRight aria-hidden="true" className="rtl:rotate-180" /></>}
+                    <Button type="submit" loading={isLoading} className="group mt-1 w-full">
+                      {isLoading ? <span>{t.sending}</span> : <><span>{t.send}</span><ArrowRight aria-hidden="true" className="transition-transform rtl:rotate-180 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5" /></>}
                     </Button>
                   </form>
                 </>
               ) : (
-                <div className="py-6 text-center">
-                  <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                    <CheckCircle2 className="h-10 w-10" />
+                <div className="sk-enter py-6 text-center">
+                  <div aria-hidden="true" className="sk-check-pop mx-auto mb-6 flex size-16 items-center justify-center rounded-[22px] border border-status-success-border bg-status-success-surface text-emerald-700 shadow-sm">
+                    <CheckCircle2 className="size-8" />
                   </div>
-                  <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{t.inboxTitle}</h1>
-                  <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
+                  <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink-strong text-balance">{t.inboxTitle}</h1>
+                  <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-ink-muted">
                     {t.inboxBody}
                   </p>
-                  <Link href="/login" className="text-sm font-bold text-primary transition-colors hover:text-brand-400">
+                  <Link href="/login" className={cn(buttonVariants({ variant: "outline" }), "w-full sm:w-auto")}>
+                    <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />
                     {t.backToLogin}
                   </Link>
                 </div>
               )
             ) : verificationStatus === "invalid" ? (
-              <div className="py-6 text-center">
-                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
-                  <AlertCircle className="h-10 w-10" />
+              <div className="sk-enter py-6 text-center">
+                <div aria-hidden="true" className="mx-auto mb-6 flex size-16 items-center justify-center rounded-[22px] border border-status-error-border bg-status-error-surface text-red-700 shadow-sm">
+                  <AlertCircle className="size-8" />
                 </div>
-                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{t.expiredTitle}</h1>
-                <p className="mb-8 text-sm font-semibold leading-6 text-ink-muted">
+                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink-strong text-balance">{t.expiredTitle}</h1>
+                <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-ink-muted">
                   {t.expiredBody}
                 </p>
-                <Button type="button" variant="outline" onClick={() => router.push("/forgot-password")}>
+                <Button type="button" className="w-full sm:w-auto" onClick={() => router.push("/forgot-password")}>
                   {t.requestNew}
                 </Button>
               </div>
             ) : verificationStatus === "error" ? (
-              <div className="py-6 text-center">
-                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink">{t.errorTitle}</h1>
-                <p className="mb-6 text-sm font-semibold leading-6 text-ink-muted">{t.errorBody}</p>
-                <Button type="button" variant="outline" onClick={() => { setVerification(null); setVerificationAttempt(attempt => attempt + 1); }}>
+              <div className="sk-enter py-6 text-center">
+                <div aria-hidden="true" className="mx-auto mb-6 flex size-16 items-center justify-center rounded-[22px] border border-status-warning-border bg-status-warning-surface text-amber-700 shadow-sm">
+                  <AlertTriangle className="size-8" />
+                </div>
+                <h1 ref={stateHeadingRef} tabIndex={-1} className="mb-2 text-2xl font-bold tracking-tight text-ink-strong text-balance">{t.errorTitle}</h1>
+                <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-ink-muted">{t.errorBody}</p>
+                <Button type="button" className="w-full sm:w-auto" onClick={() => { setVerification(null); setVerificationAttempt(attempt => attempt + 1); }}>
+                  <RotateCcw aria-hidden="true" />
                   {t.tryAgain}
                 </Button>
               </div>
             ) : verificationStatus === "loading" ? (
               <div role="status" className="flex flex-col items-center justify-center gap-4 py-12">
-                <Loader2 aria-hidden="true" className="h-10 w-10 motion-safe:animate-spin text-primary" />
-                <h1 className="text-base font-bold text-ink-muted">{t.verifying}</h1>
+                <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-[22px] border border-status-brand-border bg-status-brand-surface text-primary">
+                  <Loader2 className="size-7 motion-safe:animate-spin" />
+                </span>
+                <h1 className="text-base font-semibold text-ink-muted">{t.verifying}</h1>
               </div>
             ) : (
               // ── RESET PASSWORD ──
               <>
                 <div className="mb-7 text-center">
-                  <h1 className="text-[1.85rem] font-extrabold leading-tight tracking-[-0.035em] text-ink-strong">
+                  <h1 className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">
                     {t.resetTitle}
                   </h1>
-                  <p className="mt-2 text-md font-semibold text-ink-muted">
+                  <p className="mt-2 text-md leading-relaxed text-ink-muted">
                     {t.resetIntro}
                   </p>
                 </div>
 
                 <form onSubmit={resetForm.handleSubmit(handleReset)} className="space-y-4" aria-busy={isLoading} noValidate>
-                  {resetError && <div ref={resetErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-reset-error"><FieldError id="recover-reset-error">{localize(resetError)}</FieldError></div>}
+                  {resetError && <div ref={resetErrorRef} tabIndex={-1} role="group" aria-labelledby="recover-reset-error" className="sk-shake rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 shadow-xs"><FieldError id="recover-reset-error">{localize(resetError)}</FieldError></div>}
                   <FormField name="password" id="new-password" label={t.newPassword} error={localize(resetForm.formState.errors.password?.message)} required>
                     <InputGroup>
                       <Lock data-field-affix="start" aria-hidden="true" className="h-4 w-4 text-ink-subtle" />
@@ -495,11 +501,11 @@ export default function ForgotPasswordPage() {
                       </FieldAction>
                     </InputGroup>
                   </FormField>
-                  <div className="rounded-2xl border border-border bg-muted p-4">
-                    <h2 className="mb-2 text-sm font-bold text-ink">{t.checklist}</h2>
+                  <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+                    <h2 className="mb-2.5 text-sm font-semibold text-ink-strong">{t.checklist}</h2>
                     <ul id="password-requirements" className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
                       {passwordRequirements.map(req => (
-                        <li key={req.label} className={`flex items-start gap-1.5 text-sm font-semibold ${req.met ? "text-emerald-800" : "text-ink-muted"}`}>
+                        <li key={req.label} className={cn("flex items-start gap-1.5 text-sm font-medium transition-colors", req.met ? "text-status-success-text" : "text-ink-muted")}>
                           {req.met ? <CheckCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />}
                           <span><span className="sr-only">{req.met ? t.met : t.notMet}</span>{req.label}</span>
                         </li>
@@ -507,18 +513,18 @@ export default function ForgotPasswordPage() {
                     </ul>
                   </div>
                   <p role="status" className="sr-only">{isLoading ? t.saving : ""}</p>
-                  <Button type="submit" disabled={isLoading} className="mt-1 w-full">
-                    {isLoading ? <><Loader2 aria-hidden="true" className="motion-safe:animate-spin" /><span>{t.saving}</span></> : <><span>{t.save}</span><ArrowRight aria-hidden="true" className="rtl:rotate-180" /></>}
+                  <Button type="submit" loading={isLoading} className="group mt-1 w-full">
+                    {isLoading ? <span>{t.saving}</span> : <><span>{t.save}</span><ArrowRight aria-hidden="true" className="transition-transform rtl:rotate-180 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5" /></>}
                   </Button>
                 </form>
               </>
             )}
           </div>
 
-          <div className="mt-5 border-t border-edge/20 pt-4 text-center">
+          <div className="mt-5 text-center">
             <Link
               href="/login"
-              className="text-sm font-bold text-ink-muted transition-colors hover:text-primary"
+              className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-ink-muted transition-colors hover:text-primary"
             >
               {t.remembered}
             </Link>

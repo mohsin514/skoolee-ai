@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Inbox } from "lucide-react";
 
 
 type RequestRow = {
@@ -47,18 +50,18 @@ export function SubscriptionRequestReview() {
   };
 
   return <div className="h-full overflow-y-auto p-6">
-    <h2 className="text-2xl font-bold">Subscription requests</h2>
-    <p className="mt-1 text-sm text-ink-muted">Review plan changes, cancellation requests, refunds, and recovery requests. A refund review never submits a provider refund.</p>
-    {requests.length === 0 ? <p className="mt-6 rounded-xl border p-5">No requests need review.</p> : <div className="mt-5 space-y-4">
-      {requests.map(row => <article key={row.id} className="space-y-3 rounded-xl border bg-white p-5">
+    <h2 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">Subscription requests</h2>
+    <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-muted">Review plan changes, cancellation requests, refunds, and recovery requests. A refund review never submits a provider refund.</p>
+    {requests.length === 0 ? <div className="mt-6"><EmptyState size="sm" icon={Inbox} title="No requests need review" description="New plan, cancellation, refund and recovery requests from schools appear here." /></div> : <div className="mt-5 space-y-4">
+      {requests.map(row => <article key={row.id} className="sk-panel space-y-3 p-4 sm:p-5">
         <div className="flex flex-wrap justify-between gap-2">
-          <div><h3 className="font-semibold">{row.kind.replaceAll("_", " ")} · {row.school.name}</h3><p className="text-sm text-ink-muted">Current {row.school.plan}{row.requestedPlan ? ` → ${row.requestedPlan}` : ""} · Requested by {row.requestedBy.fullName} · {new Date(row.createdAt).toLocaleString()}</p></div>
+          <div className="min-w-0"><h3 className="text-base font-semibold text-ink-strong">{row.kind.replaceAll("_", " ")} · {row.school.name}</h3><p className="text-sm text-ink-muted">Current {row.school.plan}{row.requestedPlan ? ` → ${row.requestedPlan}` : ""} · Requested by {row.requestedBy.fullName} · {new Date(row.createdAt).toLocaleString()}</p></div>
           {row.effectiveAt && <p className="text-sm">Effective date: {new Date(row.effectiveAt).toLocaleDateString()}</p>}
         </div>
-        <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs">{JSON.stringify(row.details, null, 2)}</pre>
-        <label className="block text-sm">Review reason<Textarea className="mt-1 block w-full p-2" value={reasons[row.id] || ""} onChange={event => setReasons(previous => ({ ...previous, [row.id]: event.target.value }))} placeholder="Reason recorded in the audit log" /></label>
+        <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-subtle p-3 text-xs">{JSON.stringify(row.details, null, 2)}</pre>
+        <label className="block text-sm font-semibold">Review reason<Textarea className="mt-1 block w-full p-2" value={reasons[row.id] || ""} onChange={event => setReasons(previous => ({ ...previous, [row.id]: event.target.value }))} placeholder="Reason recorded in the audit log" /></label>
         {(reasons[row.id] || "").trim().length < 8 ? <p className="text-xs text-ink-muted">Write a reason of at least 8 characters; it is recorded in the audit log.</p> : null}
-        <div className="flex gap-2"><Button variant="default" disabled={busy === row.id || (reasons[row.id] || "").trim().length < 8} onClick={() => void review(row, "APPROVE_REQUEST")}>Approve request</Button><Button variant="outline" disabled={busy === row.id || (reasons[row.id] || "").trim().length < 8} onClick={() => void review(row, "DECLINE_REQUEST")}>Decline request</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="default" loading={busy === row.id} disabled={busy === row.id || (reasons[row.id] || "").trim().length < 8} onClick={() => void review(row, "APPROVE_REQUEST")}>Approve request</Button><Button variant="outline" disabled={busy === row.id || (reasons[row.id] || "").trim().length < 8} onClick={() => void review(row, "DECLINE_REQUEST")}>Decline request</Button></div>
       </article>)}
     </div>}
     <ProviderEventQueue />
@@ -91,15 +94,15 @@ function ProviderEventQueue() {
     finally { setBusy(null); }
   };
   return <section className="mt-10" aria-labelledby="provider-events-title" data-provider-events>
-    <h2 id="provider-events-title" className="text-xl font-bold">Payment provider events needing review</h2>
+    <h2 id="provider-events-title" className="text-lg font-bold text-ink-strong">Payment provider events needing review</h2>
     <p className="mt-1 text-sm text-ink-muted">Verified events the system did not apply automatically. Marking one handled records your note only; correct any billing state through a reviewed request or the provider.</p>
-    {events === null ? <p role="status" className="mt-4 text-sm">Loading events…</p> : events.length === 0 ? <p className="mt-4 rounded-xl border p-5">No provider events need review.</p> : <div className="mt-4 space-y-3">
-      {events.map(row => <article key={row.eventId} className="space-y-2 rounded-xl border bg-white p-4" data-provider-event={row.eventId} data-state={row.state}>
-        <p className="font-semibold">{row.provider} · {row.eventType} · {row.state === "NEEDS_REVIEW" ? "Needs review" : "Failed"}</p>
-        <p className="text-sm text-ink-muted"><bdi>{row.eventId}</bdi> · {new Date(row.receivedAt).toLocaleString()} · attempts {row.attemptCount}{row.schoolId ? ` · institution ${row.schoolId}` : " · no matching institution"}</p>
+    {events === null ? <p role="status" className="mt-4 text-sm">Loading events…</p> : events.length === 0 ? <div className="mt-4"><EmptyState size="sm" icon={Inbox} title="No provider events need review" description="Verified provider events that could not be applied automatically appear here." /></div> : <div className="mt-4 space-y-3">
+      {events.map(row => <article key={row.eventId} className="sk-panel space-y-2 p-4" data-provider-event={row.eventId} data-state={row.state}>
+        <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong">{row.provider} · {row.eventType} <Badge variant={row.state === "NEEDS_REVIEW" ? "warning" : "danger"} dot>{row.state === "NEEDS_REVIEW" ? "Needs review" : "Failed"}</Badge></p>
+        <p className="text-xs text-ink-subtle tabular-nums"><bdi>{row.eventId}</bdi> · {new Date(row.receivedAt).toLocaleString()} · attempts {row.attemptCount}{row.schoolId ? ` · institution ${row.schoolId}` : " · no matching institution"}</p>
         {row.error ? <p className="text-sm">{row.error}</p> : null}
-        <label className="block text-sm">How was this handled?<Textarea className="mt-1 block w-full p-2" value={notes[row.eventId] || ""} onChange={event => setNotes(previous => ({ ...previous, [row.eventId]: event.target.value }))} /></label>
-        <Button variant="outline" disabled={busy === row.eventId || (notes[row.eventId] || "").trim().length < 8} onClick={() => void resolve(row)}>Mark handled</Button>
+        <label className="block text-sm font-semibold">How was this handled?<Textarea className="mt-1 block w-full p-2" value={notes[row.eventId] || ""} onChange={event => setNotes(previous => ({ ...previous, [row.eventId]: event.target.value }))} /></label>
+        <Button variant="outline" loading={busy === row.eventId} disabled={busy === row.eventId || (notes[row.eventId] || "").trim().length < 8} onClick={() => void resolve(row)}>Mark handled</Button>
       </article>)}
     </div>}
   </section>;

@@ -1,12 +1,15 @@
 "use client";
 
 import { PathwayPanel } from "@/components/pathways/pathway-panel";
-import { Button } from "@/components/ui/button";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
-  CalendarCheck, FileText, LayoutGrid, MessageCircle, Phone, Star, Table2, Users, X,
+  CalendarCheck, FileText, LayoutGrid, MessageCircle, Phone, Table2, Users, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
@@ -167,32 +170,32 @@ export default function TeacherStudentsPage() {
             dir={prefs.sortDir}
             onToggle={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
           />
-          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-            {filtered.length} student{filtered.length !== 1 ? "s" : ""}
+          <span aria-live="polite" className="text-xs font-medium text-ink-subtle">
+            <span data-numeric className="tabular-nums">{filtered.length}</span> student{filtered.length !== 1 ? "s" : ""}
           </span>
         </WorkspaceToolbar>
 
         {/* Today's roll call as filter chips. The directory already knows who is
             in; making that clickable turns "who do I chase up?" into one tap. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Today</span>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="today-filter-label">
+          <span id="today-filter-label" className="sk-eyebrow">Today</span>
+          {/* The dot carries each status colour; the label still says it. */}
           {([
-            ["", "Everyone", allStudents.length, "border-edge/30 bg-white text-ink-muted"],
-            ["PRESENT", "Present", todayCounts.PRESENT, "border-emerald-200 bg-emerald-50 text-emerald-700"],
-            ["ABSENT", "Absent", todayCounts.ABSENT, "border-rose-200 bg-rose-50 text-rose-700"],
-            ["LEAVE", "Leave", todayCounts.LEAVE, "border-amber-200 bg-amber-50 text-amber-700"],
-            ["UNMARKED", "Unmarked", todayCounts.UNMARKED, "border-primary/20 bg-brand-50 text-primary"],
-          ] as [string, string, number, string][]).map(([key, label, count, tone]) => (
-            <Button className="justify-start" variant="choice"
+            ["", "Everyone", allStudents.length, null],
+            ["PRESENT", "Present", todayCounts.PRESENT, "bg-emerald-500"],
+            ["ABSENT", "Absent", todayCounts.ABSENT, "bg-rose-500"],
+            ["LEAVE", "Leave", todayCounts.LEAVE, "bg-amber-500"],
+            ["UNMARKED", "Unmarked", todayCounts.UNMARKED, "bg-ink-faint"],
+          ] as [string, string, number, string | null][]).map(([key, label, count, dot]) => (
+            <Button className="justify-start" variant="choice" size="sm"
               key={key || "all"}
               type="button"
               onClick={() => setTodayFilter(key)}
               aria-pressed={todayFilter === key}
-              title={`Show ${label.toLowerCase()}`}
-
             >
+              {dot ? <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", dot)} /> : null}
               {label}
-              <span className="tabular-nums opacity-70">{count}</span>
+              <span data-numeric className="tabular-nums text-ink-subtle">{count}</span>
             </Button>
           ))}
         </div>
@@ -215,8 +218,8 @@ export default function TeacherStudentsPage() {
                       <AvatarImage src={st.profileImageUrl} name={st.fullName} initialsClassName="text-2xs" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-ink-strong">{st.fullName}</span>
-                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                      <span className="block truncate text-sm font-semibold text-ink-strong">{st.fullName}</span>
+                      <span className="block text-xs text-ink-subtle tabular-nums">
                         {st.rollNo || "No roll"}
                       </span>
                     </span>
@@ -227,7 +230,7 @@ export default function TeacherStudentsPage() {
                 key: "class",
                 label: "Class",
                 render: (st: any) => (
-                  <span className="text-xs font-bold text-ink">{classLabel(st.class)}</span>
+                  <span className="text-sm font-medium text-ink">{classLabel(st.class)}</span>
                 ),
               },
               {
@@ -237,11 +240,14 @@ export default function TeacherStudentsPage() {
                 render: (st: any) => {
                   const report = st.reportCards?.[0];
                   return report?.grade || report?.percentage != null ? (
-                    <span className="text-sm font-bold text-primary">
+                    <span data-numeric className="text-sm font-bold tabular-nums text-primary">
                       {report.grade || `${Math.round(report.percentage)}%`}
                     </span>
                   ) : (
-                    <span className="text-2xs font-semibold text-ink-subtle">—</span>
+                    <span className="text-xs text-ink-subtle">
+                      <span aria-hidden="true">—</span>
+                      <span className="sr-only">No grade yet</span>
+                    </span>
                   );
                 },
               },
@@ -257,22 +263,23 @@ export default function TeacherStudentsPage() {
                 secondary: true,
                 render: (st: any) => (
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-ink">{st.guardianName || "Not linked"}</p>
+                    <p className="truncate text-sm font-medium text-ink">{st.guardianName || "Not linked"}</p>
                     {/* A phone number on a screen a teacher uses on a phone
                         should dial. Printing it as inert text meant copying it
                         out by hand every time a guardian had to be called. */}
                     {st.guardianPhone ? (
-                      <a
-                        href={`tel:${String(st.guardianPhone).replace(/\s+/g, "")}`}
-                        onClick={(e) => e.stopPropagation()}
-                        title={`Call ${st.guardianName || "guardian"}`}
-                        className="inline-flex items-center gap-1 truncate text-2xs font-bold text-primary hover:underline"
-                      >
-                        <Phone className="h-2.5 w-2.5" />
-                        {st.guardianPhone}
-                      </a>
+                      <Tooltip content={`Call ${st.guardianName || "guardian"}`}>
+                        <a
+                          href={`tel:${String(st.guardianPhone).replace(/\s+/g, "")}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex max-w-full items-center gap-1 truncate text-xs font-semibold text-primary hover:underline"
+                        >
+                          <Phone aria-hidden="true" className="h-3 w-3 shrink-0" />
+                          <span dir="ltr" className="truncate tabular-nums">{st.guardianPhone}</span>
+                        </a>
+                      </Tooltip>
                     ) : (
-                      <p className="truncate text-2xs font-semibold text-ink-subtle">No phone</p>
+                      <p className="truncate text-xs text-ink-subtle">No phone</p>
                     )}
                   </div>
                 ),
@@ -280,8 +287,8 @@ export default function TeacherStudentsPage() {
             ]}
           />
         ) : filtered.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((student: any, index: number) => {
+          <div className="sk-stagger grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((student: any) => {
               const report = student.reportCards?.[0];
               const avatar = student.profileImageUrl;
               const phone = student.guardianPhone ? String(student.guardianPhone).replace(/\s+/g, "") : "";
@@ -295,29 +302,27 @@ export default function TeacherStudentsPage() {
                    body opens the profile; the footer carries real actions. */
                 <div
                   key={student.id}
-                  className="sk-panel sk-rise group flex flex-col p-5 text-left transition-all hover:-translate-y-0.5"
-                  style={{ animationDelay: `${index * 60}ms` }}
+                  className="sk-panel sk-hover-lift group flex min-w-0 flex-col p-5 text-start"
                 >
                   <Button variant="ghost"
                     type="button"
                     onClick={() => setSelectedStudent(student)}
-                    title={`Open ${student.fullName}'s profile`}
-                    className="block justify-start p-0 text-start"
+                    className="block justify-start p-0 text-start actionable-hover:bg-transparent"
                   >
                     <div className="mb-4 flex items-start gap-4">
                       <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-brand-50 bg-brand-50 shadow-sm">
                         <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-base" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h4 className="truncate text-base font-bold text-ink-strong transition-colors group-hover:text-primary">
+                        <h3 className="truncate text-base font-bold text-ink-strong transition-colors group-hover:text-primary">
                           {student.fullName}
-                        </h4>
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                        </h3>
+                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="text-xs text-ink-subtle tabular-nums">
                             {student.rollNo || "No roll"}
                           </span>
-                          <span className="text-2xs text-ink-subtle">|</span>
-                          <span className="text-2xs font-semibold text-primary">
+                          <span aria-hidden="true" className="text-xs text-ink-faint">|</span>
+                          <span className="truncate text-xs font-semibold text-primary">
                             {classLabel(student.class)}
                           </span>
                         </div>
@@ -329,16 +334,16 @@ export default function TeacherStudentsPage() {
 
                     <div className="mb-4 grid grid-cols-2 gap-2">
                       <div className="rounded-xl bg-brand-50/70 px-3 py-2">
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Latest Grade</p>
-                        <p className="text-sm font-bold text-primary">
+                        <p className="sk-eyebrow">Latest grade</p>
+                        <p data-numeric className="text-sm font-bold tabular-nums text-primary">
                           {report ? report.grade || `${Math.round(report.percentage || 0)}%` : "—"}
                         </p>
                       </div>
                       <div className="rounded-xl bg-brand-50/70 px-3 py-2">
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Status</p>
+                        <p className="sk-eyebrow">Status</p>
                         {/* Stored casing varies ("active" / "ACTIVE"), which
                             rendered raw as lowercase text among title-cased UI. */}
-                        <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-600" : "text-ink-subtle"}`}>
+                        <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-700" : "text-ink-subtle"}`}>
                           {(student.status || "Active").toLowerCase()}
                         </p>
                       </div>
@@ -346,97 +351,106 @@ export default function TeacherStudentsPage() {
 
                     {student.guardianName ? (
                       <div className="rounded-xl bg-muted/50 px-3 py-2">
-                        <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Guardian</p>
-                        <p className="truncate text-xs font-semibold text-ink-strong">{student.guardianName}</p>
+                        <p className="sk-eyebrow mb-1">Guardian</p>
+                        <p className="truncate text-sm font-medium text-ink-strong">{student.guardianName}</p>
                         {student.guardianPhone ? (
-                          <p className="mt-0.5 flex items-center gap-1 text-2xs font-semibold text-ink-subtle">
-                            <Phone className="h-3 w-3" /> {student.guardianPhone}
+                          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-ink-subtle">
+                            <Phone aria-hidden="true" className="h-3 w-3 shrink-0" />
+                            <span dir="ltr" className="truncate tabular-nums">{student.guardianPhone}</span>
                           </p>
                         ) : null}
                       </div>
                     ) : null}
                   </Button>
 
-                  {/* Everything a teacher actually does next, without leaving. */}
+                  {/* Everything a teacher actually does next, without leaving: four
+                      equal tiles, links and buttons alike. A missing number
+                      disables its tile and the tooltip says why. */}
                   <div className="mt-4 grid grid-cols-4 gap-1.5 border-t border-edge/15 pt-3">
                     {phone ? (
-                      <a
-                        href={`tel:${phone}`}
-                        title={`Call ${student.guardianName || "guardian"}`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-brand-50/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-brand-50 active:scale-[0.97]"
-                      >
-                        <Phone className="h-3.5 w-3.5" />
-                        Call
-                      </a>
+                      <Tooltip content={`Call ${student.guardianName || "guardian"}`}>
+                        <a href={`tel:${phone}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), ACTION_TILE)}>
+                          <Phone aria-hidden="true" />
+                          Call
+                        </a>
+                      </Tooltip>
                     ) : (
-                      <span className="flex flex-col items-center gap-1 rounded-xl bg-muted/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint" title="No guardian phone on file">
-                        <Phone className="h-3.5 w-3.5" />
-                        Call
-                      </span>
+                      <Tooltip content="No guardian phone on file">
+                        <span tabIndex={0} className="flex min-w-0">
+                          <Button size="sm" variant="secondary" type="button" disabled className={cn("w-full", ACTION_TILE)}>
+                            <Phone aria-hidden="true" />
+                            Call
+                          </Button>
+                        </span>
+                      </Tooltip>
                     )}
                     {whatsapp ? (
-                      <a
-                        href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-brand-50/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-brand-50 active:scale-[0.97]"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Chat
-                      </a>
+                      <Tooltip content={`Message ${student.guardianName || "guardian"} on WhatsApp`}>
+                        <a
+                          href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), ACTION_TILE)}
+                        >
+                          <MessageCircle aria-hidden="true" />
+                          Chat
+                        </a>
+                      </Tooltip>
                     ) : (
-                      <span className="flex flex-col items-center gap-1 rounded-xl bg-muted/60 px-2 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-faint" title="No guardian number on file">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Chat
-                      </span>
+                      <Tooltip content="No guardian number on file">
+                        <span tabIndex={0} className="flex min-w-0">
+                          <Button size="sm" variant="secondary" type="button" disabled className={cn("w-full", ACTION_TILE)}>
+                            <MessageCircle aria-hidden="true" />
+                            Chat
+                          </Button>
+                        </span>
+                      </Tooltip>
                     )}
-                    <Button size="sm" variant="secondary"
-                      type="button"
-                      onClick={() =>
-                        router.push(
-                          `/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${encodeURIComponent(student.class?.id || "")}`,
-                        )
-                      }
-                      title={`Open ${student.fullName}'s report card`}
-                      className="min-w-0 flex-col px-1 text-xs justify-start"
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Report
-                    </Button>
-                    <Button size="sm" variant="secondary"
-                      type="button"
-                      onClick={() =>
-                        router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || "")}`)
-                      }
-                      title={`Mark attendance for ${classLabel(student.class)}`}
-                      className="min-w-0 flex-col px-1 text-xs justify-start"
-                    >
-                      <CalendarCheck className="h-3.5 w-3.5" />
-                      Attend
-                    </Button>
+                    <Tooltip content={`Open ${student.fullName}'s report card`}>
+                      <Button size="sm" variant="secondary"
+                        type="button"
+                        onClick={() =>
+                          router.push(
+                            `/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${encodeURIComponent(student.class?.id || "")}`,
+                          )
+                        }
+                        className={ACTION_TILE}
+                      >
+                        <FileText aria-hidden="true" />
+                        Report
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content={`Mark attendance for ${classLabel(student.class)}`}>
+                      <Button size="sm" variant="secondary"
+                        type="button"
+                        onClick={() =>
+                          router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || "")}`)
+                        }
+                        className={ACTION_TILE}
+                      >
+                        <CalendarCheck aria-hidden="true" />
+                        Attend
+                      </Button>
+                    </Tooltip>
                   </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-brand-50 text-primary mb-4">
-              <Users className="h-8 w-8" />
-            </div>
-            <h3 className="text-lg font-bold text-ink-strong">No students found</h3>
-            <p className="text-sm font-semibold text-ink-muted mt-1">
-              {search || classFilter || todayFilter ? "Try adjusting your search or filter" : "No students are assigned to your classes yet"}
-            </p>
+          <div className="sk-panel">
             {/* Telling someone to adjust a filter without giving them a way to
                 clear it leaves them to hunt for the two controls themselves. */}
-            {search || classFilter || todayFilter ? (
-              <Button variant="secondary" type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}
-                className="mt-5 items-center gap-1.5 justify-start">
-                <X className="h-3.5 w-3.5" /> Clear filters
-              </Button>
-            ) : null}
+            <EmptyState
+              icon={Users}
+              title="No students found"
+              description={search || classFilter || todayFilter ? "Try adjusting your search or filter" : "No students are assigned to your classes yet"}
+              action={search || classFilter || todayFilter ? (
+                <Button variant="secondary" type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}>
+                  <X aria-hidden="true" /> Clear filters
+                </Button>
+              ) : undefined}
+            />
           </div>
         )}
       </div>
@@ -455,25 +469,28 @@ export default function TeacherStudentsPage() {
 }
 
 
+/** The footer action tiles on a student card: icon over a short label. */
+const ACTION_TILE = "min-w-0 flex-col gap-1 px-1 py-2 text-xs";
+
 /** Today's attendance, rendered where the teacher is already looking. */
-const TODAY_TONE: Record<string, { label: string; className: string }> = {
-  PRESENT: { label: "In today", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  ABSENT: { label: "Absent today", className: "bg-rose-50 text-rose-700 border-rose-200" },
-  LEAVE: { label: "On leave", className: "bg-amber-50 text-amber-700 border-amber-200" },
+const TODAY_TONE: Record<string, { label: string; variant: NonNullable<BadgeProps["variant"]> }> = {
+  PRESENT: { label: "In today", variant: "success" },
+  ABSENT: { label: "Absent today", variant: "danger" },
+  LEAVE: { label: "On leave", variant: "warning" },
 };
 
 function TodayChip({ status }: { status?: string | null }) {
   const tone = status ? TODAY_TONE[status] : null;
   if (!tone) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-edge/30 bg-surface-subtle px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+      <Badge variant="neutral" dot>
         Unmarked
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider", tone.className)}>
+    <Badge variant={tone.variant} dot>
       {tone.label}
-    </span>
+    </Badge>
   );
 }
