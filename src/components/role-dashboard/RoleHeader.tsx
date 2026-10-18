@@ -40,6 +40,7 @@ import { useNotifications } from "@/hooks/use-notifications";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { clearOnSignOut, pendingOnDevice } from "@/lib/offline/store";
 
 
 const accountMenuItemClass = "flex w-full justify-start items-center gap-3 text-start";
@@ -191,6 +192,10 @@ export function RoleHeader({
   }, [menuOpen, notifOpen]);
 
   const handleLogout = async () => {
+    // SKO-448: this device's shared-device policy removes offline registers and unsynced marks on sign-out.
+    const unsynced = pendingOnDevice();
+    if (unsynced && !window.confirm(t("{0} changes on this device are not synced yet. Signing out removes them from this device. Sign out anyway?").replace("{0}", String(unsynced)))) return;
+    clearOnSignOut();
     clearDeviceDrafts();
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";

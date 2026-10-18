@@ -3,18 +3,19 @@ import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { AlertTriangle, BarChart3, CalendarCheck, ChevronLeft, ChevronRight, ListChecks } from "lucide-react";
+import { AlertTriangle, BarChart3, CalendarCheck, ChevronLeft, ChevronRight, ListChecks, WifiOff } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { Select } from "@/components/ui/select";
 import { AttendanceSkeleton, classLabel, EmptyInline, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
 import { AttendanceExceptions, ClassRegister } from "@/components/attendance/class-register";
+import { OfflineRegister } from "@/components/offline/offline-register";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 // SKO-405: marking is the dated class register (unmarked state, review before submit, conflict review and
 // reasoned corrections); Exceptions lists absences to follow up and family explanations to decide.
-type ViewTab = "marking" | "exceptions" | "monthly";
+type ViewTab = "marking" | "exceptions" | "monthly" | "offline";
 
 export default function AttendancePage() {
   const ui = useUiText();
@@ -76,6 +77,8 @@ export default function AttendancePage() {
             { key: "marking" as ViewTab, label: ui("Mark"), icon: CalendarCheck },
             { key: "exceptions" as ViewTab, label: ui("Exceptions"), icon: ListChecks },
             { key: "monthly" as ViewTab, label: ui("Monthly"), icon: BarChart3 },
+            // SKO-448: marking that keeps working without a connection.
+            { key: "offline" as ViewTab, label: ui("Offline"), icon: WifiOff },
           ]).map(({ key, label, icon: Icon }) => (
             <Button variant="choice" key={key} type="button" onClick={() => setActiveTab(key)} aria-pressed={activeTab === key} className="shrink-0 whitespace-nowrap px-2 justify-start" data-attendance-tab={key}>
               <Icon className="h-3.5 w-3.5" />
@@ -96,7 +99,7 @@ export default function AttendancePage() {
             monthlyData={monthlyData}
             monthlyLoading={monthlyLoading}
           />
-        ) : activeTab === "exceptions" ? <AttendanceExceptions /> : classHubs.length ? (
+        ) : activeTab === "exceptions" ? <AttendanceExceptions /> : activeTab === "offline" ? <OfflineRegister classes={classHubs.map((cls: any) => ({ id: cls.id, label: classLabel(cls) }))} /> : classHubs.length ? (
           <ClassRegister key={attendanceClassId} classes={classHubs.map((cls: any) => ({ id: cls.id, label: classLabel(cls) }))} initialClassId={attendanceClassId} />
         ) : <EmptyInline text={ui("No classes are assigned to you.")} />}
       </div>

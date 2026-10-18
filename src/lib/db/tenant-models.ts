@@ -168,6 +168,7 @@ export const TENANT_MODELS = new Set<string>([
   "meetingWindow",
   "notification",
   "notificationTemplate",
+  "offlineOperation",
   "onboardingCheckoutIntent",
   "onlinePaymentOrder",
   "parentCommunication",

@@ -301,6 +301,7 @@ model School {
   identityEvents IdentityEvent[]
   rosterBatches RosterBatch[]
   rosterExternalIds RosterExternalId[]
+  offlineOperations OfflineOperation[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -4886,6 +4887,37 @@ model RosterExternalId {
   @@unique([connectionId, kind, externalId])
   @@unique([connectionId, kind, localId])
   @@map("roster_external_ids")
+}
+
+/// SKO-448: one row per operation captured offline. The client's operation id makes sync idempotent; the base version and
+/// the server value seen at sync are kept side by side, so a conflict never loses either observation.
+model OfflineOperation {
+  id           String    @id @default(uuid())
+  schoolId     String    @default("") @map("school_id")
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  operationId  String    @map("operation_id")
+  userId       String    @map("user_id")
+  deviceId     String    @map("device_id")
+  kind         String // ATTENDANCE_MARK
+  classId      String    @map("class_id")
+  date         String
+  studentId    String    @map("student_id")
+  capturedAt   DateTime  @map("captured_at")
+  baseStatus   String?   @map("base_status")
+  baseVersion  Int?      @map("base_version")
+  payload      Json
+  status       String // ACCEPTED | CONFLICT | REJECTED_ACCESS | EXPIRED | RESOLVED_SERVER | RESOLVED_LOCAL | CORRECTION_REQUESTED | DISCARDED
+  serverValue  Json?     @map("server_value")
+  message      String?
+  attendanceId String?   @map("attendance_id")
+  resolvedById String?   @map("resolved_by_id")
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@unique([schoolId, operationId])
+  @@index([schoolId, userId, status])
+  @@index([schoolId, status, createdAt])
+  @@map("offline_operations")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
