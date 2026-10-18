@@ -9,6 +9,7 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { createPrivateUploadUrl, MAX_PRIVATE_UPLOAD_BYTES } from "@/lib/storage/private-upload";
 import { readPrivateObject } from "@/lib/storage/s3";
 import { assertObjectivesExist } from "@/lib/curriculum/service";
+import { coverResourceGrant } from "@/lib/cover/recovery";
 
 // SKO-400 learning resource library. Learners and families only ever reach the
 // published version of a resource addressed to them; staff can open every
@@ -105,8 +106,11 @@ export async function resolveDownload(user: AuthUser, resourceId: string, reques
       if (requestedVersion !== undefined && requestedVersion !== resource.publishedVersion) throw denied();
       version = resource.publishedVersion!;
     } else {
-      await assertAuthor(tx, user, resource.classId).catch(() => { throw denied(); });
-      version = requestedVersion ?? resource.publishedVersion ?? resource.latestVersion;
+      const authored = await assertAuthor(tx, user, resource.classId).then(() => true, () => false);
+      // SKO-442: a substitute reaches a handover resource through the duty only, published version only.
+      const grant = authored ? null : await coverResourceGrant(tx, user, resource);
+      if (!authored && (!grant || (requestedVersion !== undefined && requestedVersion !== grant))) throw denied();
+      version = grant ?? requestedVersion ?? resource.publishedVersion ?? resource.latestVersion;
     }
     const row = await tx.learningResourceVersion.findFirst({ where: { schoolId: user.schoolId, resourceId, version } });
     if (!row || (!row.linkUrl && !row.uploadedAt)) throw denied();

@@ -18,6 +18,7 @@ import { prepareTimetableSolver } from "./timetable-solver-service";
 import { solveSchoolTimetable } from "./timetable-school-solver";
 import { applyTimetableSetup, previewTimetableSetup } from "./timetable-setup-service";
 import { operationDate, schoolOperationsProposalSchema, schoolTimetableSolveSchema, type AttendancePreview, type SchoolOperationsOperation, type SchoolOperationsPreview, type SchoolOperationsResult, type SubstitutePreview, type SchoolOperationsOptions } from "./school-operations";
+import { otherCampusClashes } from "@/lib/cover/travel";
 
 type RecordWithCampus = SchoolAiRecord & { campusId: string };
 const scopeFor = (user: AuthUser, campusId: string) => ({ schoolId: user.schoolId, campusId });
@@ -191,6 +192,9 @@ async function previewSubstitutes(user: AuthUser, record: RecordWithCampus, tx: 
   if (slots.length !== proposal.duties.length || slots.some(slot => !slot.teacherId || !slot.subjectId) || teachers.length > 1000 || lessons.length > 10000) fail("Choose current published lessons with assigned teachers.", "SCHOOL_OPERATIONS_SCOPE");
   const overlap = (a: { startTime: string; endTime: string }, b: { startTime: string; endTime: string }) => a.startTime < b.endTime && b.startTime < a.endTime;
   const proposedBySlot = new Map(proposal.duties.map(duty => [duty.slotId, duty.teacherId]));
+  // SKO-442: rechecked at approval — another campus's lessons, with travel time between campuses.
+  const travel = new Map<string, Awaited<ReturnType<typeof otherCampusClashes>>>();
+  for (const slot of slots) travel.set(slot.id, await otherCampusClashes(tx, { schoolId: user.schoolId, campusId: record.campusId, teacherIds: proposal.duties.filter(d => d.slotId === slot.id && d.teacherId).map(d => d.teacherId!), dayOfWeek: slot.dayOfWeek, startTime: slot.startTime, endTime: slot.endTime }));
   const effectiveTeacher = (slot: typeof lessons[number]) => proposedBySlot.has(slot.id) ? proposedBySlot.get(slot.id) ?? slot.teacherId : existing.find(duty => duty.status === "ASSIGNED" && duty.timetableSlotId === slot.id)?.teacherId ?? slot.teacherId;
   const duties = proposal.duties.map(duty => {
     const slot = slots.find(item => item.id === duty.slotId)!, teacher = teachers.find(item => item.id === duty.teacherId), prior = existing.find(item => item.timetableSlotId === duty.slotId), cycle = cycles.find(item => item.academicYear === slot.timetable.academicYear);
@@ -202,10 +206,11 @@ async function previewSubstitutes(user: AuthUser, record: RecordWithCampus, tx: 
     const resultingTeacher = duty.teacherId ?? slot.teacherId;
     if (lessons.some(other => other.id !== slot.id && other.timetable.academicYear === slot.timetable.academicYear && termsOverlap(other.timetable.term, slot.timetable.term) && effectiveTeacher(other) === resultingTeacher && overlap(slot, other))) fail("The resulting teacher is already teaching during this lesson.", "SCHOOL_OPERATIONS_TEACHER_CLASH");
     if (exams.some(exam => exam.date.toISOString().slice(0, 10) === proposal.date && exam.rooms.some(room => room.invigilation?.teacherId === resultingTeacher) && (!exam.periodDefinition || overlap(slot, exam.periodDefinition)))) fail("The resulting teacher is invigilating an exam during this lesson.", "SCHOOL_OPERATIONS_TEACHER_CLASH");
+    if (duty.teacherId && travel.get(slot.id)?.has(duty.teacherId)) fail("The selected substitute teaches at another campus too close to this lesson to travel.", "SCHOOL_OPERATIONS_TEACHER_CLASH");
     return { slotId: slot.id, classId: slot.timetable.classId, academicYear: slot.timetable.academicYear, term: slot.timetable.term, dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, roomNumber: slot.roomNumber, className: [slot.timetable.class.name, slot.timetable.class.section].filter(Boolean).join(" · "), subjectName: slot.subject!.name, startTime: slot.startTime, endTime: slot.endTime, originalTeacherId: slot.teacherId!, originalTeacherName: slot.teacher?.fullName ?? "", teacherId: duty.teacherId, teacherName: teacher?.fullName ?? null, previousTeacherId: prior?.status === "ASSIGNED" ? prior.teacherId : null, previousVersion: prior?.version ?? null, reason: duty.reason };
   });
   const preview = { operation: proposal.operation, recordId: record.id, version: record.version, campusId: record.campusId, date: proposal.date, duties };
-  return { ...preview, previewHash: workspaceRequestHash({ preview, slots, teachers, leaves, existing, lessons, exams, cycles, weekend: locale.weekend }) };
+  return { ...preview, previewHash: workspaceRequestHash({ preview, slots, teachers, leaves, existing, lessons, exams, cycles, weekend: locale.weekend, travel: [...travel].map(([slotId, clashes]) => [slotId, [...clashes.keys()]]) }) };
 }
 
 export async function getPublicationOptions(user: AuthUser, campusId: string): Promise<PublicationOptions> {

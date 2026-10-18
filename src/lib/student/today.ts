@@ -6,6 +6,7 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { listAssignments } from "@/lib/assignments/service";
 import { listSchoolAiExams } from "@/lib/school-ai/exam-service";
 import { slotsOf, versionsFor } from "@/lib/timetable/versions";
+import { classCatchUp, coverForDay } from "@/lib/cover/recovery";
 
 // SKO-418: the student's Today read model. Every item comes from its own source workflow and keeps that
 // source's state — opening a card never completes it. Lessons are the published timetable version in
@@ -48,6 +49,10 @@ export async function studentToday(user: AuthUser, requestedDay: string | null, 
   const version = timetable ? (await versionsFor(timetable.id, day)).inForce : null;
   const lessons = schoolDay ? slotsOf(version).filter(slot => slot.dayOfWeek === weekday).sort((a, b) => a.startTime.localeCompare(b.startTime))
     .map(slot => ({ id: slot.id, startTime: slot.startTime, endTime: slot.endTime, kind: slot.slotType, subject: slot.subjectName, teacher: slot.teacherName, room: slot.roomNumber })) : [];
+  // SKO-442: an approved cover shows who is teaching; catch-up work for missed lessons is listed separately.
+  const cover = schoolDay ? await coverForDay(user.schoolId, lessons.map(l => l.id), day) : new Map<string, string>();
+  for (const lesson of lessons) if (cover.has(lesson.id)) Object.assign(lesson, { teacher: cover.get(lesson.id) ?? lesson.teacher, cover: true });
+  const catchUp = student.classId ? await classCatchUp(user.schoolId, student.classId) : [];
   const clock = day === today ? clockIn(locale.timezone, now) : null;
   const teaching = lessons.filter(lesson => lesson.kind === "CLASS" && lesson.subject);
   const current = clock ? teaching.find(lesson => lesson.startTime <= clock && clock < lesson.endTime) ?? null : null;
@@ -98,6 +103,7 @@ export async function studentToday(user: AuthUser, requestedDay: string | null, 
     work: activeExam ? [] : [...overdue, ...open.filter(item => !overdue.includes(item))].slice(0, 20),
     upcomingExams: activeExam ? [] : upcomingExams.slice(0, 5),
     returned: activeExam ? [] : returned.slice(0, 5),
+    catchUp: activeExam ? [] : catchUp,
     refreshedAt: now.toISOString(),
   };
 }

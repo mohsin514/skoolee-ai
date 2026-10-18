@@ -244,6 +244,8 @@ model School {
   meetingFollowUps MeetingFollowUp[]
   meetingActions MeetingAction[]
   meetingStaffNotes MeetingStaffNote[]
+  coverHandovers CoverHandover[]
+  lessonRecoveries LessonRecovery[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3539,6 +3541,65 @@ model MeetingStaffNote {
   @@map("meeting_staff_notes")
 }
 
+/// SKO-442: the teaching handover and outcome for one dated cover duty. Staff-only: instructions and the
+/// actual activity never reach families; a recovery task is the learner-facing follow-up.
+model CoverHandover {
+  id               String    @id @default(uuid())
+  schoolId         String    @default("") @map("school_id")
+  school           School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId         String    @map("campus_id")
+  dutyId           String    @unique @map("duty_id")
+  objective        String?
+  instructions     String?
+  resourceIds      String[]  @default([]) @map("resource_ids")
+  updatedById      String?   @map("updated_by_id")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  acknowledgedAt   DateTime? @map("acknowledged_at")
+  acknowledgedById String?   @map("acknowledged_by_id")
+  outcome          String?   // DELIVERED | SUPERVISED_ONLY | NOT_HELD
+  actualActivity   String?   @map("actual_activity")
+  outcomeAt        DateTime? @map("outcome_at")
+  outcomeById      String?   @map("outcome_by_id")
+
+  @@index([schoolId])
+  @@map("cover_handovers")
+}
+
+/// SKO-442: missed or changed learning for one lesson on one date. Created when cover was supervision only,
+/// did not happen, or a lesson had no cover; it stays open until its teacher plans and completes a catch-up
+/// or records, with a reason, that none is needed. Learners see it only once published.
+model LessonRecovery {
+  id              String    @id @default(uuid())
+  schoolId        String    @default("") @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  timetableSlotId String    @map("timetable_slot_id")
+  date            DateTime  @db.Date
+  classId         String    @map("class_id")
+  subjectName     String    @map("subject_name")
+  ownerId         String    @map("owner_id")
+  source          String // SUPERVISED_ONLY | NOT_HELD | UNCOVERED
+  dutyId          String?   @map("duty_id")
+  status          String    @default("DECISION_NEEDED") // DECISION_NEEDED | PLANNED | PUBLISHED | COMPLETED | NOT_NEEDED
+  title           String?
+  instructions    String?
+  dueDate         String?   @map("due_date") // YYYY-MM-DD, school-local
+  decisionNote    String?   @map("decision_note")
+  evidenceNote    String?   @map("evidence_note")
+  version         Int       @default(1)
+  createdById     String    @map("created_by_id")
+  publishedAt     DateTime? @map("published_at")
+  completedAt     DateTime? @map("completed_at")
+  completedById   String?   @map("completed_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([schoolId, timetableSlotId, date])
+  @@index([schoolId, ownerId, status])
+  @@index([schoolId, classId, status])
+  @@map("lesson_recoveries")
+}
+
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
 model PendingRegistration {
   id               String   @id @default(uuid())
@@ -5490,6 +5551,9 @@ model SchoolAiExamAppeal {
   studentId String @map("student_id")
   userId String @map("user_id")
   reason String @db.Text
+  /// SKO-424: the questions the learner disputes and the outcome they ask for.
+  disputedQuestionIds Json @default("[]") @map("disputed_question_ids")
+  requestedOutcome String? @map("requested_outcome") @db.Text
   status String @default("OPEN")
   version Int @default(1)
   resolution String? @db.Text
@@ -6749,4 +6813,60 @@ model ItemEvidenceDecision {
 
   @@index([schoolId, curriculumId, paperId, paperVersion, questionId])
   @@map("item_evidence_decisions")
+}
+
+// ─── SKO-424: marking moderation and independently approved corrections
+
+/// A proposed change to a released result. It is applied only when a different authorized
+/// reviewer approves it against the exact result version it was proposed on.
+model SchoolAiResultCorrection {
+  id           String    @id @default(uuid())
+  schoolId     String    @map("school_id")
+  campusId     String    @map("campus_id")
+  assignmentId String    @map("assignment_id")
+  attemptId    String    @map("attempt_id")
+  fromVersion  Int       @map("from_version")
+  review       Json
+  previousTotal Float    @map("previous_total")
+  proposedTotal Float    @map("proposed_total")
+  reason       String    @db.Text
+  source       String
+  appealId     String?   @map("appeal_id")
+  proposedById String    @map("proposed_by_id")
+  status       String    @default("PENDING")
+  decidedById  String?   @map("decided_by_id")
+  decidedAt    DateTime? @map("decided_at")
+  decisionNote String?   @map("decision_note") @db.Text
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, campusId, assignmentId, status])
+  @@index([attemptId, fromVersion])
+  @@map("school_ai_result_corrections")
+}
+
+/// A second-marking sample: chosen by a recorded rule, assigned to a reviewer who did not mark the
+/// sampled scripts, optionally blind, with a discrepancy threshold that flags scripts for decision.
+model SchoolAiModerationSample {
+  id           String   @id @default(uuid())
+  schoolId     String   @map("school_id")
+  campusId     String   @map("campus_id")
+  assignmentId String   @map("assignment_id")
+  method       String
+  size         Int
+  threshold    Float
+  blind        Boolean  @default(true)
+  reviewerId   String   @map("reviewer_id")
+  createdById  String   @map("created_by_id")
+  status       String   @default("OPEN")
+  /// [{ attemptId, originalVersion, originalTotal, originalMarkerId, secondMarks, secondTotal, discrepancy, flagged, outcome, note }]
+  items        Json
+  version      Int      @default(1)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([schoolId, campusId, assignmentId])
+  @@index([reviewerId, status])
+  @@map("school_ai_moderation_samples")
 }

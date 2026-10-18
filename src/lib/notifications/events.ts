@@ -345,6 +345,21 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/parent",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-442: only the confirmed substitute hears about a handover; the class's teacher owns a recovery.
+  COVER_HANDOVER_READY: {
+    title: () => "Cover handover ready",
+    message: () => "The lesson you are covering has a handover with its objective and resources.",
+    icon: "ClipboardList",
+    link: "/teacher/timetable",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  LESSON_RECOVERY_NEEDED: {
+    title: () => "Missed learning to follow up",
+    message: () => "A covered or uncovered lesson needs a catch-up decision.",
+    icon: "RotateCcw",
+    link: "/teacher/timetable",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-420: meeting notices carry no agenda, notes or child detail — the meeting page has those.
   MEETING_BOOKED: {
     title: () => "Meeting booked",

@@ -21,6 +21,7 @@ import { PositionDialog, type DesignationOption } from "./position-dialog";
 import { DepartmentManager } from "./department-manager";
 import { DesignationLadder } from "./designation-ladder";
 import { WorkloadCover } from "./workload-cover";
+import { CoverFollowUp } from "@/components/cover/cover-follow-up";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import type { OrgChartData, OrgNode } from "@/lib/staff/hierarchy";
@@ -198,7 +199,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
 
       {tab === "ladder" ? <DesignationLadder campusId={campusId} onChanged={() => load(true)} /> : null}
 
-      {tab === "workload" ? <WorkloadCover campusId={campusId} /> : null}
+      {tab === "workload" ? <><WorkloadCover campusId={campusId} /><div className="mt-4"><CoverFollowUp campusId={campusId} /></div></> : null}
 
       {selected && data ? (
         <PositionDialog

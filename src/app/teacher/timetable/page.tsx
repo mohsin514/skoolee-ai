@@ -10,6 +10,7 @@ import { TimetableSkeleton } from "@/components/teacher/teacher-components";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
 import { SubstituteDuties } from "@/components/school-ai/school-operations-duties";
+import { MyCover } from "@/components/cover/my-cover";
 
 interface TeacherSlot {
   id: string;
@@ -132,6 +133,8 @@ export default function TeacherTimetablePage() {
           <ExamDateSheet />
         </>
       )}
+      {/* SKO-442: handovers, cover outcomes and missed-learning follow-up — also for staff with no lessons of their own. */}
+      <div className="mt-6"><MyCover /></div>
       </div>
     </TeacherPage>
   );

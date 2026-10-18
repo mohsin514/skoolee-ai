@@ -4,6 +4,7 @@ import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { createWorkspaceRecord } from "@/lib/school-ai/repository";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { otherCampusClashes, TRAVEL_MINUTES } from "@/lib/cover/travel";
 
 // SKO-399: teaching workload and absence cover, connected to the hierarchy but separate from access.
 // Workload names its period and counts published teaching periods, dated cover duties, exam invigilation
@@ -114,6 +115,9 @@ export async function coverBoard(user: AuthUser, campusId: string, dateText: str
   const uncovered = today.filter(slot => slot.teacherId && absent.has(slot.teacherId) && !covered.has(slot.id))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
   const loads = new Map(workload.rows.map(row => [row.id, row]));
+  // SKO-442: a candidate teaching at another campus near this time needs travel time in between.
+  const travel = new Map<string, Awaited<ReturnType<typeof otherCampusClashes>>>();
+  for (const slot of uncovered) travel.set(slot.id, await otherCampusClashes(prisma, { schoolId: user.schoolId, campusId, teacherIds: teachers.map(t => t.id), dayOfWeek: day, startTime: slot.startTime, endTime: slot.endTime }));
   const lessons = uncovered.map(slot => {
     const candidates: Candidate[] = teachers.filter(teacher => teacher.id !== slot.teacherId).map(teacher => {
       const reasons: string[] = [], conflicts: string[] = [], warnings: string[] = [];
@@ -124,6 +128,8 @@ export async function coverBoard(user: AuthUser, campusId: string, dateText: str
       if (covering) conflicts.push("Already covering another lesson at this time");
       const exam = exams.find(row => row.teacherId === teacher.id && (!row.examRoom.examSchedule.periodDefinition || overlap(row.examRoom.examSchedule.periodDefinition, slot)));
       if (exam) conflicts.push("Invigilating an exam at this time");
+      const away = travel.get(slot.id)?.get(teacher.id);
+      if (away) conflicts.push(`Teaching at ${away.campusName} ${away.startTime}–${away.endTime}; not enough travel time (${TRAVEL_MINUTES} min)`);
       if (!conflicts.length) reasons.push("No lesson, cover or invigilation at this time");
       // Each class has its own subject row, so suitability is the same subject name taught anywhere.
       const subjectName = slot.subject?.name?.trim().toLowerCase();
@@ -136,7 +142,7 @@ export async function coverBoard(user: AuthUser, campusId: string, dateText: str
     const original = teachers.find(t => t.id === slot.teacherId);
     return { slotId: slot.id, startTime: slot.startTime, endTime: slot.endTime, period: slot.periodNumber, className: `${slot.timetable.class.name}${slot.timetable.class.section ? ` ${slot.timetable.class.section}` : ""}`, subject: slot.subject?.name ?? null, absentTeacher: original?.fullName ?? null, candidates };
   });
-  return { date: isoDay(date), lessons, scopeNote: "Only staff of this campus are considered; travel between campuses is not offered as cover." };
+  return { date: isoDay(date), lessons, scopeNote: `Only staff of this campus are considered; a lesson at another campus within ${TRAVEL_MINUTES} minutes of travel counts as a clash.` };
 }
 
 /** Recheck eligibility, then hand the reviewed proposal to the substitution workflow (School AI record). */

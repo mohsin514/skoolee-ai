@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 // never claims a submission it did not see.
 
 type Ui = ReturnType<typeof useUiText>;
-type Lesson = { id: string; startTime: string; endTime: string; kind: string; subject: string | null; teacher: string | null; room: string | null };
+type Lesson = { id: string; startTime: string; endTime: string; kind: string; subject: string | null; teacher: string | null; room: string | null; cover?: boolean };
 type Work = { id: string; title: string; state: string; dueAt: string; extended: boolean; overdue: boolean; canSubmit: boolean; draftSavedAt: string | null; href: string };
 type Today = {
   day: string; today: string; timezone: string; clock: string | null; schoolDay: boolean; closure: { kind: "HOLIDAY" | "WEEKEND"; name: string | null } | null;
@@ -20,6 +20,7 @@ type Today = {
   examLock: boolean; activeExam: { title: string; href: string } | null;
   nextAction: { kind: string; title: string; href: string; dueAt?: string } | null;
   work: Work[]; upcomingExams: { id: string; title: string; startsAt: string; href: string }[]; returned: { id: string; title: string; returnedAt: string; href: string }[]; refreshedAt: string;
+  catchUp?: { id: string; subject: string; lessonDate: string; title: string; instructions: string | null; dueDate: string | null; done: boolean }[];
 };
 const KEY = "skoolee.student.today";
 const store = { get: () => { try { return window.localStorage.getItem(KEY); } catch { return null; } }, set: (v: string) => { try { window.localStorage.setItem(KEY, v); } catch { /* no storage: still works online */ } } };
@@ -92,6 +93,7 @@ export function StudentToday() {
                 <span className="w-24 tabular-nums text-ink-muted"><bdi>{lesson.startTime}–{lesson.endTime}</bdi></span>
                 <span className="font-bold" dir="auto">{lesson.kind === "CLASS" ? lesson.subject ?? ui("Free period") : ui("Break")}</span>
                 {lesson.room ? <span className="text-xs text-ink-muted">{ui("Room")}{" "}<bdi>{lesson.room}</bdi></span> : null}
+                {lesson.cover ? <span className="rounded bg-amber-50 px-1.5 text-[10px] font-bold text-amber-900" data-lesson-cover>{ui("Cover teacher:")}{" "}<bdi>{lesson.teacher}</bdi></span> : null}
                 {data.current?.id === lesson.id ? <span className="text-[10px] font-black uppercase text-emerald-700">{ui("Now")}</span> : data.next?.id === lesson.id ? <span className="text-[10px] font-black uppercase text-[#8127cf]">{ui("Next")}</span> : null}
               </li>)}</ol>}
         </section>
@@ -105,6 +107,7 @@ export function StudentToday() {
             </Link>
           </li>)}</ul>}
           {data.upcomingExams.length ? <><h4 className="mt-3 text-xs font-black uppercase text-ink-muted">{ui("Upcoming exams")}</h4><ul className="space-y-1">{data.upcomingExams.map(exam => <li key={exam.id} className="text-sm" data-upcoming-exam={exam.id}><span dir="auto">{exam.title}</span> · <bdi>{dateTime(exam.startsAt)}</bdi></li>)}</ul></> : null}
+          {data.catchUp?.length ? <><h4 className="mt-3 text-xs font-black uppercase text-ink-muted">{ui("Catch-up from missed lessons")}</h4><ul className="space-y-1">{data.catchUp.map(item => <li key={item.id} className="text-sm" data-catch-up={item.id} data-catch-up-done={item.done ? "true" : "false"}><span className={cn("font-bold", item.done && "line-through opacity-70")} dir="auto">{item.title}</span> · <span dir="auto">{item.subject}</span>{item.dueDate ? <> · {ui("Due")} <bdi>{date(item.dueDate)}</bdi></> : null}{item.done ? <> · <span className="text-xs font-bold text-emerald-700">{ui("Done")}</span></> : null}{item.instructions ? <p className="text-xs text-ink-muted" dir="auto">{item.instructions}</p> : null}</li>)}</ul></> : null}
           {data.returned.length ? <><h4 className="mt-3 text-xs font-black uppercase text-ink-muted">{ui("Feedback to read")}</h4><ul className="space-y-1">{data.returned.map(item => <li key={item.id} data-returned={item.id}><Link href={item.href} className="text-sm underline" dir="auto">{item.title}</Link></li>)}</ul></> : null}
         </section> : null}
       </div>
