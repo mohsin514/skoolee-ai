@@ -251,6 +251,8 @@ model School {
   serviceRequestEvents ServiceRequestEvent[]
   portfolioEntries PortfolioEntry[]
   portfolioShares PortfolioShare[]
+  studyPassages StudyPassage[]
+  studyTurns StudyTurn[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3757,6 +3759,55 @@ model PortfolioShare {
   @@index([schoolId, guardianUserId])
   @@index([schoolId, studentId])
   @@map("portfolio_shares")
+}
+
+/// SKO-428: approved study text for one published resource version, with its page or section. Only
+/// passages of the version currently published for learners are ever retrieved; answer keys and staff
+/// material can never hold passages.
+model StudyPassage {
+  id              String   @id @default(uuid())
+  schoolId        String   @default("") @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  resourceId      String   @map("resource_id")
+  resourceVersion Int      @map("resource_version")
+  classId         String   @map("class_id")
+  section         String
+  text            String
+  createdById     String   @map("created_by_id")
+  removedAt       DateTime? @map("removed_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, classId])
+  @@index([schoolId, resourceId, resourceVersion])
+  @@map("study_passages")
+}
+
+/// SKO-428: one learner question and what the assistant did with it. Keeps the minimum needed for review:
+/// the question, the answer, the passages cited and the outcome. A report or a request for the teacher
+/// never changes any student record.
+model StudyTurn {
+  id            String    @id @default(uuid())
+  schoolId      String    @default("") @map("school_id")
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentId     String    @map("student_id")
+  classId       String    @map("class_id")
+  question      String
+  outcome       String // ANSWERED | UNSUPPORTED | BLOCKED | UNAVAILABLE | REFUSED
+  answer        Json      @default("{}")
+  citationIds   String[]  @default([]) @map("citation_ids")
+  engine        String
+  promptVersion String?   @map("prompt_version")
+  reportedAt    DateTime? @map("reported_at")
+  reportReason  String?   @map("report_reason")
+  helpRequestedAt DateTime? @map("help_requested_at")
+  reviewedAt    DateTime? @map("reviewed_at")
+  reviewedById  String?   @map("reviewed_by_id")
+  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, studentId, createdAt])
+  @@index([schoolId, classId])
+  @@map("study_turns")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

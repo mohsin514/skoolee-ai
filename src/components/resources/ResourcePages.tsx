@@ -6,6 +6,7 @@ import { ParentPage } from "@/components/parent/parent-page";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { ResourceLibrary } from "./ResourceLibrary";
 import { getResourceCopy } from "./resource-copy";
+import { TeacherStudyDesk } from "@/components/study/study-assistant";
 
 // SKO-400 page shells: each workspace keeps its own chrome around the shared library.
 const useCopy = () => getResourceCopy(useLocale().language);
@@ -20,7 +21,7 @@ export function ParentResourcesPage() {
 }
 export function TeacherResourcesPage() {
   const t = useCopy();
-  return <TeacherPage tone="classes" icon={FolderOpen} eyebrow={t.eyebrow} title={t.title} summary={t.staffSummary}><ResourceLibrary audience="staff" /></TeacherPage>;
+  return <TeacherPage tone="classes" icon={FolderOpen} eyebrow={t.eyebrow} title={t.title} summary={t.staffSummary}><ResourceLibrary audience="staff" /><div className="mt-6"><TeacherStudyDesk /></div></TeacherPage>;
 }
 /** Managers and campus leads, outside a role workspace. */
 export function ManagerResourcesPage() {

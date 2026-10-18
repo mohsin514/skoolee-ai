@@ -345,6 +345,14 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/parent",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-428: a learner asked for teacher help with a study question; the question stays on the study desk.
+  STUDY_HELP_REQUESTED: {
+    title: () => "A learner asked for help",
+    message: () => "A learner asked for your help with a study question.",
+    icon: "HelpCircle",
+    link: "/teacher/resources",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-441: service-desk notices name the reference only.
   SERVICE_REQUEST_ASSIGNED: {
     title: (c) => `Request assigned to you ${String(c.reference ?? "")}`.trim(),

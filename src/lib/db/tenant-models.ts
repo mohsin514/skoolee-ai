@@ -226,6 +226,8 @@ export const TENANT_MODELS = new Set<string>([
   "studentEnrollment",
   "studentGroup",
   "studentTimelineEvent",
+  "studyPassage",
+  "studyTurn",
   "subject",
   "subscriptionRequest",
   "supplier",
