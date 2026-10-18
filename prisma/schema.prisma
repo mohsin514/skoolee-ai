@@ -5664,7 +5664,10 @@ model ItemTransaction {
   date           DateTime  @default(now())
   note           String?
   createdAt      DateTime  @default(now()) @map("created_at")
+  /// SKO-435: a client-chosen key so a retried movement is recorded once.
+  idempotencyKey String?   @map("idempotency_key")
 
+  @@unique([schoolId, idempotencyKey])
   @@index([schoolId])
   @@map("item_transactions")
 }
@@ -8393,4 +8396,133 @@ model LibraryCharge {
   @@unique([issueId, kind])
   @@index([memberId, status])
   @@map("library_charges")
+}
+
+// ─── SKO-435: purchasing, budgets, receipts, invoices and assets
+
+/// A cost centre's budget for a period. Committed and spent amounts are computed from orders.
+model PurchaseBudget {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  campusId      String   @map("campus_id")
+  costCenter    String   @map("cost_center")
+  period        String
+  amount        Int
+  currency      String
+  /// Orders above this total need a principal or administrator; at or below, a campus admin may approve.
+  approvalLimit Int      @map("approval_limit")
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([campusId, costCenter, period])
+  @@map("purchase_budgets")
+}
+
+/// A purchase request that becomes an order on approval. Changing an approved order's lines,
+/// supplier or total withdraws the approval.
+model PurchaseRequest {
+  id           String    @id @default(uuid())
+  schoolId     String    @map("school_id")
+  campusId     String    @map("campus_id")
+  budgetId     String    @map("budget_id")
+  poNumber     String    @map("po_number")
+  title        String
+  supplierId   String?   @map("supplier_id")
+  quoteRef     String?   @map("quote_ref")
+  /// [{ itemId?, description, quantity, unitPrice, asset }]
+  lines        Json
+  /// per line: quantity received so far
+  received     Json      @default("[]")
+  total        Int
+  status       String    @default("DRAFT")
+  requestedById String   @map("requested_by_id")
+  approvedById String?   @map("approved_by_id")
+  approvedAt   DateTime? @map("approved_at")
+  approvedHash String?   @map("approved_hash")
+  version      Int       @default(1)
+  history      Json      @default("[]")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, poNumber])
+  @@index([budgetId, status])
+  @@map("purchase_requests")
+}
+
+/// One delivery against an order. The idempotency key makes a retried receipt a no-op.
+model GoodsReceipt {
+  id             String   @id @default(uuid())
+  schoolId       String   @map("school_id")
+  campusId       String   @map("campus_id")
+  requestId      String   @map("request_id")
+  idempotencyKey String   @map("idempotency_key")
+  deliveryNote   String?  @map("delivery_note")
+  /// [{ line, quantity, storeId, overDelivered }]
+  lines          Json
+  discrepancies  Json     @default("[]")
+  receivedById   String   @map("received_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([requestId, idempotencyKey])
+  @@map("goods_receipts")
+}
+
+/// A supplier invoice matched against what was ordered and received.
+model SupplierInvoice {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  requestId   String    @map("request_id")
+  supplierId  String?   @map("supplier_id")
+  invoiceNo   String    @map("invoice_no")
+  amount      Int
+  status      String
+  issues      Json      @default("[]")
+  recordedById String   @map("recorded_by_id")
+  resolvedById String?  @map("resolved_by_id")
+  resolution  String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([requestId])
+  @@index([schoolId, invoiceNo])
+  @@map("supplier_invoices")
+}
+
+/// A tracked asset with its own tag, custodian/location history and service schedule.
+model SchoolAsset {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  campusId      String    @map("campus_id")
+  tag           String
+  description   String
+  requestId     String?   @map("request_id")
+  receiptId     String?   @map("receipt_id")
+  location      String?
+  custodian     String?
+  status        String    @default("ACTIVE")
+  nextServiceOn DateTime? @map("next_service_on") @db.Date
+  history       Json      @default("[]")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, tag])
+  @@map("school_assets")
+}
+
+/// A maintenance job. Completing it records the work done and the next due date.
+model AssetService {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  assetId     String    @map("asset_id")
+  dueOn       DateTime  @map("due_on") @db.Date
+  status      String    @default("SCHEDULED")
+  work        String?
+  completedOn DateTime? @map("completed_on") @db.Date
+  nextDueOn   DateTime? @map("next_due_on") @db.Date
+  completedById String? @map("completed_by_id")
+  cancelReason String?  @map("cancel_reason")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([assetId, status])
+  @@map("asset_services")
 }

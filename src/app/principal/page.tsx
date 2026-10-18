@@ -1,6 +1,7 @@
 "use client";
 
 import { ActionQueue } from "@/components/principal/action-queue";
+import { PurchasingPanel } from "@/components/purchasing/purchasing-panel";
 import { LearningActions } from "@/components/learning/learning-actions";
 import { PolicyManager } from "@/components/policies/policy-manager";
 import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
@@ -784,6 +785,7 @@ export default function PrincipalDashboard() {
           {activeView === "certificates" ? <CertificatesPanel /> : null}
         {activeView === "library" ? <LibraryPanel /> : null}
         {activeView === "inventory" ? <InventoryPanel /> : null}
+        {activeView === "inventory" ? <PurchasingPanel /> : null}
       </section>
 
       {showClassWizard ? (

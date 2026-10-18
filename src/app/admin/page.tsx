@@ -1,5 +1,6 @@
 "use client";
 import { ActionQueue } from "@/components/principal/action-queue";
+import { PurchasingPanel } from "@/components/purchasing/purchasing-panel";
 import { LearningActions } from "@/components/learning/learning-actions";
 import { PolicyManager } from "@/components/policies/policy-manager";
 import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
@@ -1318,6 +1319,7 @@ export default function CampusAdminDashboard() {
           {activeView === "postal" ? <PostalPanel /> : null}
           {activeView === "certificates" ? <CertificatesPanel /> : null}
           {activeView === "inventory" ? <InventoryPanel /> : null}
+          {activeView === "inventory" ? <PurchasingPanel /> : null}
           {activeView === "library" ? <LibraryPanel /> : null}
           {/* Plan buying is only in the sidebar for standalone top admins, but
               the section also lives at ?view=billing, so a campus admin could
