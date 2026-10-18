@@ -216,7 +216,10 @@ function useAdminView(): [AdminView, (next: AdminView) => void] {
   // /admin entry that would silently reset the section.
   useEffect(() => {
     if (!isAdminView(new URLSearchParams(window.location.search).get("view"))) {
-      window.history.replaceState(null, "", `/admin?view=${activeView}`);
+      // Keep the rest of the query (e.g. ?settings=language) so a deep link still reaches its target.
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", activeView);
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     }
   }, []);
 
