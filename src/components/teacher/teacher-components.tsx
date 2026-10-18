@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/toast";
@@ -710,17 +711,20 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {phone ? (
-              <a href={`tel:${phone}`} title={`Call ${student.guardianName || "guardian"}`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-sm font-semibold text-primary transition-all hover:bg-white active:scale-[0.97]">
-                <Phone className="h-3.5 w-3.5" /> Call guardian
-              </a>
+              <Tooltip content={`Call ${student.guardianName || "guardian"}`} describe={false}>
+                <a href={`tel:${phone}`}
+                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-sm font-semibold text-primary transition-all hover:bg-white active:scale-[0.97]">
+                  <Phone className="h-3.5 w-3.5" /> Call guardian
+                </a>
+              </Tooltip>
             ) : null}
             {whatsapp ? (
-              <a href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`} target="_blank" rel="noopener noreferrer"
-                title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-sm font-semibold text-primary transition-all hover:bg-white active:scale-[0.97]">
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-              </a>
+              <Tooltip content={`Message ${student.guardianName || "guardian"} on WhatsApp`} describe={false}>
+                <a href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-sm font-semibold text-primary transition-all hover:bg-white active:scale-[0.97]">
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </a>
+              </Tooltip>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1265,7 +1269,7 @@ function SkeletonFrame({ children }: { children: ReactNode }) {
 /** Matches the compact stat tile the teacher pages actually render. */
 function StatCardSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-edge/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_6px_16px_-10px_rgba(120,70,180,0.25)]">
+    <div className="sk-panel px-3.5 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -1661,7 +1665,7 @@ export function StudentsSkeleton() {
         {/* Student cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
+            <div key={i} className="sk-panel p-4">
               <div className="flex items-start gap-4 mb-4">
                 <SkeletonBlock className="h-14 w-14 rounded-2xl shrink-0" />
                 <div className="flex-1 min-w-0 space-y-2">
@@ -1768,7 +1772,7 @@ export function TeacherRouteSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className={`rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
+              className={`sk-panel p-4 ${i === 0 ? "xl:col-span-2" : ""}`}
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />

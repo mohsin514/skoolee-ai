@@ -122,7 +122,7 @@ export function CycleManagementPanel({
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-[28px] border border-edge/10 bg-white p-6 animate-skeleton-in">
+        <div className="sk-panel p-6 animate-skeleton-in">
           <div className="flex items-center gap-4">
             <div className="h-14 w-14 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
             <div className="flex-1 space-y-2">
@@ -133,7 +133,7 @@ export function CycleManagementPanel({
           </div>
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between rounded-[20px] border border-edge/15 bg-white p-4 animate-skeleton-in" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
+          <div key={i} className="sk-panel flex items-center justify-between p-4 animate-skeleton-in" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
             <div className="flex items-center gap-4">
               <div className="h-10 w-10 rounded-xl bg-border-subtle/50 skeleton-shimmer" />
               <div className="space-y-2">
@@ -212,7 +212,7 @@ export function CycleManagementPanel({
       </div>
 
       {showCreate && (
-        <div className="sk-rise rounded-[24px] border border-edge/20 bg-white p-5 shadow-sm space-y-4" style={{ animationDelay: "240ms" }}>
+        <div className="sk-rise sk-panel p-5 space-y-4" style={{ animationDelay: "240ms" }}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField name="cycle-label" label="Cycle Label">
               <SystemInput

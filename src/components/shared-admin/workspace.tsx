@@ -240,12 +240,12 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
               ? { type: "button" as const, onClick: t.onClick, "aria-pressed": Boolean(t.active) }
               : {})}
             className={cn(
-              "group relative flex items-center gap-3 overflow-hidden rounded-[18px] border bg-white px-3.5 py-2.5 text-start transition-all duration-200",
+              "group sk-panel relative flex items-center gap-3 overflow-hidden px-3.5 py-2.5 text-start transition-all duration-200",
               t.active
                 ? "border-transparent"
-                : "border-edge/20 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_6px_16px_-10px_rgba(120,70,180,0.25)]",
+                : "",
               interactive &&
-                "cursor-pointer hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_2px_4px_rgba(120,70,180,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]",
+                "sk-hover-lift cursor-pointer",
             )}
             style={t.active ? { boxShadow: `0 0 0 1.5px ${tone.ring}, 0 10px 24px -14px ${tone.ring}` } : undefined}
           >

@@ -200,7 +200,7 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { 
             {[...Array(cards)].map((_, i) => (
               <div
                 key={i}
-                className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]"
+                className="sk-panel p-4"
               >
                 <SkeletonBlock className="mb-3 h-9 w-9 rounded-xl" />
                 <SkeletonBlock className="h-4 w-24" />
@@ -208,7 +208,7 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { 
               </div>
             ))}
           </div>
-          <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)]">
+          <div className="sk-panel p-4">
             <div className="mb-3 flex items-center gap-2.5">
               <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
               <SkeletonBlock className="h-4 w-40" />

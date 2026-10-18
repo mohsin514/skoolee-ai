@@ -1438,7 +1438,7 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
         })}
       </div>
 
-      <div className="overflow-x-auto rounded-[24px] border border-edge/10 bg-white shadow-lg">
+      <div className="sk-panel overflow-x-auto">
         <div className="min-w-[700px]">
           <div className="grid border-b border-muted" style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}>
             <div className="flex items-center justify-center p-2">

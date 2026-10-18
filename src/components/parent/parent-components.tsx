@@ -70,7 +70,7 @@ function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; childre
 /** Matches the compact `ParentStat` the pages actually render. */
 function ParentStatSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-sm">
+    <div className="sk-panel px-[12px] py-[10px] sm:px-3.5 sm:py-2.5">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -96,7 +96,7 @@ export function ParentOverviewSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-md"
+              className="sk-panel p-4"
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
@@ -127,7 +127,7 @@ export function ParentListSkeleton({ rows = 3 }: { rows?: number }) {
         {[...Array(rows)].map((_, i) => (
           <div
             key={i}
-            className="space-y-3 rounded-[22px] border border-edge/20 bg-white p-4 shadow-md"
+            className="sk-panel space-y-3 p-4"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 space-y-2">
@@ -195,7 +195,7 @@ export function ParentStat({
   const t = tones[tone];
 
   return (
-    <div className="group relative overflow-hidden rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-brand">
+    <div className="group sk-panel sk-hover-lift relative overflow-hidden px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 transition-all duration-200 hover:border-primary/30">
       <span
         aria-hidden
         className={`absolute inset-y-0 start-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.bar}`}
@@ -239,7 +239,7 @@ export function ParentTimetableSkeleton({ weekendDays = [] }: { weekendDays?: nu
           <SkeletonBlock key={i} className="h-6 w-20 rounded-lg" />
         ))}
       </div>
-      <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-md">
+      <div className="sk-panel p-4">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-16 shrink-0" />
@@ -281,7 +281,7 @@ export function ParentRouteSkeleton() {
             <ParentStatSkeleton key={i} />
           ))}
         </div>
-        <div className="rounded-[22px] border border-edge/20 bg-white p-4 shadow-md">
+        <div className="sk-panel p-4">
           <div className="mb-3 flex items-center gap-2.5">
             <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
             <SkeletonBlock className="h-4 w-36" />

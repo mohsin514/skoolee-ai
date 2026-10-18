@@ -91,7 +91,7 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
 
   return (
     <div lang={language} dir={dir} data-settings-root className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-start gap-3.5 border-b border-brand-100 bg-gradient-to-b from-[#fcf9fe] to-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-7 sm:pt-6">
+      <header className="flex shrink-0 items-start gap-3.5 border-b border-brand-100 bg-gradient-to-b from-surface-subtle to-white px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-7 sm:pt-6">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-[0_10px_22px_-12px_rgba(106,31,176,0.8)]">
           <Settings aria-hidden="true" className="size-5" />
         </span>

@@ -931,9 +931,10 @@ const bottomItems: RoleNavItem[] = [];
 }
 
 function SuperStatusPill({ status }: { status?: string }) {
+  const t = useUiText();
   return (
     <Badge variant={statusTone(status)} size="sm" dot className="shrink-0">
-      {formatStatus(status)}
+      {t(formatStatus(status))}
     </Badge>
   );
 }
@@ -984,7 +985,7 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
             <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">{t("{0} Plan", [plan])}</h3>
             <p className="mt-1.5 flex items-center gap-2 text-xs text-white/70">
               <span>{t("Status:")}</span>
-              <Badge variant={statusTone(status)} size="sm" dot>{formatStatus(status)}</Badge>
+              <Badge variant={statusTone(status)} size="sm" dot>{t(formatStatus(status))}</Badge>
             </p>
           </div>
         </div>

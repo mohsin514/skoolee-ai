@@ -243,7 +243,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-[24px] border border-edge/25 bg-white shadow-[0_2px_6px_rgba(120,70,180,0.05),0_16px_40px_-24px_rgba(129,39,207,0.28)]",
+        "sk-panel overflow-hidden",
         className,
       )}
     >

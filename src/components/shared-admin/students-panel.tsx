@@ -535,7 +535,7 @@ export function StudentsPanel({
     {
       key: "identity",
       label: "Pupil ID",
-      render: (s) => <a className="sk-link block max-w-40 truncate text-xs text-primary" href={`/pupils/${s.id}`} title={s.id} onClick={e => e.stopPropagation()}><bdi>{s.id}</bdi></a>,
+      render: (s) => <Tooltip content={s.id} describe={false}><a className="sk-link block max-w-40 truncate text-xs text-primary" href={`/pupils/${s.id}`} onClick={e => e.stopPropagation()}><bdi>{s.id}</bdi></a></Tooltip>,
     },
     {
       key: "classOrder",
@@ -814,7 +814,7 @@ export function StudentsPanel({
         </div>
       )}
 
-      <div className="rounded-[18px] border border-edge/20 bg-white px-4 py-2.5 shadow-sm">
+      <div className="sk-panel px-4 py-2.5">
         <Pagination
           page={paged.page}
           totalPages={paged.totalPages}
@@ -907,7 +907,7 @@ function StudentCard({
         }
       }}
       className={cn(
-        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg",
+        "sk-rise sk-panel sk-hover-lift group/student relative cursor-pointer overflow-hidden p-4 transition-all duration-300",
         selected ? "border-primary ring-2 ring-primary/20" : "border-edge/25 hover:border-primary/30",
       )}
       style={{ animationDelay: `${index * 60}ms` }}

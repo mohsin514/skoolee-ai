@@ -285,7 +285,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
     return (
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-[28px] border border-edge/10 bg-white shadow-lg overflow-hidden animate-skeleton-in" style={{ animationDelay: `${i * 100}ms` }}>
+          <div key={i} className="sk-panel overflow-hidden animate-skeleton-in" style={{ animationDelay: `${i * 100}ms` }}>
             <div className="flex items-center justify-between p-5">
               <div className="flex items-center gap-4">
                 <div className="h-12 w-12 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />

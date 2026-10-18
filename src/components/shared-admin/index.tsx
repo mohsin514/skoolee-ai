@@ -1,5 +1,6 @@
 "use client";
 import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
+import { Tooltip } from "@/components/ui/tooltip";
 import { IconButton } from "@/components/ui/icon-button";
 import { Button as SystemButton } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -1595,7 +1596,7 @@ export function ReportCardsPanel({
       )}
 
       {filtered.length > 0 ? (
-        <div className="rounded-[18px] border border-edge/20 bg-white px-4 py-2.5 shadow-sm">
+        <div className="sk-panel px-4 py-2.5">
           <Pagination
             page={paged.page}
             totalPages={paged.totalPages}
@@ -1957,11 +1958,11 @@ function MetricCard({
   } as const;
   const interactive = Boolean(onClick);
   const className = cn(
-    "rounded-[24px] border bg-white p-5 text-start transition-all duration-200",
+    "sk-panel p-5 text-start transition-all duration-200",
     active
       ? "border-primary shadow-[0_4px_16px_-4px_rgba(129,39,207,0.30)]"
-      : "border-edge/25 shadow-sm",
-    interactive ? "cursor-pointer hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" : "",
+      : "",
+    interactive ? "sk-hover-lift cursor-pointer" : "",
   );
   // A card with nothing to do is not a button — rendering it as a disabled one
   // announced "dimmed button" to screen readers for what is just a number.
@@ -6261,7 +6262,7 @@ export function AdmissionQueriesPanel({
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="flex items-center gap-3 rounded-[20px] border border-edge/25 bg-white p-4"
+              className="sk-panel flex items-center gap-3 p-4"
             >
               <div className="h-11 w-11 shrink-0 rounded-2xl bg-edge/20 animate-pulse" />
               <div className="min-w-0 flex-1 space-y-2">
@@ -6480,27 +6481,32 @@ function EnquiryContact({ query }: { query: any }) {
   return (
     <div className="flex shrink-0 items-center gap-1">
       {digits.length >= 6 ? (
-        <a href={`tel:${digits}`} onClick={stop} title={`Call ${query.phone}`} aria-label="Call enquiry" className={cls}>
-          <PhoneCall className="h-3 w-3" />
-        </a>
+        <Tooltip content={`Call ${query.phone}`} describe={false}>
+          <a href={`tel:${digits}`} onClick={stop} aria-label="Call enquiry" className={cls}>
+            <PhoneCall className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
       {wa.length >= 8 ? (
-        <a
-          href={`https://wa.me/${wa}`}
-          onClick={stop}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Message on WhatsApp"
-          aria-label="Message enquiry on WhatsApp"
-          className={cls}
-        >
-          <MessageCircle className="h-3 w-3" />
-        </a>
+        <Tooltip content="Message on WhatsApp" describe={false}>
+          <a
+            href={`https://wa.me/${wa}`}
+            onClick={stop}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Message enquiry on WhatsApp"
+            className={cls}
+          >
+            <MessageCircle className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
       {query.email ? (
-        <a href={`mailto:${query.email}`} onClick={stop} title={query.email} aria-label="Email enquiry" className={cls}>
-          <Mail className="h-3 w-3" />
-        </a>
+        <Tooltip content={query.email} describe={false}>
+          <a href={`mailto:${query.email}`} onClick={stop} aria-label="Email enquiry" className={cls}>
+            <Mail className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
     </div>
   );
@@ -7066,7 +7072,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
           {filtered.map((s, i) => (
             <div
               key={s.id}
-              className="sk-rise flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              className="sk-rise sk-panel flex flex-wrap items-center gap-4 p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
               style={{ animationDelay: `${i * 50}ms` }}
             >
               <SystemCheckbox
@@ -7626,7 +7632,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <EmptyInline text={`No requests match “${requestSearch}”.`} />
           ) : (
             visibleRequests.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4">
+              <div key={r.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-ink-strong">
                     {r.user?.fullName || "Unknown"} <span className="text-ink-subtle">({r.user?.role || "—"})</span>
@@ -7686,7 +7692,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <EmptyInline text="No leave types defined for this campus." />
           ) : (
             types.map((t) => (
-              <div key={t.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4">
+              <div key={t.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                   <Layers className="h-4 w-4" />
                 </div>
@@ -7733,7 +7739,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <EmptyInline text="No allocations for this year yet. Add role-wide or per-user allocations." />
           ) : (
             allocations.map((a) => (
-              <div key={a.id} className="flex flex-wrap items-center gap-4 rounded-[20px] border border-edge/25 bg-white p-4">
+              <div key={a.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
                   {a.userId ? <User className="h-4 w-4" /> : <Users className="h-4 w-4" />}
                 </div>

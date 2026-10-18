@@ -273,7 +273,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             {menuOpen && (
               <div
                 role="menu"
-                className="animate-dropdown-enter absolute end-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_24px_70px_rgba(120,70,180,0.16)]"
+                className="animate-dropdown-enter sk-panel absolute end-0 z-[90] mt-2 w-64 overflow-hidden"
               >
                 <div className="border-b border-edge/15 bg-brand-50/70 p-4">
                   <div className="flex items-center gap-3">

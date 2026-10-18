@@ -171,13 +171,13 @@ export function PricingPage() {
                 <div className="mt-4 min-h-16">
                   {plan.isCustom ? <p className="text-xl font-bold tracking-tight text-ink-strong">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong">{t.free}</p> : <><p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-ink-muted">{t.perMonth}</span></p><p className="mt-1 text-xs text-ink-muted">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}${t.perYear}` : t.billedMonthly}</p></>}
                 </div>
-                <dl className="mt-4 space-y-3 border-y border-[#eee5f1] py-4 text-sm">
+                <dl className="mt-4 space-y-3 border-y border-border-subtle py-4 text-sm">
                   <div className="flex justify-between gap-3"><dt>{t.students}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxStudents)}</dd></div>
                   <div className="flex justify-between gap-3"><dt>{t.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxTeachers)}</dd></div>
                   <div className="flex justify-between gap-3"><dt>{t.campuses}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxCampuses)}</dd></div>
                   <div className="flex justify-between gap-3"><dt>{t.credits}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.aiCredits)}</dd></div>
                 </dl>
-                <p className="mt-4 text-xs leading-5 text-[#63566a]">{t.featureList}</p>
+                <p className="mt-4 text-xs leading-5 text-ink-muted">{t.featureList}</p>
                 <div className="mt-auto pt-5">
                   {plan.price === 0 ? <Link href="/register" className={buttonVariants({ className: "w-full text-center" })}>{t.trial}</Link> : <a href={`mailto:${salesEmail}?subject=${encodeURIComponent(`Pricing enquiry — ${plan.name}`)}`} className={buttonVariants({ variant: "outline", className: "w-full text-center" })}>{t.sales}</a>}
                 </div>
@@ -186,7 +186,7 @@ export function PricingPage() {
           })}
         </section>
 
-        <p className="mt-6 text-sm leading-6 text-[#63566a]">{t.example}</p>
+        <p className="mt-6 text-sm leading-6 text-ink-muted">{t.example}</p>
         <footer className="mt-4 border-t border-border-subtle pt-4 text-xs text-ink-muted">{t.version}: <bdi>{COMMERCIAL_CONTRACT.version}</bdi></footer>
       </div>
     </main>

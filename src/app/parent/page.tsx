@@ -205,7 +205,7 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="group sk-hover-lift sk-nudge-trigger sk-press flex min-h-14 min-w-0 items-center gap-2.5 rounded-[18px] border border-edge/20 bg-white p-3 shadow-xs"
+      className="group sk-hover-lift sk-nudge-trigger sk-press sk-panel flex min-h-14 min-w-0 items-center gap-2.5 p-3"
     >
       <span aria-hidden="true" className={`sk-icon-tile flex size-9 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}>
         <Icon className="h-4 w-4" />

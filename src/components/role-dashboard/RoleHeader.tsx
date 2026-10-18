@@ -246,7 +246,7 @@ export function RoleHeader({
           </Tooltip>
 
           {notifOpen && (
-            <div className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(120,70,180,0.18)]">
+            <div className="animate-dropdown-enter sk-panel absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto">
               <div className="flex items-center justify-between px-5 py-4 border-b border-edge/10">
                 <h3 className="text-sm font-bold text-ink-strong tracking-tight"><UiText>{"Notifications"}</UiText></h3>
                 {unreadCount > 0 && (
@@ -295,7 +295,7 @@ export function RoleHeader({
           {menuOpen && (
             <div
               role="menu"
-              className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(120,70,180,0.18)]"
+              className="animate-dropdown-enter sk-panel absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto"
             >
               <div className="border-b border-edge/10 bg-gradient-to-br from-brand-50/80 to-white p-4">
                 <div className="flex items-center gap-3">

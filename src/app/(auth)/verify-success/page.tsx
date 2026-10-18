@@ -102,7 +102,7 @@ export default function VerifySuccessPage() {
           </div>
 
           <div
-            className="sk-enter-scale flex flex-col items-center rounded-[40px] border border-status-success-border/60 bg-white p-6 text-center shadow-xl sm:p-10"
+            className="sk-enter-scale sk-panel flex flex-col items-center border-status-success-border/60 p-6 text-center sm:p-10"
           >
             <div aria-hidden className="mb-6 flex size-20 items-center justify-center rounded-[32px] bg-status-success-surface text-emerald-600 shadow-inner ring-1 ring-status-success-border sm:mb-8">
               <CheckCircle className="size-12" />

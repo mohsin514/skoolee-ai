@@ -169,7 +169,7 @@ export function StatCard({
   const t = TONES[tone];
   return (
     <div
-      className="sk-rise relative overflow-hidden rounded-[18px] border border-edge/20 bg-white px-[12px] py-[10px] sm:px-3.5 sm:py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_6px_16px_-10px_rgba(120,70,180,0.25)]"
+      className="sk-rise sk-panel relative overflow-hidden px-[12px] py-[10px] sm:px-3.5 sm:py-2.5"
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {/* A tinted edge carries the tone without a coloured card. */}
@@ -246,7 +246,7 @@ export function Panel({
 }) {
   return (
     <div
-      className={`sk-rise min-w-0 rounded-[22px] border border-edge/20 bg-white p-[12px] sm:p-4 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_10px_28px_-16px_rgba(120,70,180,0.35)] ${className}`}
+      className={`sk-rise sk-panel min-w-0 p-[12px] sm:p-4 ${className}`}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {children}

@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { FamilyMeetings } from "@/components/meetings/family-meetings";
 import { useParentData } from "../parent-data-context";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ const COLORS = [
 ];
 
 export default function ParentTimetablePage() {
+  const tr = useUiText();
   const { token, selectedStudentId, children } = useParentData();
   const meetingChildId = selectedStudentId ?? children[0]?.id ?? null;
   const [timetableData, setTimetableData] = useState<any>(null);
@@ -58,10 +60,10 @@ export default function ParentTimetablePage() {
       }
     } catch {
       setLoadError("failed");
-      toast.error("Could not load the timetable. Please try again.");
+      toast.error(tr("Could not load the timetable. Please try again."));
     }
     setLoading(false);
-  }, [token, selectedStudentId]);
+  }, [token, selectedStudentId, tr]);
 
   // Only render the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = DAYS.filter((d) => !weekendDays.includes(d.num));
@@ -106,15 +108,15 @@ export default function ParentTimetablePage() {
     <ParentPage
       tone="timetable"
       icon={Clock}
-      eyebrow={<>{timetableData ? `${periods.length} periods · ${visibleDays.map((d) => d.short).join("-")}` : "Weekly class schedule"}</>}
-      title="Timetable"
-      summary="Your child’s weekly class schedule."
+      eyebrow={<>{timetableData ? tr("{0} periods · {1}", [periods.length, visibleDays.map((d) => tr(d.short)).join("-")]) : tr("Weekly class schedule")}</>}
+      title={tr("Timetable")}
+      summary={tr("Your child’s weekly class schedule.")}
     >
       <div className="space-y-3">
         {loading ? (
           <ParentTimetableSkeleton weekendDays={weekendDays} />
         ) : loadError === "denied" ? (
-          <ParentEmptyState icon={Lock} title="Timetable not shared" description="The school has not shared the timetable with this account. Contact the school office if you need it." />
+          <ParentEmptyState icon={Lock} title={tr("Timetable not shared")} description={tr("The school has not shared the timetable with this account. Contact the school office if you need it.")} />
         ) : loadError ? (
           <div className="sk-panel">
             <ErrorState onRetry={loadTimetable} />
@@ -139,7 +141,7 @@ export default function ParentTimetablePage() {
                   </div>
                   {visibleDays.map((d) => (
                     <div key={d.num} className="flex items-center justify-center border-s border-muted py-2.5">
-                      <span className="sk-eyebrow">{d.short}</span>
+                      <span className="sk-eyebrow">{tr(d.short)}</span>
                     </div>
                   ))}
                 </div>
@@ -148,13 +150,13 @@ export default function ParentTimetablePage() {
                   return (
                     <div key={p.num} className={`grid border-b border-muted last:border-b-0 ${isSpecial ? "bg-muted/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                       <div className="flex flex-col items-center justify-center border-e border-muted p-1">
-                        <span className="text-2xs font-bold tabular-nums text-primary">P{p.num}</span>
+                        <span className="text-2xs font-bold tabular-nums text-primary">{tr("P{0}", [p.num])}</span>
                         <span className="text-2xs font-medium tabular-nums text-ink-subtle" dir="ltr">{p.start}</span>
                       </div>
                       {visibleDays.map((d) => {
                         const slot = getSlot(d.num, p.num);
                         if (!slot || slot.slotType !== "CLASS") {
-                          const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType === "ASSEMBLY" ? "Assembly" : slot?.slotType || "";
+                          const label = slot?.slotType === "BREAK" ? tr("Break") : slot?.slotType === "PRAYER" ? tr("Prayer") : slot?.slotType === "ASSEMBLY" ? tr("Assembly") : slot?.slotType || "";
                           return (
                             <div key={d.num} className="flex items-center justify-center border-s border-muted p-0.5">
                               <span className="text-2xs font-semibold text-ink-subtle">{label}</span>
@@ -182,7 +184,7 @@ export default function ParentTimetablePage() {
             </div>
           </div>
         ) : (
-          <ParentEmptyState icon={Clock} title="No timetable published" description="The class timetable will appear here once published by the school." />
+          <ParentEmptyState icon={Clock} title={tr("No timetable published")} description={tr("The class timetable will appear here once published by the school.")} />
         )}
         <ExamDateSheet token={token || undefined} />
         {/* SKO-420: book a teacher meeting (signed-in guardians; a link cannot book). */}

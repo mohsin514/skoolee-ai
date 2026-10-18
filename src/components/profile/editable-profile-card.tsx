@@ -158,7 +158,7 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
   };
 
   return (
-    <div className={cn("rounded-[34px] border border-edge/20 bg-white shadow-lg transition-all duration-300 hover:shadow-xl", compact ? "p-5" : "p-7", className)}>
+    <div className={cn("sk-panel transition-all duration-300 hover:shadow-xl", compact ? "p-5" : "p-7", className)}>
       <div className={cn("grid gap-6", compact ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[260px_1fr]")}>
         <div className="rounded-[30px] bg-gradient-to-br from-brand-50 via-brand-50/70 to-white p-5">
           <div className="group relative mx-auto h-32 w-32 overflow-hidden rounded-[34px] border-4 border-white bg-white shadow-xl">

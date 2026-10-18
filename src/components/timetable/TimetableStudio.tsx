@@ -199,14 +199,14 @@ function FullSkeleton({ periods, visibleDays }: { periods: GridPeriod[]; visible
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_300px] gap-4 flex-1">
-        <div className="rounded-[28px] border border-edge/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "120ms" }}>
+        <div className="sk-panel p-4 animate-skeleton-in" style={{ animationDelay: "120ms" }}>
           <div className="space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-12 rounded-xl bg-border-subtle/30 skeleton-shimmer" />
             ))}
           </div>
         </div>
-        <div className="rounded-[28px] border border-edge/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "160ms" }}>
+        <div className="sk-panel p-4 animate-skeleton-in" style={{ animationDelay: "160ms" }}>
           <div className="space-y-3">
             {periods.map((_, i) => (
               <div key={i} className="flex items-center gap-3">
@@ -218,7 +218,7 @@ function FullSkeleton({ periods, visibleDays }: { periods: GridPeriod[]; visible
             ))}
           </div>
         </div>
-        <div className="rounded-[28px] border border-edge/10 bg-white shadow-xl p-4 animate-skeleton-in" style={{ animationDelay: "200ms" }}>
+        <div className="sk-panel p-4 animate-skeleton-in" style={{ animationDelay: "200ms" }}>
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="h-12 rounded-xl bg-border-subtle/30 skeleton-shimmer" />

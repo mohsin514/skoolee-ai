@@ -332,7 +332,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
           {/* ── The rail ──────────────────────────────────────────────── */}
           <nav
             aria-label="Exam steps"
-            className="grid gap-2 rounded-[24px] border border-edge/25 bg-white p-2.5 shadow-[0_2px_6px_rgba(120,70,180,0.05),0_14px_34px_-22px_rgba(129,39,207,0.3)] sm:grid-cols-3 xl:grid-cols-5"
+            className="sk-panel grid gap-2 p-2.5 sm:grid-cols-3 xl:grid-cols-5"
           >
             {STEPS.map((s) => {
               const value = progress[s.key];
