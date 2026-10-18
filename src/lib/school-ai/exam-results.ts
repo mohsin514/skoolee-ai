@@ -2,6 +2,8 @@ import { z } from "zod";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { isDeepStrictEqual } from "node:util";
 import { Prisma } from "@prisma/client";
+import type { TxClient } from "@/lib/db/prisma";
+import type { PaperData } from "./assessment";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError } from "@/lib/api/scope";
 import { schoolAiTransaction } from "./transaction";
@@ -10,7 +12,8 @@ import { examReviewSchema, responsesSchema, validateExamReview, examKeyCorrectio
 
 const id = z.string().trim().min(1).max(120);
 export const regradeAttemptSchema = z.object({ attemptId: id, version: z.number().int().min(1), reason: z.string().trim().min(1).max(4000), review: examReviewSchema }).strict();
-export const appealResultSchema = z.object({ version: z.number().int().positive(), reason: z.string().trim().min(1).max(4000) }).strict();
+// SKO-424: a review request may name the disputed questions and the outcome the learner asks for.
+export const appealResultSchema = z.object({ version: z.number().int().positive(), reason: z.string().trim().min(1).max(4000), disputedQuestionIds: z.array(id).max(100).optional(), requestedOutcome: z.string().trim().min(1).max(2000).optional() }).strict();
 export const resolveAppealSchema = z.object({ appealId: id, version: z.number().int().positive(), status: z.enum(["UPHELD", "DISMISSED"]), resolution: z.string().trim().min(1).max(4000) }).strict();
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
@@ -30,7 +33,7 @@ export async function getExamResults(user: AuthUser, assignmentId: string, attem
    released: !!assignment.resultsReleasedAt, resultsReleasedAt: assignment.resultsReleasedAt,
    attempt: { id: attempt.id, status: attempt.status, reviewVersion: attempt.reviewVersion, review: attempt.review ? candidateReview(attempt.review) : null },
    revisions: revisions.map(row => ({ id: row.id, version: row.version, reason: row.reason, review: student ? candidateReview(row.review) : row.review, createdAt: row.createdAt })),
-   appeals: appeals.map(row => ({ id: row.id, resultVersion: row.resultVersion, version: row.version, status: row.status, reason: row.reason, resolution: row.resolution, createdAt: row.createdAt, resolvedAt: row.resolvedAt })),
+   appeals: appeals.map(row => ({ id: row.id, resultVersion: row.resultVersion, version: row.version, status: row.status, reason: row.reason, disputedQuestionIds: row.disputedQuestionIds, requestedOutcome: row.requestedOutcome, resolution: row.resolution, createdAt: row.createdAt, resolvedAt: row.resolvedAt })),
   };
  });
 }
@@ -47,35 +50,45 @@ export async function regradeExamAttempt(user: AuthUser, assignmentId: string, r
    if (revision?.createdById === user.userId && revision.reason === input.reason && isDeepStrictEqual(revision.review, expected)) return { attemptId: attempt.id, version: attempt.reviewVersion, review: expected };
   }
   if (!attempt || attempt.status !== "REVIEWED" || attempt.reviewVersion !== input.version) throw new ApiError("The result changed. Reload its current version before revising it.", 409);
-  const issues = validateExamReview(paper, responsesSchema.parse(attempt.responses), input.review);
-  if (issues.length) throw new ApiError(issues.join(" "), 422);
-  const review = { ...input.review, total: input.review.marks.reduce((sum, item) => sum + item.marks, 0) };
-  const version = input.version + 1;
-  const updated = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, campusId: assignment.campusId, status: "REVIEWED", reviewVersion: input.version }, data: { review: json(review), reviewVersion: version, reviewedById: user.userId, reviewedAt: new Date() } });
-  if (updated.count !== 1) throw new ApiError("Another result revision was saved first. Reload before editing.", 409);
-  await tx.schoolAiExamResultRevision.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, version, review: json(review), reason: input.reason, createdById: user.userId } });
-  const previousTotal = (attempt.review as { total?: unknown } | null)?.total;
-  await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: assignment.campusId, before: { reviewVersion: input.version, total: typeof previousTotal === "number" ? previousTotal : null }, after: { reviewVersion: version, total: review.total } });
-  // A correction resolves only the upheld requests against the reviewed predecessor.
-  await tx.schoolAiExamAppeal.updateMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, attemptId: attempt.id, resultVersion: input.version, status: { in: ["OPEN", "UPHELD"] } }, data: { status: "RESOLVED", resolution: input.reason, version: { increment: 1 }, resolvedAt: new Date(), resolvedById: user.userId } });
-  return { attemptId: attempt.id, version, review };
+  // SKO-424: once results are released, a change needs a second, independent reviewer.
+  if (assignment.resultsReleasedAt) throw new ApiError("Released results change only through a correction approved by another reviewer.", 409);
+  return applyResultRevision(tx, user, { assignmentId, campusId: assignment.campusId, paper, attempt, fromVersion: input.version, review: input.review, reason: input.reason });
  });
+}
+
+/** Writes one result revision against an exact predecessor, with audit and appeal resolution. */
+export async function applyResultRevision(tx: TxClient, user: AuthUser, args: { assignmentId: string; campusId: string; paper: PaperData; attempt: { id: string; responses: unknown; review: unknown }; fromVersion: number; review: z.infer<typeof examReviewSchema>; reason: string; createdById?: string }) {
+  const { assignmentId, campusId, paper, attempt, fromVersion, reason } = args;
+  const issues = validateExamReview(paper, responsesSchema.parse(attempt.responses), args.review);
+  if (issues.length) throw new ApiError(issues.join(" "), 422);
+  const review = { ...args.review, total: args.review.marks.reduce((sum, item) => sum + item.marks, 0) };
+  const version = fromVersion + 1;
+  const updated = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, campusId, status: "REVIEWED", reviewVersion: fromVersion }, data: { review: json(review), reviewVersion: version, reviewedById: user.userId, reviewedAt: new Date() } });
+  if (updated.count !== 1) throw new ApiError("Another result revision was saved first. Reload before editing.", 409);
+  await tx.schoolAiExamResultRevision.create({ data: { schoolId: user.schoolId, campusId, assignmentId, attemptId: attempt.id, version, review: json(review), reason, createdById: args.createdById ?? user.userId } });
+  const previousTotal = (attempt.review as { total?: unknown } | null)?.total;
+  await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId, before: { reviewVersion: fromVersion, total: typeof previousTotal === "number" ? previousTotal : null }, after: { reviewVersion: version, total: review.total } });
+  // A correction resolves only the upheld requests against the reviewed predecessor.
+  await tx.schoolAiExamAppeal.updateMany({ where: { schoolId: user.schoolId, campusId, attemptId: attempt.id, resultVersion: fromVersion, status: { in: ["OPEN", "UPHELD"] } }, data: { status: "RESOLVED", resolution: reason, version: { increment: 1 }, resolvedAt: new Date(), resolvedById: user.userId } });
+  return { attemptId: attempt.id, version, review };
 }
 
 export async function appealExamResult(user: AuthUser, assignmentId: string, raw: unknown) {
  const input = appealResultSchema.parse(raw);
  return schoolAiTransaction(user, async tx => {
-  const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
+  const { assignment, student, paper } = await scopedAssignment(user, assignmentId, tx);
   if (!student) throw new ApiError("Only the assigned student can request a result review.", 403);
+  if (input.disputedQuestionIds?.some(questionId => !paper.questions.some(question => question.id === questionId))) throw new ApiError("Choose questions from this paper.", 400);
   if (new Date() < assignment.endsAt || !assignment.resultsReleasedAt) throw new ApiError("Results become available after your school releases them.", 409);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId, status: "REVIEWED", reviewVersion: input.version } });
   if (!attempt) throw new ApiError("The result changed or is awaiting moderation. Refresh the result.", 409);
   const existing = await tx.schoolAiExamAppeal.findUnique({ where: { attemptId_resultVersion: { attemptId: attempt.id, resultVersion: input.version } } });
   if (existing) {
    if (existing.schoolId !== user.schoolId || existing.userId !== user.userId || existing.reason !== input.reason) throw new ApiError("This result version already has a review request.", 409);
+   // One request per result version: a second request for the same version is the same case.
    return { id: existing.id, status: existing.status, version: existing.version };
   }
-  const created = await tx.schoolAiExamAppeal.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, studentId: student.id, userId: user.userId, resultVersion: input.version, reason: input.reason } });
+  const created = await tx.schoolAiExamAppeal.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, studentId: student.id, userId: user.userId, resultVersion: input.version, reason: input.reason, disputedQuestionIds: [...new Set(input.disputedQuestionIds ?? [])], requestedOutcome: input.requestedOutcome ?? null } });
   await writeAuditEvent(tx, user, { table: "school_ai_exam_appeals", recordId: created.id, action: "CREATE", campusId: assignment.campusId, after: { assignmentId, attemptId: attempt.id, resultVersion: input.version, status: created.status, version: created.version } });
   return { id: created.id, status: created.status, version: created.version };
  });

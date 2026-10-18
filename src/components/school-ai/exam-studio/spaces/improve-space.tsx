@@ -14,6 +14,7 @@ import { Isolated, SpaceStateRegion, type SpaceState } from "../space-state";
 import { OutcomeFeedbackList } from "../../outcome-feedback";
 import { ExamRemedyPanel } from "../../exam-remedy-panel";
 import { EvidencePackPanel } from "../evidence-pack-panel";
+import { ExamModerationPanel } from "../../exam-moderation-panel";
 
 /**
  * SKO-408 Results and improvement (R18). The evidence base is stated before any reading of it, an
@@ -78,6 +79,7 @@ export default function ImproveSpace({ language, scope, capabilities, records, r
       </section>
       <ExamRemedyPanel examId={data.exam.id} locale={language} canAuthorize={capabilities.canApprove} onApplied={() => void load()} />
       {capabilities.canApprove || capabilities.canCreate ? <EvidencePackPanel examId={data.exam.id} language={language} canIncludeKeys={capabilities.canApprove || capabilities.canCreate} /> : null}
+      {capabilities.canApprove || capabilities.canCreate ? <ExamModerationPanel examId={data.exam.id} /> : null}
       <PracticeFollowUp examId={data.exam.id} exams={exams ?? []} language={language} records={records} canApprove={capabilities.canApprove} canCreate={capabilities.canCreate} reload={reload} released={!!data.exam.resultsReleasedAt} />
       <section aria-labelledby="improve-learners" className="sk-panel space-y-2 p-4"><h3 id="improve-learners" className="font-semibold">{t.learners}</h3>
         {data.learners.length === 0 ? <p className="text-sm text-ink-subtle">{t.noLearners}</p> : <ul className="grid gap-2">{data.learners.map(learner => <li key={learner.attemptId}>
