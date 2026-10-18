@@ -519,6 +519,14 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/parent/timetable",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-437: names no child; the trip page shows the exception to its owner.
+  TRANSPORT_EXCEPTION: {
+    title: () => "Transport exception to resolve",
+    message: () => "A trip has an exception assigned to you.",
+    icon: "Bus",
+    link: "/transport",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-439: confidential notices carry no student, case reference or narrative.
   SAFEGUARDING_CONCERN_RECEIVED: {
     title: () => "New concern to triage",

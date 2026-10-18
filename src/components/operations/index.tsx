@@ -63,6 +63,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { RidersPlanner, TripsPlanner } from "@/components/transport/transport";
 
 
 /* ─── tiny helpers ─── */
@@ -159,21 +160,22 @@ async function submitTo(
    ════════════════════════════════════════════════════════════════ */
 
 export function TransportPanel() {
-  const [tab, setTab] = useState<"routes" | "vehicles">("routes");
+  const [tab, setTab] = useState<"routes" | "vehicles" | "riders" | "trips">("routes");
   return (
     <div className="space-y-5">
       <div className={cardCls}>
-        <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <PanelTitle icon={Bus} title="Transport Management" />
-          <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
-            {(["routes", "vehicles"] as const).map((t) => (
-              <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
-                {t === "routes" ? "Routes" : "Vehicles"}
+          <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-[#f6f2fa] p-1">
+            {(["routes", "vehicles", "riders", "trips"] as const).map((t) => (
+              <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="" data-transport-tab={t}>
+                {t === "routes" ? "Routes" : t === "vehicles" ? "Vehicles" : t === "riders" ? "Riders & stops" : "Trips"}
               </Button>
             ))}
           </div>
         </div>
-        {tab === "routes" ? <RoutesTab /> : <VehiclesTab />}
+        {/* SKO-437: riders, stops and dated trips with a frozen manifest. */}
+        {tab === "routes" ? <RoutesTab /> : tab === "vehicles" ? <VehiclesTab /> : tab === "riders" ? <RidersPlanner /> : <TripsPlanner />}
       </div>
     </div>
   );

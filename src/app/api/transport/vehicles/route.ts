@@ -8,6 +8,9 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseWith } from "@/lib/api/validate";
+import { vehicleSchema } from "@/lib/validators/operations";
+import { assertVehicleChange } from "@/lib/transport/service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,10 +38,10 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
 
     const body = await req.json();
-    const { number, model, driverName, driverPhone, capacity, campusId: rawCampusId } = body;
-    const campusId = await resolveCampusId(user, rawCampusId);
-
-    if (!number) throw new ApiError("number is required", 400);
+    // SKO-437: the same field rules as the form — capacity 1–200, a valid phone — so a raw request
+    // cannot store a zero or negative capacity.
+    const { number, model, driverName, driverPhone, capacity } = parseWith(vehicleSchema, body);
+    const campusId = await resolveCampusId(user, body.campusId);
 
     const vehicle = await prisma.vehicle.create({
       data: {
@@ -66,13 +69,17 @@ export async function PATCH(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
 
     const body = await req.json();
-    const { id, number, model, driverName, driverPhone, capacity, campusId: rawCampusId } = body;
+    const id = body.id;
     if (!id) throw new ApiError("id is required", 400);
+    const { number, model, driverName, driverPhone, capacity } = parseWith(vehicleSchema.partial(), body);
+    const active = typeof body.active === "boolean" ? body.active : undefined;
 
-    const campusId = await resolveCampusId(user, rawCampusId);
+    const campusId = await resolveCampusId(user, body.campusId);
 
     const existing = await prisma.vehicle.findFirst({ where: { id, campusId } });
     if (!existing) throw new ApiError("Vehicle not found", 404);
+    // SKO-437: a route never keeps more riders than its largest active vehicle seats.
+    if (capacity !== undefined || active !== undefined) await assertVehicleChange(user, id, { capacity, active });
 
     const vehicle = await prisma.vehicle.update({
       where: { id },
@@ -82,6 +89,7 @@ export async function PATCH(req: NextRequest) {
         ...(driverName !== undefined ? { driverName } : {}),
         ...(driverPhone !== undefined ? { driverPhone } : {}),
         ...(capacity !== undefined ? { capacity } : {}),
+        ...(active !== undefined ? { active } : {}),
       },
       include: {
         _count: { select: { routes: true } },

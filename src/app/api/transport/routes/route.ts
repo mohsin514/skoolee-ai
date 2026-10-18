@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/scope";
 import { parseWith, readJsonBody } from "@/lib/api/validate";
 import { transportRoutePatchSchema, transportRouteSchema } from "@/lib/validators/operations";
+import { setRouteVehicles } from "@/lib/transport/service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -75,16 +76,10 @@ export async function PATCH(req: NextRequest) {
     const existing = await prisma.transportRoute.findFirst({ where: { id, campusId } });
     if (!existing) throw new ApiError("Route not found", 404);
 
-    if (Array.isArray(vehicleIds)) {
-      await prisma.$transaction(async (tx) => {
-        await tx.routeVehicle.deleteMany({ where: { routeId: id } });
-        if (vehicleIds.length > 0) {
-          await tx.routeVehicle.createMany({
-            data: vehicleIds.map((vehicleId: string) => ({ routeId: id, vehicleId })),
-          });
-        }
-      });
-    }
+    // SKO-437: vehicles must be on this route's campus and seat the riders already assigned; a refused
+    // change leaves the saved route as it was.
+    if (Array.isArray(vehicleIds)) await setRouteVehicles(user, id, vehicleIds);
+    const active = (body as { active?: unknown }).active;
 
     const route = await prisma.transportRoute.update({
       where: { id },
@@ -92,6 +87,7 @@ export async function PATCH(req: NextRequest) {
         ...(patch.title !== undefined ? { title: patch.title } : {}),
         ...(patch.description !== undefined ? { description: patch.description ?? null } : {}),
         ...(patch.fare !== undefined ? { fare: patch.fare } : {}),
+        ...(typeof active === "boolean" ? { active } : {}),
       },
       include: {
         _count: { select: { students: true } },

@@ -272,6 +272,12 @@ model School {
   safeguardingConcerns SafeguardingConcern[]
   safeguardingEntries SafeguardingEntry[]
   safeguardingDisclosures SafeguardingDisclosure[]
+  transportStops TransportStop[]
+  transportRiderStops TransportRiderStop[]
+  transportTrips TransportTrip[]
+  tripPassengers TripPassenger[]
+  tripEvents TripEvent[]
+  tripExceptions TripException[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -4229,6 +4235,145 @@ model SafeguardingDisclosure {
   @@map("safeguarding_disclosures")
 }
 
+/// SKO-437: dated trips with a frozen expected manifest. Route and fleet edits never rewrite a published trip;
+/// changes after publication are recorded amendments. Observed events are separate from the plan.
+
+model TransportStop {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  routeId   String         @map("route_id")
+  route     TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  name      String
+  sequence  Int
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  riders TransportRiderStop[]
+
+  @@unique([routeId, name])
+  @@index([schoolId])
+  @@map("transport_stops")
+}
+
+model TransportRiderStop {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentId String        @unique @map("student_id")
+  stopId    String        @map("stop_id")
+  stop      TransportStop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@index([schoolId])
+  @@map("transport_rider_stops")
+}
+
+model TransportTrip {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  routeId         String    @map("route_id")
+  route           TransportRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  vehicleId       String    @map("vehicle_id")
+  vehicle         Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  serviceDate     String    @map("service_date") // YYYY-MM-DD in the campus timezone
+  direction       String // AM | PM
+  label           String
+  routeTitle      String    @map("route_title")
+  vehicleNumber   String    @map("vehicle_number")
+  vehicleCapacity Int       @map("vehicle_capacity")
+  driverName      String?   @map("driver_name")
+  attendantId     String    @map("attendant_id")
+  coordinatorId   String    @map("coordinator_id")
+  status          String    @default("PUBLISHED") // PUBLISHED | DEPARTED | CLOSED | CLOSED_EMERGENCY
+  version         Int       @default(1)
+  publishedAt     DateTime  @default(now()) @map("published_at")
+  departedAt      DateTime? @map("departed_at")
+  vehicleCheckAt  DateTime? @map("vehicle_check_at")
+  vehicleCheckById String?  @map("vehicle_check_by_id")
+  vehicleCheckSignature String? @map("vehicle_check_signature")
+  closedAt        DateTime? @map("closed_at")
+  closedById      String?   @map("closed_by_id")
+  emergencyReason String?   @map("emergency_reason")
+
+  passengers TripPassenger[]
+  events     TripEvent[]
+  exceptions TripException[]
+
+  @@unique([routeId, serviceDate, direction])
+  @@index([schoolId, campusId, serviceDate])
+  @@index([schoolId, attendantId, serviceDate])
+  @@map("transport_trips")
+}
+
+model TripPassenger {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tripId        String        @map("trip_id")
+  trip          TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  studentId     String        @map("student_id")
+  studentName   String        @map("student_name")
+  stopName      String?       @map("stop_name")
+  source        String        @default("MANIFEST") // MANIFEST | AMENDMENT
+  status        String        @default("EXPECTED") // EXPECTED | ABSENT | BOARDED | HANDED_OVER | REMOVED | TRANSFERRED
+  boardedAt     DateTime?     @map("boarded_at")
+  boardedById   String?       @map("boarded_by_id")
+  handedOverAt  DateTime?     @map("handed_over_at")
+  handedOverById String?      @map("handed_over_by_id")
+  receiverType  String?       @map("receiver_type") // STAFF | GUARDIAN | AUTHORIZED_ADULT
+  receiverName  String?       @map("receiver_name")
+  receiverUserId String?      @map("receiver_user_id")
+  note          String?
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  @@unique([tripId, studentId])
+  @@index([schoolId, studentId, status])
+  @@map("trip_passengers")
+}
+
+model TripEvent {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tripId        String        @map("trip_id")
+  trip          TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  studentId     String?       @map("student_id")
+  kind          String
+  occurredAt    DateTime      @map("occurred_at")
+  recordedAt    DateTime      @default(now()) @map("recorded_at")
+  actorId       String        @map("actor_id")
+  clientEventId String?       @map("client_event_id")
+  detail        Json          @default("{}")
+
+  @@unique([tripId, clientEventId])
+  @@index([schoolId, tripId])
+  @@map("trip_events")
+}
+
+model TripException {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tripId       String        @map("trip_id")
+  trip         TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  studentId    String?       @map("student_id")
+  kind         String // UNLISTED_PASSENGER | CAPACITY_OVERFLOW | MISSING_CHILD | MISSING_RECIPIENT | DOUBLE_BOARDING | LATE_CHANGE
+  note         String
+  ownerId      String        @map("owner_id")
+  status       String        @default("OPEN") // OPEN | RESOLVED
+  resolution   String?
+  createdById  String        @map("created_by_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  resolvedById String?       @map("resolved_by_id")
+  resolvedAt   DateTime?     @map("resolved_at")
+
+  @@index([schoolId, tripId, status])
+  @@map("trip_exceptions")
+}
+
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
 model PendingRegistration {
   id               String   @id @default(uuid())
@@ -4642,8 +4787,13 @@ model TransportRoute {
   fare        Int      @default(0)
   createdAt   DateTime @default(now()) @map("created_at")
 
+  /// SKO-437: an inactive route keeps its history but cannot be used for a new trip.
+  active      Boolean  @default(true)
+
   vehicles RouteVehicle[]
   students Student[]      @relation("StudentTransportRoute")
+  stops    TransportStop[]
+  trips    TransportTrip[]
 
   @@unique([campusId, title])
   @@index([schoolId])
@@ -4662,8 +4812,11 @@ model Vehicle {
   driverPhone String?  @map("driver_phone")
   capacity    Int?
   createdAt   DateTime @default(now()) @map("created_at")
+  /// SKO-437: an inactive vehicle keeps its history but cannot be used for a new trip.
+  active      Boolean  @default(true)
 
   routes RouteVehicle[]
+  trips  TransportTrip[]
 
   @@unique([campusId, number])
   @@index([schoolId])
