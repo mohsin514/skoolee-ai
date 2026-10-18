@@ -819,11 +819,11 @@ button:disabled,
   --field-focus-border: #b9a0dc;
   /* Focus = slightly bolder edge (1px inset on the 1px border, no layout
      shift) + a tight same-hue ring + a soft diffuse "smoky" glow. */
-  --field-focus-ring: inset 0 0 0 3px var(--field-focus-border), 0 4px 14px -4px rgb(129 39 207 / 0.18);
+  --field-focus-ring: inset 0 0 0 2px var(--field-focus-border), 0 4px 14px -4px rgb(129 39 207 / 0.18);
   /* = hsl(var(--destructive)); invalid focus repeats the pattern in red. */
   --field-error-rgb: 175 29 29;
   --field-error-border: rgb(var(--field-error-rgb));
-  --field-error-ring: inset 0 0 0 3px var(--field-error-border), 0 4px 14px -4px rgb(var(--field-error-rgb) / 0.16);
+  --field-error-ring: inset 0 0 0 2px var(--field-error-border), 0 4px 14px -4px rgb(var(--field-error-rgb) / 0.16);
   --field-icon-focus: var(--brand-1);
   /* Neutral work surfaces and status fills for the shared primitives. Status
      colours always travel with words; these only carry the tone. */
