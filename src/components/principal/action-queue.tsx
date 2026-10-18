@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-417: the next useful action first. Every row says why it exists (trigger), who owns it, when it is
 // due and the one step that resolves it in its own workspace. Assign / acknowledge / snooze never close
@@ -69,8 +70,8 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label={ui("Update mode")} className="flex rounded-xl bg-muted p-0.5 text-xs font-bold">
-          <button type="button" aria-pressed={!live} onClick={() => setLive(false)} className={`rounded-lg px-3 py-1.5 ${!live ? "bg-white shadow-sm" : ""}`} data-mode="snapshot">{ui("Snapshot")}</button>
-          <button type="button" aria-pressed={live} onClick={() => setLive(true)} className={`rounded-lg px-3 py-1.5 ${live ? "bg-white shadow-sm" : ""}`} data-mode="live">{ui("Live")}</button>
+          <Button variant="ghost" type="button" aria-pressed={!live} onClick={() => setLive(false)} className={`rounded-lg px-3 py-1.5 ${!live ? "bg-white shadow-sm" : ""}`} data-mode="snapshot">{ui("Snapshot")}</Button>
+          <Button variant="ghost" type="button" aria-pressed={live} onClick={() => setLive(true)} className={`rounded-lg px-3 py-1.5 ${live ? "bg-white shadow-sm" : ""}`} data-mode="live">{ui("Live")}</Button>
         </div>
         <Button size="sm" variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />{ui("Re-check now")}</Button>
       </div>
@@ -88,7 +89,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
     <div className="grid gap-3 sm:grid-cols-3">
       <FormField name="queue-type" label={ui("Task type")}><Select value={type} onChange={event => setType(event.target.value)}><option value="">{ui("All types")}</option>{Object.entries(TYPE_LABEL).map(([key, label]) => <option key={key} value={key}>{ui(label)}</option>)}</Select></FormField>
       <FormField name="queue-owner" label={ui("Owner")}><Select value={owner} onChange={event => setOwner(event.target.value)}><option value="">{ui("Anyone")}</option><option value="me">{ui("Mine")}</option><option value="unassigned">{ui("No owner")}</option></Select></FormField>
-      <label className="flex items-center gap-2 self-end text-xs font-bold"><input type="checkbox" checked={showSnoozed} onChange={event => setShowSnoozed(event.target.checked)} />{ui("Show snoozed items")}</label>
+      <label className="flex items-center gap-2 self-end text-xs font-bold"><Checkbox checked={showSnoozed} onChange={event => setShowSnoozed(event.target.checked)} />{ui("Show snoozed items")}</label>
     </div>
 
     {selected.size ? <div className="flex flex-wrap items-end gap-2 rounded-xl bg-primary/5 p-3" data-bulk-bar>
@@ -103,7 +104,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       : !visible.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-queue-empty>{queue.items.length ? ui("No items match these filters.") : ui("Nothing needs attention in this campus right now.")}</p>
       : <ol className="space-y-2" aria-label={ui("Action queue")}>{visible.map(item => <li key={item.key} className={`rounded-2xl border p-3 ${item.overdue ? "border-rose-200 bg-rose-50/40" : "border-border"}`} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
         <div className="flex items-start gap-3">
-          <input type="checkbox" className="mt-1" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [item.title])} />
+          <Checkbox className="mt-1" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [item.title])} />
           <div className="min-w-0 flex-1 space-y-0.5">
             <p className="text-sm font-bold"><bdi>{ui(item.title)}</bdi></p>
             <p className="text-xs text-ink-muted"><bdi>{ui(item.trigger)}</bdi></p>
@@ -115,7 +116,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
               {item.snoozed ? <span className="text-amber-800">{ui("Snoozed until {0}: {1}", [dateTime(item.snoozedUntil!), item.snoozeReason ?? ""])}</span> : null}
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
-              <Link href={item.link} className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={ui("{0}: {1}", [ui(item.nextAction), item.title])} data-next-action>{ui(item.nextAction)}</Link>
+              <Link href={item.link} className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground hover:opacity-90" aria-label={ui("{0}: {1}", [ui(item.nextAction), item.title])} data-next-action>{ui(item.nextAction)}</Link>
               {!item.acknowledgedAt ? <Button size="sm" variant="ghost" onClick={() => void send({ action: "acknowledge", keys: [item.key] }, "Acknowledged. The item stays open until its source is resolved.")}><CheckCheck className="size-3.5" aria-hidden />{ui("Acknowledge")}</Button> : null}
               {item.snoozed ? <Button size="sm" variant="ghost" onClick={() => void send({ action: "unsnooze", keys: [item.key] }, "Snooze removed.")}>{ui("Unsnooze")}</Button> : <Button size="sm" variant="ghost" onClick={() => setSnoozing([item])}><AlarmClock className="size-3.5" aria-hidden />{ui("Snooze")}</Button>}
               <Button size="sm" variant="ghost" onClick={() => setHistoryFor(item)}><History className="size-3.5" aria-hidden />{ui("History")}</Button>
@@ -125,7 +126,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       </li>)}</ol>}
 
     {queue?.resolved.length ? <div>
-      <button type="button" className="text-xs font-bold text-primary" aria-expanded={showResolved} onClick={() => setShowResolved(v => !v)}>{ui("Resolved at the source in the last 14 days ({0})", [queue.resolved.length])}</button>
+      <Button variant="ghost" type="button" className="text-xs font-bold text-primary" aria-expanded={showResolved} onClick={() => setShowResolved(v => !v)}>{ui("Resolved at the source in the last 14 days ({0})", [queue.resolved.length])}</Button>
       {showResolved ? <ul className="mt-2 space-y-1 text-xs text-ink-muted" data-resolved-list>{queue.resolved.map(row => <li key={row.key}><bdi>{row.title ? ui(row.title) : row.key}</bdi> · {dateTime(row.resolvedAt)}</li>)}</ul> : null}
     </div> : null}
 

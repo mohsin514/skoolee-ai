@@ -125,7 +125,7 @@ export function ScenarioPlanner() {
           <ul className="space-y-1 text-sm">{data.scenarios.map((s) => (
             <li key={s.id} className="flex flex-wrap items-center gap-2">
               <Checkbox id={`cmp-${s.id}`} checked={compare.includes(s.id)} onChange={(e) => setCompare((c) => (e.target.checked ? [...c, s.id].slice(-3) : c.filter((x) => x !== s.id)))} aria-label={ui("Compare {0}", [s.name])} />
-              <button type="button" className="text-start underline" onClick={() => setSelected(s.id)}><bdi>{s.name}</bdi></button>
+              <Button variant="ghost" type="button" className="text-start underline" onClick={() => setSelected(s.id)}><bdi>{s.name}</bdi></Button>
               <span className="text-xs text-ink-subtle">{ui("Baseline {0}", [baselineOf(s.baselineId)?.version ?? "?"])} · {ui("{0} hard conflicts", [s.result.findings.filter((f) => f.severity === "HARD").length])}{s.result.provisional ? ` · ${ui("Provisional")}` : ""}</span>
             </li>
           ))}</ul>

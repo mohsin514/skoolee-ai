@@ -636,7 +636,7 @@ export default function LoginPage() {
                 <div className="min-w-0 space-y-2">
                   <p className="text-[13px] font-bold leading-snug text-status-error-text">{localize(formError)}</p>
                   {(resendableErrors.has(formError) || formError === en.resendNeedEmail) && (
-                    <button type="button" onClick={resendVerification} disabled={resendState === "sending"} className="text-[12px] font-black text-[#8127cf] underline underline-offset-2 disabled:opacity-60">{resendState === "sending" ? t.resending : t.resendLink}</button>
+                    <Button variant="ghost" type="button" onClick={resendVerification} disabled={resendState === "sending"} className="text-[12px] font-black text-[#8127cf] underline underline-offset-2 disabled:opacity-60">{resendState === "sending" ? t.resending : t.resendLink}</Button>
                   )}
                 </div>
               </div>

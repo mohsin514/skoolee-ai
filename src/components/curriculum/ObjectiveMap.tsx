@@ -163,7 +163,7 @@ function ObjectiveRow({ t, objective, coverage, prerequisites, language, label }
       {cell(t.resources, coverage.resources.length, fill(t.resourceCount, { n: coverage.resources.length }))}
     </dl>
     <p className="mt-2 text-sm">{line}</p>
-    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-indigo-700"><ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />{t.evidence}</button>
+    <Button variant="ghost" type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-indigo-700"><ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />{t.evidence}</Button>
     {open && <div className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
       <Evidence title={t.plannedEvidence} items={coverage.planned.topics.map(topic => ({ key: topic.id, text: topic.title }))} none={t.none} />
       <Evidence title={t.taughtEvidence} items={coverage.taught.sections.map(row => ({ key: row.section, text: `${row.section} · ${fill(t.taughtOn, { date: date(row.taughtOn) })}` }))} none={t.none} />

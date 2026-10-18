@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-467: intake (routine or confidential), a queue with owner and due date, and a case view where the
 // original report stays fixed and every assignment, note, resolution and reopening is appended.
@@ -124,7 +125,7 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
         <label className="flex items-center gap-2 text-sm"><input type="radio" name="complaint-kind" checked={form.confidential} onChange={() => setForm(current => ({ ...current, confidential: true, ownerId: leader ? current.ownerId : "" }))} />{ui("Confidential concern (about a child's safety or a member of staff)")}</label>
         {form.confidential ? <p className="text-xs text-ink-muted">{ui("Only campus leaders and the person they assign can see a confidential concern. Record what was said, without judging it.")}</p> : null}
       </fieldset>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.anonymous} onChange={event => setForm(current => ({ ...current, anonymous: event.target.checked }))} />{ui("The complainant wants to stay anonymous")}</label>
+      <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.anonymous} onChange={event => setForm(current => ({ ...current, anonymous: event.target.checked }))} />{ui("The complainant wants to stay anonymous")}</label>
       {!form.anonymous ? <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="complaint-name" label={ui("Complainant name")}><Input value={form.complainantName} maxLength={120} onChange={set("complainantName")} /></FormField>
         <FormField name="complaint-phone" label={ui("Phone (optional)")}><Input value={form.phone} inputMode="tel" maxLength={30} onChange={set("phone")} /></FormField>

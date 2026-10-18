@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-469: issue certificates and ID cards from approved template versions. Reception previews the exact
 // text for the chosen pupil (missing fields block issuing), a leader approves identity-sensitive documents,
@@ -252,7 +253,7 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
         <FormField name="template-language" label={ui("Document language")}><Select value={form.language} onChange={set("language")}><option value="en">{ui("English")}</option><option value="ar">{ui("Arabic")}</option><option value="ur">{ui("Urdu")}</option></Select></FormField>
         <FormField name="template-page" label={ui("Page size")}><Select value={form.pageSize} onChange={set("pageSize")} disabled={form.kind === "ID_CARD"}><option value="A4">A4</option><option value="A5">A5</option><option value="LETTER">{ui("Letter")}</option>{form.kind === "ID_CARD" ? <option value="ID_CARD">{ui("ID card")}</option> : null}</Select></FormField>
       </div>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.requiresApproval} disabled={form.kind === "ID_CARD"} onChange={event => setForm(current => ({ ...current, requiresApproval: event.target.checked }))} />{ui("Each document needs a campus leader's approval (always on for ID cards)")}</label>
+      <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.requiresApproval} disabled={form.kind === "ID_CARD"} onChange={event => setForm(current => ({ ...current, requiresApproval: event.target.checked }))} />{ui("Each document needs a campus leader's approval (always on for ID cards)")}</label>
       <FormField name="template-title" label={ui("Document title")}><Input value={form.title} maxLength={120} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("title")} /></FormField>
       <FormField name="template-body" label={ui("Document text")}><Textarea value={form.body} rows={6} maxLength={4000} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("body")} /></FormField>
       <p className="text-xs text-ink-muted">{ui("Insert pupil details with {{variable}}. Available:")} <bdi dir="ltr" className="break-words font-mono">{VARIABLES.map(name => `{{${name}}}`).join(" ")}</bdi></p>

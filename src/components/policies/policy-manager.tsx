@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-429: school leaders write and approve policy versions (audience, office, effective dates,
 // numbered sections), answer escalated questions and check the assistant against owner questions.
@@ -119,7 +120,7 @@ export function PolicyManager() {
           <FormField name="ev-aud" label={ui("Asked by")}><Select value={evalForm.audience} onChange={(e) => setEvalForm((f) => ({ ...f, audience: e.target.value }))}><option value="FAMILY">{ui("Families")}</option><option value="STAFF">{ui("Staff only")}</option></Select></FormField>
           <FormField name="ev-topic" label={ui("Expected topic key")}><Input dir="ltr" value={evalForm.expectedTopic} onChange={(e) => setEvalForm((f) => ({ ...f, expectedTopic: e.target.value }))} /></FormField>
           <FormField name="ev-sec" label={ui("Expected section (optional)")}><Input dir="ltr" value={evalForm.expectedSection} onChange={(e) => setEvalForm((f) => ({ ...f, expectedSection: e.target.value }))} /></FormField>
-          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={evalForm.expectNoAnswer} onChange={(e) => setEvalForm((f) => ({ ...f, expectNoAnswer: e.target.checked }))} /> {ui("This question should NOT get an answer")}</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={evalForm.expectNoAnswer} onChange={(e) => setEvalForm((f) => ({ ...f, expectNoAnswer: e.target.checked }))} /> {ui("This question should NOT get an answer")}</label>
           <div className="flex gap-2 md:col-span-2"><Button type="submit" size="sm" variant="outline">{ui("Add check")}</Button><Button type="button" size="sm" onClick={async () => { const r = await post({ action: "eval-run" }, "Checks run against the current policies."); if (r) setEvalResult(r as EvalResult); }}>{ui("Run all checks")}</Button></div>
         </form>
         {evalResult ? <div className="text-sm"><p className="font-semibold">{ui("{0} of {1} checks passed", [evalResult.passed, evalResult.total])}</p>

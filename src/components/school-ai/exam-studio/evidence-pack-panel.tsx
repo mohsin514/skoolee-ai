@@ -6,6 +6,8 @@ import { TaskFeedback } from "@/components/ui/task-patterns";
 import type { Language } from "@/lib/locale/package";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioEvidenceCopy } from "@/lib/school-ai/exam-studio-copy-evidence";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * SKO-408 R19, task 24.3: produce and download evidence packs for one assessment. The list comes
@@ -52,14 +54,14 @@ export function EvidencePackPanel({ examId, language, canIncludeKeys }: { examId
       <p className="text-sm text-ink-muted">{t.intro}</p>
       <div className="flex flex-wrap items-center gap-4 text-sm">
         {canIncludeKeys ? (
-          <label className="flex items-center gap-2"><input type="checkbox" checked={includeKeys} onChange={event => setIncludeKeys(event.target.checked)} />{t.includeKeys}</label>
+          <label className="flex items-center gap-2"><Checkbox checked={includeKeys} onChange={event => setIncludeKeys(event.target.checked)} />{t.includeKeys}</label>
         ) : null}
-        <label className="flex items-center gap-2"><input type="checkbox" checked={includeCapture} onChange={event => setIncludeCapture(event.target.checked)} />{t.includeCapture}</label>
+        <label className="flex items-center gap-2"><Checkbox checked={includeCapture} onChange={event => setIncludeCapture(event.target.checked)} />{t.includeCapture}</label>
       </div>
       {includeCapture ? (
         <label className="block space-y-1 text-sm">
           <span>{t.captureReason}</span>
-          <textarea className="w-full rounded-xl border border-border p-2" rows={2} value={captureReason} onChange={event => setCaptureReason(event.target.value)} aria-describedby="evidence-capture-hint" />
+          <Textarea className="w-full rounded-xl border border-border p-2" rows={2} value={captureReason} onChange={event => setCaptureReason(event.target.value)} aria-describedby="evidence-capture-hint" />
           <span id="evidence-capture-hint" className="block text-xs text-ink-muted">{t.captureReasonHint}</span>
         </label>
       ) : null}

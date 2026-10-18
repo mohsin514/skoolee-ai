@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { fill } from "./chat-text";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const MotionButton = motion.create(Button);
 
@@ -281,7 +282,7 @@ export function Composer({
 
       {canMarkUrgent && !editing && (
         <label className="mb-1.5 flex w-fit items-center gap-1.5 text-[11px] font-bold text-ink-muted">
-          <input type="checkbox" checked={urgent} onChange={(event) => setUrgent(event.target.checked)} data-urgent-toggle />
+          <Checkbox checked={urgent} onChange={(event) => setUrgent(event.target.checked)} data-urgent-toggle />
           {ui("Urgent: notify even during quiet hours")}
         </label>
       )}

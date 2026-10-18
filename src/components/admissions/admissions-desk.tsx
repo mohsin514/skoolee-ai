@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/form-field";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { FIELD_TYPES, IDENTITY_FIELDS, IDENTITY_KEYS, answerProblems, label, starterDefinition, visibleDocuments, visibleFields, type Answers, type FieldDef, type FormDefinition, type Language } from "@/lib/admissions/form-rules";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-398: the admissions desk. Work starts from ownership and the next action; the review shows the exact
 // form version an application was answered on, keeps office notes apart from messages to the family, lists
@@ -115,7 +116,7 @@ function Questions({ definition, answers, onChange, problems }: { definition: Fo
   const { language } = useLocale();
   return <div className="space-y-3">{visibleFields(definition, answers).map(field => <div key={field.key}>
     {field.section ? <p className="pt-2 text-xs font-black uppercase text-ink-subtle">{label(field.section, language as Language)}</p> : null}
-    {field.type === "checkbox" ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={answers[field.key] === true} onChange={event => onChange(field.key, event.target.checked)} />{label(field.label, language as Language)}</label>
+    {field.type === "checkbox" ? <label className="flex items-center gap-2 text-sm"><Checkbox checked={answers[field.key] === true} onChange={event => onChange(field.key, event.target.checked)} />{label(field.label, language as Language)}</label>
       : <FormField name={`entry-${field.key}`} label={label(field.label, language as Language)} required={field.required} error={problems[field.key] ? ui(problems[field.key]) : undefined}>
         {field.type === "select" ? <Select value={String(answers[field.key] ?? "")} onChange={event => onChange(field.key, event.target.value)}><option value="">{ui("Choose…")}</option>{field.options?.map(option => <option key={option.value} value={option.value}>{label(option.label, language as Language)}</option>)}</Select>
           : field.type === "textarea" ? <Textarea value={String(answers[field.key] ?? "")} rows={2} onChange={event => onChange(field.key, event.target.value)} />
@@ -205,7 +206,7 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
         {detail.missing.length ? <p className="text-xs font-bold text-rose-700" data-review-missing>{ui("Missing: {0}", [detail.missing.join(", ")])}</p> : null}
       </section>
       {staffDraft ? <div className="space-y-2 rounded-xl border border-border p-3">
-        <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} />{ui("The family has read and agreed to this statement:")} {label(definition.consent, "en")}</label>
+        <label className="flex items-start gap-2 text-sm"><Checkbox checked={consent} onChange={event => setConsent(event.target.checked)} />{ui("The family has read and agreed to this statement:")} {label(definition.consent, "en")}</label>
         <Button disabled={busy || !consent} onClick={() => void run({ action: "staff-submit", consent: true }, ui("Application sent."))}>{ui("Send on the family's behalf")}</Button>
       </div> : null}
 
@@ -317,7 +318,7 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
           <FormField name={`field-key-${index}`} label={ui("Key")}><Input dir="ltr" value={field.key} onChange={event => updateField(index, { key: event.target.value })} /></FormField>
           <FormField name={`field-type-${index}`} label={ui("Answer type")}><Select value={field.type} onChange={event => updateField(index, { type: event.target.value as FieldDef["type"] })}>{FIELD_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</Select></FormField>
           <FormField name={`field-identity-${index}`} label={ui("Pupil record field")}><Select value={field.identity ?? ""} onChange={event => updateField(index, { identity: (event.target.value || undefined) as FieldDef["identity"] })}><option value="">{ui("None")}</option>{IDENTITY_FIELDS.map(identity => <option key={identity} value={identity}>{identity}</option>)}</Select></FormField>
-          <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={field.required} onChange={event => updateField(index, { required: event.target.checked })} />{ui("Required")}</label>
+          <label className="flex items-center gap-2 self-end pb-2 text-sm"><Checkbox checked={field.required} onChange={event => updateField(index, { required: event.target.checked })} />{ui("Required")}</label>
         </div>
         {field.type === "select" ? <FormField name={`field-options-${index}`} label={ui("Options, one per line: value | English | Arabic | Urdu")}><Textarea dir="ltr" rows={3} value={optionsText(field)} onChange={event => updateField(index, { options: parseOptions(event.target.value) })} /></FormField> : null}
         <div className="grid gap-2 sm:grid-cols-2">
@@ -333,12 +334,12 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
           <FormField name={`doc-en-${index}`} label={ui("Document (English)")}><Input value={document.label.en} onChange={event => setDefinition(current => ({ ...current, documents: current.documents.map((d, i) => i === index ? { ...d, label: { ...d.label, en: event.target.value } } : d) }))} /></FormField>
           <FormField name={`doc-ar-${index}`} label={ui("Document (Arabic)")}><Input dir="rtl" value={document.label.ar ?? ""} onChange={event => setDefinition(current => ({ ...current, documents: current.documents.map((d, i) => i === index ? { ...d, label: { ...d.label, ar: event.target.value } } : d) }))} /></FormField>
           <FormField name={`doc-key-${index}`} label={ui("Key")}><Input dir="ltr" value={document.key} onChange={event => setDefinition(current => ({ ...current, documents: current.documents.map((d, i) => i === index ? { ...d, key: event.target.value } : d) }))} /></FormField>
-          <div className="flex items-center gap-3 pb-2 text-sm"><label className="flex items-center gap-1"><input type="checkbox" checked={document.required} onChange={event => setDefinition(current => ({ ...current, documents: current.documents.map((d, i) => i === index ? { ...d, required: event.target.checked } : d) }))} />{ui("Required")}</label><Button size="sm" variant="ghost" onClick={() => setDefinition(current => ({ ...current, documents: current.documents.filter((_, i) => i !== index) }))}>{ui("Remove")}</Button></div>
+          <div className="flex items-center gap-3 pb-2 text-sm"><label className="flex items-center gap-1"><Checkbox checked={document.required} onChange={event => setDefinition(current => ({ ...current, documents: current.documents.map((d, i) => i === index ? { ...d, required: event.target.checked } : d) }))} />{ui("Required")}</label><Button size="sm" variant="ghost" onClick={() => setDefinition(current => ({ ...current, documents: current.documents.filter((_, i) => i !== index) }))}>{ui("Remove")}</Button></div>
         </div>)}
         <Button variant="secondary" onClick={() => setDefinition(current => ({ ...current, documents: [...current.documents, { key: `document${current.documents.length + 1}`, required: false, label: { en: "" } }] }))}>{ui("Add a document")}</Button>
       </section>
       <fieldset className="space-y-1 text-sm"><legend className="text-sm font-black">{ui("Find possible duplicates by")}</legend>
-        {IDENTITY_KEYS.map(key => <label key={key} className="flex items-center gap-2"><input type="checkbox" checked={definition.identityKeys.includes(key)} onChange={event => setDefinition(current => ({ ...current, identityKeys: event.target.checked ? [...current.identityKeys, key] : current.identityKeys.filter(k => k !== key) }))} />{key === "nationalId" ? ui("National ID / birth registration number") : key === "nameAndDob" ? ui("Child's name and date of birth") : ui("Guardian phone and child's name")}</label>)}
+        {IDENTITY_KEYS.map(key => <label key={key} className="flex items-center gap-2"><Checkbox checked={definition.identityKeys.includes(key)} onChange={event => setDefinition(current => ({ ...current, identityKeys: event.target.checked ? [...current.identityKeys, key] : current.identityKeys.filter(k => k !== key) }))} />{key === "nationalId" ? ui("National ID / birth registration number") : key === "nameAndDob" ? ui("Child's name and date of birth") : ui("Guardian phone and child's name")}</label>)}
       </fieldset>
       <FormField name="form-consent" label={ui("Consent statement (English)")}><Textarea rows={2} value={definition.consent.en} onChange={event => setDefinition(current => ({ ...current, consent: { ...current.consent, en: event.target.value } }))} /></FormField>
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} disabled={busy}>{busy ? ui("Saving…") : ui("Save draft")}</Button></div>

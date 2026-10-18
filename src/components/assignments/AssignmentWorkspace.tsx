@@ -7,6 +7,8 @@ import { Select } from "@/components/ui/select";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
 import { Banner, call, fileHref, formatAt, Pill, RubricTable, shortSha, stateTone, type Criterion, type Feedback, type Receipt, type Score } from "./shared";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 
 // SKO-409 teacher workspace: queue by status, draft editor, release review, marking and return.
 type Status = "DRAFT" | "RELEASED" | "CLOSED";
@@ -115,16 +117,16 @@ function AssignmentEditor({ t, classId, subjects, resources, initial, busy, onCa
     <label className="grid gap-1 text-xs font-semibold sm:col-span-2">{t.assignmentTitle}<Input name="title" dir="auto" required minLength={3} maxLength={160} defaultValue={initial?.title} /></label>
     <label className="grid gap-1 text-xs font-semibold">{t.subject}<Select name="subjectId" defaultValue={initial?.subjectId ?? ""}><option value="">{t.noSubject}</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></label>
     <label className="grid gap-1 text-xs font-semibold">{t.mode}<Select name="submissionMode" defaultValue={initial?.submissionMode ?? "ONLINE"}>{(["ONLINE", "PAPER", "BOTH"] as const).map(m => <option key={m} value={m}>{t.modes[m]}</option>)}</Select></label>
-    <div className="grid gap-1 text-xs sm:col-span-2"><label className="grid gap-1 font-semibold">{t.instructions}<textarea name="instructions" dir="auto" required minLength={10} maxLength={8000} rows={5} defaultValue={initial?.instructions} aria-describedby="asg-instructions-help" className="rounded-md border px-3 py-2 text-sm font-normal" /></label><span id="asg-instructions-help" className="text-slate-600">{t.instructionsHelp}</span></div>
+    <div className="grid gap-1 text-xs sm:col-span-2"><label className="grid gap-1 font-semibold">{t.instructions}<Textarea name="instructions" dir="auto" required minLength={10} maxLength={8000} rows={5} defaultValue={initial?.instructions} aria-describedby="asg-instructions-help" className="rounded-md border px-3 py-2 text-sm font-normal" /></label><span id="asg-instructions-help" className="text-slate-600">{t.instructionsHelp}</span></div>
     <label className="grid gap-1 text-xs font-semibold">{t.opensAt}<Input type="datetime-local" name="opensLocal" defaultValue={initial?.opensLocal ?? ""} /></label>
     <div className="grid gap-1 text-xs"><label className="grid gap-1 font-semibold">{t.dueAt}<Input type="datetime-local" name="dueLocal" required defaultValue={initial?.dueLocal ?? ""} aria-describedby="asg-due-help" /></label><span id="asg-due-help" className="text-slate-600">{t.dueLocalHelp}</span></div>
     <label className="grid gap-1 text-xs font-semibold">{t.latePolicy}<Select name="latePolicy" defaultValue={initial?.latePolicy ?? "ACCEPT_FLAGGED"}>{(["ACCEPT_FLAGGED", "REFUSE"] as const).map(p => <option key={p} value={p}>{t.latePolicies[p]}</option>)}</Select></label>
     <label className="grid gap-1 text-xs font-semibold">{t.resubmission}<Select name="resubmission" defaultValue={initial?.resubmission ?? "AFTER_RETURN"}>{(["AFTER_RETURN", "NEVER"] as const).map(p => <option key={p} value={p}>{t.resubmissions[p]}</option>)}</Select></label>
     <fieldset className="grid gap-2 text-xs sm:col-span-2"><legend className="mb-1 font-semibold">{t.fileTypes}</legend><div className="flex flex-wrap gap-3">
-      {FILE_GROUPS.map(group => <label key={group} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4" checked={types.includes(group)} onChange={event => setTypes(list => event.target.checked ? [...list, group] : list.filter(g => g !== group))} />{t.fileTypeNames[group]}</label>)}
+      {FILE_GROUPS.map(group => <label key={group} className="inline-flex min-h-11 items-center gap-2 text-sm"><Checkbox className="h-4 w-4" checked={types.includes(group)} onChange={event => setTypes(list => event.target.checked ? [...list, group] : list.filter(g => g !== group))} />{t.fileTypeNames[group]}</label>)}
     </div></fieldset>
     {initial && <fieldset className="grid gap-2 text-xs sm:col-span-2"><legend className="mb-1 font-semibold">{t.materials}</legend>
-      {resources.length === 0 ? <p className="text-slate-600">{t.noMaterials}</p> : <div className="flex flex-wrap gap-3">{resources.map(r => <label key={r.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4" checked={picked.includes(r.id)} onChange={event => setPicked(list => event.target.checked ? [...list, r.id] : list.filter(id => id !== r.id))} /><span dir="auto">{r.title}</span></label>)}</div>}
+      {resources.length === 0 ? <p className="text-slate-600">{t.noMaterials}</p> : <div className="flex flex-wrap gap-3">{resources.map(r => <label key={r.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><Checkbox className="h-4 w-4" checked={picked.includes(r.id)} onChange={event => setPicked(list => event.target.checked ? [...list, r.id] : list.filter(id => id !== r.id))} /><span dir="auto">{r.title}</span></label>)}</div>}
     </fieldset>}
     <fieldset className="grid min-w-0 gap-2 sm:col-span-2"><legend className="mb-1 text-sm font-semibold">{t.rubric}</legend>
       <ol className="grid gap-2">{rubric.map((row, index) => <li key={index} className="grid min-w-0 gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-[2fr_1fr_3fr_auto] sm:items-end">
@@ -176,7 +178,7 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
       <section aria-labelledby="asg-queue" className="min-w-0 rounded-xl border bg-white p-4">
         <h3 id="asg-queue" className="mb-2 text-sm font-semibold">{t.queue}</h3>
         <ul className="grid gap-2" aria-label={t.queue}>{detail.queue.map(q => { const latest = q.versions[0]; return <li key={q.studentId}>
-          <button type="button" aria-current={learner === q.studentId ? "true" : undefined} onClick={() => setLearner(q.studentId)} className={`flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-start text-sm ${learner === q.studentId ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
+          <Button variant="ghost" type="button" aria-current={learner === q.studentId ? "true" : undefined} onClick={() => setLearner(q.studentId)} className={`flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-start text-sm ${learner === q.studentId ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
             <span className="min-w-0 font-semibold [overflow-wrap:anywhere]" dir="auto">{q.name}</span>
             <span className="flex flex-wrap gap-1">
               <Pill tone={stateTone(q.status)}>{latest ? `${t.states[q.status as keyof typeof t.states] ?? q.status} · v${latest.version}` : t.notSubmitted}</Pill>
@@ -185,7 +187,7 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
               {q.extension && <Pill tone="green">{t.extended}</Pill>}
               {!q.enrolled && <Pill tone="red">{t.leftClass}</Pill>}
             </span>
-          </button>
+          </Button>
         </li>; })}</ul>
       </section>
       {row && <Marking key={row.studentId} t={t} language={language} assignmentId={assignment.id} timezone={release.timezone} row={row} rubrics={detail.rubrics} busy={busy} run={run} closed={assignment.status === "CLOSED"} />}
@@ -258,9 +260,9 @@ function Marking({ t, language, assignmentId, timezone, row, rubrics, busy, run,
           <label className="grid gap-1 text-xs font-semibold sm:col-span-2">{t.criterionComment}<Input dir="auto" maxLength={2000} value={scores[index]?.comment ?? ""} onChange={event => setScores(list => list.map((s, i) => i === index ? { ...s, comment: event.target.value } : s))} /></label>
         </li>)}</ol>
         <p className="text-sm font-semibold tabular-nums">{t.total}: {total} / {max} · {t.formative}</p>
-        <label className="grid gap-1 text-xs font-semibold">{t.overallComment}<textarea dir="auto" rows={3} maxLength={4000} value={comment} onChange={event => setComment(event.target.value)} className="rounded-md border px-3 py-2 text-sm font-normal" /></label>
-        <label className="flex min-h-11 items-start gap-2 text-sm"><input type="checkbox" className="mt-1 h-4 w-4" checked={gradebook} onChange={event => setGradebook(event.target.checked)} />{t.gradebook}</label>
-        <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4" checked={revision} onChange={event => setRevision(event.target.checked)} />{t.allowRevision}</label>
+        <label className="grid gap-1 text-xs font-semibold">{t.overallComment}<Textarea dir="auto" rows={3} maxLength={4000} value={comment} onChange={event => setComment(event.target.value)} className="rounded-md border px-3 py-2 text-sm font-normal" /></label>
+        <label className="flex min-h-11 items-start gap-2 text-sm"><Checkbox className="mt-1 h-4 w-4" checked={gradebook} onChange={event => setGradebook(event.target.checked)} />{t.gradebook}</label>
+        <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox className="h-4 w-4" checked={revision} onChange={event => setRevision(event.target.checked)} />{t.allowRevision}</label>
         <div className="flex flex-wrap gap-2"><Button type="submit" disabled={busy}>{t.returnFeedback}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => run(() => post({ op: "feedback", ...feedbackBody }))}>{t.saveMarking}</Button></div>
       </form>}
     </> : <p className="text-sm text-slate-600">{t.notSubmitted}</p>}

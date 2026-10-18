@@ -11,6 +11,7 @@ import { studioSpacesCopy } from "@/lib/school-ai/exam-studio-copy-spaces";
 import type { Readiness } from "../../exam-release-panel";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { Composed } from "../space-state";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * SKO-408 Exam Room space: release an approved paper whose current version is rehearsed clean. The
@@ -71,8 +72,8 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
         <label className="grid gap-1 text-sm font-semibold">{t.roomCloses}<Input type="datetime-local" value={endsAt} onChange={event => setEndsAt(event.target.value)} /></label>
       </div>
       <fieldset className="space-y-1"><legend className="text-sm font-semibold">{t.roomCandidates}</legend>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={students.length > 0 && chosen.length === students.length} onChange={event => setChosen(event.target.checked ? students.map(student => student.id) : [])} />{t.roomAll}</label>
-        <div className="grid gap-1 sm:grid-cols-2">{students.map(student => <label key={student.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={chosen.includes(student.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, student.id] : previous.filter(id => id !== student.id))} /><bdi dir="auto">{student.fullName}</bdi></label>)}</div>
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={students.length > 0 && chosen.length === students.length} onChange={event => setChosen(event.target.checked ? students.map(student => student.id) : [])} />{t.roomAll}</label>
+        <div className="grid gap-1 sm:grid-cols-2">{students.map(student => <label key={student.id} className="flex items-center gap-2 text-sm"><Checkbox checked={chosen.includes(student.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, student.id] : previous.filter(id => id !== student.id))} /><bdi dir="auto">{student.fullName}</bdi></label>)}</div>
       </fieldset>
       <Button disabled={busy || !title.trim() || !chosen.length || !readiness || blockers > 0} onClick={() => void release()}>{t.roomRelease}</Button>
       {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${message.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-status-error-border bg-status-error-surface text-status-error-text"}`} data-room-result><bdi dir="auto">{message.text}</bdi></p>}

@@ -9,6 +9,7 @@ import { examFormsCopy } from "../../exam-forms-copy";
 import { fill } from "../../exam-incident-copy";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { SpaceStateRegion, type SpaceState } from "../space-state";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * SKO-408 Blueprint space, parallel forms (R10). The comparison is structural and says so: forms are
@@ -137,8 +138,8 @@ function AssignSet({ language, busy, onAssign, rosterPaperId }: { language: Stud
       <label className="grid gap-1 text-sm font-semibold">{t.endsAt}<Input type="datetime-local" value={endsAt} onChange={event => setEndsAt(event.target.value)} /></label>
     </div>
     <fieldset className="space-y-1"><legend className="text-sm font-semibold">{t.candidates}</legend>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={students.length > 0 && chosen.length === students.length} onChange={event => setChosen(event.target.checked ? students.map(student => student.id) : [])} />{t.all}</label>
-      <div className="grid gap-1 sm:grid-cols-2">{students.map(student => <label key={student.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={chosen.includes(student.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, student.id] : previous.filter(id => id !== student.id))} /><bdi dir="auto">{student.fullName}</bdi></label>)}</div>
+      <label className="flex items-center gap-2 text-sm"><Checkbox checked={students.length > 0 && chosen.length === students.length} onChange={event => setChosen(event.target.checked ? students.map(student => student.id) : [])} />{t.all}</label>
+      <div className="grid gap-1 sm:grid-cols-2">{students.map(student => <label key={student.id} className="flex items-center gap-2 text-sm"><Checkbox checked={chosen.includes(student.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, student.id] : previous.filter(id => id !== student.id))} /><bdi dir="auto">{student.fullName}</bdi></label>)}</div>
     </fieldset>
     <Button disabled={busy || !title.trim() || chosen.length < 2} onClick={() => void onAssign({ idempotencyKey: key, title, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), studentIds: chosen, mode: "STANDARD" })}>{t.assign}</Button>
   </section>;
@@ -210,7 +211,7 @@ function ModelReview({ version, language, formSetId, canCreate, canApprove, onRe
       <p dir="auto">{proposal.explanation}</p>
       <details className="text-xs text-ink-subtle"><summary>{t.benignCauses}</summary><ul className="list-disc ps-5">{proposal.knownBenignCauses.map((cause, index) => <li key={index}>{cause}</li>)}</ul></details>
       {proposal.decision ? <p className="text-xs font-semibold">{t[DECISION_COPY[proposal.decision.outcome]]} · <bdi dir="auto">{proposal.decision.reason}</bdi></p>
-        : canApprove ? <div className="flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.decisionReason}<input className="rounded-lg border px-2 py-1 text-sm" value={reasons[proposal.id] ?? ""} onChange={event => setReasons(previous => ({ ...previous, [proposal.id]: event.target.value }))} /></label>
+        : canApprove ? <div className="flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.decisionReason}<Input className="rounded-lg border px-2 py-1 text-sm" value={reasons[proposal.id] ?? ""} onChange={event => setReasons(previous => ({ ...previous, [proposal.id]: event.target.value }))} /></label>
           {(["ACCEPTED", "DISMISSED", "CORRECTION_REQUESTED"] as const).map(outcome => <Button key={outcome} size="sm" variant={outcome === "ACCEPTED" ? "default" : "outline"} disabled={busy || !(reasons[proposal.id] ?? "").trim()} onClick={() => void send(`${base}/${encodeURIComponent(proposal.id)}`, { outcome, reason: reasons[proposal.id] })}>{outcome === "ACCEPTED" ? t.decideAccept : outcome === "DISMISSED" ? t.decideDismiss : t.decideCorrection}</Button>)}</div>
         : <p className="text-xs text-status-warning-text">{t.awaitingDecision}</p>}
     </li>)}</ul>}

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-421 staff side. Leave requests are decided here and never mark the register. Trip notices are
 // published as versions; a revision says whether it is a material change (fresh answers needed) and what
@@ -100,7 +101,7 @@ export function TripsDesk() {
         </div>
         <FormField name="trip-instructions" label={ui("Instructions")}><Textarea value={form.instructions} maxLength={4000} onChange={set("instructions")} /></FormField>
         {editing.mode === "create" ? <FormField name="trip-class" label={ui("Invited class")}><Select value={classId} onChange={e => setClassId(e.target.value)}><option value="">{ui("Choose a class")}</option>{classes.map(c => <option key={c.id} value={c.id}>{[c.name, c.section].filter(Boolean).join(" ")}</option>)}</Select></FormField> : <>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={material} onChange={e => setMaterial(e.target.checked)} data-trip-material /> {ui("This is a material change — families must answer again")}</label>
+          <label className="flex items-center gap-2 text-sm"><Checkbox checked={material} onChange={e => setMaterial(e.target.checked)} data-trip-material /> {ui("This is a material change — families must answer again")}</label>
           <FormField name="trip-change" label={ui("What changed")}><Textarea value={changeNote} maxLength={500} onChange={e => setChangeNote(e.target.value)} /></FormField>
         </>}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Cancel")}</Button><Button disabled={busy} onClick={() => void save()} data-publish-trip>{ui("Publish")}</Button></div>

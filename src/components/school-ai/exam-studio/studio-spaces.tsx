@@ -11,6 +11,7 @@ import { STUDIO_SPACES, STUDIO_SPACE_IDS, loadStudioSpace, studioSpace, type Stu
 import type { StudioScopeSelection } from "./studio-scope";
 import { SpaceStateRegion } from "./space-state";
 import { PendingSpace } from "./spaces/pending-space";
+import { Button } from "@/components/ui/button";
 
 /**
  * The seven-space rail (SKO-408 task 3.5). It mounts the frozen registry: each entry resolves its
@@ -57,17 +58,17 @@ export function StudioSpaces({ language, scope, capabilities, records, reload, o
   return <div className="space-y-5" data-studio-spaces>
     <nav aria-label={shell.rail} className="sk-panel overflow-x-auto p-2">
       <ol className="flex min-w-max gap-1 lg:grid lg:min-w-0 lg:grid-cols-8">
-        <li><button type="button" onClick={() => open(null)} aria-current={active === null ? "page" : undefined} className={cn("flex h-full w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm font-semibold transition-colors", active === null ? "bg-primary text-primary-foreground" : "hover:bg-surface-hover")}>
+        <li><Button variant="ghost" type="button" onClick={() => open(null)} aria-current={active === null ? "page" : undefined} className={cn("flex h-full w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm font-semibold transition-colors", active === null ? "bg-primary text-primary-foreground" : "hover:bg-surface-hover")}>
           <Home className="size-4 shrink-0" aria-hidden="true" />{t.home}
-        </button></li>
+        </Button></li>
         {STUDIO_SPACES.map(space => {
           const Icon = space.icon, selected = active === space.id;
-          return <li key={space.id}><button type="button" onClick={() => open(space.id)} aria-current={selected ? "page" : undefined} data-space={space.id}
+          return <li key={space.id}><Button variant="ghost" type="button" onClick={() => open(space.id)} aria-current={selected ? "page" : undefined} data-space={space.id}
             className={cn("flex h-full w-full items-start gap-2 rounded-xl px-3 py-2 text-start transition-colors", selected ? "bg-primary text-primary-foreground" : "hover:bg-surface-hover")}>
             <span className="mt-0.5 text-xs font-bold tabular-nums opacity-70">{new Intl.NumberFormat(language).format(space.position)}</span>
             <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span className="text-sm font-semibold leading-tight">{shell[space.nameKey]}</span>
-          </button></li>;
+          </Button></li>;
         })}
       </ol>
     </nav>

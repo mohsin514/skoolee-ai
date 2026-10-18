@@ -69,10 +69,10 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
   const badge = (key: string) => key === "mentions" ? counts?.mentionsUnread : key === "actions" ? counts?.openActions : counts?.unread;
   return <div data-notification-center>
     <div role="tablist" aria-label={ui("Notification views")} className="flex gap-1 border-b border-border px-3 pt-2">
-      {TABS.map(item => <button key={item.key} role="tab" type="button" aria-selected={tab === item.key} onClick={() => { setItems(null); setTab(item.key); }}
+      {TABS.map(item => <Button variant="ghost" key={item.key} role="tab" type="button" aria-selected={tab === item.key} onClick={() => { setItems(null); setTab(item.key); }}
         className={cn("flex items-center gap-1 rounded-t-lg px-3 py-2 text-xs font-bold", tab === item.key ? "border-b-2 border-primary text-primary" : "text-ink-muted")} data-tab={item.key}>
         {ui(item.label)}{badge(item.key) ? <span className="rounded-full bg-muted px-1.5 text-[10px]" data-tab-count={badge(item.key)}>{badge(item.key)}</span> : null}
-      </button>)}
+      </Button>)}
     </div>
     {tab === "actions" && counts?.overdueActions ? <p className="mx-3 mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] font-bold text-rose-700" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</p> : null}
     <div className="max-h-[360px] space-y-1 overflow-y-auto p-2" aria-live="polite">

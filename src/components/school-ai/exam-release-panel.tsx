@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { AssessmentLocale, CandidatePaper } from "@/lib/school-ai/assessment";
 import { examReleaseCopy } from "./exam-release-copy";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-408: the review desk and rehearsal for one saved paper version.
 type ItemState = "DRAFT" | "NEEDS_SOURCE" | "NEEDS_CORRECTION" | "READY_FOR_REVIEW" | "APPROVED" | "CHANGED_AFTER_APPROVAL";
@@ -90,7 +91,7 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => setCompare(null)}>{t.keepPrevious}</Button>
         </div>
       </div>}
-      {item.invalidated.length > 0 && editable && <label className="flex items-start gap-2 rounded-lg border border-status-warning-border p-2 text-sm"><input type="checkbox" className="mt-1" checked={!!rechecked[item.id]} onChange={event => setRechecked(previous => ({ ...previous, [item.id]: event.target.checked }))} /><span>{t.recheck}: {item.invalidated.map(artifact => t.artifacts[artifact as keyof typeof t.artifacts] ?? artifact).join(", ")}</span></label>}
+      {item.invalidated.length > 0 && editable && <label className="flex items-start gap-2 rounded-lg border border-status-warning-border p-2 text-sm"><Checkbox className="mt-1" checked={!!rechecked[item.id]} onChange={event => setRechecked(previous => ({ ...previous, [item.id]: event.target.checked }))} /><span>{t.recheck}: {item.invalidated.map(artifact => t.artifacts[artifact as keyof typeof t.artifacts] ?? artifact).join(", ")}</span></label>}
       <details className="text-sm"><summary className="cursor-pointer text-xs font-semibold">{t.evidence} ({item.sourceRefs.length})</summary><ul className="mt-1 list-disc ps-5">{item.sourceRefs.map((ref, index) => <li key={index}><span className="text-ink-subtle">{t.page} <bdi dir="ltr">{ref.page}</bdi>:</span> <q dir="auto">{ref.excerpt}</q></li>)}</ul></details>
     </li>)}</ol>
     <details className="rounded-xl border p-3 text-sm"><summary className="cursor-pointer font-semibold">{t.preview}</summary>

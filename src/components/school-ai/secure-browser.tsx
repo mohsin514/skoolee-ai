@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
 import { secureBrowserCopy } from "./secure-browser-copy";
+import { Textarea } from "@/components/ui/textarea";
 
 // SKO-449 surfaces: the learner admission gate, the coordinator profile manager and the invigilator alternative.
 export type SecureBrowserState = { required: false } | { required: true; admitted: boolean; via: "SEB" | "SUPERVISED_ALTERNATIVE" | null; reason: "MISSING_HEADERS" | "CONFIG_MISMATCH" | "CLIENT_MISMATCH" | "NO_EVIDENCE" | null; profile: { name: string; minClientVersion: string; version: number } };
@@ -79,10 +80,10 @@ function ProfileForm({ t, base, expected = 0, onCancel, onSave }: { t: ReturnTyp
   return <form onSubmit={submit} aria-label={t.title} className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
     <label className="grid gap-1 text-xs font-semibold">{t.name}<Input name="name" required minLength={3} defaultValue={base?.name ?? ""} /></label>
     <label className="grid gap-1 text-xs font-semibold">{t.minClient}<Input name="minClientVersion" required pattern="\d+(\.\d+){0,3}" defaultValue={base?.minClientVersion ?? "3.7"} dir="ltr" /></label>
-    <label className="grid gap-1 text-xs font-semibold">{t.configKeys}<textarea name="configKeys" rows={2} dir="ltr" className="rounded-md border px-3 py-2 font-mono text-xs" defaultValue={base?.configKeys.join("\n") ?? ""} aria-describedby="seb-keys-help" /></label>
-    <label className="grid gap-1 text-xs font-semibold">{t.examKeys}<textarea name="browserExamKeys" rows={2} dir="ltr" className="rounded-md border px-3 py-2 font-mono text-xs" defaultValue={base?.browserExamKeys.join("\n") ?? ""} aria-describedby="seb-keys-help" /></label>
+    <label className="grid gap-1 text-xs font-semibold">{t.configKeys}<Textarea name="configKeys" rows={2} dir="ltr" className="rounded-md border px-3 py-2 font-mono text-xs" defaultValue={base?.configKeys.join("\n") ?? ""} aria-describedby="seb-keys-help" /></label>
+    <label className="grid gap-1 text-xs font-semibold">{t.examKeys}<Textarea name="browserExamKeys" rows={2} dir="ltr" className="rounded-md border px-3 py-2 font-mono text-xs" defaultValue={base?.browserExamKeys.join("\n") ?? ""} aria-describedby="seb-keys-help" /></label>
     <p id="seb-keys-help" className="text-xs text-ink-subtle sm:col-span-2">{t.keysHelp}</p>
-    <label className="grid gap-1 text-xs font-semibold sm:col-span-2">{t.resources}<textarea name="allowedResources" rows={2} dir="ltr" className="rounded-md border px-3 py-2 text-xs" defaultValue={base?.allowedResources.join("\n") ?? ""} /></label>
+    <label className="grid gap-1 text-xs font-semibold sm:col-span-2">{t.resources}<Textarea name="allowedResources" rows={2} dir="ltr" className="rounded-md border px-3 py-2 text-xs" defaultValue={base?.allowedResources.join("\n") ?? ""} /></label>
     <fieldset className="grid gap-2 sm:col-span-2"><legend className="text-xs font-semibold">{t.devices}</legend>
       {devices.map((row, index) => <div key={index} className="grid gap-2 rounded-lg border p-2 sm:grid-cols-5">
         <label className="grid gap-1 text-xs">{t.platform}<Select value={row.platform} onChange={event => device(index, { platform: event.target.value as Device["platform"] })}><option value="WINDOWS">Windows</option><option value="MACOS">macOS</option><option value="IPADOS">iPadOS</option></Select></label>

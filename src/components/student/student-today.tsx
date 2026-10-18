@@ -68,7 +68,7 @@ export function StudentToday() {
         <Button size="sm" variant="outline" disabled={!data || loading} onClick={() => data && setDay(shift(data.day, 1))} data-day-next>{ui("Next day")}</Button>
       </nav>
     </header>
-    {error ? <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900" data-today-error>{stale && data ? ui("We could not refresh Today. Showing the view from {0}.", [dateTime(data.refreshedAt)]) : error} <button type="button" className="font-semibold underline" onClick={() => void load(day)}>{ui("Try again")}</button></p> : null}
+    {error ? <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900" data-today-error>{stale && data ? ui("We could not refresh Today. Showing the view from {0}.", [dateTime(data.refreshedAt)]) : error} <Button variant="ghost" type="button" className="font-semibold underline" onClick={() => void load(day)}>{ui("Try again")}</Button></p> : null}
     {examUrl ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4" data-next-action="RESUME_EXAM">
       <p className="text-[11px] font-black uppercase tracking-wider text-rose-800">{actionLabel(ui, "RESUME_EXAM")}</p>
       <p className="mt-1 text-sm text-rose-900">{ui("Your exam is in progress. Other work and help are hidden until you finish it.")}</p>

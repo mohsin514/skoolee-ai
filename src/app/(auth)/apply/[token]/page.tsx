@@ -11,6 +11,7 @@ import { FormField } from "@/components/ui/form-field";
 import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { answerProblems, label, visibleDocuments, visibleFields, type Answers, type FormDefinition, type Language, type Problem } from "@/lib/admissions/form-rules";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-398: a family's admission application. No account: the draft is found again with its reference and a
 // resume key, which lives in this browser and in the "continue later" link's #fragment (never sent as part of
@@ -144,7 +145,7 @@ export default function ApplyPage() {
         {notice ? <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800" data-apply-notice>{notice}</p> : null}
         {visibleFields(definition, answers).map(field => <div key={field.key} className="space-y-3">
           {field.section ? <h2 className="pt-2 text-base font-black">{label(field.section, lang)}</h2> : null}
-          {field.type === "checkbox" ? <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={answers[field.key] === true} onChange={event => set(field.key, event.target.checked)} aria-invalid={Boolean(problemFor(field.key))} />{label(field.label, lang)}{field.required ? " *" : ""}</label>
+          {field.type === "checkbox" ? <label className="flex items-start gap-2 text-sm"><Checkbox checked={answers[field.key] === true} onChange={event => set(field.key, event.target.checked)} aria-invalid={Boolean(problemFor(field.key))} />{label(field.label, lang)}{field.required ? " *" : ""}</label>
             : <FormField name={`apply-${field.key}`} label={label(field.label, lang)} required={field.required} error={problemFor(field.key) ? ui(problemFor(field.key)!) : undefined} hint={field.help ? label(field.help, lang) : undefined}>
               {field.type === "select" ? <Select value={String(answers[field.key] ?? "")} onChange={event => set(field.key, event.target.value)}><option value="">{ui("Choose…")}</option>{field.options?.map(option => <option key={option.value} value={option.value}>{label(option.label, lang)}</option>)}</Select>
                 : field.type === "textarea" ? <Textarea value={String(answers[field.key] ?? "")} rows={3} maxLength={2000} onChange={event => set(field.key, event.target.value)} />
@@ -167,7 +168,7 @@ export default function ApplyPage() {
             </div>;
           })}
         </section> : null}
-        <label className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} data-apply-consent />{label(definition.consent, lang)}</label>
+        <label className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm"><Checkbox checked={consent} onChange={event => setConsent(event.target.checked)} data-apply-consent />{label(definition.consent, lang)}</label>
         {saved ? <div className="space-y-1 rounded-xl border border-dashed border-border p-3 text-xs" data-apply-continue>
           <p>{ui("Your reference")}: <bdi dir="ltr" className="font-black">{saved.reference}</bdi></p>
           <p>{ui("To continue on another device, keep this link private and open it there:")}</p>

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
 import { examIncidentCopy, fill } from "./exam-incident-copy";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-408 R17.7-R17.12: preview a remedy per candidate, then an approver applies that exact proposal.
 type Question = { id: string; number: number; type: string; marks: number; options: Array<{ id: string; text: string }> };
@@ -67,7 +68,7 @@ export function ExamRemedyPanel({ examId, locale, canAuthorize, onApplied }: { e
       {type === "RUBRIC_CORRECTION" && <label className="grid gap-1 text-sm font-semibold">{t.rubricChange}<Textarea rows={2} maxLength={2000} dir="auto" value={rubricChange} onChange={event => setRubricChange(event.target.value)} /></label>}
     </div>}
     <label className="grid gap-1 text-sm font-semibold">{t.reason}<Textarea rows={2} maxLength={2000} dir="auto" value={reason} onChange={event => setReason(event.target.value)} /></label>
-    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={notify} onChange={event => setNotify(event.target.checked)} />{t.notify}</label>
+    <label className="flex items-center gap-2 text-sm"><Checkbox checked={notify} onChange={event => setNotify(event.target.checked)} />{t.notify}</label>
     <Button variant="outline" disabled={busy || !questionId || reason.trim().length < 5 || (type === "KEY_CORRECTION" && !option) || (manual && !Object.values(remarks).some(value => value.trim() !== "")) || (type === "RUBRIC_CORRECTION" && rubricChange.trim().length < 5)}
       onClick={() => void send(api, { type, questionId, reason, notify,
         ...(type === "KEY_CORRECTION" ? { correction: question?.type === "MULTIPLE_CHOICE" ? { questionId, correctOptionIds: [option] } : { questionId, correctOptionId: option } } : {}),

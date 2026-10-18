@@ -58,7 +58,7 @@ export function FamilyInbox() {
       <h2 id="family-inbox-heading" className="text-lg font-black">{ui("Family requests")}</h2>
       {data ? <p className="text-xs text-ink-muted" role="status">{data.counts.action ? ui("Requests that need your attention: {0}", [String(data.counts.action)]) : ui("You are up to date.")}</p> : null}
     </header>
-    {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{error} <button type="button" className="font-semibold underline" onClick={() => void load()}>{ui("Try again")}</button></p> : null}
+    {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{error} <Button variant="ghost" type="button" className="font-semibold underline" onClick={() => void load()}>{ui("Try again")}</Button></p> : null}
     {data ? <>
       {data.unavailable.length ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900" data-inbox-partial>{ui("Some requests could not be refreshed; the others are shown.")}</p> : null}
       <div className="flex flex-wrap gap-1" role="group" aria-label={ui("Request status")}>{views.map(v => <Button key={v.key} size="sm" variant="choice" aria-pressed={view === v.key} onClick={() => setView(v.key)} data-inbox-view={v.key}>{v.label}{v.count !== undefined ? <> · <bdi>{v.count}</bdi></> : null}</Button>)}</div>

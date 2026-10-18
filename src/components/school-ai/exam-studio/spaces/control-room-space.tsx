@@ -10,6 +10,7 @@ import { TaskFeedback } from "@/components/ui/task-patterns";
 import { examIncidentCopy, fill } from "../../exam-incident-copy";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { SpaceStateRegion, type SpaceState } from "../space-state";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * SKO-408 Control room (R17.1-R17.6). Human decisions about a live sitting, with scope, reason and
@@ -73,7 +74,7 @@ export default function ControlRoomSpace({ language, scope, capabilities }: Stud
             <fieldset className="space-y-2"><legend className="text-sm font-semibold">{t.audience}</legend>
               <label className="flex items-center gap-2 text-sm"><input type="radio" name="notice-audience" checked={everyone} onChange={() => setEveryone(true)} />{t.everyone} ({number(live.length)})</label>
               <label className="flex items-center gap-2 text-sm"><input type="radio" name="notice-audience" checked={!everyone} onChange={() => setEveryone(false)} />{t.chosen}</label>
-              {!everyone && <div className="grid gap-1 ps-6">{live.map(attempt => <label key={attempt.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={chosen.includes(attempt.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, attempt.id] : previous.filter(entry => entry !== attempt.id))} /><bdi dir="auto">{attempt.name ?? attempt.id}</bdi></label>)}</div>}
+              {!everyone && <div className="grid gap-1 ps-6">{live.map(attempt => <label key={attempt.id} className="flex items-center gap-2 text-sm"><Checkbox checked={chosen.includes(attempt.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, attempt.id] : previous.filter(entry => entry !== attempt.id))} /><bdi dir="auto">{attempt.name ?? attempt.id}</bdi></label>)}</div>}
             </fieldset>
             {board.questions.length > 0 && <label className="grid max-w-xs gap-1 text-sm font-semibold">{t.question}<Select aria-label={t.question} value={question} onChange={event => setQuestion(event.target.value)}><option value="">{t.none}</option>{board.questions.map(entry => <option key={entry.id} value={entry.id}>{fill(t.aboutQuestion, [number(entry.number)])}</option>)}</Select></label>}
             <div className="flex flex-wrap gap-2">
@@ -134,7 +135,7 @@ function Supervise({ examId, board, language, canExtend, onChanged }: { examId: 
     <h3 id="supervise-title" className="font-semibold">{t.superviseTitle}</h3>
     <p className="text-sm text-ink-subtle">{t.superviseHint}</p>
     <ul className="grid gap-1 sm:grid-cols-2">{live.map(attempt => <li key={attempt.id}><label className="flex items-center gap-2 text-sm" data-attempt-paused={!!attempt.pausedAt}>
-      <input type="checkbox" checked={chosen.includes(attempt.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, attempt.id] : previous.filter(entry => entry !== attempt.id))} />
+      <Checkbox checked={chosen.includes(attempt.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, attempt.id] : previous.filter(entry => entry !== attempt.id))} />
       <bdi dir="auto" className="font-medium">{attempt.name ?? attempt.id}</bdi>
       <span className={`text-xs ${attempt.pausedAt ? "font-semibold text-status-warning-text" : "text-ink-subtle"}`}>{attempt.pausedAt ? fill(t.pausedSince, [time(attempt.pausedAt)]) : fill(t.deadline, [time(attempt.deadlineAt)])}</span>
     </label></li>)}</ul>

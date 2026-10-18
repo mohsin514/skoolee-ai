@@ -98,10 +98,10 @@ export function CapacityReport() {
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Release performance report")}</h3>
         <Button size="sm" variant={failingOnly ? "default" : "outline"} aria-pressed={failingOnly} onClick={() => { setFailingOnly(!failingOnly); const f = data.runs.find(r => !r.passed); if (!failingOnly && f) setOpen(f.id); }} data-review-failing>{ui("Review failing workload")}</Button></div>
       {!data.runs.length ? <p className="text-sm" data-runs-empty>{ui("No representative benchmark has been recorded for this workload. No capacity claim is available until this workload is measured.")}</p> : <ul className="space-y-2">{runs.map(r => <li key={r.id} className="rounded-xl border border-border p-3" data-run={r.runId} data-run-passed={String(r.passed)}>
-        <button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)} data-run-toggle={r.runId}>
+        <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)} data-run-toggle={r.runId}>
           <span className="font-semibold"><bdi dir="ltr">{r.runId}</bdi> · <bdi>{r.profile}</bdi></span>
           <span className={cn("rounded-full border px-2 py-0.5 text-xs font-bold", r.passed ? "border-emerald-200 text-emerald-800" : "border-rose-200 text-rose-800")}>{r.passed ? ui("All objectives met") : ui("Objectives not met")}</span>
-        </button>
+        </Button>
         <p className="mt-1 text-xs text-ink-muted">{ui("Release")} <bdi dir="ltr">{r.release}</bdi> · <bdi>{r.environment}</bdi> · {dateTime(r.finishedAt)}</p>
         {open === r.id ? <div className="mt-3"><RunDetail run={r} /></div> : null}
       </li>)}</ul>}

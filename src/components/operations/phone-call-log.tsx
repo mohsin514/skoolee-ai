@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-465: the reception call log. Calls are recorded once; a promised callback is an owned task that
 // stays open through attempts and reschedules until an outcome is recorded. Notes marked sensitive are
@@ -136,7 +137,7 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
       </div>
       <FormField name="call-purpose" label={ui("Purpose")}><Input value={form.purpose} maxLength={120} onChange={set("purpose")} /></FormField>
       <FormField name="call-note" label={ui("Note (optional)")}><Textarea value={form.note} rows={2} maxLength={1000} onChange={set("note")} /></FormField>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.sensitive} onChange={event => setForm(current => ({ ...current, sensitive: event.target.checked }))} data-call-sensitive />{ui("Sensitive note (health, safeguarding, family matters) — only leaders, you and the callback owner can read it")}</label>
+      <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.sensitive} onChange={event => setForm(current => ({ ...current, sensitive: event.target.checked }))} data-call-sensitive />{ui("Sensitive note (health, safeguarding, family matters) — only leaders, you and the callback owner can read it")}</label>
       <fieldset className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
         <legend className="px-1 text-xs font-bold">{ui("Callback (optional)")}</legend>
         <FormField name="call-callback-due" label={ui("Call back by (school time)")}><Input type="datetime-local" value={form.callbackDue} min={form.date} onChange={set("callbackDue")} /></FormField>

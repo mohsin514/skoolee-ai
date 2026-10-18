@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-423. Teacher side: a class's weekly update, one child at a time. Each statement comes from released
 // evidence and keeps its source; wording can be edited, nothing can be invented; at most one home activity
@@ -98,7 +99,7 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
           <FormField name="step-alternative" label={ui("If this is not possible at home")} className="sm:col-span-2"><Textarea value={draft.step.alternative} onChange={e => setDraft({ ...draft, step: { ...draft.step!, alternative: e.target.value } })} /></FormField>
           <div className="sm:col-span-2"><Button size="sm" variant="secondary" onClick={() => setDraft({ ...draft, step: null })}>{ui("Remove the home activity")}</Button></div>
         </div> : <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, step: { objective: "", minutes: "10", materials: "", alternative: "" } })} data-digest-add-step>{ui("Add one home activity")}</Button>}
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.skipped} onChange={e => setDraft({ ...draft, skipped: e.target.checked })} data-digest-skip /> {ui("Leave this child out this week")}</label>
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={draft.skipped} onChange={e => setDraft({ ...draft, skipped: e.target.checked })} data-digest-skip /> {ui("Leave this child out this week")}</label>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Cancel")}</Button><Button disabled={busy} onClick={() => void saveEdit()} data-digest-save>{ui("Save")}</Button></div>
       </div>
     </ModalFrame> : null}

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-430: pilot charter, comparable observations, evidence-state measures and claim review in the
 // owner console. Figures always show their denominator; withheld percentages show the reason.
@@ -97,7 +98,7 @@ export function PilotEvidence() {
           <ul className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {pilots.map((pilot) => (
               <li key={pilot.id}>
-                <button type="button" onClick={() => setSelected(pilot.id === selected ? null : pilot.id)} aria-pressed={pilot.id === selected}
+                <Button variant="ghost" type="button" onClick={() => setSelected(pilot.id === selected ? null : pilot.id)} aria-pressed={pilot.id === selected}
                   className={`w-full rounded-2xl border p-4 text-start transition ${pilot.id === selected ? "border-[#8127cf] bg-[#fbf0fe]" : "border-border bg-white hover:border-[#8127cf]/50"}`}>
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-black text-ink"><bdi>{pilot.name}</bdi></span>
@@ -106,7 +107,7 @@ export function PilotEvidence() {
                   </span>
                   <span className="mt-1 block text-xs text-ink-muted" dir="ltr"><bdi>{pilot.cohort}</bdi></span>
                   <span className="mt-2 block text-xs font-semibold text-ink-muted">{ui("{0} observations · {1} measures · {2} claims", [pilot._count?.observations ?? 0, pilot._count?.measures ?? 0, pilot._count?.claims ?? 0])}</span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -149,7 +150,7 @@ function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullN
       <FormField name="pilot-f10" label={ui("Workflow key")} hint={ui("For example MARKS_ENTRY.")} required><Input dir="ltr" value={form.workflowKey} onChange={(e) => set("workflowKey", e.target.value)} /></FormField>
       <FormField name="pilot-f11" label={ui("Workflow definition")} required><Textarea value={form.definition} onChange={(e) => set("definition", e.target.value)} /></FormField>
       <FormField name="pilot-f12" label={ui("Success definition")} required><Textarea value={form.successDefinition} onChange={(e) => set("successDefinition", e.target.value)} /></FormField>
-      <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={form.synthetic} onChange={(e) => set("synthetic", e.target.checked)} /> {ui("Synthetic demonstration (never reported as a result)")}</label>
+      <label className="flex items-center gap-2 text-sm md:col-span-2"><Checkbox checked={form.synthetic} onChange={(e) => set("synthetic", e.target.checked)} /> {ui("Synthetic demonstration (never reported as a result)")}</label>
       <div className="md:col-span-2"><Button type="submit" disabled={busy}>{ui(busy ? "Saving…" : "Save charter")}</Button></div>
     </form>
   );
@@ -312,7 +313,7 @@ function ObservationForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: R
       <FormField name="pilot-f23" label={ui("Review and correction minutes")}><Input inputMode="decimal" dir="ltr" value={f.correction} onChange={(e) => set("correction", e.target.value)} /></FormField>
       <FormField name="pilot-f24" label={ui("Elapsed minutes")}><Input inputMode="decimal" dir="ltr" value={f.elapsed} onChange={(e) => set("elapsed", e.target.value)} /></FormField>
       <FormField name="pilot-f25" label={ui("Source")} required><Select value={f.source} onChange={(e) => set("source", e.target.value)}><option value="OBSERVED">{ui("Observed")}</option><option value="TELEMETRY">{ui("Telemetry")}</option><option value="SELF_REPORTED">{ui("Self-reported")}</option></Select></FormField>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.completed} onChange={(e) => set("completed", e.target.checked)} /> {ui("Task completed")}</label>
+      <label className="flex items-center gap-2 text-sm"><Checkbox checked={f.completed} onChange={(e) => set("completed", e.target.checked)} /> {ui("Task completed")}</label>
       {!f.completed ? <FormField name="pilot-f26" label={ui("What happened")} required><Input value={f.failureNote} onChange={(e) => set("failureNote", e.target.value)} /></FormField> : null}
       <div className="sm:col-span-2"><Button type="submit" disabled={busy}>{ui("Record observation")}</Button></div>
     </form>
@@ -345,7 +346,7 @@ function MeasureForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: Recor
       <FormField name="pilot-f34" label={ui("Denominator")} hint={ui("Sample size, eligible users or respondents.")}><Input inputMode="decimal" dir="ltr" value={f.denominator} onChange={(e) => set("denominator", e.target.value)} /></FormField>
       <FormField name="pilot-f35" label={ui("Method")} required><Textarea value={f.method} onChange={(e) => set("method", e.target.value)} /></FormField>
       <FormField name="pilot-f36" label={ui("Reference")} hint={ui("Human-reviewed reference, invoice or source record.")}><Input value={f.reference} onChange={(e) => set("reference", e.target.value)} /></FormField>
-      {f.kind === "SERVING_COST" ? <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={f.includesFailedCalls} onChange={(e) => set("includesFailedCalls", e.target.checked)} /> {ui("Includes failed, retried and abandoned provider calls")}</label> : null}
+      {f.kind === "SERVING_COST" ? <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox checked={f.includesFailedCalls} onChange={(e) => set("includesFailedCalls", e.target.checked)} /> {ui("Includes failed, retried and abandoned provider calls")}</label> : null}
       <div className="sm:col-span-2"><Button type="submit" disabled={busy}>{ui("Record measure")}</Button></div>
     </form>
   );
@@ -367,7 +368,7 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
       }}>
         <FormField name="pilot-f37" label={ui("Proposed statement")} required className="md:col-span-2"><Textarea value={statement} onChange={(e) => setStatement(e.target.value)} /></FormField>
         <FormField name="pilot-f38" label={ui("Evidence it rests on")} required><Select value={findingKey} onChange={(e) => setFindingKey(e.target.value)}>{findingKeys.map((k) => <option key={k} value={k}>{k}</option>)}</Select></FormField>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={identifiable} onChange={(e) => setIdentifiable(e.target.checked)} /> {ui("Identifies the school")}</label>
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={identifiable} onChange={(e) => setIdentifiable(e.target.checked)} /> {ui("Identifies the school")}</label>
         <div className="md:col-span-2"><Button type="submit">{ui("Propose claim")}</Button></div>
       </form>
       <ul className="space-y-3">{claims.map((claim) => (

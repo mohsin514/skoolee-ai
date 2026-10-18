@@ -51,6 +51,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { fill, isRtlLanguage, onboardingCopy, type OnboardingCopy } from "./copy";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // ─────────────────────────────────────────────────────────────────
 // The wizard renders the server's setup state (SKO-391). Every Continue
@@ -500,14 +501,14 @@ export default function OnboardingWizard() {
               <p role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-900">{banner}</p>
             )}
             {errorEntries.length > 0 && (
-              <div ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby="error-summary-title" className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text outline-none focus-visible:ring-2 focus-visible:ring-destructive">
+              <div ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby="error-summary-title" className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text">
                 <p id="error-summary-title" className="flex items-center gap-1.5 text-sm font-bold"><AlertCircle aria-hidden="true" className="h-3.5 w-3.5" />{t.errorSummary(errorEntries.length)}</p>
                 <ul className="mt-1.5 flex flex-col gap-0.5">
                   {errorEntries.map(([field, code]) => (
                     <li key={field}>
-                      <button type="button" onClick={() => focusError(field)} className="min-h-6 text-start text-sm font-semibold underline underline-offset-2">
+                      <Button variant="ghost" type="button" onClick={() => focusError(field)} className="min-h-6 text-start text-sm font-semibold underline underline-offset-2">
                         {field.startsWith("campus:") ? `${d.campuses.find((c) => `campus:${c.key}` === field)?.name || t.campusName}: ` : ""}{t.errors[code] ?? code}
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>
@@ -972,7 +973,7 @@ function HandoverPanel({ t, view, onChange }: { t: OnboardingCopy; view: SetupVi
             <InputField field="delegateName" error={formErrors.delegateName && t.errors[formErrors.delegateName]} label={t.delegateName} value={form.fullName} onChange={(val) => setForm({ ...form, fullName: val })} placeholder="" icon={UserRound} required />
             <InputField field="delegateEmail" error={formErrors.delegateEmail && t.errors[formErrors.delegateEmail]} label={t.delegateEmail} value={form.email} onChange={(val) => setForm({ ...form, email: val })} placeholder="name@school.edu" icon={Mail} type="email" required />
             <label className="flex items-start gap-3 text-sm text-ink">
-              <input type="checkbox" className="mt-1 h-4 w-4" checked={form.canPurchaseSubscription} onChange={(e) => setForm({ ...form, canPurchaseSubscription: e.target.checked })} />
+              <Checkbox className="mt-1 h-4 w-4" checked={form.canPurchaseSubscription} onChange={(e) => setForm({ ...form, canPurchaseSubscription: e.target.checked })} />
               {t.allowPurchase}
             </label>
           </div>

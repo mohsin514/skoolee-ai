@@ -6,6 +6,7 @@ import { Select } from "@/components/ui/select";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { OnlinePayAction, PaymentReturnStatus } from "./online-payment";
 import { InstallmentSchedule } from "./installment-plan-panel";
+import { Button } from "@/components/ui/button";
 
 // SKO-431: the family fee statement for one authorized child. Every figure comes from the server in one
 // currency; due states use the school's calendar; the reconciliation line shows the arithmetic.
@@ -48,7 +49,7 @@ export function FamilyFeeStatement({ studentId, onSummary }: { studentId?: strin
   useEffect(() => { const timer = setTimeout(() => void load(currency), 0); return () => clearTimeout(timer); }, [load, currency]);
   const settled = () => { if (paymentRef && refreshedFor.current !== paymentRef) { refreshedFor.current = paymentRef; void load(currency); } };
 
-  if (failed) return <div role="alert" className="sk-panel p-5 text-sm">{ui("Fee statement could not be loaded.")} <button className="font-bold text-primary underline" onClick={() => void load(currency)}>{ui("Try again")}</button></div>;
+  if (failed) return <div role="alert" className="sk-panel p-5 text-sm">{ui("Fee statement could not be loaded.")} <Button variant="ghost" className="font-bold text-primary underline" onClick={() => void load(currency)}>{ui("Try again")}</Button></div>;
   if (!statement) return <p role="status" className="sk-panel p-5 text-sm text-ink-muted">{ui("Loading fee statement…")}</p>;
   const code = statement.currency ?? "PKR", s = statement.summary, fmt = (amount: number) => money(amount, code);
   return <div className="space-y-4" data-family-statement>

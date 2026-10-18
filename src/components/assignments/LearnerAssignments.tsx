@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
 import { Banner, call, fileHref, fill, formatAt, Pill, RubricTable, shortSha, stateTone, type Criterion, type Feedback, type Receipt } from "./shared";
+import { Textarea } from "@/components/ui/textarea";
 
 // SKO-409 learner and family view. Learners draft, upload and submit with a server receipt;
 // families read status and returned feedback only. Unreturned feedback never reaches either.
@@ -166,7 +167,7 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
     <h3 id="asg-work" className="text-sm font-semibold">{t.yourAnswer}</h3>
     {item.overdue && <p className="text-sm text-amber-800">{item.canSubmit ? t.lateAccepted : t.overdue}</p>}
     <label className="grid gap-1 text-xs font-semibold"><span className="sr-only">{t.yourAnswer}</span>
-      <textarea dir="auto" rows={7} maxLength={20000} value={text} aria-describedby="asg-draft-state" className="min-h-40 rounded-md border px-3 py-2 text-sm font-normal"
+      <Textarea dir="auto" rows={7} maxLength={20000} value={text} aria-describedby="asg-draft-state" className="min-h-40 rounded-md border px-3 py-2 text-sm font-normal"
         onChange={event => { setText(event.target.value); setSaved("local"); store.set(draftKey, JSON.stringify({ text: event.target.value, at: new Date().toISOString() })); }} /></label>
     <p id="asg-draft-state" role="status" className={`text-xs ${saved === "local" ? "text-amber-800" : "text-slate-600"}`}>{saved === "server" ? `${t.savedDraft} ${item.draft?.savedAt ? formatAt(item.draft.savedAt, language, item.timezone) : ""}` : saved === "local" ? t.savedLocally : t.notSaved}</p>
     {item.allowedTypes.length > 0 && <div className="grid gap-1 text-xs">

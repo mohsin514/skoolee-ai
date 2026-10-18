@@ -9,6 +9,7 @@ import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // SKO-450: improvement evidence workspace. Frameworks are school-configured references and no accreditation outcome
 // is implied. Every claim keeps its source, date and freshness beside it; gaps are shown, not hidden. Actions link to
@@ -39,7 +40,7 @@ const gapText = (ui: Ui, s: string) => ({ MISSING: ui("No evidence linked"), STA
 const inDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 
 function CriteriaPicker({ criteria, value, onChange, name }: { criteria: Criterion[]; value: string[]; onChange: (v: string[]) => void; name: string }) {
-  return <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-2" data-criteria-picker={name}>{criteria.map(c => <label key={c.id} className="flex items-start gap-2 text-sm"><input type="checkbox" checked={value.includes(c.id)} onChange={e => onChange(e.target.checked ? [...value, c.id] : value.filter(x => x !== c.id))} data-pick-criterion={c.code} /><span><bdi dir="ltr" className="font-semibold">{c.code}</bdi> · {c.title}</span></label>)}</div>;
+  return <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-2" data-criteria-picker={name}>{criteria.map(c => <label key={c.id} className="flex items-start gap-2 text-sm"><Checkbox checked={value.includes(c.id)} onChange={e => onChange(e.target.checked ? [...value, c.id] : value.filter(x => x !== c.id))} data-pick-criterion={c.code} /><span><bdi dir="ltr" className="font-semibold">{c.code}</bdi> · {c.title}</span></label>)}</div>;
 }
 
 function EvidenceForm({ view, preset, onDone }: { view: View; preset: string | null; onDone: () => void }) {
@@ -62,7 +63,7 @@ function EvidenceForm({ view, preset, onDone }: { view: View; preset: string | n
       <FormField name="ev-aud" label={ui("Who may see it")}><Select value={f.audience} onChange={e => setF({ ...f, audience: e.target.value })} data-evidence-audience>{["STAFF", "REVIEWER", "EXTERNAL"].map(a => <option key={a} value={a}>{audienceLabel(ui, a)}</option>)}</Select></FormField>
       <FormField name="ev-stance" label={ui("Stance")}><Select value={f.stance} onChange={e => setF({ ...f, stance: e.target.value })} data-evidence-stance><option value="SUPPORTS">{ui("Supports the criterion")}</option><option value="CONTRADICTS">{ui("Contradicts the criterion")}</option></Select></FormField>
     </div>
-    {f.sourceType === "DOCUMENT" ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.pupilData} onChange={e => setF({ ...f, pupilData: e.target.checked })} />{ui("Contains pupil information")}</label> : null}
+    {f.sourceType === "DOCUMENT" ? <label className="flex items-center gap-2 text-sm"><Checkbox checked={f.pupilData} onChange={e => setF({ ...f, pupilData: e.target.checked })} />{ui("Contains pupil information")}</label> : null}
     <p className="text-xs text-ink-muted">{ui("Pupil and clinic sources are shown as restricted to reviewers and in packs.")}</p>
     <Button disabled={busy || !f.criterionIds.length || f.title.trim().length < 3 || (f.sourceType !== "DOCUMENT" && !f.sourceId)} data-evidence-save onClick={async () => {
       setBusy(true);
@@ -128,7 +129,7 @@ function ActionCard({ action, view, data, reload }: { action: Action; view: View
       <FormField name={`m-${action.id}`} label={ui("Measure")}><Input value={r.measure} onChange={e => setR({ ...r, measure: e.target.value })} dir="auto" data-follow-measure /></FormField>
       <FormField name={`b-${action.id}`} label={ui("Baseline")}><Input value={r.baseline} onChange={e => setR({ ...r, baseline: e.target.value })} dir="auto" data-follow-baseline /></FormField>
       <FormField name={`f-${action.id}`} label={ui("Follow-up")}><Input value={r.followUp} onChange={e => setR({ ...r, followUp: e.target.value })} dir="auto" data-follow-followup /></FormField>
-      <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={r.comparable} onChange={e => setR({ ...r, comparable: e.target.checked })} data-follow-comparable />{ui("Baseline and follow-up used a comparable measure")}</label>
+      <label className="flex items-center gap-2 text-sm sm:col-span-3"><Checkbox checked={r.comparable} onChange={e => setR({ ...r, comparable: e.target.checked })} data-follow-comparable />{ui("Baseline and follow-up used a comparable measure")}</label>
       <div className="sm:col-span-3"><FormField name={`rf-${action.id}`} label={ui("Reflection")}><Textarea value={r.reflection} onChange={e => setR({ ...r, reflection: e.target.value })} rows={2} dir="auto" data-follow-reflection /></FormField></div>
       <Button size="sm" disabled={!r.baseline || !r.followUp} data-follow-save onClick={() => post({ action: "follow-up", actionId: action.id, expectedVersion: action.version, reassessment: { measure: r.measure, baseline: r.baseline, followUp: r.followUp, comparable: r.comparable }, reflection: r.reflection }, ui("Follow-up recorded."))}>{ui("Save follow-up")}</Button>
     </div> : null}
@@ -177,10 +178,10 @@ export function ImprovementWorkspace() {
 
       <section className="space-y-2" aria-labelledby="criteria-h"><h2 id="criteria-h" className="text-base font-bold">{ui("Evidence map")}</h2>
         <ul className="space-y-2">{view.criteria.filter(c => !onlyGaps || c.status !== "CURRENT" || !c.interpretationApproved).map(c => <li key={c.id} className="sk-panel p-4" data-criterion={c.code} data-criterion-status={c.status}>
-          <button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={!!open[c.id]} onClick={() => setOpen({ ...open, [c.id]: !open[c.id] })} data-criterion-toggle={c.code}>
+          <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={!!open[c.id]} onClick={() => setOpen({ ...open, [c.id]: !open[c.id] })} data-criterion-toggle={c.code}>
             <span className="font-bold"><bdi dir="ltr">{c.code}</bdi> · {c.title}</span>
             <span className={cn("rounded-full border px-2 py-0.5 text-xs", statusTone(c.status))} data-criterion-status-label>{statusLabel(ui, c.status)}</span>
-          </button>
+          </Button>
           <p className="mt-1 text-xs text-ink-muted">{view.framework.name} · <bdi dir="ltr">{view.framework.version}</bdi> · {c.interpretationApproved ? <>{ui("School interpretation approved")} · <bdi>{c.interpretationApprovedBy}</bdi></> : <span data-interpretation-pending>{ui("Interpretation not yet approved")}</span>}</p>
           {open[c.id] ? <div className="mt-3 space-y-2">
             {c.interpretation ? <p className="text-sm"><bdi>{c.interpretation}</bdi></p> : null}
