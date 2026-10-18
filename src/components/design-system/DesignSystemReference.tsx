@@ -89,7 +89,7 @@ export function DesignSystemReference({ liveAccess = false }: { liveAccess?: boo
   };
   const toggleRow = (id: string) => setSelected((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   return <NavigationAccessProvider access={liveAccess ? undefined : ACCESS}>
-    <div dir={rtl ? 'rtl' : 'ltr'} className={`${styles.reference} min-h-dvh bg-background text-foreground`}>
+    <div dir={rtl ? 'rtl' : 'ltr'} className={`${styles.reference} min-h-dvh text-foreground`}>
       <RoleSidebar taglineLang={rtl ? 'ar' : undefined} tagline={rtl ? 'مدرسة تجريبية' : 'Northstar School · Example'} items={nav} collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} />
       <main className={`${styles.canvas} min-w-0 p-4 pb-28 sm:p-8 sm:pb-28 ${collapsed ? 'md:ms-[72px]' : 'md:ms-64'}`}>
         <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border/60 pb-4 text-xs text-ink-muted">

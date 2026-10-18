@@ -643,7 +643,7 @@ export default function RegisterPage() {
     <main
       lang={language}
       dir={directionFor(language)}
-      className={`sk-shell w-full min-h-screen grid grid-cols-1 bg-brand-50 font-sans ${
+      className={`sk-shell w-full min-h-screen grid grid-cols-1 font-sans ${
         wide
           ? "lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,0.52fr)_minmax(0,1fr)]"
           : "lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]"
