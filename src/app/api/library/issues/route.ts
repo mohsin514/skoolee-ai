@@ -97,20 +97,21 @@ export async function PATCH(req: NextRequest) {
     });
     if (!existing) throw new ApiError("Issue not found", 404);
     if (existing.returnedAt) throw new ApiError("Book already returned", 409);
+    // SKO-436: loans of a barcoded copy are returned at the lending desk, which also settles the
+    // copy, any fine and the reservation queue.
+    if (existing.copyId) throw new ApiError("Return this copy by scanning it at the lending desk.", 409);
 
     const now = new Date();
-    const fine = now > existing.dueAt ? 0 : 0; // fine calculation TODO
 
     const data = await prisma.$transaction(async (tx) => {
+      // One conditional update decides the return, so a repeated request cannot add a copy twice.
+      const closed = await tx.bookIssue.updateMany({ where: { id, returnedAt: null }, data: { returnedAt: now } });
+      if (!closed.count) throw new ApiError("Book already returned", 409);
       await tx.book.update({
         where: { id: existing.bookId },
         data: { copiesAvailable: { increment: 1 } },
       });
-
-      return tx.bookIssue.update({
-        where: { id },
-        data: { returnedAt: now, fine },
-      });
+      return tx.bookIssue.findUniqueOrThrow({ where: { id } });
     });
 
     return Response.json({ success: true, data });

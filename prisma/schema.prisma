@@ -4462,8 +4462,14 @@ model BookIssue {
   returnedAt DateTime?     @map("returned_at")
   fine       Int           @default(0)
   createdAt  DateTime      @default(now()) @map("created_at")
+  /// SKO-436: the physical copy, the loan rules in force when it was issued, renewals and return condition.
+  copyId          String?   @map("copy_id")
+  policySnapshot  Json?     @map("policy_snapshot")
+  renewals        Int       @default(0)
+  returnCondition String?   @map("return_condition")
 
   @@index([schoolId])
+  @@index([copyId, returnedAt])
   @@map("book_issues")
 }
 
@@ -7216,4 +7222,89 @@ model PolicyEvalCase {
 
   @@index([schoolId])
   @@map("policy_eval_cases")
+}
+
+// ─── SKO-436: copy-level lending, reservations and versioned fine rules
+
+/// One physical copy of a title. ISBN identifies the title; the barcode identifies this copy.
+model BookCopy {
+  id        String   @id @default(uuid())
+  schoolId  String   @map("school_id")
+  campusId  String   @map("campus_id")
+  bookId    String   @map("book_id")
+  barcode   String
+  condition String   @default("GOOD")
+  status    String   @default("AVAILABLE")
+  holdFor   String?  @map("hold_for")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([campusId, barcode])
+  @@index([bookId, status])
+  @@map("book_copies")
+}
+
+/// Loan and fine rules. A new version is added, never edited, and each loan keeps the version it used.
+model LibraryLoanPolicy {
+  id           String   @id @default(uuid())
+  schoolId     String   @map("school_id")
+  campusId     String   @map("campus_id")
+  version      Int
+  loanDays     Int      @map("loan_days")
+  maxLoans     Int      @map("max_loans")
+  maxRenewals  Int      @map("max_renewals")
+  graceDays    Int      @map("grace_days")
+  finePerDay   Int      @map("fine_per_day")
+  fineCap      Int      @map("fine_cap")
+  lostCharge   Int      @map("lost_charge")
+  holdDays     Int      @map("hold_days")
+  currency     String
+  /// ["2026-12-25", ...] days on which no fine accrues and nothing falls due
+  closures     Json     @default("[]")
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([campusId, version])
+  @@map("library_loan_policies")
+}
+
+/// A reader's place in the queue for a title. A returned copy is held for the first waiting reader.
+model BookReservation {
+  id         String    @id @default(uuid())
+  schoolId   String    @map("school_id")
+  campusId   String    @map("campus_id")
+  bookId     String    @map("book_id")
+  memberId   String    @map("member_id")
+  status     String    @default("WAITING")
+  copyId     String?   @map("copy_id")
+  readyUntil DateTime? @map("ready_until")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@index([bookId, status, createdAt])
+  @@index([memberId, status])
+  @@map("book_reservations")
+}
+
+/// A fine, lost-copy or damage charge. Waivers record who authorised them and why; handoff to
+/// fees is recorded here rather than written into the fee ledger.
+model LibraryCharge {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  issueId     String    @map("issue_id")
+  memberId    String    @map("member_id")
+  kind        String
+  amount      Int
+  currency    String
+  detail      Json
+  status      String    @default("OPEN")
+  waivedById  String?   @map("waived_by_id")
+  waiverReason String?  @map("waiver_reason")
+  decidedAt   DateTime? @map("decided_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([issueId, kind])
+  @@index([memberId, status])
+  @@map("library_charges")
 }

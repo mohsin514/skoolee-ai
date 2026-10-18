@@ -1,6 +1,7 @@
 "use client";
 
 import { useWorkspaceView } from "@/components/nav/useWorkspaceView";
+import { LendingDesk } from "@/components/library/lending-desk";
 
 import { moduleForView } from "@/lib/navigation/modules";
 import { useCallback, useEffect, useState } from "react";
@@ -126,6 +127,7 @@ export default function LibrarianPage() {
               </div>
             </div>
           ) : null}
+          {activeView === "library" ? <LendingDesk /> : null}
           {activeView === "library" ? <LibraryPanel /> : null}
           {activeView === "inventory" ? <InventoryPanel /> : null}
           {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
