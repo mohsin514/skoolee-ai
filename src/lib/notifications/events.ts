@@ -345,6 +345,56 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/parent",
     recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
   },
+  // SKO-441: service-desk notices name the reference only.
+  SERVICE_REQUEST_ASSIGNED: {
+    title: (c) => `Request assigned to you ${String(c.reference ?? "")}`.trim(),
+    message: () => "A service request is now yours to handle.",
+    icon: "Wrench",
+    link: "/service-desk",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SERVICE_REQUEST_UPDATED: {
+    title: (c) => `Request update ${String(c.reference ?? "")}`.trim(),
+    message: () => "There is an update on a request you follow.",
+    icon: "MessageSquare",
+    link: "/service-desk",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SERVICE_REQUEST_RESOLVED: {
+    title: (c) => `Request resolved ${String(c.reference ?? "")}`.trim(),
+    message: () => "The work is done. Confirm it or reopen the request.",
+    icon: "CheckCircle",
+    link: "/service-desk",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SERVICE_REQUEST_REOPENED: {
+    title: (c) => `Request reopened ${String(c.reference ?? "")}`.trim(),
+    message: () => "A resolved request was reopened.",
+    icon: "RotateCcw",
+    link: "/service-desk",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SERVICE_REQUEST_COMMENT: {
+    title: (c) => `Requester message ${String(c.reference ?? "")}`.trim(),
+    message: () => "The requester added a message.",
+    icon: "MessageSquare",
+    link: "/service-desk",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SERVICE_REQUEST_ESCALATED: {
+    title: (c) => `Request overdue ${String(c.reference ?? "")}`.trim(),
+    message: () => "A service request passed its due time.",
+    icon: "AlertTriangle",
+    link: "/service-desk",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
+  SERVICE_SAFETY_REPORTED: {
+    title: (c) => `Safety report ${String(c.reference ?? "")}`.trim(),
+    message: () => "A safety concern was reported. Follow the school's escalation procedure.",
+    icon: "ShieldAlert",
+    link: "/service-desk",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-442: only the confirmed substitute hears about a handover; the class's teacher owns a recovery.
   COVER_HANDOVER_READY: {
     title: () => "Cover handover ready",

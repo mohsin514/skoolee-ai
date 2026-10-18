@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
@@ -120,7 +121,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
         {editing.alternatives.length ? <p className="text-sm font-bold text-amber-900">{ui("Please confirm this mark: {0}", [[editing.proposedValue, ...editing.alternatives].filter(v => v !== null).join(" / ")])}</p> : null}
         <div className="flex flex-wrap items-end gap-3">
           <FormField name="scan-value" label={ui("Mark out of {0}", [String(view.template.maxMarks)])}><Input type="number" min={0} max={view.template.maxMarks} step={1} value={value} disabled={absent} onChange={e => setValue(e.target.value)} dir="ltr" /></FormField>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={absent} onChange={e => setAbsent(e.target.checked)} data-scan-absent /> {ui("Absent")}</label>
+          <label className="flex items-center gap-2 text-sm"><Checkbox checked={absent} onChange={e => setAbsent(e.target.checked)} data-scan-absent /> {ui("Absent")}</label>
           <p className="text-xs text-ink-muted">{ui("In the gradebook now: {0}", [markText(ui, editing.current)])}{editing.changedSinceScan ? <> · <span className="font-bold text-amber-800">{ui("changed since this scan began")}</span></> : null}</p>
         </div>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => void saveCell(true)} data-scan-exclude>{ui("Leave out of this import")}</Button><Button disabled={busy || (!absent && value === "")} onClick={() => void saveCell()} data-scan-confirm>{ui("Confirm")}</Button></div>

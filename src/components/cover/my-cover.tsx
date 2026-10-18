@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
@@ -76,7 +77,7 @@ export function MyCover() {
         <FormField name="h-objective" label={ui("What should pupils learn?")}><Input value={objective} onChange={e => setObjective(e.target.value)} maxLength={300} /></FormField>
         <FormField name="h-instructions" label={ui("Instructions for the substitute (staff only)")}><Textarea rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} maxLength={2000} /></FormField>
         <fieldset><legend className="text-xs font-bold">{ui("Resources the substitute may open for this lesson")}</legend>
-          {editing.choices.length ? editing.choices.map(c => <label key={c.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={picked.includes(c.id)} onChange={e => setPicked(e.target.checked ? [...picked, c.id] : picked.filter(x => x !== c.id))} data-handover-pick={c.id} /> <span dir="auto">{c.title}</span></label>) : <p className="text-xs text-ink-muted">{ui("This class has no published resources.")}</p>}</fieldset>
+          {editing.choices.length ? editing.choices.map(c => <label key={c.id} className="flex items-center gap-2 text-sm"><Checkbox checked={picked.includes(c.id)} onChange={e => setPicked(e.target.checked ? [...picked, c.id] : picked.filter(x => x !== c.id))} data-handover-pick={c.id} /> <span dir="auto">{c.title}</span></label>) : <p className="text-xs text-ink-muted">{ui("This class has no published resources.")}</p>}</fieldset>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Back")}</Button><Button disabled={busy || !objective.trim()} onClick={() => void run(() => call("POST", { action: "handover", dutyId: editing.id, objective, instructions, resourceIds: picked }), "Handover saved. The substitute has been told.").then(ok => ok && setEditing(null))} data-handover-save>{ui("Save handover")}</Button></div>
       </div>
     </ModalFrame> : null}

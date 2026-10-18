@@ -246,6 +246,9 @@ model School {
   meetingStaffNotes MeetingStaffNote[]
   coverHandovers CoverHandover[]
   lessonRecoveries LessonRecovery[]
+  serviceCategories ServiceCategory[]
+  serviceRequests ServiceRequest[]
+  serviceRequestEvents ServiceRequestEvent[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3598,6 +3601,99 @@ model LessonRecovery {
   @@index([schoolId, ownerId, status])
   @@index([schoolId, classId, status])
   @@map("lesson_recoveries")
+}
+
+/// SKO-441: a plain-language request type with its routing rule. Targets are the school's own; with no
+/// target set, nothing is shown as late. Safety categories go straight to the escalation contact.
+model ServiceCategory {
+  id              String   @id @default(uuid())
+  schoolId        String   @default("") @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String   @map("campus_id")
+  name            String
+  kind            String // REPAIR | ACCESS | SUPPLIES | INFORMATION
+  team            String // the team that handles it, e.g. "IT" or "Facilities"
+  departmentId    String?  @map("department_id")
+  defaultOwnerId  String?  @map("default_owner_id")
+  escalationId    String?  @map("escalation_id")
+  responseHours   Int?     @map("response_hours")
+  resolveHours    Int?     @map("resolve_hours")
+  keywords        String[] @default([])
+  safety          Boolean  @default(false)
+  active          Boolean  @default(true)
+  createdById     String   @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  requests ServiceRequest[]
+
+  @@unique([campusId, name])
+  @@index([schoolId])
+  @@map("service_categories")
+}
+
+/// SKO-441: one internal request with a stable school reference (SD-<n>). It always has an owner or sits
+/// in the explicit unassigned queue; timings are kept on reopen.
+model ServiceRequest {
+  id              String    @id @default(uuid())
+  schoolId        String    @default("") @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  reference       String
+  categoryId      String    @map("category_id")
+  category        ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  title           String
+  description     String
+  location        String
+  roomId          String?   @map("room_id")
+  itemId          String?   @map("item_id")
+  requesterId     String    @map("requester_id")
+  ownerId         String?   @map("owner_id")
+  watcherIds      String[]  @default([]) @map("watcher_ids")
+  priority        String    @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  status          String    @default("OPEN") // OPEN | IN_PROGRESS | BLOCKED | RESOLVED | CLOSED
+  blockedReason   String?   @map("blocked_reason")
+  responseDueAt   DateTime? @map("response_due_at")
+  resolveDueAt    DateTime? @map("resolve_due_at")
+  firstResponseAt DateTime? @map("first_response_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  firstResolvedAt DateTime? @map("first_resolved_at")
+  closedAt        DateTime? @map("closed_at")
+  reopenedCount   Int       @default(0) @map("reopened_count")
+  escalatedForDue DateTime? @map("escalated_for_due")
+  version         Int       @default(1)
+  idempotencyKey  String    @map("idempotency_key")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  events ServiceRequestEvent[]
+
+  @@unique([schoolId, reference])
+  @@unique([requesterId, idempotencyKey])
+  @@index([schoolId, campusId, status])
+  @@index([schoolId, ownerId, status])
+  @@map("service_requests")
+}
+
+/// SKO-441: the request timeline. INTERNAL entries (notes, routing, private evidence) never reach the
+/// requester; REQUESTER entries are deliberate updates.
+model ServiceRequestEvent {
+  id            String   @id @default(uuid())
+  schoolId      String   @default("") @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  requestId     String   @map("request_id")
+  request       ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  version       Int
+  kind          String // CREATED | ASSIGNED | PRIORITY | DUE | STATUS | BLOCKED | NOTE | UPDATE | RESOLVED | CONFIRMED | REOPENED | ESCALATED
+  visibility    String   @default("INTERNAL") // INTERNAL | REQUESTER
+  actorId       String?  @map("actor_id")
+  body          String?
+  detail        Json     @default("{}")
+  attachmentKey String?  @map("attachment_key")
+  attachmentType String? @map("attachment_type")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, requestId])
+  @@map("service_request_events")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
