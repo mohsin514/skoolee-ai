@@ -25,7 +25,7 @@ export default async function GuardianAccessPage() {
     prisma.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId }, select: { preferredLanguage: true } }),
   ]);
   const locale = account?.preferredLanguage === "ar" || account?.preferredLanguage === "ur" ? account.preferredLanguage : "en";
-  return <main className="mx-auto w-full max-w-6xl space-y-5 p-4 sm:p-6" dir={locale === "ar" || locale === "ur" ? "rtl" : "ltr"}>
+  return <main className="mx-auto w-full max-w-6xl space-y-5 p-[12px] sm:p-6" dir={locale === "ar" || locale === "ur" ? "rtl" : "ltr"}>
     <header className="space-y-2">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8127cf]">{locale === "ar" ? "سجلات المدرسة" : locale === "ur" ? "اسکول ریکارڈز" : "School records"}</p>
       <h1 className="text-2xl font-bold tracking-tight text-[#1d1b20]">{locale === "ar" ? "أولياء الأمور والصلاحيات" : locale === "ur" ? "سرپرست اور رسائی" : "Guardians and access"}</h1>

@@ -150,6 +150,18 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
     finally { setBusy(false); }
   };
 
+  // SKO-491: while the review actions stick to the bottom, reserve their height as scroll padding so a field
+  // reached by keyboard is scrolled clear of them, at any text size.
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const bar = actionBarRef.current, html = document.documentElement;
+    if (!bar || typeof ResizeObserver === "undefined") return;
+    const previous = html.style.scrollPaddingBottom;
+    const sync = () => { html.style.scrollPaddingBottom = getComputedStyle(bar).position === "sticky" ? `${Math.ceil(bar.getBoundingClientRect().height) + 16}px` : previous; };
+    const observer = new ResizeObserver(sync); observer.observe(bar); observer.observe(html); sync();
+    return () => { observer.disconnect(); html.style.scrollPaddingBottom = previous; };
+  }, [studentId]);
+
   const selected = useMemo(() => students.find((item) => item.id === studentId), [students, studentId]);
   const permissionLabel = (allowed: boolean) => <span className={allowed ? "font-semibold text-emerald-700" : "font-semibold text-slate-500"}>{allowed ? t.granted : t.denied}</span>;
 
@@ -205,32 +217,32 @@ export function GuardianAccessManager({ students, locale }: { students: Student[
         </div>
       </section>
 
-      <section id="guardian-editor" className="sk-panel scroll-mt-4 p-4 sm:p-5">
+      <section id="guardian-editor" className="sk-panel min-w-0 scroll-mt-4 p-[12px] sm:p-5">
         <h2 className="text-lg font-bold text-[#1d1b20]">{editingId ? t.edit : t.add}</h2>
-        <form onSubmit={(event) => void requestPreview(event)} className="mt-4 space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.name}</span><Input required minLength={2} maxLength={120} readOnly={Boolean(editingId)} value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} className="w-full px-3" /></label>
-            <FormField name="guardian-email" idScope={formScope} label={t.email} hint={t.samePhone}><Input required type="email" maxLength={254} readOnly={Boolean(editingId)} dir="ltr" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="w-full px-3" /></FormField>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.phone}</span><Input type="tel" readOnly={Boolean(editingId)} dir="ltr" maxLength={40} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full px-3" /></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.guardianRelation}</span><Select disabled={Boolean(editingId)} value={form.relationship} onChange={(event) => setForm({ ...form, relationship: event.target.value })} className="w-full px-3">{Object.entries(t.relationships).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.effective}</span><Input required type="datetime-local" value={form.effectiveFrom} onChange={(event) => setForm({ ...form, effectiveFrom: event.target.value })} className="w-full px-3" /></label>
-            <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.until}</span><Input type="datetime-local" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} className="w-full px-3" /></label>
+        <form onSubmit={(event) => void requestPreview(event)} className="mt-4 min-w-0 space-y-5 [&_:is(input,select,textarea)]:scroll-mb-40">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="block min-w-0 space-y-1.5"><span className="text-sm font-semibold">{t.name}</span><Input required minLength={2} maxLength={120} readOnly={Boolean(editingId)} value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} className="w-full min-w-0 px-3" /></label>
+            <FormField name="guardian-email" idScope={formScope} label={t.email} hint={t.samePhone}><Input required type="email" maxLength={254} readOnly={Boolean(editingId)} dir="ltr" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="w-full min-w-0 px-3" /></FormField>
+            <label className="block min-w-0 space-y-1.5"><span className="text-sm font-semibold">{t.phone}</span><Input type="tel" readOnly={Boolean(editingId)} dir="ltr" maxLength={40} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="w-full min-w-0 px-3" /></label>
+            <label className="block min-w-0 space-y-1.5"><span className="text-sm font-semibold">{t.guardianRelation}</span><Select disabled={Boolean(editingId)} value={form.relationship} onChange={(event) => setForm({ ...form, relationship: event.target.value })} className="w-full min-w-0 px-3">{Object.entries(t.relationships).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
+            <label className="block min-w-0 space-y-1.5"><span className="text-sm font-semibold">{t.effective}</span><Input required type="datetime-local" value={form.effectiveFrom} onChange={(event) => setForm({ ...form, effectiveFrom: event.target.value })} className="w-full min-w-0 px-3" /></label>
+            <label className="block min-w-0 space-y-1.5"><span className="text-sm font-semibold">{t.until}</span><Input type="datetime-local" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} className="w-full min-w-0 px-3" /></label>
           </div>
 
-          <fieldset className="space-y-3">
+          <fieldset className="min-w-0 space-y-3">
             <legend className="text-base font-bold text-[#1d1b20]">{t.review}</legend>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {simplePermissions.map(([key, label]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm"><Checkbox checked={form.permissions[key]} onChange={(event) => updatePermission(key, event.target.checked)}  /><span>{t[label]}</span></label>)}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {simplePermissions.map(([key, label]) => <label key={key} className="flex min-h-12 min-w-0 items-center gap-[10px] rounded-xl border border-slate-200 p-[10px] text-sm sm:gap-3 sm:p-3"><Checkbox checked={form.permissions[key]} onChange={(event) => updatePermission(key, event.target.checked)}  /><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t[label]}</span></label>)}
             </div>
           </fieldset>
-          <fieldset className="space-y-3">
+          <fieldset className="min-w-0 space-y-3">
             <legend className="text-base font-bold text-[#1d1b20]">{t.consentTitle}</legend>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {consentPermissions.map(([key, label]) => <label key={key} className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm"><Checkbox checked={form.permissions.consents[key]} onChange={(event) => updatePermission(`consents.${key}`, event.target.checked)}  /><span>{t[label]}</span></label>)}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {consentPermissions.map(([key, label]) => <label key={key} className="flex min-h-12 min-w-0 items-center gap-[10px] rounded-xl border border-slate-200 p-[10px] text-sm sm:gap-3 sm:p-3"><Checkbox checked={form.permissions.consents[key]} onChange={(event) => updatePermission(`consents.${key}`, event.target.checked)}  /><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t[label]}</span></label>)}
             </div>
           </fieldset>
-          <label className="block space-y-1.5"><span className="text-sm font-semibold">{t.reason}</span><Textarea required minLength={5} maxLength={500} value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} className="w-full p-3" /></label>
-          <div className="sticky bottom-2 z-10 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+          <label className="block min-w-0 space-y-1.5"><span className="text-sm font-semibold">{t.reason}</span><Textarea required minLength={5} maxLength={500} value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} className="w-full min-w-0 p-3" /></label>
+          <div ref={actionBarRef} className="sticky bottom-2 z-10 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
             <Button variant="default" ref={reviewButtonRef} type="submit" disabled={busy || !studentId} className="min-h-11 flex-1 sm:flex-none">{busy ? t.loading : t.review}</Button>
             <Button variant="outline" type="button" disabled={busy} onClick={() => { beginNew(); setForm(emptyForm()); }} className="min-h-11">{t.cancel}</Button>
           </div>
