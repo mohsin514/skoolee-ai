@@ -50,13 +50,6 @@ const EDGE = 8;
 const supportsPopover = () => typeof HTMLElement !== "undefined" && "showPopover" in HTMLElement.prototype;
 
 type Handler<E> = ((event: E) => void) | undefined;
-function compose<E extends React.SyntheticEvent>(theirs: Handler<E>, ours: (event: E) => void) {
-  return (event: E) => {
-    theirs?.(event);
-    if (!event.defaultPrevented) ours(event);
-  };
-}
-
 function setRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
   if (typeof ref === "function") ref(value);
   else if (ref && typeof ref === "object") (ref as React.MutableRefObject<T | null>).current = value;
@@ -176,24 +169,40 @@ export function Tooltip({
     ref: (node: HTMLElement | null) => { triggerRef.current = node; setRef(props.ref as React.Ref<HTMLElement> | undefined, node); },
     "aria-describedby": describedBy,
     ...(describe && plainText && !props["aria-description"] ? { "aria-description": plainText } : null),
-    onPointerEnter: compose(props.onPointerEnter as Handler<React.PointerEvent>, (event: React.PointerEvent) => { if (event.pointerType !== "touch") show(delay); }),
-    onPointerLeave: compose(props.onPointerLeave as Handler<React.PointerEvent>, (event: React.PointerEvent) => { if (event.pointerType !== "touch" && !pinned.current) hide(120); }),
-    onPointerDown: compose(props.onPointerDown as Handler<React.PointerEvent>, (event: React.PointerEvent) => {
-      if (event.pointerType !== "touch" || toggleOnClick) return;
+    onPointerEnter: (event: React.PointerEvent) => {
+      (props.onPointerEnter as Handler<React.PointerEvent>)?.(event);
+      if (!event.defaultPrevented && event.pointerType !== "touch") show(delay);
+    },
+    onPointerLeave: (event: React.PointerEvent) => {
+      (props.onPointerLeave as Handler<React.PointerEvent>)?.(event);
+      if (!event.defaultPrevented && event.pointerType !== "touch" && !pinned.current) hide(120);
+    },
+    onPointerDown: (event: React.PointerEvent) => {
+      (props.onPointerDown as Handler<React.PointerEvent>)?.(event);
+      if (event.defaultPrevented || event.pointerType !== "touch" || toggleOnClick) return;
       longPress.current = window.setTimeout(() => { pinned.current = true; show(); hide(1800); }, 450);
-    }),
-    onPointerUp: compose(props.onPointerUp as Handler<React.PointerEvent>, () => { if (longPress.current) window.clearTimeout(longPress.current); }),
-    onFocus: compose(props.onFocus as Handler<React.FocusEvent>, (event: React.FocusEvent) => {
+    },
+    onPointerUp: (event: React.PointerEvent) => {
+      (props.onPointerUp as Handler<React.PointerEvent>)?.(event);
+      if (longPress.current) window.clearTimeout(longPress.current);
+    },
+    onFocus: (event: React.FocusEvent) => {
+      (props.onFocus as Handler<React.FocusEvent>)?.(event);
       const element = event.currentTarget as HTMLElement;
       // Only keyboard focus: a mouse click already showed it on hover.
-      if (typeof element.matches === "function" && element.matches(":focus-visible")) show();
-    }),
-    onBlur: compose(props.onBlur as Handler<React.FocusEvent>, () => hide()),
-    onClick: compose(props.onClick as Handler<React.MouseEvent>, () => {
+      if (!event.defaultPrevented && typeof element.matches === "function" && element.matches(":focus-visible")) show();
+    },
+    onBlur: (event: React.FocusEvent) => {
+      (props.onBlur as Handler<React.FocusEvent>)?.(event);
+      hide();
+    },
+    onClick: (event: React.MouseEvent) => {
+      (props.onClick as Handler<React.MouseEvent>)?.(event);
+      if (event.defaultPrevented) return;
       if (!toggleOnClick) { if (!pinned.current) hide(); return; }
       if (open && pinned.current) hide();
       else { pinned.current = true; show(); }
-    }),
+    },
   });
 
   return (

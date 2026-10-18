@@ -73,7 +73,7 @@ export function SkeletonRegion({
   return (
     <div className={className} role="status" aria-busy="true" aria-label={label}>
       {children}
-      <span className="sr-only">{label}…</span>
+      <span className="sr-only">{/(?:…|\.\.\.)$/.test(label) ? label : `${label}…`}</span>
     </div>
   );
 }
