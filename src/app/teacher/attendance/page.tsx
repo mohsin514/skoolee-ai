@@ -208,18 +208,18 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
               <p className="mt-0.5 text-xl font-bold tabular-nums text-ink-strong">{monthlyData.totalStudents}</p>
             </div>
             <div className="rounded-2xl border border-status-success-border bg-status-success-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
+              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-status-success-text">
                 <span className="min-w-0 truncate">{ui("Average attendance")}</span>
                 <InfoTip className="-my-1" content={ui("The average of every student's attendance rate this month, counted with your school's attendance rule.")} />
               </p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-emerald-700">{monthlyData.classAveragePercentage}%</p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-status-success-text">{monthlyData.classAveragePercentage}%</p>
             </div>
             <div className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-700">
+              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-status-error-text">
                 <span className="min-w-0 truncate">{ui("At risk")}</span>
                 <InfoTip className="-my-1" content={ui("Students below 75% attendance this month who have at least one day recorded.")} />
               </p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-rose-700">{monthlyData.atRiskStudents?.length || 0}</p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums text-status-error-text">{monthlyData.atRiskStudents?.length || 0}</p>
             </div>
             <div className="rounded-2xl border border-status-brand-border bg-status-brand-surface px-4 py-3.5 shadow-xs">
               <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
@@ -237,8 +237,8 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                 {monthlyData.atRiskStudents.map((s: any) => (
                   <li key={s.studentId} className="sk-panel flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 py-2.5">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 px-1.5">
-                        <span className="text-2xs font-bold tabular-nums text-rose-700">{s.rollNo || "#"}</span>
+                      <div className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg bg-status-error-surface px-1.5">
+                        <span className="text-2xs font-bold tabular-nums text-status-error-text">{s.rollNo || "#"}</span>
                       </div>
                       <p className="truncate text-sm font-semibold text-ink-strong">{s.studentName}</p>
                     </div>
@@ -266,16 +266,16 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
             <div className="sk-panel overflow-hidden">
               <div className="hidden gap-3 bg-surface-subtle px-5 py-3 sm:grid sm:grid-cols-[1fr_80px_80px_80px_100px]">
                 <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{ui("Student")}</span>
-                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-emerald-700">{ui("Present")}</span>
-                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-rose-700">{ui("Absent")}</span>
-                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-amber-700">{ui("Leave")}</span>
+                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-status-success-text">{ui("Present")}</span>
+                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-status-error-text">{ui("Absent")}</span>
+                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-status-warning-text">{ui("Leave")}</span>
                 <span className="text-center text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Rate")}</span>
               </div>
               <div className="divide-y divide-muted">
                 {students.map((student: any) => (
                   <div key={student.studentId} className={cn(
                     "grid grid-cols-4 gap-x-3 gap-y-2.5 px-5 py-3.5 transition-colors hover:bg-surface-hover sm:grid-cols-[1fr_80px_80px_80px_100px] sm:items-center",
-                    student.percentage < 75 && "bg-rose-50/30"
+                    student.percentage < 75 && "bg-status-error-surface/40"
                   )}>
                     <div className="col-span-4 flex min-w-0 items-center gap-3 sm:col-span-1">
                       <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
@@ -286,15 +286,15 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                         <p className="text-xs text-ink-subtle">{student.rollNo || ui("No roll")}</p>
                       </div>
                     </div>
-                    <p className="text-center text-sm font-bold tabular-nums text-emerald-700">
+                    <p className="text-center text-sm font-bold tabular-nums text-status-success-text">
                       <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Present")}</span>
                       {student.present}
                     </p>
-                    <p className="text-center text-sm font-bold tabular-nums text-rose-700">
+                    <p className="text-center text-sm font-bold tabular-nums text-status-error-text">
                       <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Absent")}</span>
                       {student.absent}
                     </p>
-                    <p className="text-center text-sm font-bold tabular-nums text-amber-700">
+                    <p className="text-center text-sm font-bold tabular-nums text-status-warning-text">
                       <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Leave")}</span>
                       {student.leave}
                     </p>
@@ -307,7 +307,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                         tone={student.percentage >= 75 ? "success" : "danger"}
                         label={ui("Attendance rate for {0}", [student.name])}
                       />
-                      <span className={cn("text-xs font-bold tabular-nums", student.percentage >= 75 ? "text-emerald-700" : "text-rose-700")}>{student.percentage}%</span>
+                      <span className={cn("text-xs font-bold tabular-nums", student.percentage >= 75 ? "text-status-success-text" : "text-status-error-text")}>{student.percentage}%</span>
                     </div>
                   </div>
                 ))}

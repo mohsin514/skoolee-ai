@@ -15,6 +15,9 @@ import { toast } from "@/components/ui/toast";
 import type { GridDay, SlotChange, StudioSlot, SubjectOption, TimetableData } from "./TimetableStudio";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 
 function effectiveSlots(slots: StudioSlot[], pending: Map<string, SlotChange>): StudioSlot[] {
@@ -140,26 +143,26 @@ function ResolutionSection({
         <Button variant="secondary" size="sm"
           type="button"
           onClick={load}
-          disabled={loading}
+          loading={loading}
           className="flex justify-start items-center gap-1"
         >
-          <RefreshCw className={`h-2.5 w-2.5 ${loading ? "animate-spin" : ""}`} />
+          {loading ? null : <RefreshCw className="h-2.5 w-2.5" aria-hidden="true" />}
           Recheck
         </Button>
       </div>
 
       {error ? (
-        <p className="mt-1.5 text-2xs font-bold text-rose-500">{error}</p>
+        <Alert tone="danger" compact live="off" className="mt-1.5" actions={<Button size="sm" variant="outline" type="button" onClick={load}>Retry</Button>}>{error}</Alert>
       ) : loading && !report ? (
         <p className="mt-1.5 text-2xs font-semibold text-ink-subtle">Checking the saved board…</p>
       ) : critical === 0 && warning === 0 ? (
-        <p className="mt-1.5 flex items-center gap-1 text-2xs font-bold text-emerald-600">
+        <p className="mt-1.5 flex items-center gap-1 text-2xs font-medium text-status-success-text">
           <CheckCircle2 className="h-3 w-3" />
           The saved board has no conflicts.
         </p>
       ) : (
         <>
-          <p className="mt-1.5 text-2xs font-bold text-ink-muted">
+          <p className="mt-1.5 text-2xs font-medium text-ink-muted tabular-nums">
             {critical} blocking · {warning} advisory on the saved board
           </p>
           <ul className="mt-2 space-y-1.5">
@@ -316,7 +319,7 @@ export function ConflictPanel({
           </span>
         </div>
         {clashes.size === 0 ? (
-          <p className="mt-1.5 text-2xs font-semibold text-emerald-700">None detected — assignments are conflict-free.</p>
+          <p className="mt-1.5 text-2xs font-medium text-status-success-text">None detected — assignments are conflict-free.</p>
         ) : (
           <ul className="mt-1.5 space-y-1">
             {[...clashes.values()].map((c, i) => (
@@ -333,7 +336,7 @@ export function ConflictPanel({
         <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Subject coverage</p>
         <div className="space-y-1.5">
           {subjects.length === 0 && (
-            <p className="text-2xs font-semibold text-ink-subtle">No subjects to track.</p>
+            <EmptyState size="sm" title="No subjects to track" description="Add subjects to this class to track weekly coverage." />
           )}
           {subjects.map((s) => {
             const placed = placedBySubject.get(s.id) || 0;
@@ -341,15 +344,15 @@ export function ConflictPanel({
             return (
               <div key={s.id} className="flex items-center justify-between gap-2">
                 <span className="truncate text-2xs font-bold text-ink-strong">{s.name}</span>
-                <span className={`text-2xs font-bold ${short ? "text-amber-600" : "text-emerald-600"}`}>
+                <Badge variant={short ? "warning" : "success"} size="sm" className="tabular-nums">
                   {placed}/{targetDays}
-                </span>
+                </Badge>
               </div>
             );
           })}
         </div>
         {subjectWarnings.length > 0 && (
-          <p className="mt-1.5 flex items-center gap-1 text-2xs font-bold text-amber-600">
+          <p className="mt-1.5 flex items-center gap-1 text-2xs font-medium text-status-warning-text">
             <AlertTriangle className="h-3 w-3" />
             {subjectWarnings.length} subject{subjectWarnings.length > 1 ? "s" : ""} below the weekly target.
           </p>
@@ -360,7 +363,7 @@ export function ConflictPanel({
       <div>
         <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Teacher workload / day</p>
         {workload.size === 0 ? (
-          <p className="text-2xs font-semibold text-ink-subtle">No teachers assigned yet.</p>
+          <EmptyState size="sm" title="No teachers assigned yet" description="Assign teachers to lessons to see their daily workload." />
         ) : (
           <div className="space-y-2.5">
             {[...workload.entries()].map(([tid, dayMap]) => (

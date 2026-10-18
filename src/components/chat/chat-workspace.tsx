@@ -9,6 +9,7 @@ import { ConversationList } from "./conversation-list";
 import { MessageThread } from "./message-thread";
 import { NewConversationDialog } from "./new-conversation-dialog";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
 
@@ -38,18 +39,18 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 420, damping: 30 }}
             role="alert"
-            className="absolute inset-x-3 top-3 z-40 flex items-start gap-2.5 rounded-2xl border border-rose-200/80 bg-rose-50/95 px-3.5 py-3 shadow-[0_16px_40px_-14px_rgba(190,18,60,0.4)] backdrop-blur-xl"
+            className="absolute inset-x-3 top-3 z-40 flex items-start gap-2.5 rounded-2xl border border-status-error-border bg-status-error-surface px-3.5 py-3 shadow-lg backdrop-blur-xl"
           >
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden />
-            <p className="flex-1 text-2xs font-bold leading-relaxed text-rose-700">{ui(error)}</p>
-            <Button variant="destructive" size="icon"
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-status-error-text" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm font-medium leading-relaxed text-status-error-text">{ui(error)}</p>
+            <IconButton variant="destructive" size="sm" label={ui("Dismiss")}
               type="button"
               onClick={clearError}
-              aria-label={ui("Dismiss")}
+              
 
             >
               <X className="h-3.5 w-3.5" />
-            </Button>
+            </IconButton>
           </motion.div>
         )}
       </AnimatePresence>

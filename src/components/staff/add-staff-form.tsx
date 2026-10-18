@@ -6,7 +6,6 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Check,
-  Loader2,
   Send,
   MapPin,
   Network,
@@ -14,6 +13,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { Alert } from "@/components/ui/alert";
 import { inviteStaff } from "@/app/actions/invite";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
 import {
@@ -373,13 +373,10 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
                 <ReviewRow label="Emergency Phone" value={form.emergencyPhone} />
               </ReviewSection>
 
-              <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                <p className="text-xs font-semibold text-amber-800">
-                  This does not create an account. An invitation goes to <b>{form.email || "their email"}</b>; they must
-                  open the link, set a password and finish onboarding before the role becomes active.
-                </p>
-              </div>
+              <Alert tone="warning" compact live="off" title="This sends an invitation, not an account">
+                An invitation goes to <b>{form.email || "their email"}</b>; they must open the link, set a password
+                and finish onboarding before the role becomes active.
+              </Alert>
             </div>
           )}
     </WizardShell>

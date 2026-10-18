@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
@@ -39,11 +41,11 @@ export function PublicationStatus({ timetableId, refreshKey }: { timetableId: st
   const [data, setData] = useState<Preview | null>(null);
   useEffect(() => { let live = true; fetch(`/api/timetable/${timetableId}?publication=1`, { cache: "no-store" }).then(r => r.json()).then(json => { if (live && json.success) setData(json.data); }).catch(() => undefined); return () => { live = false; }; }, [timetableId, refreshKey]);
   if (!data) return null;
-  return <span className="rounded-lg bg-muted px-2 py-1 text-2xs font-bold text-ink-muted" data-publication-status data-draft-revision={data.draftRevision} data-in-force={data.inForce?.version ?? ""}>
+  return <Badge variant="neutral" size="sm" className="max-w-full whitespace-normal" data-publication-status data-draft-revision={data.draftRevision} data-in-force={data.inForce?.version ?? ""}>
     {ui("Draft revision {0}", [String(data.draftRevision)])} · {data.inForce ? ui("everyone sees version {0} (from {1})", [String(data.inForce.version), date(data.inForce.effectiveFrom)]) : ui("not published yet")}
     {data.upcoming ? <> · {ui("version {0} from {1}", [String(data.upcoming.version), date(data.upcoming.effectiveFrom)])}</> : null}
     {data.inForce && data.unpublishedChanges ? <> · {ui("unpublished changes")}</> : null}
-  </span>;
+  </Badge>;
 }
 
 export function PublicationReview({ timetableId, className, onClose, onPublished }: { timetableId: string; className: string; onClose: () => void; onPublished: () => void }) {
@@ -73,7 +75,7 @@ export function PublicationReview({ timetableId, className, onClose, onPublished
   };
   return <ModalFrame title={ui("Review and publish")} eyebrow={ui("Timetable")} subtitle={className} onClose={onClose} wide>
     <div className="space-y-4" data-publication-review>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700" data-publication-error>{error}</p> : null}
+      {error ? <div data-publication-error><Alert tone="danger" compact live="assertive">{error}</Alert></div> : null}
       {!data ? <p className="text-sm text-ink-muted">{ui("Checking actual times, rooms and teachers…")}</p> : <>
         <p className="text-sm" data-publication-current>{data.inForce ? ui("Everyone sees version {0}, in force from {1}. Publishing creates version {2}.", [String(data.inForce.version), date(data.inForce.effectiveFrom), String((data.latest?.version ?? 0) + 1)]) : ui("Nothing is published yet. Publishing creates version {0}.", [String((data.latest?.version ?? 0) + 1)])}</p>
         <section data-publication-hard={hard.length}>

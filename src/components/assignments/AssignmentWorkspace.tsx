@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Download, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useLocale } from "@/components/locale/LocaleProvider";
@@ -197,6 +198,7 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
 
 function ReleaseReview({ t, language, plan, busy, onCancel, onRelease }: { t: AssignmentCopy; language: string; plan: Plan; busy: boolean; onCancel: () => void; onRelease: () => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const issuesId = useId();
   useEffect(() => { heading.current?.focus(); }, []);
   return <div role="dialog" aria-modal="false" aria-labelledby="asg-review-title" className="min-w-0 sk-panel sk-gradient-border p-4" onKeyDown={event => { if (event.key === "Escape") onCancel(); }}>
     <h3 id="asg-review-title" ref={heading} tabIndex={-1} className="text-base font-semibold">{t.previewTitle} — {t.releaseNew} {plan.nextVersion}</h3>
@@ -207,11 +209,11 @@ function ReleaseReview({ t, language, plan, busy, onCancel, onRelease }: { t: As
       <dt className="font-semibold">{t.resubmission}</dt><dd>{t.resubmissions[plan.policy.resubmission]}</dd>
       <dt className="font-semibold">{t.rubric}</dt><dd>{t.rubricVersion} {plan.rubricVersion} · {plan.rubricChanged ? t.rubricNew : t.rubricSame} · {t.total} {plan.totalPoints}</dd>
     </dl>
-    {plan.impact.earlierSubmissions > 0 && <p className="mt-3 rounded-lg border border-status-warning-border bg-status-warning-surface px-3 py-2 text-sm text-status-warning-text">{plan.impact.earlierSubmissions} {t.impact}</p>}
+    {plan.impact.earlierSubmissions > 0 && <Alert tone="warning" compact live="off" className="mt-3">{plan.impact.earlierSubmissions} {t.impact}</Alert>}
     <details className="mt-3" open={plan.audience.length <= 8}><summary className="cursor-pointer text-sm font-semibold">{t.audience} ({plan.audience.length})</summary>
       <ul className="mt-1 grid gap-0.5 text-sm sm:grid-cols-2">{plan.audience.map(a => <li key={a.id} dir="auto">{a.name}</li>)}</ul></details>
-    {plan.issues.length > 0 && <div role="alert" className="mt-3 rounded-lg border border-status-error-border bg-status-error-surface px-3 py-2 text-sm text-status-error-text"><p className="font-semibold">{t.blocked}</p><ul className="list-disc ps-5">{plan.issues.map(issue => <li key={issue}>{issue}</li>)}</ul></div>}
-    <div className="mt-4 flex flex-wrap gap-2"><Button type="button" disabled={busy || plan.issues.length > 0} onClick={onRelease}>{t.release}</Button><Button type="button" variant="ghost" onClick={onCancel}>{t.cancel}</Button></div>
+    {plan.issues.length > 0 && <Alert id={issuesId} tone="danger" title={t.blocked} className="mt-3"><ul className="list-disc ps-5">{plan.issues.map(issue => <li key={issue}>{issue}</li>)}</ul></Alert>}
+    <div className="mt-4 flex flex-wrap gap-2"><Button type="button" variant="ghost" onClick={onCancel}>{t.cancel}</Button><Button type="button" loading={busy} disabled={busy || plan.issues.length > 0} aria-describedby={plan.issues.length > 0 ? issuesId : undefined} onClick={onRelease}>{t.release}</Button></div>
   </div>;
 }
 

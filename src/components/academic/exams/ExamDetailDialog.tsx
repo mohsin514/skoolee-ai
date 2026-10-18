@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
-  Loader2,
   PenLine,
   Save,
   Users,
@@ -508,11 +507,12 @@ function MarksEntry({
             )}
             <BrandButton
               onClick={saveAll}
+              loading={saving}
               disabled={saving || pendingCount === 0 || locked}
-              icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              icon={saving ? null : <Save className="h-4 w-4" aria-hidden="true" />}
               className="min-h-9 px-3.5 text-xs"
             >
-              {saving ? "Saving…" : "Save marks"}
+              {tr("Save marks")}
             </BrandButton>
           </div>
         </div>
@@ -551,7 +551,7 @@ function MarksEntry({
                   <span className="text-2xs font-bold tabular-nums text-ink-subtle">
                     {student.rollNo}
                   </span>
-                  <span className="truncate text-[13px] font-bold text-ink-strong">
+                  <span className="truncate text-sm font-bold text-ink-strong">
                     {student.fullName}
                   </span>
                   <div className="flex items-center justify-center gap-1">

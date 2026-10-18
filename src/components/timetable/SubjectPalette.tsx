@@ -1,6 +1,7 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { BookOpen, Check } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { SubjectColor, SubjectOption } from "./TimetableStudio";
 
 export function SubjectPalette({
@@ -47,9 +48,7 @@ export function SubjectPalette({
 
       <div className="mt-1 flex-1 space-y-2 overflow-y-auto custom-scrollbar pe-1">
         {subjects.length === 0 && (
-          <p className="rounded-xl border border-dashed border-edge/20 p-4 text-center text-2xs font-semibold text-ink-subtle">
-            No subjects for this class yet. Add subjects first.
-          </p>
+          <EmptyState size="sm" icon={BookOpen} title="No subjects for this class yet" description="Add subjects first." />
         )}
         {subjects.map((s) => {
           const placed = placedBySubject.get(s.id) || 0;

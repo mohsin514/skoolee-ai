@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { CalendarCheck } from "lucide-react";
 
 // SKO-442: after cover is approved — did each covered lesson get a handover, was it acknowledged, what
 // happened — and which lessons had no cover. A lesson without cover is recorded here so its teacher gets a
@@ -42,21 +47,21 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
   const status = (s: string) => ({ DECISION_NEEDED: ui("Decision needed"), PLANNED: ui("Planned, not shared"), PUBLISHED: ui("Shared with the class") } as Record<string, string>)[s] ?? s;
 
   return <section className="sk-panel space-y-4 p-5" data-cover-follow-up>
-    <header className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-base font-bold">{ui("Cover follow-up")}</h3><p className="text-xs text-ink-muted">{ui("Covering a room is not the same as teaching the planned lesson.")}</p></div>
+    <header className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong">{ui("Cover follow-up")}</h3><p className="text-xs leading-relaxed text-ink-muted">{ui("Covering a room is not the same as teaching the planned lesson.")}</p></div>
       <FormField name="cover-day" label={ui("Day")}><Input type="date" value={day} onChange={e => setDay(e.target.value)} /></FormField></header>
-    {error ? <p className="text-sm text-rose-700">{error}</p> : !data ? <p className="text-sm text-ink-muted">{ui("Loading cover…")}</p> : <>
-      <div className="space-y-1" data-follow-covered><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Covered lessons")}</p>
+    {error ? <ErrorState variant="panel" description={error} onRetry={() => void load()} /> : !data ? <SkeletonList rows={3} label={ui("Loading cover…")} /> : <>
+      <div className="space-y-1" data-follow-covered><p className="sk-eyebrow">{ui("Covered lessons")}</p>
         {data.covered.length ? data.covered.map(c => <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-edge/40 px-3 py-2 text-sm" data-follow-duty={c.id}>
           <span><bdi>{c.startTime}–{c.endTime}</bdi> · <bdi>{c.className}</bdi> · <span dir="auto">{c.subjectName}</span> · {ui("Covered by {0}", [c.substitute])}</span>
-          <span className="text-xs">{c.handoverReady ? ui("Handover ready") : <span className="font-bold text-amber-800">{ui("No handover")}</span>} · {c.acknowledged ? ui("Acknowledged") : ui("Not acknowledged")} · {outcome(c.outcome)}</span>
-        </div>) : <p className="text-sm text-ink-muted">{ui("No approved cover on this day.")}</p>}</div>
-      {uncovered.length ? <div className="space-y-1" data-follow-uncovered><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Lessons without cover")}</p>
-        {uncovered.map(l => <div key={l.slotId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50/50 px-3 py-2 text-sm" data-follow-lesson={l.slotId}>
+          <span className="flex flex-wrap items-center gap-1 text-xs text-ink-muted">{c.handoverReady ? ui("Handover ready") : <Badge variant="warning" size="sm" dot>{ui("No handover")}</Badge>} · {c.acknowledged ? ui("Acknowledged") : ui("Not acknowledged")} · {outcome(c.outcome)}</span>
+        </div>) : <EmptyState size="sm" icon={CalendarCheck} title={ui("No approved cover on this day.")} />}</div>
+      {uncovered.length ? <div className="space-y-1" data-follow-uncovered><p className="sk-eyebrow">{ui("Lessons without cover")}</p>
+        {uncovered.map(l => <div key={l.slotId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-status-warning-border bg-status-warning-surface px-3 py-2 text-sm" data-follow-lesson={l.slotId}>
           <span><bdi>{l.startTime}–{l.endTime}</bdi> · <bdi>{l.className}</bdi> · <span dir="auto">{l.subject ?? ""}</span>{l.absentTeacher ? <> · <bdi>{l.absentTeacher}</bdi></> : null}</span>
-          {data.uncoveredRecorded.includes(l.slotId) ? <span className="text-xs font-bold">{ui("Recorded for follow-up")}</span> : <Button size="sm" variant="outline" disabled={busy} onClick={() => void recordNoCover(l.slotId)} data-follow-record>{ui("Record no cover")}</Button>}
+          {data.uncoveredRecorded.includes(l.slotId) ? <Badge variant="info" size="sm">{ui("Recorded for follow-up")}</Badge> : <Button size="sm" variant="outline" disabled={busy} onClick={() => void recordNoCover(l.slotId)} data-follow-record>{ui("Record no cover")}</Button>}
         </div>)}</div> : null}
-      <div className="space-y-1" data-follow-recoveries><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Missed learning still open")}</p>
-        {data.recoveries.length ? data.recoveries.map(r => <p key={r.id} className="text-sm" data-follow-recovery={r.id}><bdi>{formatDate(r.date)}</bdi> · <bdi>{r.className}</bdi> · <span dir="auto">{r.subjectName}</span> · <bdi>{r.owner}</bdi> · {status(r.status)}{r.dueDate ? <> · {ui("Due")} <bdi>{formatDate(r.dueDate)}</bdi></> : null}</p>) : <p className="text-sm text-ink-muted">{ui("No missed learning is waiting.")}</p>}</div>
+      <div className="space-y-1" data-follow-recoveries><p className="sk-eyebrow">{ui("Missed learning still open")}</p>
+        {data.recoveries.length ? data.recoveries.map(r => <p key={r.id} className="text-sm text-ink" data-follow-recovery={r.id}><bdi>{formatDate(r.date)}</bdi> · <bdi>{r.className}</bdi> · <span dir="auto">{r.subjectName}</span> · <bdi>{r.owner}</bdi> · {status(r.status)}{r.dueDate ? <> · {ui("Due")} <bdi>{formatDate(r.dueDate)}</bdi></> : null}</p>) : <p className="text-sm text-ink-muted">{ui("No missed learning is waiting.")}</p>}</div>
     </>}
   </section>;
 }

@@ -10,6 +10,9 @@ import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
 
 // SKO-417: the next useful action first. Every row says why it exists (trigger), who owns it, when it is
 // due and the one step that resolves it in its own workspace. Assign / acknowledge / snooze never close
@@ -77,13 +80,13 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       </div>
     </div>
 
-    {queue ? <p className="flex flex-wrap gap-3 text-sm font-bold" data-queue-counts>
+    {queue ? <p className="flex flex-wrap gap-3 text-sm font-semibold tabular-nums" data-queue-counts>
       <span data-active={queue.counts.active}>{ui("Open: {0}", [queue.counts.active])}</span>
-      <span className={queue.counts.overdue ? "text-rose-700" : ""} data-overdue={queue.counts.overdue}>{ui("Overdue: {0}", [queue.counts.overdue])}</span>
-      <span className={queue.counts.unassigned ? "text-amber-800" : ""}>{ui("No owner: {0}", [queue.counts.unassigned])}</span>
+      <span className={queue.counts.overdue ? "text-status-error-text" : ""} data-overdue={queue.counts.overdue}>{ui("Overdue: {0}", [queue.counts.overdue])}</span>
+      <span className={queue.counts.unassigned ? "text-status-warning-text" : ""}>{ui("No owner: {0}", [queue.counts.unassigned])}</span>
       <span>{ui("Snoozed: {0}", [queue.counts.snoozed])}</span>
     </p> : null}
-    {queue?.failedSources.length ? <p role="alert" className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900" data-failed-sources>{ui("Some sources could not be checked ({0}). Totals are incomplete until they recover.", [queue.failedSources.map(s => ui(TYPE_LABEL[s] ?? s)).join(", ")])}</p> : null}
+    {queue?.failedSources.length ? <div data-failed-sources><Alert tone="warning" compact>{ui("Some sources could not be checked ({0}). Totals are incomplete until they recover.", [queue.failedSources.map(s => ui(TYPE_LABEL[s] ?? s)).join(", ")])}</Alert></div> : null}
     {queue ? <details className="text-xs text-ink-muted"><summary className="cursor-pointer font-bold">{ui("How items are ordered")}</summary><p className="mt-1">{ui(queue.sortingRule)}</p></details> : null}
 
     <div className="grid gap-3 sm:grid-cols-3">
@@ -99,21 +102,21 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       <Button size="sm" variant="secondary" onClick={() => setSnoozing((queue?.items ?? []).filter(item => selected.has(item.key)))}><AlarmClock className="size-3.5" aria-hidden />{ui("Snooze")}</Button>
     </div> : null}
 
-    {error ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
+    {error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !queue ? <p role="status" className="text-sm text-ink-muted">{ui("Checking sources…")}</p>
       : !visible.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-queue-empty>{queue.items.length ? ui("No items match these filters.") : ui("Nothing needs attention in this campus right now.")}</p>
-      : <ol className="space-y-2" aria-label={ui("Action queue")}>{visible.map(item => <li key={item.key} className={`rounded-2xl border p-3 ${item.overdue ? "border-rose-200 bg-rose-50/40" : "border-border"}`} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
+      : <ol className="space-y-2" aria-label={ui("Action queue")}>{visible.map(item => <li key={item.key} className={`rounded-2xl border p-3 ${item.overdue ? "border-status-error-border bg-status-error-surface" : "border-border"}`} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
         <div className="flex items-start gap-3">
           <Checkbox className="mt-1" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [item.title])} />
           <div className="min-w-0 flex-1 space-y-0.5">
             <p className="text-sm font-bold"><bdi>{ui(item.title)}</bdi></p>
             <p className="text-xs text-ink-muted"><bdi>{ui(item.trigger)}</bdi></p>
             <p className="flex flex-wrap gap-x-2 text-2xs font-semibold text-ink-subtle">
-              <span className={`rounded px-1 ${item.overdue ? "bg-rose-100 text-rose-800" : "bg-muted"}`} data-reason>{ui(item.reason)}</span>
+              <Badge size="sm" variant={item.overdue ? "danger" : "neutral"} data-reason>{ui(item.reason)}</Badge>
               <span>{ui(TYPE_LABEL[item.type])}</span>
               <span>{item.assignee ? ui("Assigned to {0}", [item.assignee.name]) : item.sourceOwner ? ui("Owner: {0}", [item.sourceOwner.name]) : ui("No owner yet")}</span>
               {item.acknowledgedAt ? <span>{ui("Acknowledged")}</span> : null}
-              {item.snoozed ? <span className="text-amber-800">{ui("Snoozed until {0}: {1}", [dateTime(item.snoozedUntil!), item.snoozeReason ?? ""])}</span> : null}
+              {item.snoozed ? <span className="text-status-warning-text">{ui("Snoozed until {0}: {1}", [dateTime(item.snoozedUntil!), item.snoozeReason ?? ""])}</span> : null}
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               <Link href={item.link} className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground hover:opacity-90" aria-label={ui("{0}: {1}", [ui(item.nextAction), item.title])} data-next-action>{ui(item.nextAction)}</Link>
@@ -140,7 +143,7 @@ function SnoozeDialog({ items, onClose, onSave }: { items: Item[]; onClose: () =
   const [until, setUntil] = useState(() => { const tomorrow = new Date(Date.now() + 86_400_000); tomorrow.setHours(8, 0, 0, 0); return new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }), [reason, setReason] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   return <ModalFrame title={ui("Snooze {0} item(s)", [items.length])} eyebrow={ui("Action queue")} subtitle={ui("Snoozing hides an item until the return time. It does not resolve it, and overdue items stay visible.")} onClose={onClose} dirty={Boolean(reason)}>
     <div className="space-y-3" data-snooze-dialog>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
+      {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="snooze-until" label={ui("Return on")}><Input type="datetime-local" value={until} onChange={event => setUntil(event.target.value)} /></FormField>
       <FormField name="snooze-reason" label={ui("Reason")}><Input value={reason} maxLength={300} onChange={event => setReason(event.target.value)} /></FormField>
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button>

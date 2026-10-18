@@ -181,7 +181,7 @@ function DecisionCard({ decisionKey: key, brief, view, t, language, scopeNames, 
   const numeric = key === "durationMinutes" || key === "totalMarks" || key === "formCount";
   const submitValue = () => numeric ? (String(value).trim() === "" || Number.isNaN(Number(value)) ? String(value) : Number(value)) : value;
   return <section className="sk-panel space-y-4 p-5" aria-labelledby="brief-question" data-brief-decision={key}>
-    <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{fillStudioCopy(t.decisionOf, [new Intl.NumberFormat(language).format(index), new Intl.NumberFormat(language).format(total)])} · {classification(current, t)}</p>
+    <p className="sk-eyebrow tabular-nums">{fillStudioCopy(t.decisionOf, [new Intl.NumberFormat(language).format(index), new Intl.NumberFormat(language).format(total)])} · {classification(current, t)}</p>
     <h3 id="brief-question" className="text-lg font-bold">{t[KEY_COPY[key].ask]}</h3>
     {current.classification === "EXTRACTED_SUGGESTION" && <div className="space-y-2 rounded-xl border border-status-warning-border p-3 text-sm" data-brief-suggestion>
       <p className="font-semibold"><Isolated>{display(key, current.value, t, language, scopeNames, view)}</Isolated></p>

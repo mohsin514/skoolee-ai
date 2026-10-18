@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-436: the lending desk. Scan a member card, then copies; scan a copy to return it. Focus goes
@@ -70,10 +71,10 @@ export function LendingDesk() {
 
   return (
     <section aria-labelledby="lending-desk" className="sk-panel space-y-4 p-4">
-      <h2 id="lending-desk" className="text-lg font-bold">{ui("Lending desk")}</h2>
+      <h2 id="lending-desk" className="text-lg font-bold text-ink-strong">{ui("Lending desk")}</h2>
       <div aria-live="polite">
-        {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
-        {message ? <p role="status" className="text-sm font-semibold text-emerald-800">{message}</p> : null}
+        {error ? <Alert tone="danger" compact>{error}</Alert> : null}
+        {message ? <p role="status" className="text-sm font-medium text-status-success-text">{message}</p> : null}
       </div>
 
       <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void scan(code); }}>

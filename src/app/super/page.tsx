@@ -118,6 +118,7 @@ const generateRegId = (prefix = "BR") => `${prefix}-${Math.random().toString(36)
 type SuperView = "schools" | "billing" | "fees" | "settings" | "curriculum-templates" | "support";
 const WORKSPACE_VIEWS: readonly SuperView[] = ["schools", "billing", "fees", "settings", "curriculum-templates", "support"];
 export default function SuperAdminDashboard() {
+  const t = useUiText();
   const { data, loading, error: loadError, refetch } = useSuperAdminData();
   const [activeView, setActiveView] = useWorkspaceView(WORKSPACE_VIEWS, "schools");
   const [selectedCampus, setSelectedCampus] = useState<any>(null);
@@ -194,17 +195,17 @@ export default function SuperAdminDashboard() {
 
   const handleInvite = async () => {
     if (!selectedCampus || inviting) return;
-    if (!inviteEmail) return toast.error("Enter the email address to send the invitation to.");
-    if (!isValidEmail(inviteEmail.trim())) return toast.error("Enter a valid email address, like name@school.edu.");
+    if (!inviteEmail) return toast.error(t("Enter the email address to send the invitation to."));
+    if (!isValidEmail(inviteEmail.trim())) return toast.error(t("Enter a valid email address, like name@school.edu."));
     setInviting(true);
     try {
       const result = await inviteStaff({ email: inviteEmail, role: inviteRole, campusId: selectedCampus.id });
-      toast.success(`Invitation sent to ${inviteEmail.trim()}.`);
+      toast.success(t("Invitation sent to {0}.", [inviteEmail.trim()]));
       setInviteLink(result.inviteLink || "");
       setInviteEmail("");
       await refetch();
     } catch (error: any) {
-      toast.error(friendlyErrorMessage(error, "The invitation could not be sent. Please try again."));
+      toast.error(friendlyErrorMessage(error, t("The invitation could not be sent. Please try again.")));
     } finally {
       setInviting(false);
     }
@@ -212,14 +213,14 @@ export default function SuperAdminDashboard() {
 
   const handleAddCampus = async () => {
     if (!newCampusData.name.trim() || !newCampusData.city.trim()) {
-      return toast.error("Enter the campus name and city to create the campus.");
+      return toast.error(t("Enter the campus name and city to create the campus."));
     }
 
     // Validate email format if provided
     if (newCampusData.email && newCampusData.email.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(newCampusData.email.trim())) {
-        return toast.error("Enter a valid campus email, like office@school.edu.");
+        return toast.error(t("Enter a valid campus email, like office@school.edu."));
       }
     }
 
@@ -228,10 +229,10 @@ export default function SuperAdminDashboard() {
       // Remove all non-digit characters to count actual digits
       const digits = newCampusData.phone.replace(/\D/g, '');
       if (digits.length < 7) {
-        return toast.error("The phone number is too short. Enter at least 7 digits.");
+        return toast.error(t("The phone number is too short. Enter at least 7 digits."));
       }
       if (digits.length > 15) {
-        return toast.error("The phone number is too long. Enter no more than 15 digits.");
+        return toast.error(t("The phone number is too long. Enter no more than 15 digits."));
       }
     }
 
@@ -239,7 +240,7 @@ export default function SuperAdminDashboard() {
     if (newCampusData.adminEmail && newCampusData.adminEmail.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(newCampusData.adminEmail.trim())) {
-        return toast.error("Enter a valid email for the campus admin, like name@school.edu.");
+        return toast.error(t("Enter a valid email for the campus admin, like name@school.edu."));
       }
     }
 
@@ -259,14 +260,14 @@ export default function SuperAdminDashboard() {
       });
       toast.success(
         newCampusData.adminEmail.trim()
-          ? `${newCampusData.name.trim()} created — invitation sent to ${newCampusData.adminEmail.trim()}.`
-          : `${newCampusData.name.trim()} created.`
+          ? t("{0} created — invitation sent to {1}.", [newCampusData.name.trim(), newCampusData.adminEmail.trim()])
+          : t("{0} created.", [newCampusData.name.trim()])
       );
       setShowAddCampusModal(false);
       setNewCampusData({ ...emptyCampusForm, regId: generateRegId() });
       await refetch();
     } catch (error: any) {
-      toast.error(friendlyErrorMessage(error, "The campus could not be created. Please try again."));
+      toast.error(friendlyErrorMessage(error, t("The campus could not be created. Please try again.")));
     } finally {
       setAddingCampus(false);
     }
@@ -274,12 +275,12 @@ export default function SuperAdminDashboard() {
 
   const handleRemove = async (userId: string, type: "Admin" | "Principal") => {
     setConfirmAction({
-      title: `Revoke ${type} access?`,
-      description: `This will remove the selected ${type.toLowerCase()} from the campus authority slot.`,
-      confirmLabel: "Revoke access",
+      title: type === "Admin" ? t("Revoke admin access?") : t("Revoke principal access?"),
+      description: type === "Admin" ? t("This will remove the selected admin from the campus authority slot.") : t("This will remove the selected principal from the campus authority slot."),
+      confirmLabel: t("Revoke access"),
       run: async () => {
         await removeStaff(userId);
-        toast.success(`${type} access revoked`);
+        toast.success(type === "Admin" ? t("Admin access revoked") : t("Principal access revoked"));
         await refetch();
       },
     });
@@ -287,12 +288,12 @@ export default function SuperAdminDashboard() {
 
   const handleCancelInvite = async (inviteId: string) => {
     setConfirmAction({
-      title: "Cancel invitation?",
-      description: "The invited person will no longer be able to use this invitation link.",
-      confirmLabel: "Cancel invite",
+      title: t("Cancel invitation?"),
+      description: t("The invited person will no longer be able to use this invitation link."),
+      confirmLabel: t("Cancel invite"),
       run: async () => {
         await cancelInvitation(inviteId);
-        toast.success("Invitation cancelled");
+        toast.success(t("Invitation cancelled"));
         await refetch();
       },
     });
@@ -301,10 +302,10 @@ export default function SuperAdminDashboard() {
   const handleResendInvite = async (inviteId: string) => {
     try {
       await resendInvitation(inviteId);
-      toast.success("Invitation sent again.");
+      toast.success(t("Invitation sent again."));
       await refetch();
     } catch (error: any) {
-      toast.error(friendlyErrorMessage(error, "The invitation could not be resent. Please try again."));
+      toast.error(friendlyErrorMessage(error, t("The invitation could not be resent. Please try again.")));
     }
   };
 
@@ -315,7 +316,7 @@ export default function SuperAdminDashboard() {
       await confirmAction.run();
       setConfirmAction(null);
     } catch (error: any) {
-      toast.error(friendlyErrorMessage(error, "That change could not be saved. Please try again."));
+      toast.error(friendlyErrorMessage(error, t("That change could not be saved. Please try again.")));
     } finally {
       setConfirmBusy(false);
     }
@@ -332,28 +333,28 @@ export default function SuperAdminDashboard() {
   }, []);
 
   const navItems: RoleNavItem[] = [
-    { icon: LayoutGrid, label: "Schools", active: activeView === "schools" && !selectedCampus, onClick: openSchools },
-    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: openFees },
-    { icon: CreditCard, label: "Billing & plan", active: activeView === "billing", onClick: openBilling },
-    { icon: Settings, label: "School Settings", active: activeView === "settings", onClick: openSettings },
-    { icon: BookOpen, label: "Curriculum Templates", active: activeView === "curriculum-templates", onClick: openCurriculumTemplates },
-    { icon: ShieldCheck, label: "Support Approvals", active: activeView === "support", onClick: () => setActiveView("support") },
-    { icon: Sparkles, label: "AI Engine", onClick: openAI },
-    { icon: MessageCircle, label: "Messages", href: "/messages" },
-    { icon: Users, label: "Guardians and access", href: "/dashboard/guardians" },
+    { icon: LayoutGrid, label: t("Schools"), active: activeView === "schools" && !selectedCampus, onClick: openSchools },
+    { icon: Receipt, label: t("Fees"), active: activeView === "fees", onClick: openFees },
+    { icon: CreditCard, label: t("Billing & plan"), active: activeView === "billing", onClick: openBilling },
+    { icon: Settings, label: t("School Settings"), active: activeView === "settings", onClick: openSettings },
+    { icon: BookOpen, label: t("Curriculum Templates"), active: activeView === "curriculum-templates", onClick: openCurriculumTemplates },
+    { icon: ShieldCheck, label: t("Support Approvals"), active: activeView === "support", onClick: () => setActiveView("support") },
+    { icon: Sparkles, label: t("AI Engine"), onClick: openAI },
+    { icon: MessageCircle, label: t("Messages"), href: "/messages" },
+    { icon: Users, label: t("Guardians and access"), href: "/dashboard/guardians" },
   ];
 const bottomItems: RoleNavItem[] = [];
   const superAIFeatures = [
-    { feature: "campus_comparison", label: "Campus Comparison", placeholder: "Optional academic year or term" },
-    { feature: "weak_campuses", label: "Weak Campuses", placeholder: "Support focus or threshold" },
-    { feature: "ai_usage_by_campus", label: "AI Usage", placeholder: "Optional governance focus" },
-    { feature: "fee_recovery_insights", label: "Fee Recovery", placeholder: "Optional date or campus focus" },
-    { feature: "academic_trend_summary", label: "Academic Trends", placeholder: "Optional exam or term focus" },
+    { feature: "campus_comparison", label: t("Campus Comparison"), placeholder: t("Optional academic year or term") },
+    { feature: "weak_campuses", label: t("Weak Campuses"), placeholder: t("Support focus or threshold") },
+    { feature: "ai_usage_by_campus", label: t("AI Usage"), placeholder: t("Optional governance focus") },
+    { feature: "fee_recovery_insights", label: t("Fee Recovery"), placeholder: t("Optional date or campus focus") },
+    { feature: "academic_trend_summary", label: t("Academic Trends"), placeholder: t("Optional exam or term focus") },
   ];
 
   if (loading && !data) {
     return (
-      <RoleShellSkeleton navRows={7} label="Loading the network command centre">
+      <RoleShellSkeleton navRows={7} label={t("Loading the network command centre")}>
         <CommandCentreSkeleton />
       </RoleShellSkeleton>
     );
@@ -365,8 +366,8 @@ const bottomItems: RoleNavItem[] = [];
       <main className="sk-hero-wash flex min-h-screen items-center justify-center px-4 py-12">
         <ErrorState
           variant="page"
-          title="The command centre could not be loaded"
-          description={loadError ? "Your schools, billing and campus details did not load. Check your connection and try again." : undefined}
+          title={t("The command centre could not be loaded")}
+          description={loadError ? t("Your schools, billing and campus details did not load. Check your connection and try again.") : undefined}
           onRetry={() => void refetch()}
         />
       </main>
@@ -382,7 +383,7 @@ const bottomItems: RoleNavItem[] = [];
     <RoleShell
       navItems={navItems}
       bottomItems={bottomItems}
-      searchPlaceholder="Search facilities or users..."
+      searchPlaceholder={t("Search facilities or users...")}
       userName={data.user.fullName}
       userRole={data.user.role}
       avatarSeed={data.user.email || data.user.fullName}
@@ -391,24 +392,24 @@ const bottomItems: RoleNavItem[] = [];
         <div className="flex items-center gap-2">
           {/* Icon-only below lg: the label stays in the accessible name and
               the tooltip shows it, instead of a native title nobody sees on touch. */}
-          <Tooltip content="Fee Management" describe={false}>
+          <Tooltip content={t("Fee Management")} describe={false}>
             <Button
               variant="secondary"
               onClick={openFees}
               className="min-h-10 px-3 sm:px-4 rounded-xl whitespace-nowrap"
             >
               <Receipt aria-hidden="true" className="w-4 h-4" />
-              <span className="sr-only lg:not-sr-only">Fees</span>
+              <span className="sr-only lg:not-sr-only">{t("Fees")}</span>
             </Button>
           </Tooltip>
-          <Tooltip content="Billing & plan" describe={false}>
+          <Tooltip content={t("Billing & plan")} describe={false}>
             <Button
               variant="secondary"
               onClick={openBilling}
               className="min-h-10 px-3 sm:px-4 rounded-xl whitespace-nowrap"
             >
               <CreditCard aria-hidden="true" className="w-4 h-4" />
-              <span className="sr-only lg:not-sr-only">Billing & plan</span>
+              <span className="sr-only lg:not-sr-only">{t("Billing & plan")}</span>
             </Button>
           </Tooltip>
         </div>
@@ -420,9 +421,9 @@ const bottomItems: RoleNavItem[] = [];
         ) : activeView === "billing" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <ViewHeader
-              eyebrow="Owner billing control"
-              title="Billing & plan"
-              description="SaaS plan, upgrades, and AI credit control."
+              eyebrow={t("Owner billing control")}
+              title={t("Billing & plan")}
+              description={t("SaaS plan, upgrades, and AI credit control.")}
             />
             <div className="space-y-6 p-4 sm:p-6">
               <SubscriptionLifecyclePanel />
@@ -436,9 +437,9 @@ const bottomItems: RoleNavItem[] = [];
         ) : activeView === "settings" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <ViewHeader
-              eyebrow="Institution record"
-              title="School Settings"
-              description="Name, branding and contact details for the institution and each of its campuses."
+              eyebrow={t("Institution record")}
+              title={t("School Settings")}
+              description={t("Name, branding and contact details for the institution and each of its campuses.")}
             />
             <div className="p-4 sm:p-6">
               <InstitutionSettingsPanel onSaved={refetch} />
@@ -448,9 +449,9 @@ const bottomItems: RoleNavItem[] = [];
         ) : activeView === "fees" ? (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <ViewHeader
-              eyebrow="Network fee control"
-              title="Fee Management"
-              description="Fee structures, invoices, challans, and payment recording across the network."
+              eyebrow={t("Network fee control")}
+              title={t("Fee Management")}
+              description={t("Fee structures, invoices, challans, and payment recording across the network.")}
             />
             <div className="p-4 sm:p-6">
               <FeeManagementPanel />
@@ -476,21 +477,21 @@ const bottomItems: RoleNavItem[] = [];
                       onClick={openFees}
                       className="focus-on-dark justify-start"
                     >
-                      <Receipt aria-hidden="true" className="h-4 w-4" /> Fees
+                      <Receipt aria-hidden="true" className="h-4 w-4" /> {t("Fees")}
                     </Button>
                     <Button variant="outline"
                       type="button"
                       onClick={openBilling}
                       className="focus-on-dark justify-start"
                     >
-                      <CreditCard aria-hidden="true" className="h-4 w-4" /> Plans &amp; billing
+                      <CreditCard aria-hidden="true" className="h-4 w-4" /> {t("Plans & billing")}
                     </Button>
                     <Button variant="outline"
                       type="button"
                       onClick={() => setShowAddCampusModal(true)}
                       className="focus-on-dark justify-start"
                     >
-                      <Plus aria-hidden="true" className="h-4 w-4" /> Add campus
+                      <Plus aria-hidden="true" className="h-4 w-4" /> {t("Add campus")}
                     </Button>
                   </>
                 }
@@ -499,15 +500,15 @@ const bottomItems: RoleNavItem[] = [];
 
             <div id="network-ai-panel" className="mb-8 scroll-mt-6 rounded-3xl border border-edge/25 bg-brand-50/30 p-4 shadow-md sm:p-6">
               <div className="mb-5">
-                <PanelTitle icon={Sparkles} title="AI Network Insights" />
+                <PanelTitle icon={Sparkles} title={t("AI Network Insights")} />
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5 mb-5">
-                <div className="sk-panel p-4 sm:p-5 relative overflow-hidden"><CornerSparkles /><AiActionPanel title="Super Admin AI" options={superAIFeatures} compact onComplete={refetch} /></div>
+                <div className="sk-panel p-4 sm:p-5 relative overflow-hidden"><CornerSparkles /><AiActionPanel title={t("Super Admin AI")} options={superAIFeatures} compact onComplete={refetch} /></div>
                 <div className="sk-panel p-4 sm:p-5 min-w-0">
                   <div className="flex items-center gap-2 mb-4">
                     <Shield aria-hidden="true" className="w-5 h-5 text-primary" />
-                    <p className="sk-eyebrow">AI Review</p>
-                    <InfoTip content="AI drafts waiting for a person to approve or reject them. The five oldest are shown here." />
+                    <p className="sk-eyebrow">{t("AI Review")}</p>
+                    <InfoTip content={t("AI drafts waiting for a person to approve or reject them. The five oldest are shown here.")} />
                   </div>
                   <AIReviewQueue items={data.pendingAIReviewItems} onComplete={refetch} />
                 </div>
@@ -528,8 +529,8 @@ const bottomItems: RoleNavItem[] = [];
                   <EmptyState
                     size="sm"
                     icon={Sparkles}
-                    title="No AI insights yet"
-                    description="Campus comparisons, fee recovery, and academic trend drafts will appear after the AI engine runs."
+                    title={t("No AI insights yet")}
+                    description={t("Campus comparisons, fee recovery, and academic trend drafts will appear after the AI engine runs.")}
                   />
                 </div>
               )}
@@ -538,12 +539,12 @@ const bottomItems: RoleNavItem[] = [];
             {data.campuses.length === 0 ? (
               <EmptyState
                 icon={Building2}
-                title="No campuses yet"
-                description="Create the first campus in this school group to start assigning admins and principals."
+                title={t("No campuses yet")}
+                description={t("Create the first campus in this school group to start assigning admins and principals.")}
                 action={
                   <Button onClick={() => setShowAddCampusModal(true)}>
                     <Plus aria-hidden="true" />
-                    Create Campus
+                    {t("Create Campus")}
                   </Button>
                 }
               />
@@ -559,11 +560,11 @@ const bottomItems: RoleNavItem[] = [];
           <div className="flex flex-col h-full">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-muted bg-white p-4 shrink-0 sm:p-6 lg:p-8">
               <div className="flex min-w-0 items-center gap-3 sm:gap-5">
-                <IconButton label="Close campus fees" onClick={() => setShowCampusFees(false)}>
+                <IconButton label={t("Close campus fees")} onClick={() => setShowCampusFees(false)}>
                   <ChevronLeft aria-hidden="true" className="w-5 h-5 rtl:rotate-180" />
                 </IconButton>
                 <div className="min-w-0">
-                  <p className="sk-eyebrow mb-1 text-primary">Fee Management</p>
+                  <p className="sk-eyebrow mb-1 text-primary">{t("Fee Management")}</p>
                   <h2 className="truncate text-xl font-bold tracking-tight text-ink-strong sm:text-2xl">
                     {selectedCampus.name}
                   </h2>
@@ -578,13 +579,13 @@ const bottomItems: RoleNavItem[] = [];
           <div className="flex flex-col h-full">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-muted bg-white p-4 shrink-0 sm:p-6 lg:p-8">
               <div className="flex min-w-0 items-center gap-3 sm:gap-5">
-                <IconButton label="Close campus details" onClick={() => setSelectedCampus(null)}>
+                <IconButton label={t("Close campus details")} onClick={() => setSelectedCampus(null)}>
                   <ChevronLeft aria-hidden="true" className="w-5 h-5 rtl:rotate-180" />
                 </IconButton>
                 <div className="min-w-0">
                   <p className="sk-eyebrow mb-1 flex items-center gap-1.5 text-primary">
                     <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{selectedCampus.city} Campus Identity Hub</span>
+                    <span className="truncate">{t("{0} Campus Identity Hub", [selectedCampus.city])}</span>
                   </p>
                   <h2 className="truncate text-xl font-bold tracking-tight text-ink-strong sm:text-2xl">
                     {selectedCampus.name}
@@ -593,10 +594,10 @@ const bottomItems: RoleNavItem[] = [];
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <BrandButton variant="soft" icon={<Receipt aria-hidden="true" className="w-4 h-4" />} onClick={() => setShowCampusFees(true)}>
-                  Fees
+                  {t("Fees")}
                 </BrandButton>
                 <BrandButton variant="soft" icon={<ClipboardList aria-hidden="true" className="w-4 h-4" />} onClick={() => setShowActivityLogModal(true)}>
-                  Activity Log
+                  {t("Activity Log")}
                 </BrandButton>
                 <SuperStatusPill status={hasActiveSlot(selectedCampus.admin) && hasActiveSlot(selectedCampus.principal) ? "ACTIVE" : "MISSING"} />
               </div>
@@ -605,9 +606,9 @@ const bottomItems: RoleNavItem[] = [];
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-brand-50/30 p-4 sm:p-6 lg:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                 <ManagementCard
-                  title="Campus Administrator"
+                  title={t("Campus Administrator")}
                   icon={Shield}
-                  description="Sole authority for campus operations. One active admin is allowed per campus."
+                  description={t("Sole authority for campus operations. One active admin is allowed per campus.")}
                   user={selectedCampus.admin}
                   onAdd={() => {
                     setInviteRole("CAMPUS_ADMIN");
@@ -618,9 +619,9 @@ const bottomItems: RoleNavItem[] = [];
                   onCancelInvite={handleCancelInvite}
                 />
                 <ManagementCard
-                  title="Principal / Academic Head"
+                  title={t("Principal / Academic Head")}
                   icon={GraduationCap}
-                  description="Academic overseer for teachers, classes, exams, and report card review."
+                  description={t("Academic overseer for teachers, classes, exams, and report card review.")}
                   user={selectedCampus.principal}
                   onAdd={() => {
                     setInviteRole("PRINCIPAL");
@@ -633,19 +634,19 @@ const bottomItems: RoleNavItem[] = [];
               </div>
 
               <div className="sk-stagger mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-5 lg:mt-8">
-                <InfoPill label="Students" value={selectedCampus.studentCount} />
-                <InfoPill label="Classes" value={selectedCampus.classCount} />
+                <InfoPill label={t("Students")} value={selectedCampus.studentCount} />
+                <InfoPill label={t("Classes")} value={selectedCampus.classCount} />
                 <InfoPill
-                  label="Staff"
+                  label={t("Staff")}
                   value={selectedCampus.staffCount}
                   active
-                  tip="Every user account linked to this campus."
+                  tip={t("Every user account linked to this campus.")}
                 />
               </div>
 
               <div className="sk-panel mt-6 p-4 sm:p-6 lg:mt-8">
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                  <PanelTitle icon={Mail} title="Pending Access Invitations" />
+                  <PanelTitle icon={Mail} title={t("Pending Access Invitations")} />
                   <SuperStatusPill status={`${selectedCampus.pendingInvitations.length} Pending`} />
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -658,7 +659,7 @@ const bottomItems: RoleNavItem[] = [];
                           {invite.role ? <SuperStatusPill status={String(invite.role)} /> : null}
                         </div>
                         <span className="text-xs tabular-nums text-ink-subtle">
-                          Expires {new Date(invite.expiresAt).toLocaleDateString()}
+                          {t("Expires {0}", [new Date(invite.expiresAt).toLocaleDateString()])}
                         </span>
                       </div>
                     </div>
@@ -668,8 +669,8 @@ const bottomItems: RoleNavItem[] = [];
                       <EmptyState
                         size="sm"
                         icon={Mail}
-                        title="No pending invitations"
-                        description="Staff invitations sent for this campus appear here while they wait to be accepted."
+                        title={t("No pending invitations")}
+                        description={t("Staff invitations sent for this campus appear here while they wait to be accepted.")}
                       />
                     </div>
                   ) : null}
@@ -680,7 +681,7 @@ const bottomItems: RoleNavItem[] = [];
                   campus because a reporting line never crosses one. */}
               <div className="sk-panel mt-6 p-4 sm:p-6 lg:mt-8">
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                  <PanelTitle icon={Network} title="Staff Hierarchy" />
+                  <PanelTitle icon={Network} title={t("Staff Hierarchy")} />
                   <SuperStatusPill status={`${selectedCampus.staffCount} Staff`} />
                 </div>
                 <StaffHierarchyPanel campusId={selectedCampus.id} />
@@ -693,19 +694,19 @@ const bottomItems: RoleNavItem[] = [];
       {showInviteModal && (
         <ModalFrame
           onClose={() => { setShowInviteModal(false); setInviteLink(""); }}
-          title={inviteLink ? "Invitation Sent" : `Invite ${inviteRole === "CAMPUS_ADMIN" ? "Admin" : "Principal"}`}
-          subtitle={inviteLink ? undefined : `For ${selectedCampus?.name ?? "this campus"}`}
+          title={inviteLink ? t("Invitation Sent") : inviteRole === "CAMPUS_ADMIN" ? t("Invite Admin") : t("Invite Principal")}
+          subtitle={inviteLink ? undefined : selectedCampus?.name ? t("For {0}", [selectedCampus.name]) : t("For this campus")}
           footer={
             inviteLink ? (
               <div className="flex justify-end">
                 <Button variant="outline" onClick={() => { setShowInviteModal(false); setInviteLink(""); }}>
-                  Close
+                  {t("Close")}
                 </Button>
               </div>
             ) : (
               <DialogActions
-                actionLabel="Send invite"
-                busyLabel="Sending invite…"
+                actionLabel={t("Send invite")}
+                busyLabel={t("Sending invite…")}
                 busy={inviting}
                 onCancel={() => { setShowInviteModal(false); setInviteLink(""); }}
                 onAction={() => void handleInvite()}
@@ -715,12 +716,12 @@ const bottomItems: RoleNavItem[] = [];
         >
           {inviteLink ? (
             <div className="space-y-6">
-              <Alert tone="success" title="Invitation email sent successfully">
-                The invited person will set their own password when they accept.
+              <Alert tone="success" title={t("Invitation email sent successfully")}>
+                {t("The invited person will set their own password when they accept.")}
               </Alert>
               <div>
-                <p className="sk-eyebrow mb-1.5">Invitation Link</p>
-                <p className="mb-3 text-sm leading-relaxed text-ink-muted">Share this link manually if the email doesn&apos;t arrive. It expires in 48 hours.</p>
+                <p className="sk-eyebrow mb-1.5">{t("Invitation Link")}</p>
+                <p className="mb-3 text-sm leading-relaxed text-ink-muted">{t("Share this link manually if the email doesn't arrive. It expires in 48 hours.")}</p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div dir="ltr" className="min-w-0 flex-1 select-all break-all rounded-xl border border-edge/20 bg-brand-50 p-3 font-mono text-xs text-ink">{inviteLink}</div>
                   <Button
@@ -728,13 +729,13 @@ const bottomItems: RoleNavItem[] = [];
                     className="shrink-0"
                     onClick={() => {
                       void navigator.clipboard.writeText(inviteLink).then(
-                        () => toast.success("Link copied to clipboard"),
-                        () => toast.error("The link could not be copied. Select it and copy it manually."),
+                        () => toast.success(t("Link copied to clipboard")),
+                        () => toast.error(t("The link could not be copied. Select it and copy it manually.")),
                       );
                     }}
                   >
                     <Copy aria-hidden="true" />
-                    Copy
+                    {t("Copy")}
                   </Button>
                 </div>
               </div>
@@ -747,9 +748,9 @@ const bottomItems: RoleNavItem[] = [];
             >
               <FormField
                 name="invite-email"
-                label="Official email"
+                label={t("Official email")}
                 required
-                hint="Use the work address this person signs in with."
+                hint={t("Use the work address this person signs in with.")}
               >
                 <InputGroup surfaceClassName="bg-brand-50">
                   <Mail aria-hidden="true" data-field-affix="start" className="w-5 h-5 text-primary" />
@@ -757,15 +758,15 @@ const bottomItems: RoleNavItem[] = [];
                     type="email"
                     dir="ltr"
                     autoComplete="email"
-                    placeholder="Enter official email..."
+                    placeholder={t("Enter official email...")}
                     className={"w-full"}
                     value={inviteEmail}
                     onChange={(event) => setInviteEmail(event.target.value)}
                   />
                 </InputGroup>
               </FormField>
-              <Alert tone="info" title="How it works" live="off">
-                An invitation email will be sent. The invited person will create their own secure password when they accept the invite link.
+              <Alert tone="info" title={t("How it works")} live="off">
+                {t("An invitation email will be sent. The invited person will create their own secure password when they accept the invite link.")}
               </Alert>
             </form>
           )}
@@ -775,14 +776,14 @@ const bottomItems: RoleNavItem[] = [];
       {showAddCampusModal && (
         <ModalFrame
           onClose={() => setShowAddCampusModal(false)}
-          title="Create campus"
-          subtitle="Only the campus name and city are required."
+          title={t("Create campus")}
+          subtitle={t("Only the campus name and city are required.")}
           wide
           dirty={campusFormDirty && !addingCampus}
           footer={
             <DialogActions
-              actionLabel="Create campus"
-              busyLabel="Creating campus…"
+              actionLabel={t("Create campus")}
+              busyLabel={t("Creating campus…")}
               busy={addingCampus}
               onCancel={() => setShowAddCampusModal(false)}
               onAction={() => void handleAddCampus()}
@@ -792,45 +793,45 @@ const bottomItems: RoleNavItem[] = [];
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
             <CampusInput
               name="campus-name"
-              label="Campus Name"
+              label={t("Campus Name")}
               icon={Building2}
               required
               value={newCampusData.name}
-              placeholder="e.g. South Campus"
+              placeholder={t("e.g. South Campus")}
               onChange={(value) => setNewCampusData({ ...newCampusData, name: value })}
             />
             <CampusInput
               name="campus-city"
-              label="City"
+              label={t("City")}
               icon={MapPin}
               required
               value={newCampusData.city}
-              placeholder="e.g. Islamabad"
+              placeholder={t("e.g. Islamabad")}
               onChange={(value) => setNewCampusData({ ...newCampusData, city: value })}
             />
             <div className="md:col-span-2">
               <CampusInput
                 name="campus-address"
-                label="Address"
+                label={t("Address")}
                 icon={MapPin}
                 value={newCampusData.address}
-                placeholder="Full street address"
+                placeholder={t("Full street address")}
                 onChange={(value) => setNewCampusData({ ...newCampusData, address: value })}
               />
             </div>
             <CampusInput
               name="campus-phone"
-              label="Phone"
+              label={t("Phone")}
               icon={Phone}
               type="tel"
               value={newCampusData.phone}
               placeholder="+92 300 0000000"
-              hint="Include the country code. 7 to 15 digits."
+              hint={t("Include the country code. 7 to 15 digits.")}
               onChange={(value) => setNewCampusData({ ...newCampusData, phone: value })}
             />
             <CampusInput
               name="campus-email"
-              label="Campus Email"
+              label={t("Campus Email")}
               icon={Mail}
               type="email"
               value={newCampusData.email}
@@ -839,21 +840,21 @@ const bottomItems: RoleNavItem[] = [];
             />
             <CampusInput
               name="campus-website"
-              label="Website"
+              label={t("Website")}
               icon={Globe}
               value={newCampusData.website}
-              placeholder="Website (optional)"
+              placeholder={t("Website (optional)")}
               onChange={(value) => setNewCampusData({ ...newCampusData, website: value })}
             />
             <CampusInput
               name="campus-head"
-              label="Head of Campus"
+              label={t("Head of Campus")}
               icon={Users}
               value={newCampusData.principalName}
-              placeholder="Principal / director name"
+              placeholder={t("Principal / director name")}
               onChange={(value) => setNewCampusData({ ...newCampusData, principalName: value })}
             />
-            <FormField name="campus-board" id="campus-board" label="Board">
+            <FormField name="campus-board" id="campus-board" label={t("Board")}>
               <InputGroup surfaceClassName="bg-muted" className="min-w-0">
                 <GraduationCap aria-hidden="true" data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
                 <SystemSelect
@@ -868,19 +869,19 @@ const bottomItems: RoleNavItem[] = [];
             </FormField>
             <CampusInput
               name="campus-admin-email"
-              label="Campus Admin Email"
+              label={t("Campus Admin Email")}
               icon={Mail}
               type="email"
               value={newCampusData.adminEmail}
-              placeholder="Invite a campus admin (optional)"
-              hint="An invitation is sent; they set their own password."
+              placeholder={t("Invite a campus admin (optional)")}
+              hint={t("An invitation is sent; they set their own password.")}
               onChange={(value) => setNewCampusData({ ...newCampusData, adminEmail: value })}
             />
             <div className="md:col-span-2 rounded-3xl border border-edge/20 bg-brand-50 p-4 sm:p-6">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-1">
-                  <Label htmlFor="campus-key">Campus Key</Label>
-                  <InfoTip content="A short code that identifies this campus. Auto creates one for you; Manual lets you type your own." />
+                  <Label htmlFor="campus-key">{t("Campus Key")}</Label>
+                  <InfoTip content={t("A short code that identifies this campus. Auto creates one for you; Manual lets you type your own.")} />
                 </div>
                 <Button aria-pressed={newCampusData.autoId} variant="choice" size="sm"
                   onClick={() =>
@@ -891,7 +892,7 @@ const bottomItems: RoleNavItem[] = [];
                     })
                   }
                 >
-                  {newCampusData.autoId ? "Auto" : "Manual"}
+                  {newCampusData.autoId ? t("Auto") : t("Manual")}
                 </Button>
               </div>
               <SystemInput
@@ -906,8 +907,7 @@ const bottomItems: RoleNavItem[] = [];
                 onChange={(event) => setNewCampusData({ ...newCampusData, regId: event.target.value.toUpperCase() })}
               />
               <p id="campus-key-note" className="mt-3 text-xs leading-relaxed text-ink-muted">
-                The new campus inherits the group&apos;s current academic session and working week.
-                Adjust either from Academic &rarr; Calendar.
+                {t("The new campus inherits the group's current academic session and working week. Adjust either from Academic → Calendar.")}
               </p>
             </div>
           </div>
@@ -920,7 +920,7 @@ const bottomItems: RoleNavItem[] = [];
         open={Boolean(confirmAction)}
         title={confirmAction?.title || ""}
         description={confirmAction?.description || ""}
-        confirmLabel={confirmAction?.confirmLabel || "Confirm"}
+        confirmLabel={confirmAction?.confirmLabel || t("Confirm")}
         tone="danger"
         busy={confirmBusy}
         onCancel={() => setConfirmAction(null)}
@@ -962,13 +962,14 @@ function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) 
 }
 
 function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }) {
+  const t = useUiText();
   const plan = getPlanLimits(billing?.plan || "FREE").name;
   const status = billing?.status || "TRIAL";
   const creditsUsed = Number(billing?.aiCreditsUsed || 0);
   const creditsLimit = Number(billing?.aiCreditsLimit || 100);
   const creditsLabel =
     creditsLimit < 0
-      ? `${creditsUsed.toLocaleString()} / Unlimited`
+      ? `${creditsUsed.toLocaleString()} / ${t("Unlimited")}`
       : `${creditsUsed.toLocaleString()} / ${creditsLimit.toLocaleString()}`;
 
   return (
@@ -979,10 +980,10 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
             <CreditCard className="h-7 w-7" />
           </div>
           <div className="min-w-0">
-            <p className="sk-eyebrow text-white/70">Billing & plan</p>
-            <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">{plan} Plan</h3>
+            <p className="sk-eyebrow text-white/70">{t("Billing & plan")}</p>
+            <h3 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">{t("{0} Plan", [plan])}</h3>
             <p className="mt-1.5 flex items-center gap-2 text-xs text-white/70">
-              <span>Status:</span>
+              <span>{t("Status:")}</span>
               <Badge variant={statusTone(status)} size="sm" dot>{formatStatus(status)}</Badge>
             </p>
           </div>
@@ -990,7 +991,7 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0 rounded-2xl border border-white/10 bg-white/10 px-5 py-3 sm:min-w-56">
             <p className="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-white/70">
-              AI Credits
+              {t("AI Credits")}
             </p>
             <p className="text-lg font-bold tabular-nums">{creditsLabel}</p>
             {creditsLimit > 0 ? (
@@ -1000,13 +1001,13 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
                 value={creditsUsed}
                 max={creditsLimit}
                 tone={creditsUsed >= creditsLimit ? "danger" : "brand"}
-                label="AI credits used"
+                label={t("AI credits used")}
                 valueText={creditsLabel}
               />
             ) : null}
           </div>
           <BrandButton variant="soft" icon={<CreditCard aria-hidden="true" className="h-4 w-4" />} onClick={onOpen} className="bg-white text-primary">
-            Open Billing
+            {t("Open Billing")}
           </BrandButton>
         </div>
       </div>
@@ -1015,6 +1016,7 @@ function BillingBanner({ billing, onOpen }: { billing: any; onOpen: () => void }
 }
 
 function CampusCard({ campus, onManage }: { campus: any; onManage: () => void }) {
+  const t = useUiText();
   const hasLeadership = hasActiveSlot(campus.admin) && hasActiveSlot(campus.principal);
 
   return (
@@ -1033,28 +1035,28 @@ function CampusCard({ campus, onManage }: { campus: any; onManage: () => void })
         <span className="truncate">{campus.city}</span>
       </div>
       <div className="mb-5 grid grid-cols-3 gap-2">
-        <CampusMiniMetric label="Students" value={campus.studentCount} />
-        <CampusMiniMetric label="Classes" value={campus.classCount} />
-        <CampusMiniMetric label="Teachers" value={campus.teacherCount} active />
+        <CampusMiniMetric label={t("Students")} value={campus.studentCount} />
+        <CampusMiniMetric label={t("Classes")} value={campus.classCount} />
+        <CampusMiniMetric label={t("Teachers")} value={campus.teacherCount} active />
       </div>
 
       <div className="mb-5 space-y-2">
         <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-50/60 px-4 py-3">
-          <span className="text-xs font-semibold text-ink-muted">Admin</span>
+          <span className="text-xs font-semibold text-ink-muted">{t("Admin")}</span>
           <SuperStatusPill status={campus.admin ? campus.admin.status : "MISSING"} />
         </div>
         <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-50/60 px-4 py-3">
-          <span className="text-xs font-semibold text-ink-muted">Principal</span>
+          <span className="text-xs font-semibold text-ink-muted">{t("Principal")}</span>
           <SuperStatusPill status={campus.principal ? campus.principal.status : "MISSING"} />
         </div>
       </div>
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs tabular-nums text-ink-subtle">
-          {campus.reportCardCount} reports / {campus.aiUsage.runs} AI runs
+          {t("{0} reports / {1} AI runs", [campus.reportCardCount, campus.aiUsage.runs])}
         </div>
         <Button variant="link" onClick={onManage} className="sk-nudge-trigger items-center gap-1.5 justify-start px-2">
-          Manage <ChevronRight aria-hidden="true" className="sk-nudge w-4 h-4 rtl:rotate-180" />
+          {t("Manage")} <ChevronRight aria-hidden="true" className="sk-nudge w-4 h-4 rtl:rotate-180" />
         </Button>
       </div>
     </div>
@@ -1099,10 +1101,11 @@ function ModalFrame({
   wide?: boolean;
   dirty?: boolean;
 }) {
+  const t = useUiText();
   return (
     <Modal
       title={title}
-      eyebrow="Network action"
+      eyebrow={t("Network action")}
       subtitle={subtitle}
       footer={footer}
       dirty={dirty}

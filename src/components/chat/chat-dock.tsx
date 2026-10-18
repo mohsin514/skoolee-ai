@@ -21,6 +21,7 @@ import { ChatWorkspace } from "./chat-workspace";
 import { chatHeader, chatUnreadBadge } from "./chat-styles";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { IconButton } from "@/components/ui/icon-button";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 const MotionButton = motion.create(Button);
@@ -147,7 +148,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
                 <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-primary"><MessageCircle className="h-5 w-5" /></span><p className="text-sm font-semibold text-foreground">{ui("School messaging")}</p></div>
                 <div className="flex items-center gap-1">
                   <Tooltip content={ui("Open full messages page")}><Link href="/messages" onClick={() => setIsOpen(false)} aria-label={ui("Open full messages page")} className={buttonVariants({ variant: "ghost", size: "icon" })}><Maximize2 aria-hidden="true" className="h-4 w-4" /></Link></Tooltip>
-                  <Button variant="ghost" size="icon" type="button" onClick={() => setIsOpen(false)} aria-label={ui("Close messages")}><X className="h-4 w-4" /></Button>
+                  <IconButton variant="ghost" size="sm" label={ui("Close messages")} type="button" onClick={() => setIsOpen(false)} ><X className="h-4 w-4" /></IconButton>
                 </div>
               </header>
 

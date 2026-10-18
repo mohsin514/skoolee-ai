@@ -206,8 +206,8 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
                   </p>
                 )}
               </div>
-              <p className="text-xs font-bold text-status-error-text">{formatPKR(d.totalOverdue, d.currency)}</p>
-              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
+              <p className="text-xs font-bold text-status-error-text tabular-nums">{formatPKR(d.totalOverdue, d.currency)}</p>
+              <p className="text-xs font-bold text-ink-muted tabular-nums">{formatPKR(d.totalDue, d.currency)}</p>
               <Badge size="sm" className="w-fit tabular-nums" variant={d.daysOverdue > 30 ? "danger" : d.daysOverdue > 15 ? "warning" : "info"}>
                 {d.daysOverdue}d
               </Badge>
@@ -323,25 +323,25 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="rounded-2xl bg-brand-50/50 px-4 py-3 border border-edge/10">
-          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Students"}</UiText></p>
+          <p className="sk-eyebrow"><UiText>{"Total Students"}</UiText></p>
           <p className="text-xl font-bold text-primary">{totals.students}</p>
         </div>
         <div className="rounded-2xl bg-status-info-surface px-4 py-3 border border-status-info-border">
-          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Due"}</UiText></p>
+          <p className="sk-eyebrow"><UiText>{"Total Due"}</UiText></p>
           <p className="text-xl font-bold tabular-nums text-status-info-text">{formatPKR(totals.due)}</p>
         </div>
         <div className="rounded-2xl bg-status-success-surface px-4 py-3 border border-status-success-border">
-          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Collected"}</UiText></p>
+          <p className="sk-eyebrow"><UiText>{"Total Collected"}</UiText></p>
           <p className="text-xl font-bold tabular-nums text-status-success-text">{formatPKR(totals.paid)}</p>
         </div>
         <div className="rounded-2xl bg-status-error-surface px-4 py-3 border border-status-error-border">
-          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Total Overdue"}</UiText></p>
+          <p className="sk-eyebrow"><UiText>{"Total Overdue"}</UiText></p>
           <p className="text-xl font-bold tabular-nums text-status-error-text">{formatPKR(totals.overdue)}</p>
         </div>
       </div>
 
-      <div className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "80ms" }}>
-        <div className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+      <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "80ms" }}>
+        <div className="grid min-w-[620px] grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           <span><UiText>{"Class"}</UiText></span>
           <span><UiText>{"Students"}</UiText></span>
           <span><UiText>{"Total Due"}</UiText></span>
@@ -353,22 +353,22 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
           {data.map((d) => (
             <div
               key={d.className}
-              className="grid grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
+              className="grid min-w-[620px] grid-cols-[1fr_80px_100px_100px_100px_90px] gap-3 px-5 py-3 items-center tabular-nums hover:bg-surface-hover transition-colors"
             >
               <p className="text-xs font-bold text-ink-strong">{d.className}</p>
-              <p className="text-xs font-bold text-ink-muted">{d.totalStudents}</p>
-              <p className="text-xs font-bold text-ink-muted">{formatPKR(d.totalDue, d.currency)}</p>
-              <p className="text-xs font-bold text-status-success-text">{formatPKR(d.totalPaid, d.currency)}</p>
+              <p className="text-xs font-medium text-ink-muted tabular-nums">{d.totalStudents}</p>
+              <p className="text-xs font-medium text-ink-muted tabular-nums">{formatPKR(d.totalDue, d.currency)}</p>
+              <p className="text-xs font-medium text-status-success-text tabular-nums">{formatPKR(d.totalPaid, d.currency)}</p>
               <p className="text-xs font-bold text-status-error-text">{formatPKR(d.totalOverdue, d.currency)}</p>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       d.collectionRate >= 80
-                        ? "bg-status-success-surface0"
+                        ? "bg-status-success-text"
                         : d.collectionRate >= 50
-                        ? "bg-status-warning-surface0"
-                        : "bg-status-error-surface0"
+                        ? "bg-status-warning-text"
+                        : "bg-status-error-text"
                     }`}
                     style={{ width: `${d.collectionRate}%` }}
                   />
@@ -440,11 +440,11 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
   }
 
   const methodColors: Record<string, string> = {
-    cash: "bg-status-success-surface0",
-    bank_transfer: "bg-status-info-surface0",
-    card: "bg-purple-500",
-    mobile_wallet: "bg-status-warning-surface0",
-    cheque: "bg-surface-subtle0",
+    cash: "bg-status-success-text",
+    bank_transfer: "bg-status-info-text",
+    card: "bg-primary",
+    mobile_wallet: "bg-status-warning-text",
+    cheque: "bg-ink-subtle",
   };
 
   return (
@@ -460,14 +460,13 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
               <p className="text-sm font-bold text-ink-strong">
                 {tr(paymentMethodLabel(m.method))}
               </p>
-              <span className="text-2xs font-semibold uppercase text-ink-subtle px-2 py-1 rounded-lg bg-muted">
-                {m.count}<UiText>{"txns"}</UiText></span>
+              <Badge variant="neutral" size="sm" className="tabular-nums">{m.count} <UiText>{"txns"}</UiText></Badge>
             </div>
-            <p className="text-xl font-bold text-primary mb-2">{formatPKR(m.total, m.currency)}</p>
+            <p className="text-xl font-bold text-primary mb-2 tabular-nums">{formatPKR(m.total, m.currency)}</p>
             <div className="flex items-center gap-2">
               <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
                 <div
-                  className={`h-full rounded-full ${methodColors[m.method] ?? "bg-surface-subtle0"}`}
+                  className={`h-full rounded-full ${methodColors[m.method] ?? "bg-ink-subtle"}`}
                   style={{ width: `${m.percentage}%` }}
                 />
               </div>

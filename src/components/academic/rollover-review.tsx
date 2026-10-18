@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -37,6 +38,7 @@ type View = {
 };
 
 const DECISION_LABEL: Record<string, string> = { PROMOTE: "Promote", RETAIN: "Retain (repeat the year)", GRADUATE: "Graduate", TRANSFER_OUT: "Transfer out", NEEDS_REVIEW: "Needs review" };
+const PLAN_TONE: Record<string, "neutral" | "info" | "success" | "warning"> = { DRAFT: "neutral", APPROVED: "info", EXECUTING: "info", PAUSED: "warning", EXCEPTIONS: "warning", COMPLETED: "success" };
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft — not approved", APPROVED: "Approved", EXECUTING: "Running", PAUSED: "Paused — resume from the last confirmed learner", EXCEPTIONS: "Completed with exceptions", COMPLETED: "Rollover reconciled" };
 const EXECUTION_LABEL: Record<string, string> = { PENDING: "Not applied yet", DONE: "Applied", BLOCKED: "Exception", REVERSED: "Corrected" };
 const EVENT_LABEL: Record<string, string> = { CREATED: "Plan created", DECISIONS: "Decisions changed", DESTINATIONS: "Destinations changed", EFFECTIVE_DATE: "Effective date changed", LEARNERS_ADDED: "Learners added", APPROVED: "Plan approved", BATCH_STARTED: "Batch started", BATCH_FINISHED: "Batch finished", CORRECTED: "Learner corrected" };
@@ -115,10 +117,10 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
           <span><span className="font-bold">{ui(step.label)}</span> — {ui(step.detail)}</span></li>)}</ul>
       </div>
 
-      {!plan ? <p className="rounded-xl bg-muted p-3 text-sm" data-rollover-empty>{view.eligible ? ui("{0} learners are eligible. Prepare a plan to review each one.", [view.eligible]) : ui("No eligible learners in this source year. Check the year and enrollment filters.")}</p>
+      {!plan ? <div data-rollover-empty><Alert tone={view.eligible ? "info" : "neutral"} compact live="off">{view.eligible ? ui("{0} learners are eligible. Prepare a plan to review each one.", [view.eligible]) : ui("No eligible learners in this source year. Check the year and enrollment filters.")}</Alert></div>
         : <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-muted/60 p-3 text-sm" role="status" data-plan-bar>
           <span className="font-bold">{ui("Plan version {0}", [plan.version])}</span>
-          <span className="font-bold" data-plan-state>{ui(STATUS_LABEL[plan.status] ?? plan.status)}</span>
+          <Badge dot variant={PLAN_TONE[plan.status] ?? "neutral"} data-plan-state>{ui(STATUS_LABEL[plan.status] ?? plan.status)}</Badge>
           {plan.approvedVersion && !plan.approvalCurrent ? <span className="text-amber-800">{ui("Version {0} was approved; changes since then need a new approval.", [plan.approvedVersion])}</span> : null}
           <span className="text-ink-muted">{view.needsDecision ? ui("{0} learners need a decision before this plan can be approved.", [view.needsDecision]) : view.withIssues ? ui("{0} learners still have problems to resolve.", [view.withIssues]) : ui("Every learner has a decision.")}</span>
         </div>}
@@ -198,7 +200,7 @@ export function RolloverReview({ campusId }: { campusId?: string }) {
 
       {recon ? <div className="sk-panel space-y-3 p-5" aria-labelledby="recon-title" data-reconciliation data-clean={recon.clean}>
         <h4 id="recon-title" className="flex items-center gap-2 text-base font-bold text-ink-strong"><Scale className="size-4 text-primary" aria-hidden />{ui("Rollover reconciliation")}</h4>
-        <p className={`text-sm font-bold ${recon.clean ? "text-emerald-800" : "text-amber-900"}`} data-accounted>{recon.accounted === recon.learners ? (recon.clean ? ui("All {0} learners are accounted for.", [recon.learners]) : ui("All {0} learners are accounted for. Review the remaining exceptions.", [recon.learners])) : ui("{0} of {1} learners are accounted for so far.", [recon.accounted, recon.learners])}</p>
+        <Alert tone={recon.clean ? "success" : "warning"} compact live="off"><span data-accounted>{recon.accounted === recon.learners ? (recon.clean ? ui("All {0} learners are accounted for.", [recon.learners]) : ui("All {0} learners are accounted for. Review the remaining exceptions.", [recon.learners])) : ui("{0} of {1} learners are accounted for so far.", [recon.accounted, recon.learners])}</span></Alert>
         <div className="grid gap-3 sm:grid-cols-2">
           <div><h5 className="text-xs font-bold">{ui("Outstanding balances by currency")}</h5>
             <ul className="mt-1 space-y-0.5 text-xs" data-balances>{[...new Set([...recon.baseline.balances, ...recon.now.balances].map(b => b.currency))].map(currency => { const before = recon.baseline.balances.find(b => b.currency === currency)?.minor ?? 0, after = recon.now.balances.find(b => b.currency === currency)?.minor ?? 0; return <li key={currency} data-currency={currency}>{ui("{0}: {1} at approval, {2} now", [currency, money(before, currency), money(after, currency)])}{before !== after ? ` — ${ui("the difference comes from invoices issued or payments recorded since approval; rollover never creates or edits invoices")}` : ""}</li>; })}{!recon.baseline.balances.length && !recon.now.balances.length ? <li>{ui("No outstanding balances.")}</li> : null}</ul></div>

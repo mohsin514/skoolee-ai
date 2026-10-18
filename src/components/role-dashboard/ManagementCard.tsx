@@ -65,7 +65,7 @@ export function ManagementCard({
 
         {user ? (
           <div className="relative p-5 rounded-[24px] bg-gradient-to-br from-brand-50/40 via-white to-brand-50/20 border border-primary/8 overflow-hidden">
-            <div className="absolute -top-12 -right-12 w-24 h-24 bg-gradient-to-bl from-primary/8 to-transparent rounded-full blur-[50px] pointer-events-none" />
+            <div className="absolute -top-12 -end-12 w-24 h-24 bg-gradient-to-bl from-primary/8 to-transparent rounded-full blur-[50px] pointer-events-none" />
             <div className="relative flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
                 <div className="relative shrink-0">
@@ -81,7 +81,7 @@ export function ManagementCard({
                       />
                     )}
                   </div>
-                  <div className={`absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-white ${isPendingInvite ? "bg-amber-400" : "bg-emerald-500"}`} />
+                  <div className={`absolute -top-1 -end-1 h-4 w-4 rounded-full border-2 border-card ${isPendingInvite ? "bg-status-warning-text" : "bg-status-success-text"}`} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">

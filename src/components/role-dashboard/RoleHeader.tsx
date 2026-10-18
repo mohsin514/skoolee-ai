@@ -1,6 +1,7 @@
 "use client";
 
 import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
+import { Tooltip } from "@/components/ui/tooltip";
 
 import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
 import { openSettings } from "@/components/settings/settings-sections";
@@ -226,6 +227,7 @@ export function RoleHeader({
           <div className="me-auto flex min-w-0 max-w-full flex-wrap items-center gap-[6px] [&_svg]:shrink-0"><ScopeBadge /><div className="[&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div></div>
         {actions}
         <div ref={notifRef} className="sm:relative">
+          <Tooltip content={t("View notifications")} describe={false}>
           <Button variant="outline" size="icon"
             type="button"
             onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
@@ -234,7 +236,6 @@ export function RoleHeader({
               notifOpen && "border-primary",
               bellShake && "sk-shake"
             )}
-            title={t("View notifications")}
             aria-label={t("View notifications")}
           >
             <Bell className="w-[18px] h-[18px]" />
@@ -242,6 +243,7 @@ export function RoleHeader({
               <span className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-white ring-2 ring-white shadow-md shadow-primary/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
             )}
           </Button>
+          </Tooltip>
 
           {notifOpen && (
             <div className="animate-dropdown-enter absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(120,70,180,0.18)]">
@@ -255,22 +257,23 @@ export function RoleHeader({
             </div>
           )}
         </div>
+        <Tooltip content={t("Account settings")} describe={false}>
         <Button variant="outline" size="icon"
           type="button"
           onClick={() => openSettings("profile")}
           className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px] sm:h-11 sm:w-11 sm:min-w-11"
-          title={t("Account settings")}
           aria-label={t("Account settings")}
         >
           <Settings className="w-[18px] h-[18px]" />
         </Button>
+        </Tooltip>
         <div aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-border sm:block" />
 
         <div ref={menuRef} className="sm:relative">
+          <Tooltip content={t("Account menu")} describe={false}>
           <Button variant="ghost"
             type="button"
             onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
-            title={t("Account menu")}
             aria-label={t("Account menu")}
             className={cn(
               "flex min-h-[44px] min-w-[44px] justify-start items-center gap-0 px-[6px] py-[6px] sm:min-h-11 sm:gap-2.5 sm:px-4 hover:-translate-y-0.5",
@@ -287,6 +290,7 @@ export function RoleHeader({
             </div>
             <ChevronDown className={cn("hidden sm:block h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-primary")} />
           </Button>
+          </Tooltip>
 
           {menuOpen && (
             <div

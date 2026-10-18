@@ -1,11 +1,12 @@
 "use client";
 import { AlertTriangle, KeyRound, ShieldCheck, Smartphone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { TaskStatus } from "@/components/ui/task-patterns";
 import { formatInstant, type LocalePackage } from "@/lib/locale/package";
 import { fillCopy, type SecurityCopy } from "@/lib/auth/security-ui-copy";
-import { cn } from "@/lib/utils";
 
 /** GET /api/account/mfa. No secret, code or hash is ever part of it. */
 export type TwoFactorStatus = {
@@ -44,30 +45,26 @@ export function TwoFactorCard({ status, t, locale, onToggle, onChange, onRegener
             <h4 id="security-2fa-heading" className="text-base font-bold tracking-tight text-ink-strong">{t.twoFactorTitle}</h4>
             <Badge variant={enabled ? "success" : "outline"}>{enabled ? t.on : t.off}</Badge>
           </div>
-          <p className="mt-1 text-sm font-semibold leading-relaxed text-ink-muted">{enabled ? t.twoFactorOnBody : t.twoFactorOffBody}</p>
+          <p className="mt-1 text-sm font-normal leading-relaxed text-ink-muted">{enabled ? t.twoFactorOnBody : t.twoFactorOffBody}</p>
         </div>
       </div>
 
       <div className="mt-5 flex flex-col gap-2">
         {/* aria-disabled (not disabled) keeps a mandatory switch focusable so its reason is read. */}
-        <Button type="button" variant="outline" role="switch" aria-checked={enabled}
-          aria-disabled={required ? "true" : undefined} aria-describedby={required ? "security-2fa-required" : undefined}
-          onClick={() => { if (!required) onToggle(!enabled); }}
-          className="min-h-14 w-full justify-between gap-4 bg-surface-subtle px-4 text-start aria-disabled:cursor-not-allowed aria-disabled:opacity-60">
-          <span className="min-w-0 text-sm font-bold text-ink-strong">{t.twoFactorTitle}</span>
-          <span aria-hidden="true" className={cn("relative inline-flex h-7 w-12 shrink-0 rounded-full motion-safe:transition-colors motion-safe:duration-200", enabled ? "bg-primary" : "bg-border-subtle")}>
-            <span className={cn("absolute top-1 size-5 rounded-full bg-white shadow-[0_2px_6px_rgba(120,70,180,0.25)] motion-safe:transition-[inset-inline-start] motion-safe:duration-200", enabled ? "start-6" : "start-1")} />
-          </span>
-        </Button>
-        {required && <p id="security-2fa-required" className="flex items-center gap-1.5 px-1 text-xs font-bold text-ink-muted"><ShieldCheck aria-hidden="true" className="size-3.5 shrink-0 text-primary" />{t.required}</p>}
+        <label className={`flex min-h-14 w-full items-center justify-between gap-4 rounded-2xl border border-border-subtle bg-surface-subtle px-4 motion-safe:transition-colors hover:bg-surface-hover ${required ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+          <span className="min-w-0 text-sm font-semibold text-ink-strong">{t.twoFactorTitle}</span>
+          <Switch checked={enabled}
+            aria-disabled={required ? "true" : undefined} aria-describedby={required ? "security-2fa-required" : undefined}
+            onChange={() => { if (!required) onToggle(!enabled); }} />
+        </label>
+        {required && <p id="security-2fa-required" className="flex items-center gap-1.5 px-1 text-xs font-medium text-ink-muted"><ShieldCheck aria-hidden="true" className="size-3.5 shrink-0 text-primary" />{t.required}</p>}
       </div>
 
       {enabled && <>
         {status.authenticatorReadable === false && (
-          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-status-warning-border bg-status-warning-surface p-4 text-status-warning-text">
-            <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            <p className="text-sm font-semibold leading-relaxed">{t.unreadable}</p>
-          </div>
+          <Alert tone="warning" live="off" icon={AlertTriangle} className="mt-5">
+            <p className="text-sm font-normal leading-relaxed">{t.unreadable}</p>
+          </Alert>
         )}
 
         <dl className="mt-5 grid gap-3 sm:grid-cols-2">

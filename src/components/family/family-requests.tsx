@@ -7,7 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText, useLocale } from "@/components/locale/LocaleProvider";
-import { cn } from "@/lib/utils";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { CalendarOff } from "lucide-react";
 
 // SKO-421 family side. Leave: a request for future days that the school decides; it never marks the
 // register. Trips: the exact version is shown and named in the answer; giving and refusing permission are
@@ -41,24 +44,24 @@ export function GuardianLeave({ studentId }: { studentId: string }) {
   };
   if (!rows) return null;
   return <section className="sk-panel space-y-3 p-5" data-guardian-leave>
-    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Leave requests")}</h3><Button size="sm" variant="outline" onClick={() => { setOpen(true); setError(""); }} data-request-leave>{ui("Request leave")}</Button></div>
+    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Leave requests")}</h3><Button size="sm" variant="outline" onClick={() => { setOpen(true); setError(""); }} data-request-leave>{ui("Request leave")}</Button></div>
     <p className="text-xs text-ink-muted">{ui("The school reviews each request. Attendance is still marked by the school.")}</p>
-    {error && !open ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
+    {error && !open ? <Alert tone="danger" compact>{error}</Alert> : null}
     {rows.length ? <ul className="divide-y divide-edge/20">{rows.map(row => <li key={row.id} className="space-y-1 py-2" data-leave={row.id} data-leave-status={row.status}>
-      <p className="text-sm font-bold"><bdi>{date(row.fromDate)}</bdi>{row.toDate !== row.fromDate ? <> – <bdi>{date(row.toDate)}</bdi></> : null} · {leaveLabel(ui, row.status)}</p>
+      <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong"><span><bdi>{date(row.fromDate)}</bdi>{row.toDate !== row.fromDate ? <> – <bdi>{date(row.toDate)}</bdi></> : null}</span><Badge size="sm" dot variant={row.status === "APPROVED" ? "success" : row.status === "DECLINED" ? "danger" : row.status === "CANCELLED" ? "neutral" : row.status === "CLARIFICATION" ? "warning" : "info"}>{leaveLabel(ui, row.status)}</Badge></p>
       {row.reviewNote ? <p className="text-xs text-ink-muted">{ui("School note: {0}", [row.reviewNote])}</p> : null}
-      {row.status === "CLARIFICATION" ? <div className="flex flex-wrap items-end gap-2"><FormField name={`leave-reply-${row.id}`} label={ui("Your reply")} className="min-w-[220px] flex-1"><Input value={reply[row.id] ?? ""} onChange={e => setReply({ ...reply, [row.id]: e.target.value })} /></FormField><Button size="sm" disabled={busy || (reply[row.id] ?? "").trim().length < 3} onClick={async () => { if (await send("PATCH", { id: row.id, action: "reply", reason: reply[row.id] })) { toast.success(ui("Reply sent to the school")); void load(); } }} data-leave-reply>{ui("Send reply")}</Button></div> : null}
+      {row.status === "CLARIFICATION" ? <div className="flex flex-wrap items-end gap-2"><FormField name={`leave-reply-${row.id}`} label={ui("Your reply")} className="min-w-0 flex-1 sm:min-w-56"><Input value={reply[row.id] ?? ""} onChange={e => setReply({ ...reply, [row.id]: e.target.value })} /></FormField><Button size="sm" disabled={busy || (reply[row.id] ?? "").trim().length < 3} onClick={async () => { if (await send("PATCH", { id: row.id, action: "reply", reason: reply[row.id] })) { toast.success(ui("Reply sent to the school")); void load(); } }} data-leave-reply>{ui("Send reply")}</Button></div> : null}
       {["PENDING", "CLARIFICATION"].includes(row.status) ? <Button size="sm" variant="secondary" disabled={busy} onClick={async () => { if (await send("PATCH", { id: row.id, action: "cancel" })) void load(); }} data-leave-cancel>{ui("Cancel request")}</Button> : null}
-    </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No leave requested.")}</p>}
+    </li>)}</ul> : <EmptyState size="sm" icon={CalendarOff} title={ui("No leave requested.")} description={ui("Ask the school in advance for days your child will miss.")} action={<Button size="sm" onClick={() => { setOpen(true); setError(""); }}>{ui("Request leave")}</Button>} />}
     {open ? <ModalFrame title={ui("Request leave")} eyebrow={ui("Attendance")} subtitle={ui("For days that have not happened yet. Explain past absences from the list above.")} onClose={() => setOpen(false)}>
       <div className="space-y-3" data-leave-form>
-        {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-leave-error>{error}</p> : null}
+        {error ? <Alert tone="danger" compact data-leave-error>{error}</Alert> : null}
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField name="leave-from" label={ui("First day")}><Input type="date" value={form.fromDate} onChange={e => setForm({ ...form, fromDate: e.target.value, toDate: form.toDate || e.target.value })} /></FormField>
           <FormField name="leave-to" label={ui("Last day")}><Input type="date" value={form.toDate} min={form.fromDate} onChange={e => setForm({ ...form, toDate: e.target.value })} /></FormField>
         </div>
         <FormField name="leave-reason" label={ui("Reason")} hint={ui("Keep it short. Do not include medical details here.")}><Textarea value={form.reason} maxLength={1000} onChange={e => setForm({ ...form, reason: e.target.value })} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Cancel")}</Button><Button disabled={busy || !form.fromDate || form.reason.trim().length < 3} onClick={async () => { if (await send("POST", { studentId, ...form })) { toast.success(ui("Request sent. The school will review it.")); setOpen(false); setForm({ fromDate: "", toDate: "", reason: "" }); void load(); } }} data-leave-send>{ui("Send request")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Cancel")}</Button><Button disabled={busy || !form.fromDate || form.reason.trim().length < 3} onClick={async () => { if (await send("POST", { studentId, ...form })) { toast.success(ui("Request sent. The school will review it.")); setOpen(false); setForm({ fromDate: "", toDate: "", reason: "" }); void load(); } }} loading={busy} data-leave-send>{ui("Send request")}</Button></div>
       </div>
     </ModalFrame> : null}
   </section>;
@@ -84,12 +87,12 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
   };
   if (!rows || !rows.length) return null;
   return <section className="sk-panel space-y-3 p-5" data-guardian-trips>
-    <h3 className="text-base font-bold">{ui("Trips and permissions")}</h3>
-    {receipt ? <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800" data-trip-receipt={receipt}>{ui("Your answer is recorded. Receipt {0}.", [receipt])}</p> : null}
-    {error && !review ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700" data-trip-error>{error}</p> : null}
+    <h3 className="text-base font-bold text-ink-strong">{ui("Trips and permissions")}</h3>
+    {receipt ? <Alert tone="success" compact live="polite" data-trip-receipt={receipt}>{ui("Your answer is recorded. Receipt {0}.", [receipt])}</Alert> : null}
+    {error && !review ? <Alert tone="danger" compact data-trip-error>{error}</Alert> : null}
     {rows.map(trip => { const v = trip.version; const answered = trip.myAnswer; return <article key={trip.tripId} className="space-y-2 rounded-2xl border border-edge/30 p-4" data-trip={trip.tripId} data-trip-version={v.version} data-trip-status={trip.status}>
-      <header><p className="text-base font-bold" dir="auto">{v.title}</p><p className="text-xs text-ink-muted">{ui("Version {0}", [String(v.version)])} · {childStatusLabel(ui, trip.status)}</p></header>
-      {trip.earlierAnswer ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900" data-trip-changed>{ui("The details changed after your answer to version {0} ({1}, receipt {2}). Please read version {3} and answer again.", [String(trip.earlierAnswer.version), choiceLabel(ui, trip.earlierAnswer.choice), trip.earlierAnswer.receiptCode, String(v.version)])}{v.changeNote ? <> {ui("What changed: {0}", [v.changeNote])}</> : null}</p> : null}
+      <header><p className="text-base font-bold text-ink-strong" dir="auto">{v.title}</p><p className="text-xs text-ink-muted">{ui("Version {0}", [String(v.version)])} · {childStatusLabel(ui, trip.status)}</p></header>
+      {trip.earlierAnswer ? <Alert tone="warning" live="off" data-trip-changed>{ui("The details changed after your answer to version {0} ({1}, receipt {2}). Please read version {3} and answer again.", [String(trip.earlierAnswer.version), choiceLabel(ui, trip.earlierAnswer.choice), trip.earlierAnswer.receiptCode, String(v.version)])}{v.changeNote ? <> {ui("What changed: {0}", [v.changeNote])}</> : null}</Alert> : null}
       <dl className="grid gap-1 text-sm sm:grid-cols-2">
         <div><dt className="text-xs text-ink-muted">{ui("Destination")}</dt><dd dir="auto">{v.destination}</dd></div>
         <div><dt className="text-xs text-ink-muted">{ui("Leaves and returns")}</dt><dd><bdi>{dateTime(v.departAt)}</bdi> → <bdi>{dateTime(v.returnAt)}</bdi></dd></div>
@@ -98,9 +101,9 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
         <div className="sm:col-span-2"><dt className="text-xs text-ink-muted">{ui("Instructions")}</dt><dd className="whitespace-pre-line" dir="auto">{v.instructions || "—"}</dd></div>
         <div className="sm:col-span-2"><dt className="text-xs text-ink-muted">{ui("Who answers")}</dt><dd>{v.signatoryRule === "ALL_GUARDIANS" ? ui("Every guardian with permission to sign must agree.") : ui("One guardian with permission to sign answers; a refusal from any of them stands.")} · {ui("Answer by")} <bdi>{dateTime(v.respondBy)}</bdi></dd></div>
       </dl>
-      {answered ? <p className="text-sm font-bold" data-trip-my-answer={answered.choice}>{ui("Your answer to version {0}: {1}. Receipt {2}.", [String(answered.version), choiceLabel(ui, answered.choice), answered.receiptCode])}</p> : null}
+      {answered ? <p className="text-sm font-semibold text-ink-strong" data-trip-my-answer={answered.choice}>{ui("Your answer to version {0}: {1}. Receipt {2}.", [String(answered.version), choiceLabel(ui, answered.choice), answered.receiptCode])}</p> : null}
       {!trip.canSign ? <p className="text-xs text-ink-muted" data-trip-cannot-sign>{ui("You can read this notice, but another authorized guardian must answer.")}</p>
-        : trip.deadlinePassed && !answered ? <p className="text-xs font-bold" data-trip-expired>{ui("The time to answer has passed. Contact the school.")}</p>
+        : trip.deadlinePassed && !answered ? <p className="text-xs font-semibold text-ink" data-trip-expired>{ui("The time to answer has passed. Contact the school.")}</p>
         : <div className="flex flex-wrap gap-2">
             {!answered || answered.choice === "WITHDRAWN" ? <>
               <Button onClick={() => setReview({ trip, choice: "GRANTED", key: key() })} data-trip-choice="GRANTED">{ui("Give permission")}</Button>
@@ -110,10 +113,10 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
     </article>; })}
     {review ? <ModalFrame title={ui("Confirm your answer")} eyebrow={ui("Trip permission")} subtitle={review.trip.version.title} onClose={() => setReview(null)}>
       <div className="space-y-3" data-trip-review>
-        {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700" data-trip-review-error>{error}</p> : null}
-        <p className={cn("rounded-xl px-3 py-2 text-sm font-bold", review.choice === "GRANTED" ? "bg-emerald-50 text-emerald-900" : "bg-rose-50 text-rose-900")}>{choiceLabel(ui, review.choice)}</p>
+        {error ? <Alert tone="danger" compact data-trip-review-error>{error}</Alert> : null}
+        <Alert tone={review.choice === "GRANTED" ? "success" : "danger"} compact live="off"><span className="font-semibold">{choiceLabel(ui, review.choice)}</span></Alert>
         <p className="text-sm">{ui("Your answer applies to version {0} of these terms. If the school changes them, you will be asked again.", [String(review.trip.version.version)])}</p>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} onClick={() => void confirm()} data-trip-confirm>{ui("Confirm my answer")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} loading={busy} onClick={() => void confirm()} data-trip-confirm>{ui("Confirm my answer")}</Button></div>
       </div>
     </ModalFrame> : null}
   </section>;

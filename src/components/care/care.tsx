@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ShieldCheck } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -83,20 +84,18 @@ function ConcernIntake() {
     finally { setBusy(false); }
   };
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-intake>
-    <header><h2 className="text-base font-bold">{ui("Record a safeguarding concern")}</h2><p className="text-xs text-ink-muted">{ui("Record what you observed or were told, in the words used. Do not investigate, diagnose or decide what it means. The designated lead will review it.")}</p></header>
-    {receipt ? <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm dark:bg-emerald-950/30" data-care-receipt={receipt.reference}>
-      <p className="font-bold">{ui("Observation recorded and routed to the designated lead.")}</p>
-      <p>{ui("Reference {0} · {1}", [receipt.reference, dateTime(receipt.createdAt)])}</p>
+    <header><h2 className="text-base font-bold text-ink-strong">{ui("Record a safeguarding concern")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Record what you observed or were told, in the words used. Do not investigate, diagnose or decide what it means. The designated lead will review it.")}</p></header>
+    {receipt ? <Alert tone="success" live="polite" data-care-receipt={receipt.reference} title={ui("Observation recorded and routed to the designated lead.")} actions={<Button size="sm" variant="ghost" onClick={() => setReceipt(null)}>{ui("Record another concern")}</Button>}>
+      <p className="tabular-nums">{ui("Reference {0} · {1}", [receipt.reference, dateTime(receipt.createdAt)])}</p>
       <p className="text-xs text-ink-muted">{ui("This message has not been sent to a guardian. Nothing about a concern is shared with a family automatically.")}</p>
-      <Button size="sm" variant="ghost" onClick={() => setReceipt(null)}>{ui("Record another concern")}</Button>
-    </div> : <div className="space-y-3">
+    </Alert> : <div className="space-y-3">
       <StudentPicker value={student} onChange={setStudent} label={ui("Which student is this about?")} />
       <FormField name="care-source" label={ui("How did this come to your attention?")}><Select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} data-care-source>{["STAFF_OBSERVATION", "DISCLOSURE_BY_PUPIL", "THIRD_PARTY", "OTHER"].map(s => <option key={s} value={s}>{sourceLabel(ui, s)}</option>)}</Select></FormField>
       <FormField name="care-observation" label={ui("Record what you observed")} hint={ui("Facts only: what you saw or heard, who was present, the words used.")}><Textarea value={form.observation} onChange={e => setForm({ ...form, observation: e.target.value })} rows={6} maxLength={6000} dir="auto" data-care-observation /></FormField>
       <FormField name="care-event" label={ui("When did it happen?")}><Input type="datetime-local" value={form.eventAt} onChange={e => setForm({ ...form, eventAt: e.target.value })} dir="ltr" data-care-event /></FormField>
       <label className="flex items-start gap-2 text-sm"><Checkbox checked={form.guardianInvolved} onChange={e => setForm({ ...form, guardianInvolved: e.target.checked })} data-care-guardian-involved /><span>{ui("A parent or carer may be involved. Nothing will be shared with the family.")}</span></label>
-      {error ? <p role="alert" className="text-sm text-red-700 dark:text-red-300" data-care-error>{ui(error)}</p> : null}
-      <div className="flex justify-end"><Button disabled={busy || !student || !form.observation.trim()} onClick={() => void submit()} data-care-submit>{ui("Submit to the designated lead")}</Button></div>
+      {error ? <Alert tone="danger" compact live="assertive" data-care-error>{ui(error)}</Alert> : null}
+      <div className="flex justify-end"><Button loading={busy} disabled={busy || !student || !form.observation.trim()} onClick={() => void submit()} data-care-submit>{ui("Submit to the designated lead")}</Button></div>
     </div>}
     {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className="mt-2 space-y-1">{mine.map(m => <li key={m.reference} data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul></details> : null}
   </section>;
@@ -109,7 +108,7 @@ function CareSummaryLookup() {
   const [student, setStudent] = useState<Student | null>(null), [summary, setSummary] = useState<{ summary: string | null } | null>(null);
   useEffect(() => { setSummary(null); if (student) call(`/api/care?view=summary&studentId=${student.id}`).then(setSummary).catch(() => setSummary({ summary: null })); }, [student]);
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-summary-lookup>
-    <header><h2 className="text-base font-bold">{ui("Care summary for teachers")}</h2><p className="text-xs text-ink-muted">{ui("The accommodation the clinic asks staff to know about. Clinical detail stays with the clinic.")}</p></header>
+    <header><h2 className="text-base font-bold text-ink-strong">{ui("Care summary for teachers")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("The accommodation the clinic asks staff to know about. Clinical detail stays with the clinic.")}</p></header>
     <StudentPicker value={student} onChange={setStudent} label={ui("Student")} />
     {student && summary ? <p className="rounded-xl border px-3 py-2 text-sm" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
   </section>;
@@ -130,7 +129,7 @@ function EmergencyBanner({ access }: { access: { emergency: boolean; expiresAt?:
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   if (!access.emergency) return null;
-  return <p className="rounded-xl border border-amber-400 bg-amber-50 px-3 py-2 text-sm dark:bg-amber-950/30" data-care-emergency-banner>{ui("Emergency access · {0} · ends {1}. This access is logged and will be reviewed by the lead.", [access.purpose ?? "", dateTime(access.expiresAt ?? "")])}</p>;
+  return <Alert tone="warning" compact live="off" data-care-emergency-banner>{ui("Emergency access · {0} · ends {1}. This access is logged and will be reviewed by the lead.", [access.purpose ?? "", dateTime(access.expiresAt ?? "")])}</Alert>;
 }
 
 function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () => void }) {
@@ -153,15 +152,15 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
   const canPlan = !data.access.emergency && ["NURSE", "LEAD"].includes(data.access.role ?? "");
   const canRecord = !data.access.emergency;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-record={data.student.id}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold"><bdi>{data.student.fullName}</bdi></h3><p className="text-xs text-ink-muted"><bdi>{data.student.className}</bdi> · {ui("Clinic record")}</p></div><span className="flex gap-2"><a className="text-sm underline" href={`/api/care/export?studentId=${data.student.id}`} data-clinic-export>{ui("Export")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong"><bdi>{data.student.fullName}</bdi></h3><p className="text-xs text-ink-muted"><bdi>{data.student.className}</bdi> · {ui("Clinic record")}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?studentId=${data.student.id}`} data-clinic-export>{ui("Export")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
     <div className="space-y-1 rounded-xl border p-3 text-sm" data-clinic-plan>
-      <h4 className="font-bold">{ui("Allergies and action plan")}</h4>
+      <h4 className="text-sm font-bold text-ink-strong">{ui("Allergies and action plan")}</h4>
       {editPlan ? <div className="space-y-2">
         <FormField name="cp-allergies" label={ui("Allergies")}><Textarea value={plan.allergies} onChange={e => setPlan({ ...plan, allergies: e.target.value })} rows={2} dir="auto" /></FormField>
         <FormField name="cp-action" label={ui("Action plan")}><Textarea value={plan.actionPlan} onChange={e => setPlan({ ...plan, actionPlan: e.target.value })} rows={3} dir="auto" /></FormField>
         <FormField name="cp-summary" label={ui("Summary for teachers")} hint={ui("Only what staff need to know to keep the student safe. No diagnosis.")}><Textarea value={plan.teacherSummary} onChange={e => setPlan({ ...plan, teacherSummary: e.target.value })} rows={2} maxLength={600} dir="auto" data-clinic-summary-input /></FormField>
-        <div className="flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => setEditPlan(false)}>{ui("Back")}</Button><Button size="sm" disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "care-plan", studentId, ...plan }); setEditPlan(false); }, "Care plan saved.")} data-clinic-plan-save>{ui("Save care plan")}</Button></div>
+        <div className="flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => setEditPlan(false)}>{ui("Back")}</Button><Button size="sm" loading={busy} disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "care-plan", studentId, ...plan }); setEditPlan(false); }, "Care plan saved.")} data-clinic-plan-save>{ui("Save care plan")}</Button></div>
       </div> : <>
         <p dir="auto"><span className="text-ink-muted">{ui("Allergies")}: </span>{data.plan?.allergies || ui("None recorded")}</p>
         <p dir="auto" className="whitespace-pre-wrap"><span className="text-ink-muted">{ui("Action plan")}: </span>{data.plan?.actionPlan || ui("None recorded")}</p>
@@ -170,7 +169,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
       </>}
     </div>
     <div className="space-y-2" data-clinic-instructions>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold">{ui("Medication instructions")}</h4>{canPlan ? <Button size="sm" variant="outline" onClick={() => setIns({ medicine: "", dose: "", schedule: "", authorizedBy: "", authorizationRef: "", validFrom: localNow(), validUntil: "" })} data-clinic-instruction-new>{ui("Add approved instruction")}</Button> : null}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Medication instructions")}</h4>{canPlan ? <Button size="sm" variant="outline" onClick={() => setIns({ medicine: "", dose: "", schedule: "", authorizedBy: "", authorizationRef: "", validFrom: localNow(), validUntil: "" })} data-clinic-instruction-new>{ui("Add approved instruction")}</Button> : null}</div>
       <p className="text-xs text-ink-muted">{ui("The clinic records doses only against an approved, in-date instruction and never changes a dose.")}</p>
       {data.instructions.length ? <ul className="space-y-2">{data.instructions.map(i => <li key={i.id} className={cn("rounded-xl border px-3 py-2 text-sm", !i.active && "opacity-70")} data-clinic-instruction={i.id} data-active={i.active}>
         <p><span dir="auto" className="font-bold">{i.medicine}</span> · <span dir="auto">{i.dose}</span> · <span dir="auto">{i.schedule}</span></p>
@@ -179,23 +178,23 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
       </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}
     </div>
     {!data.access.emergency ? <>
-      <div className="space-y-2" data-clinic-doses><h4 className="font-bold">{ui("Doses given")}</h4>{data.doses.length ? <ul className="space-y-1 text-sm">{data.doses.map(d => <li key={d.id} data-clinic-dose-row={d.id}><bdi>{dateTime(d.givenAt)}</bdi> · <span dir="auto">{d.dose}</span> · <bdi>{d.actor}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No doses recorded.")}</p>}</div>
+      <div className="space-y-2" data-clinic-doses><h4 className="text-sm font-bold text-ink-strong">{ui("Doses given")}</h4>{data.doses.length ? <ul className="space-y-1 text-sm">{data.doses.map(d => <li key={d.id} data-clinic-dose-row={d.id}><bdi>{dateTime(d.givenAt)}</bdi> · <span dir="auto">{d.dose}</span> · <bdi>{d.actor}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No doses recorded.")}</p>}</div>
       <div className="space-y-2 rounded-xl border p-3" data-clinic-visit-form>
-        <h4 className="font-bold">{ui("Record visit")}</h4>
+        <h4 className="text-sm font-bold text-ink-strong">{ui("Record visit")}</h4>
         <FormField name="cv-time" label={ui("Arrived at")}><Input type="datetime-local" value={visit.arrivedAt} onChange={e => setVisit({ ...visit, arrivedAt: e.target.value })} dir="ltr" /></FormField>
         <FormField name="cv-obs" label={ui("Record what you observed")}><Textarea value={visit.observation} onChange={e => setVisit({ ...visit, observation: e.target.value })} rows={3} dir="auto" data-clinic-visit-observation /></FormField>
         <FormField name="cv-action" label={ui("What was done")}><Textarea value={visit.actionTaken} onChange={e => setVisit({ ...visit, actionTaken: e.target.value })} rows={2} dir="auto" data-clinic-visit-action /></FormField>
         <FormField name="cv-outcome" label={ui("Outcome")}><Select value={visit.outcome} onChange={e => setVisit({ ...visit, outcome: e.target.value })} data-clinic-visit-outcome>{["RETURNED_TO_CLASS", "SENT_HOME", "EMERGENCY_SERVICES", "STAYED_IN_CLINIC"].map(o => <option key={o} value={o}>{outcomeLabel(ui, o)}</option>)}</Select></FormField>
-        <div className="flex justify-end"><Button disabled={busy || !visit.observation.trim() || !visit.actionTaken.trim()} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "visit", studentId, ...visit, arrivedAt: new Date(visit.arrivedAt).toISOString() }); setVisit({ observation: "", actionTaken: "", outcome: "RETURNED_TO_CLASS", arrivedAt: localNow() }); }, "Visit recorded.")} data-clinic-visit-save>{ui("Save visit")}</Button></div>
+        <div className="flex justify-end"><Button loading={busy} disabled={busy || !visit.observation.trim() || !visit.actionTaken.trim()} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "visit", studentId, ...visit, arrivedAt: new Date(visit.arrivedAt).toISOString() }); setVisit({ observation: "", actionTaken: "", outcome: "RETURNED_TO_CLASS", arrivedAt: localNow() }); }, "Visit recorded.")} data-clinic-visit-save>{ui("Save visit")}</Button></div>
       </div>
-      <div className="space-y-2" data-clinic-visits><h4 className="font-bold">{ui("Visits")}</h4>{data.visits.length ? <ul className="space-y-2">{data.visits.map(v => <li key={v.id} className="rounded-xl border px-3 py-2 text-sm" data-clinic-visit={v.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)} · <bdi>{v.recordedBy}</bdi></p><p dir="auto" className="whitespace-pre-wrap">{v.observation}</p><p dir="auto" className="whitespace-pre-wrap text-ink-muted">{v.actionTaken}</p></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No visits recorded.")}</p>}</div>
+      <div className="space-y-2" data-clinic-visits><h4 className="text-sm font-bold text-ink-strong">{ui("Visits")}</h4>{data.visits.length ? <ul className="space-y-2">{data.visits.map(v => <li key={v.id} className="sk-panel px-3 py-2 text-sm" data-clinic-visit={v.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)} · <bdi>{v.recordedBy}</bdi></p><p dir="auto" className="whitespace-pre-wrap">{v.observation}</p><p dir="auto" className="whitespace-pre-wrap text-ink-muted">{v.actionTaken}</p></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No visits recorded.")} />}</div>
     </> : null}
     {ins ? <ModalFrame title={ui("Add approved instruction")} onClose={() => setIns(null)}>
       <div className="space-y-2" data-clinic-instruction-form>
         <p className="text-xs text-ink-muted">{ui("Copy the instruction exactly as signed. The clinic does not prescribe.")}</p>
         {[["medicine", "Medicine"], ["dose", "Dose"], ["schedule", "When it may be given"], ["authorizedBy", "Authorized by"], ["authorizationRef", "Authorization reference"]].map(([k, l]) => <FormField key={k} name={`ci-${k}`} label={ui(l)}><Input value={ins[k]} onChange={e => setIns({ ...ins, [k]: e.target.value })} dir="auto" data-clinic-field={k} /></FormField>)}
         <div className="grid gap-2 sm:grid-cols-2"><FormField name="ci-from" label={ui("Valid from")}><Input type="datetime-local" value={ins.validFrom} onChange={e => setIns({ ...ins, validFrom: e.target.value })} dir="ltr" data-clinic-field="validFrom" /></FormField><FormField name="ci-until" label={ui("Valid until")}><Input type="datetime-local" value={ins.validUntil} onChange={e => setIns({ ...ins, validUntil: e.target.value })} dir="ltr" data-clinic-field="validUntil" /></FormField></div>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setIns(null)}>{ui("Back")}</Button><Button disabled={busy || !ins.validUntil} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "instruction", studentId, ...ins, validFrom: new Date(ins.validFrom).toISOString(), validUntil: new Date(ins.validUntil).toISOString() }); setIns(null); }, "Instruction recorded.")} data-clinic-instruction-save>{ui("Save instruction")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setIns(null)}>{ui("Back")}</Button><Button loading={busy} disabled={busy || !ins.validUntil} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "instruction", studentId, ...ins, validFrom: new Date(ins.validFrom).toISOString(), validUntil: new Date(ins.validUntil).toISOString() }); setIns(null); }, "Instruction recorded.")} data-clinic-instruction-save>{ui("Save instruction")}</Button></div>
       </div>
     </ModalFrame> : null}
   </section>;
@@ -213,7 +212,7 @@ function ClinicWorkspace() {
   if (error) return <p className="sk-panel p-4 text-sm" data-care-denied>{ui(error)}</p>;
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-queue>
-    <header><h2 className="text-base font-bold">{ui("Clinic workspace")}</h2><p className="text-xs text-ink-muted">{ui("Only clinic members can open these records. Safeguarding uses a separately authorized workspace.")} · {roleLabel(ui, queue.role)}</p></header>
+    <header><h2 className="text-base font-bold text-ink-strong">{ui("Clinic workspace")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Only clinic members can open these records. Safeguarding uses a separately authorized workspace.")} · {roleLabel(ui, queue.role)}</p></header>
     <StudentPicker value={null} onChange={setPick} label={ui("Open a student's clinic record")} />
     <div><h3 className="text-base font-semibold text-ink-strong">{ui("Recent visits")}</h3>{queue.visits.length ? <ul className="mt-1 space-y-1">{queue.visits.map(v => <li key={v.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><bdi>{v.studentName}</bdi> · <bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)}</Button></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}</div>
     <div><h3 className="text-base font-semibold text-ink-strong">{ui("Medication in effect")}</h3>{queue.instructions.length ? <ul className="mt-1 space-y-1">{queue.instructions.map(i => <li key={i.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><bdi>{i.studentName}</bdi> · <span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
@@ -250,18 +249,18 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
   const c = data.concern, lead = !data.access.emergency, closed = c.status === "CLOSED";
   const kindLabel = (k: string) => ({ CREATED: ui("Concern recorded"), NOTE: ui("Note"), OWNER: ui("Owner assigned"), STATUS: ui("Status changed"), ESCALATION: ui("Escalated"), DISCLOSURE: ui("Disclosure"), CLOSED: ui("Closed") } as Record<string, string>)[k] ?? k;
   return <section className="sk-panel min-w-0 space-y-4 p-4 sm:p-5" data-concern={c.id} data-concern-status={c.status}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold"><bdi>{c.reference}</bdi> · {statusLabel(ui, c.status)}</h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="text-sm underline" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong"><bdi>{c.reference}</bdi> · {statusLabel(ui, c.status)}</h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
     <div className="rounded-xl border p-3 text-sm"><p className="text-xs text-ink-muted">{ui("Observation as recorded by {0} · {1} · event {2}", [c.reporter, sourceLabel(ui, c.source), dateTime(c.eventAt)])}</p><blockquote dir="auto" className="mt-1 whitespace-pre-wrap" data-concern-observation>{c.observation}</blockquote></div>
     {lead && !closed ? <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-2 rounded-xl border p-3"><FormField name="sg-owner" label={ui("Designated owner")}><Select value={owner} onChange={e => setOwner(e.target.value)} data-concern-owner-select><option value="">{ui("Choose")}</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.name} · {roleLabel(ui, m.role)}</option>)}</Select></FormField><Button size="sm" disabled={busy || !owner || owner === c.ownerId} onClick={() => void run(() => call("/api/care", "POST", { action: "assign", concernId: c.id, ownerId: owner, version: c.version }), "Owner assigned.")} data-concern-assign>{ui("Assign owner")}</Button></div>
       <div className="space-y-2 rounded-xl border p-3"><FormField name="sg-esc" label={ui("Escalation")}><Select value={esc.escalation} onChange={e => setEsc({ ...esc, escalation: e.target.value })} data-concern-escalation><option value="INTERNAL_REVIEW">{ui("Internal review")}</option><option value="EXTERNAL_REFERRAL">{ui("External referral")}</option></Select></FormField><FormField name="sg-esc-reason" label={ui("Reason")}><Input value={esc.reason} onChange={e => setEsc({ ...esc, reason: e.target.value })} dir="auto" data-concern-escalation-reason /></FormField><Button size="sm" disabled={busy || !c.ownerId || !esc.reason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "escalate", concernId: c.id, version: c.version, ...esc }), "Escalation recorded.")} data-concern-escalate>{ui("Record escalation")}</Button></div>
     </div> : null}
-    <div className="space-y-2"><h4 className="font-bold">{ui("Chronology")}</h4><ol className="space-y-2 border-s ps-3">{data.entries.map(e => <li key={e.id} className="text-sm" data-concern-entry={e.kind}><p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi> · {kindLabel(e.kind)} · <bdi>{e.actor}</bdi>{e.kind === "DISCLOSURE" && typeof e.detail.status === "string" ? <> · {statusLabel(ui, e.detail.status)}</> : null}</p>{e.body ? <p dir="auto" className="whitespace-pre-wrap">{e.body}</p> : null}</li>)}</ol>
+    <div className="space-y-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Chronology")}</h4><ol className="space-y-2 border-s ps-3">{data.entries.map(e => <li key={e.id} className="text-sm" data-concern-entry={e.kind}><p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi> · {kindLabel(e.kind)} · <bdi>{e.actor}</bdi>{e.kind === "DISCLOSURE" && typeof e.detail.status === "string" ? <> · {statusLabel(ui, e.detail.status)}</> : null}</p>{e.body ? <p dir="auto" className="whitespace-pre-wrap">{e.body}</p> : null}</li>)}</ol>
       {lead ? <div className="flex flex-col gap-2 sm:flex-row"><Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} dir="auto" placeholder={ui("Add a note to the chronology")} aria-label={ui("Add a note to the chronology")} data-concern-note /><Button size="sm" disabled={busy || !note.trim()} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "note", concernId: c.id, version: c.version, body: note }); setNote(""); }, "Note added.")} data-concern-note-save>{ui("Add note")}</Button></div> : null}
     </div>
     <div className="space-y-2" data-concern-disclosures>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold">{ui("Disclosures")}</h4>{lead ? <Button size="sm" variant="outline" onClick={() => { setConfirmDisc(false); setDisc({ recipientType: "STAFF", recipientUserId: "", recipientName: "", purpose: "", content: "" }); }} data-concern-disclose>{ui("Propose a disclosure")}</Button> : null}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Disclosures")}</h4>{lead ? <Button size="sm" variant="outline" onClick={() => { setConfirmDisc(false); setDisc({ recipientType: "STAFF", recipientUserId: "", recipientName: "", purpose: "", content: "" }); }} data-concern-disclose>{ui("Propose a disclosure")}</Button> : null}</div>
       <p className="text-xs text-ink-muted">{ui("Nothing is shared until a second lead approves the exact words, recipient and purpose.")}</p>
       {data.disclosures.length ? <ul className="space-y-2">{data.disclosures.map(d => <li key={d.id} className="rounded-xl border px-3 py-2 text-sm" data-disclosure={d.id} data-disclosure-status={d.status}>
         <p><bdi>{d.recipientName}</bdi> · <span dir="auto">{d.purpose}</span> · {statusLabel(ui, d.status)}</p>
@@ -322,7 +321,7 @@ function SafeguardingWorkspace() {
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
   const rows = queue.concerns.filter(c => filter === "ALL" || (filter === "MINE" ? c.mine : c.status !== "CLOSED"));
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-safeguarding-queue>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-bold">{ui("Safeguarding workspace")}</h2><p className="text-xs text-ink-muted">{ui("Separately authorized. Clinic membership does not open these records.")} · {roleLabel(ui, queue.role)}</p></div>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-bold text-ink-strong">{ui("Safeguarding workspace")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Separately authorized. Clinic membership does not open these records.")} · {roleLabel(ui, queue.role)}</p></div>
       <Select value={filter} onChange={e => setFilter(e.target.value)} aria-label={ui("Show")} className="w-auto" data-safeguarding-filter><option value="OPEN">{ui("Open cases")}</option><option value="MINE">{ui("Assigned to me")}</option><option value="ALL">{ui("All cases")}</option></Select></header>
     {rows.length ? <ul className="space-y-1">{rows.map(c => <li key={c.id}><Button variant="ghost" className="h-auto w-full flex-wrap justify-start gap-x-2 py-2 text-start" onClick={() => setOpen(c.id)} data-safeguarding-row={c.reference}>
       <bdi className="font-bold">{c.reference}</bdi><span>{statusLabel(ui, c.status)}</span><span className="text-ink-muted">{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}</span><span className="text-ink-muted"><bdi>{dateTime(c.createdAt)}</bdi></span>
@@ -343,7 +342,7 @@ function Oversight({ domain }: { domain: Domain }) {
   if (!data) return null;
   const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
-    <h2 className="text-base font-bold">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
     <h3 className="text-base font-semibold text-ink-strong">{ui("Emergency access")}</h3>
     {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className="rounded-xl border px-3 py-2 text-sm" data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
       <p><bdi>{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
@@ -364,7 +363,7 @@ function EmergencyPanel({ me, reload, onOpen }: { me: Me; reload: () => void; on
   const open = async () => { if (!student) return; setBusy(true); try { await call("/api/care", "POST", { action: "emergency", domain, studentId: student.id, purpose, minutes: Number(minutes) }); toast.success(ui("Emergency access opened. It is logged and will be reviewed.")); setStudent(null); setPurpose(""); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   const end = async (id: string) => { try { await call("/api/care", "POST", { action: "revoke-emergency", id }); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-emergency>
-    <header><h2 className="text-base font-bold">{ui("Emergency access")}</h2><p className="text-xs text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></header>
+    <header><h2 className="text-base font-bold text-ink-strong">{ui("Emergency access")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></header>
     {me.grants.length ? <ul className="space-y-2">{me.grants.map(g => <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-400 px-3 py-2 text-sm" data-my-grant={g.id}><span>{domainLabel(ui, g.domain)} · <bdi>{g.studentName}</bdi> · {ui("ends {0}", [dateTime(g.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => onOpen(g)} data-my-grant-open>{ui("Open record")}</Button><Button size="sm" variant="secondary" onClick={() => void end(g.id)} data-my-grant-end>{ui("End access now")}</Button></span></li>)}</ul> : null}
     {domains.length ? <div className="space-y-2">
       <FormField name="em-domain" label={ui("Workspace")}><Select value={domain} onChange={e => setDomain(e.target.value as Domain)} data-emergency-domain>{domains.map(d => <option key={d} value={d}>{domainLabel(ui, d)}</option>)}</Select></FormField>
@@ -406,7 +405,7 @@ function CareSettings() {
     const d = drafts[s.domain] ?? { procedureReference: "", leadUserId: "", retentionMonths: "", confirm: false }, a = add[s.domain] ?? { userId: "", role: s.domain === "CLINIC" ? "NURSE" : "LEAD" };
     const members = data.members.filter(m => m.domain === s.domain), leads = members.filter(m => m.role === "LEAD");
     return <div key={s.domain} className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-setting={s.domain} data-enabled={s.enabled}>
-      <header><h2 className="text-base font-bold">{ui("{0} workspace", [domainLabel(ui, s.domain)])} · {s.enabled ? ui("Enabled") : ui("Not enabled")}</h2>{s.confirmedAt ? <p className="text-xs text-ink-muted">{ui("Procedures confirmed by {0} on {1}", [s.confirmedBy, dateTime(s.confirmedAt)])}</p> : <p className="text-xs text-ink-muted">{ui("Add the members and responsible lead, record the local procedure and retention, then enable.")}</p>}</header>
+      <header><h2 className="text-base font-bold text-ink-strong">{ui("{0} workspace", [domainLabel(ui, s.domain)])} · {s.enabled ? ui("Enabled") : ui("Not enabled")}</h2>{s.confirmedAt ? <p className="text-xs text-ink-muted">{ui("Procedures confirmed by {0} on {1}", [s.confirmedBy, dateTime(s.confirmedAt)])}</p> : <p className="text-xs text-ink-muted">{ui("Add the members and responsible lead, record the local procedure and retention, then enable.")}</p>}</header>
       <div><h3 className="text-base font-semibold text-ink-strong">{ui("Members")}</h3>{members.length ? <ul className="mt-1 space-y-1">{members.map(m => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm" data-care-member={m.userId}><span><bdi>{m.name}</bdi> · {roleLabel(ui, m.role)}</span><Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "revoke-member", id: m.id }), "Access removed.")} data-care-member-remove>{ui("Remove")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No members yet.")}</p>}
         <div className="mt-2 flex flex-col gap-2 sm:flex-row"><Select value={a.userId} onChange={e => setAdd({ ...add, [s.domain]: { ...a, userId: e.target.value } })} aria-label={ui("Staff member")} data-care-member-user><option value="">{ui("Choose staff member")}</option>{data.staff.map(u => <option key={u.id} value={u.id}>{u.fullName}</option>)}</Select><Select value={a.role} onChange={e => setAdd({ ...add, [s.domain]: { ...a, role: e.target.value } })} aria-label={ui("Role")} data-care-member-role>{(s.domain === "CLINIC" ? ["NURSE", "CLINIC_STAFF", "LEAD"] : ["LEAD", "DEPUTY"]).map(r => <option key={r} value={r}>{roleLabel(ui, r)}</option>)}</Select><Button size="sm" disabled={busy || !a.userId} onClick={() => void run(() => call("/api/care", "POST", { action: "add-member", domain: s.domain, ...a }), "Member added.")} data-care-member-add>{ui("Add member")}</Button></div>
       </div>
@@ -427,7 +426,7 @@ function MessagesToMe({ family = false }: { family?: boolean }) {
   useEffect(() => { call(family ? "/api/family/care-messages" : "/api/care?view=messages").then(setRows).catch(() => setRows([])); }, [family]);
   if (!rows.length) return null;
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-care-messages>
-    <h2 className="text-base font-bold">{ui("Messages from the school")}</h2>
+    <h2 className="text-base font-bold text-ink-strong">{ui("Messages from the school")}</h2>
     <ul className="space-y-2">{rows.map(r => <li key={r.id} className="rounded-xl border px-3 py-2 text-sm" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
   </section>;
 }

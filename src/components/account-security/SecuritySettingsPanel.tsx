@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, RotateCcw } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskStatus } from "@/components/ui/task-patterns";
 import { callMfaApi, toMfaRequestError } from "@/components/auth/mfa/mfa-client";
@@ -113,7 +114,7 @@ export function SecuritySettingsPanel() {
           </span>
           <div className="min-w-0 flex-1">
             <h4 id="security-password-heading" className="text-base font-bold tracking-tight text-ink-strong">{ui("Password")}</h4>
-            <p className="mt-1 text-sm font-semibold leading-relaxed text-ink-muted">{ui("Use a long password you don't use anywhere else.")}</p>
+            <p className="mt-1 text-sm font-normal leading-relaxed text-ink-muted">{ui("Use a long password you don't use anywhere else.")}</p>
           </div>
           <Button type="button" variant="outline" onClick={() => open("password")} className="sm:shrink-0">
             <KeyRound aria-hidden="true" />{ui("Change password")}
@@ -135,12 +136,7 @@ export function SecuritySettingsPanel() {
       )}
 
       {state === "error" && (
-        <div role="alert" className={cn(securityCardClass, "border-status-error-border")}>
-          <p className="text-sm font-bold text-ink-strong">{t.loadError}</p>
-          <Button type="button" variant="outline" className="mt-4" onClick={() => { setState("loading"); setAttempt(value => value + 1); }}>
-            <RotateCcw aria-hidden="true" />{t.retry}
-          </Button>
-        </div>
+        <ErrorState description={t.loadError} retryLabel={t.retry} onRetry={() => { setState("loading"); setAttempt(value => value + 1); }} />
       )}
 
       {state === "ready" && status && (

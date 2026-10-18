@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui/alert";
 import { useRef, useState } from "react";
 import { CheckCircle2, Eye, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,6 @@ export function CurriculumExecution({ record, language, canApply, onApplied }: {
       <Button disabled={!confirmed || Boolean(busy)} onClick={() => void apply()}>{busy === "apply" ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <Play aria-hidden="true" />}{busy === "apply" ? c.applyingTopics : c.applyTopics}</Button>
     </div>}
     {receipt && <div role="status" className={styles.notice}><CheckCircle2 aria-hidden="true" className="mt-1 size-5 shrink-0" /><div><h4 className="font-bold">{c.appliedToSchool}</h4><p>{c.topicsApplied}</p><p>{interpolateAI(c.topicsToCreate, { count: receipt.createdCount })} · {interpolateAI(c.topicsToKeep, { count: receipt.keptCount })}</p><p className="mt-2 break-all text-xs">{c.executionReceipt}: {receipt.id}</p></div></div>}
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {error && <Alert tone="danger" compact>{error}</Alert>}
   </section>;
 }

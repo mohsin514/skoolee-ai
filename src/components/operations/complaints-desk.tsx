@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -72,16 +76,16 @@ export function ComplaintsDesk() {
       <FormField name="complaint-filter-q" label={ui("Search reference, category or name")}><Input value={q} onChange={event => setQ(event.target.value)} /></FormField>
     </div>
 
-    {loading && !rows.length ? <p role="status" className="text-sm text-ink-muted">{ui("Loading complaints…")}</p>
-      : loadError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{loadError}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
+    {loading && !rows.length ? <SkeletonList rows={3} label={ui("Loading complaints…")} />
+      : loadError ? <ErrorState description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{status !== "active" || owner || q ? ui("No complaints match these filters.") : ui("No open complaints. Record a complaint when one is received.")}</p>
       : <ul className="space-y-2" aria-label={ui("Complaints")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-rose-200 bg-rose-50/40" : "border-border"}`} data-complaint={row.referenceCode} data-complaint-status={row.status} data-confidential={row.confidential}>
         <div className="min-w-0 flex-1">
-          <p className="font-bold"><bdi>{row.referenceCode}</bdi> · <bdi>{row.type}</bdi>{row.confidential ? <span className="ms-2 inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 text-2xs font-bold text-violet-800"><Lock className="size-3" aria-hidden="true" />{ui("Confidential")}</span> : null}</p>
+          <p className="font-semibold text-ink-strong"><bdi>{row.referenceCode}</bdi> · <bdi>{row.type}</bdi>{row.confidential ? <Badge size="sm" variant="info" className="ms-2"><Lock className="size-3" aria-hidden="true" />{ui("Confidential")}</Badge> : null}</p>
           <p className="text-xs text-ink-muted"><bdi>{row.complainantName}</bdi> · {ui("Received {0}", [formatDate(row.date)])}{row.reopenedCount ? ` · ${ui("Reopened {0} time(s)", [row.reopenedCount])}` : ""}</p>
           <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{row.dueDate ? ` · ${ui("Response due {0}", [formatDate(row.dueDate)])}` : ""}</p>
         </div>
-        <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${row.overdue ? "bg-rose-100 text-rose-800" : row.status === "RESOLVED" ? "bg-emerald-50 text-emerald-700" : "bg-muted"}`}>{row.overdue ? ui("Past response date") : ui(STATUS_LABEL[row.status])}</span>
+        <Badge size="sm" dot variant={row.overdue ? "danger" : row.status === "RESOLVED" ? "success" : "neutral"}>{row.overdue ? ui("Past response date") : ui(STATUS_LABEL[row.status])}</Badge>
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Open complaint {0}", [row.referenceCode])}>{ui("Open")}</Button>
       </li>)}</ul>}
 
@@ -118,9 +122,9 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
   </ModalFrame>;
   return <ModalFrame title={ui("Record complaint")} eyebrow={ui("Complaints")} subtitle={ui("Write down what was reported. The original report cannot be edited later; follow-up is added as notes.")} onClose={onClose} dirty={Boolean(form.description || form.complainantName)}>
     <div className="space-y-3" data-complaint-intake>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-complaint-error>{error}</p> : null}
+      {error ? <Alert tone="danger" compact data-complaint-error>{error}</Alert> : null}
       <fieldset className="space-y-2 rounded-xl border border-border p-3">
-        <legend className="px-1 text-xs font-bold">{ui("Kind of concern")}</legend>
+        <legend className="px-1 text-xs font-semibold">{ui("Kind of concern")}</legend>
         <label className="flex items-center gap-2 text-sm"><input type="radio" name="complaint-kind" checked={!form.confidential} onChange={() => setForm(current => ({ ...current, confidential: false }))} />{ui("Routine issue (service, facilities, fees, transport)")}</label>
         <label className="flex items-center gap-2 text-sm"><input type="radio" name="complaint-kind" checked={form.confidential} onChange={() => setForm(current => ({ ...current, confidential: true, ownerId: leader ? current.ownerId : "" }))} />{ui("Confidential concern (about a child's safety or a member of staff)")}</label>
         {form.confidential ? <p className="text-xs text-ink-muted">{ui("Only campus leaders and the person they assign can see a confidential concern. Record what was said, without judging it.")}</p> : null}
@@ -139,7 +143,7 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
         <FormField name="complaint-owner" label={ui("Owner (optional)")}><Select value={form.ownerId} onChange={set("ownerId")}><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
         <FormField name="complaint-due" label={ui("Response due (optional)")}><Input type="date" value={form.dueDate} min={form.date} onChange={set("dueDate")} /></FormField>
       </div> : null}
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} disabled={busy} aria-busy={busy}>{busy ? ui("Saving…") : ui("Record complaint")}</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy}>{ui("Record complaint")}</Button></div>
     </div>
   </ModalFrame>;
 }
@@ -166,14 +170,14 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
   };
   const canAssign = detail && (!detail.confidential || leader);
   return <ModalFrame title={detail ? ui("Complaint {0}", [detail.referenceCode]) : ui("Complaint")} eyebrow={ui("Complaints")} size="lg" onClose={onClose} dirty={Boolean(note || resolution || reason)}>
-    {loadError ? <p role="alert" className="text-sm font-bold text-rose-700">{loadError}</p> : !detail ? <p role="status" className="text-sm">{ui("Loading complaints…")}</p> : <div className="space-y-4" data-complaint-case={detail.referenceCode}>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-case-error>{error}</p> : null}
+    {loadError ? <ErrorState description={loadError} onRetry={() => { setLoadError(""); void load(); }} retryLabel={ui("Retry")} /> : !detail ? <SkeletonList rows={3} label={ui("Loading complaints…")} /> : <div className="space-y-4" data-complaint-case={detail.referenceCode}>
+      {error ? <Alert tone="danger" compact data-case-error>{error}</Alert> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Original report")}>
         <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Original report")} · {ui("Received {0}", [formatDate(detail.date)])}</p>
-        <p className="font-bold"><bdi>{detail.type}</bdi> · <bdi>{detail.complainantName}</bdi>{detail.phone ? <> · <bdi>{detail.phone}</bdi></> : null}</p>
+        <p className="font-semibold text-ink-strong"><bdi>{detail.type}</bdi> · <bdi>{detail.complainantName}</bdi>{detail.phone ? <> · <bdi>{detail.phone}</bdi></> : null}</p>
         <p className="whitespace-pre-wrap"><bdi>{detail.description}</bdi></p>
       </section>
-      <p className="text-sm font-bold" data-case-status={detail.status}>{ui(STATUS_LABEL[detail.status])}{detail.owner ? ` · ${ui("Owner: {0}", [detail.owner.fullName])}` : ` · ${ui("Unassigned")}`}{detail.dueDate ? ` · ${ui("Response due {0}", [formatDate(detail.dueDate)])}` : ""}{detail.overdue ? ` · ${ui("Past response date")}` : ""}</p>
+      <p className="text-sm font-semibold text-ink-strong" data-case-status={detail.status}>{ui(STATUS_LABEL[detail.status])}{detail.owner ? ` · ${ui("Owner: {0}", [detail.owner.fullName])}` : ` · ${ui("Unassigned")}`}{detail.dueDate ? ` · ${ui("Response due {0}", [formatDate(detail.dueDate)])}` : ""}{detail.overdue ? ` · ${ui("Past response date")}` : ""}</p>
       {detail.status !== "RESOLVED" && canAssign ? <div className="grid items-end gap-3 sm:grid-cols-3">
         <FormField name="case-owner" label={ui("Owner")}><Select value={ownerId} onChange={event => setOwnerId(event.target.value)}><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
         <FormField name="case-due" label={ui("Response due")}><Input type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} /></FormField>
@@ -196,7 +200,7 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
       <section aria-label={ui("History")}>
         <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
         <ol className="space-y-1.5 text-xs" data-case-history>{detail.events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
-          <p className="font-bold">{ui(EVENT_LABEL[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorName ? ` · ${event.actorName}` : ""}</p>
+          <p className="font-semibold text-ink-strong">{ui(EVENT_LABEL[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorName ? ` · ${event.actorName}` : ""}</p>
           {event.kind === "ASSIGNED" ? <p>{event.ownerName ? ui("Owner: {0}", [event.ownerName]) : ui("Unassigned")}{event.dueDate ? ` · ${ui("Response due {0}", [formatDate(event.dueDate)])}` : ""}</p> : null}
           {event.note ? <p className="whitespace-pre-wrap"><bdi>{event.note}</bdi></p> : null}
         </li>)}</ol>

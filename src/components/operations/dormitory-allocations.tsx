@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -55,27 +59,27 @@ export function DormitoryAllocations({ canManage = true }: { canManage?: boolean
   return <div className="space-y-4" data-dorm-allocations>
     <div className="flex flex-wrap items-end justify-between gap-3">
       <FormField name="dorm-occupancy-date" label={ui("Occupancy on")}><Input type="date" value={date} onChange={event => setDate(event.target.value)} /></FormField>
-      {data ? <p className="text-sm font-bold" data-dorm-summary aria-live="polite">{ui("{0} of {1} places taken on {2}", [totals.occupied, totals.capacity, formatDate(data.date)])}{totals.out ? ` · ${ui("{0} room(s) out of service", [totals.out])}` : ""}</p> : null}
+      {data ? <p className="text-sm font-semibold text-ink-strong" data-dorm-summary aria-live="polite">{ui("{0} of {1} places taken on {2}", [totals.occupied, totals.capacity, formatDate(data.date)])}{totals.out ? ` · ${ui("{0} room(s) out of service", [totals.out])}` : ""}</p> : null}
       {canManage ? <Button onClick={() => setDialog({ kind: "allocate" })} disabled={!rooms.length}><UserPlus className="size-4" aria-hidden="true" />{ui("Allocate student")}</Button> : null}
     </div>
 
-    {loading && !data ? <p role="status" className="text-sm text-ink-muted">{ui("Loading allocations…")}</p>
-      : error ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
+    {loading && !data ? <SkeletonList rows={3} label={ui("Loading allocations…")} />
+      : error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rooms.length ? <EmptyState size="sm" icon={BedDouble} title={ui("No rooms yet. Add room types and rooms first, then allocate students.")} />
       : <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label={ui("Rooms")}>
         {rooms.map(room => {
           const residents = (data?.stays ?? []).filter(stay => stay.roomId === room.id && (stay.state === "CURRENT" || stay.state === "UPCOMING"));
           return <li key={room.id} className="space-y-2 rounded-2xl border border-border p-4" data-dorm-room={room.number} data-room-status={room.status} data-room-occupied={room.occupied}>
             <div className="flex items-start justify-between gap-2">
-              <div><p className="flex items-center gap-1.5 text-sm font-bold"><BedDouble className="size-4 text-primary" aria-hidden="true" /><bdi>{room.number}</bdi></p><p className="text-xs text-ink-muted"><bdi>{room.roomType}</bdi></p></div>
-              <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${room.status !== "AVAILABLE" ? "bg-amber-50 text-amber-800" : room.available === 0 ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>
+              <div><p className="flex items-center gap-1.5 text-sm font-semibold text-ink-strong"><BedDouble className="size-4 text-primary" aria-hidden="true" /><bdi>{room.number}</bdi></p><p className="text-xs text-ink-muted"><bdi>{room.roomType}</bdi></p></div>
+              <Badge size="sm" dot variant={room.status !== "AVAILABLE" ? "warning" : room.available === 0 ? "danger" : "success"}>
                 {room.status !== "AVAILABLE" ? ui("Out of service") : room.available === 0 ? ui("Full") : ui("{0} free", [room.available])}
-              </span>
+              </Badge>
             </div>
-            <p className="text-xs font-bold">{ui("{0} of {1} places taken", [room.occupied, room.capacity])}{room.upcoming ? ` · ${ui("{0} upcoming", [room.upcoming])}` : ""}</p>
+            <p className="text-xs font-semibold text-ink-strong">{ui("{0} of {1} places taken", [room.occupied, room.capacity])}{room.upcoming ? ` · ${ui("{0} upcoming", [room.upcoming])}` : ""}</p>
             {room.statusReason ? <p className="text-xs text-amber-800"><bdi>{room.statusReason}</bdi></p> : null}
             {residents.length ? <ul className="space-y-1.5">{residents.map(stay => <li key={stay.id} className="rounded-xl bg-muted/60 px-3 py-2 text-xs" data-dorm-stay={stay.id} data-stay-state={stay.state}>
-              <p className="font-bold"><bdi>{stay.student.fullName}</bdi> · <bdi>{stay.student.rollNo}</bdi>{stay.student.className ? <> · <bdi>{stay.student.className}</bdi></> : null}</p>
+              <p className="font-semibold text-ink-strong"><bdi>{stay.student.fullName}</bdi> · <bdi>{stay.student.rollNo}</bdi>{stay.student.className ? <> · <bdi>{stay.student.className}</bdi></> : null}</p>
               <p className="text-ink-muted">{ui(STATE_LABEL[stay.state])} · {formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</p>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {canManage && stay.state === "CURRENT" ? <Button size="sm" variant="secondary" onClick={() => setDialog({ kind: "move", stay })} aria-label={ui("Move {0}", [stay.student.fullName])}><MoveRight className="size-3.5" aria-hidden="true" />{ui("Move")}</Button> : null}
@@ -109,10 +113,10 @@ function useSubmit(onDone: (message: string) => void) {
   };
   return { busy, error, setError, run };
 }
-const ErrorLine = ({ error }: { error: string }) => error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-dorm-error>{error}</p> : null;
+const ErrorLine = ({ error }: { error: string }) => error ? <Alert tone="danger" compact data-dorm-error>{error}</Alert> : null;
 function Actions({ busy, label, onClose, onSave, disabled }: { busy: boolean; label: string; onClose: () => void; onSave: () => void; disabled?: boolean }) {
   const ui = useUiText();
-  return <div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={onSave} disabled={busy || disabled} aria-busy={busy}>{busy ? ui("Saving…") : label}</Button></div>;
+  return <div className="flex justify-end gap-2 pt-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={onSave} loading={busy} disabled={busy || disabled}>{label}</Button></div>;
 }
 
 function AllocateDialog({ rooms, today, onClose, onDone }: { rooms: Room[]; today: string; onClose: () => void; onDone: (message: string) => void }) {
@@ -144,7 +148,7 @@ function AllocateDialog({ rooms, today, onClose, onDone }: { rooms: Room[]; toda
       <ErrorLine error={error} />
       <FormField name="dorm-student-search" label={ui("Find student by name or roll number")}><Input value={query} onChange={event => setQuery(event.target.value)} /></FormField>
       <fieldset className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
-        <legend className="px-1 text-xs font-bold">{ui("Student")}</legend>
+        <legend className="px-1 text-xs font-semibold">{ui("Student")}</legend>
         {options.length ? options.map(option => <label key={option.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted">
           <input type="radio" name="dorm-student" checked={student?.id === option.id} onChange={() => setStudent(option)} />
           <span><bdi>{option.fullName}</bdi> · <bdi>{option.rollNo}</bdi>{option.class ? <> · <bdi>{option.class.name}</bdi></> : null}{option.dormRoom ? <span className="text-xs text-ink-muted"> · {ui("now in {0}", [option.dormRoom.number])}</span> : null}</span>
@@ -208,7 +212,7 @@ function CancelDialog({ stay, onClose, onDone }: { stay: Stay; onClose: () => vo
   const { busy, error, setError, run } = useSubmit(onDone);
   return <ConfirmAction open title={ui("Cancel this reservation?")} tone="warning" busy={busy} confirmLabel={ui("Cancel reservation")} cancelLabel={ui("Keep it")}
     description={ui("{0} will no longer be expected in room {1} from {2}. The cancelled reservation stays in history.", [stay.student.fullName, stay.roomNumber, formatDate(stay.startDate)])}
-    detail={<div className="space-y-2"><label htmlFor="dorm-cancel-reason" className="block text-xs font-bold">{ui("Reason")}</label><Input id="dorm-cancel-reason" value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /><ErrorLine error={error} /></div>}
+    detail={<div className="space-y-2"><label htmlFor="dorm-cancel-reason" className="block text-xs font-semibold">{ui("Reason")}</label><Input id="dorm-cancel-reason" value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /><ErrorLine error={error} /></div>}
     onConfirm={() => { if (reason.trim().length < 3) { setError(ui("Give a reason for cancelling.")); return; } void run({ action: "cancel", id: stay.id, reason: reason.trim() }, "Reservation cancelled."); }}
     onCancel={onClose} />;
 }
@@ -245,7 +249,7 @@ function RoomDialog({ room, onClose, onDone }: { room: Room; onClose: () => void
       <FormField name="dorm-status" label={ui("Status")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="AVAILABLE">{ui("Available")}</option><option value="OUT_OF_SERVICE">{ui("Out of service")}</option></Select></FormField>
       {status === "OUT_OF_SERVICE" ? <FormField name="dorm-status-reason" label={ui("Why is it out of service?")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField> : null}
       {impact ? <div className={`rounded-xl p-3 text-xs ${impact.blocked ? "bg-amber-50 text-amber-900" : "bg-muted"}`} data-dorm-impact={impact.blocked ? "blocked" : "clear"} role={impact.blocked ? "alert" : undefined}>
-        <p className="font-bold">{impact.blocked ? ui(impact.message) : ui("Up to {0} student(s) are allocated from today; this change fits.", [impact.peak])}</p>
+        <p className="font-semibold text-ink-strong">{impact.blocked ? ui(impact.message) : ui("Up to {0} student(s) are allocated from today; this change fits.", [impact.peak])}</p>
         {impact.blocked && impact.affected.length ? <ul className="mt-1 list-disc ps-4">{impact.affected.map(stay => <li key={stay.id}><bdi>{stay.studentName}</bdi> · {formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</li>)}</ul> : null}
       </div> : null}
       <Actions busy={busy} label={ui("Save room")} onClose={onClose} onSave={() => void save()} disabled={impact?.blocked} />
@@ -259,8 +263,8 @@ function HistoryDialog({ student, onClose }: { student: Stay["student"]; onClose
   const [stays, setStays] = useState<Stay[] | null>(null);
   useEffect(() => { void fetch(`/api/dormitory/allocations?studentId=${encodeURIComponent(student.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => setStays(json.success ? json.data.stays : [])).catch(() => setStays([])); }, [student.id]);
   return <ModalFrame title={ui("Room history for {0}", [student.fullName])} eyebrow={ui("Hostel")} onClose={onClose}>
-    {!stays ? <p role="status" className="text-sm">{ui("Loading allocations…")}</p> : <ol className="space-y-2" data-dorm-history>{stays.map(stay => <li key={stay.id} className="rounded-xl border border-border p-3 text-xs" data-history-state={stay.state}>
-      <p className="font-bold">{ui("Room {0}", [stay.roomNumber])} · {ui(STATE_LABEL[stay.state])}</p>
+    {!stays ? <SkeletonList rows={3} label={ui("Loading allocations…")} /> : <ol className="space-y-2" data-dorm-history>{stays.map(stay => <li key={stay.id} className="rounded-xl border border-border p-3 text-xs" data-history-state={stay.state}>
+      <p className="font-semibold text-ink-strong">{ui("Room {0}", [stay.roomNumber])} · {ui(STATE_LABEL[stay.state])}</p>
       <p>{formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</p>
       <p className="text-ink-muted"><bdi>{stay.reason}</bdi>{stay.endReason ? <> · <bdi>{stay.endReason}</bdi></> : null}</p>
     </li>)}</ol>}

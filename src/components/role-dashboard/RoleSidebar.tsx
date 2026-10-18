@@ -17,6 +17,7 @@ import { resolveMediaUrl } from "@/lib/storage/s3";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
+import { Tooltip } from "@/components/ui/tooltip";
 
 
 export interface RoleNavItem {
@@ -134,12 +135,14 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
           <InstitutionBadge logoUrl={logoUrl} name={tagline} />
           {!collapsed && <div className="min-w-0"><SkooleeLogo size="1.2rem" /><p lang={taglineLang} className="mt-1 break-words text-xs text-ink-muted">{tagline}</p></div>}
         </div>
-        <Button variant="outline" type="button" aria-label={t("Find a workspace")} aria-keyshortcuts="Alt+Shift+K" aria-haspopup="dialog" aria-expanded={mobileOpen} title={collapsed ? t("Find a workspace") : undefined} onClick={() => setMobileOpen(true)} className={cn("mb-3 min-h-11 gap-2", collapsed ? "px-0" : "justify-start px-3")}>
+        <Tooltip content={t("Find a workspace")} describe={false} disabled={!collapsed}>
+        <Button variant="outline" type="button" aria-label={t("Find a workspace")} aria-keyshortcuts="Alt+Shift+K" aria-haspopup="dialog" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} className={cn("mb-3 min-h-11 gap-2", collapsed ? "px-0" : "justify-start px-3")}>
           <Search aria-hidden="true" className="h-4 w-4 shrink-0" />{!collapsed && <span className="min-w-0 text-start">{t("Find a workspace")}</span>}
         </Button>
-        {recordSearch && <Link href="/search" aria-label={t("Search records")} title={collapsed ? t("Search records") : undefined} data-record-search-link className={cn(buttonVariants({ variant: "ghost" }), "mb-3 min-h-11 gap-2", collapsed ? "px-0" : "justify-start px-3")}>
+        </Tooltip>
+        {recordSearch && <Tooltip content={t("Search records")} describe={false} disabled={!collapsed}><Link href="/search" aria-label={t("Search records")} data-record-search-link className={cn(buttonVariants({ variant: "ghost" }), "mb-3 min-h-11 gap-2", collapsed ? "px-0" : "justify-start px-3")}>
           <FileSearch aria-hidden="true" className="h-4 w-4 shrink-0" />{!collapsed && <span className="min-w-0 text-start">{t("Search records")}</span>}
-        </Link>}
+        </Link></Tooltip>}
         <nav aria-label={t("Primary navigation")} className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(collapsed)}</nav>
         {onToggleCollapse && <Button variant="outline" type="button" onClick={onToggleCollapse} aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!collapsed} className="mt-3 flex min-h-11 items-center justify-center gap-2">
           <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />
@@ -180,7 +183,8 @@ function NavGroup({ group, collapsed, onExpand, onNavigate }: { group: RoleNavGr
   useEffect(() => { if (active) setOpen(true); }, [active]);
   const Icon = group.icon;
   return <div>
-    <Button variant="ghost" type="button" aria-label={group.label} title={collapsed ? group.label : undefined} aria-expanded={!collapsed && open}
+    <Tooltip content={group.label} describe={false} disabled={!collapsed}>
+    <Button variant="ghost" type="button" aria-label={group.label} aria-expanded={!collapsed && open}
       onClick={() => {
         if (collapsed) { setOpen(true); onExpand?.(); return; }
         // A group holding the current view stays open: RoleShell suppresses the
@@ -192,6 +196,7 @@ function NavGroup({ group, collapsed, onExpand, onNavigate }: { group: RoleNavGr
       <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
       {!collapsed && <><span className="flex-1">{group.label}</span><ChevronDown aria-hidden="true" className={cn("h-4 w-4", open && "rotate-180")} /></>}
     </Button>
+    </Tooltip>
     {open && !collapsed && <div className="ms-3 space-y-1 border-s border-border ps-2">{group.children.map((item) => <NavigationItem key={item.label} item={item} onNavigate={onNavigate} />)}</div>}
   </div>;
 }
@@ -203,6 +208,7 @@ function NavigationItem({ item, collapsed, mobile, narrowHidden, onNavigate }: {
   const className = cn("flex justify-start min-h-11 min-w-0 items-center gap-3 [&>svg]:size-5 rounded-xl px-3 py-2 text-start text-sm font-semibold transition-colors", active ? "bg-accent text-primary" : "text-ink hover:bg-muted", collapsed && "justify-center", mobile ? "min-h-[44px] flex-1 flex-col justify-center gap-[4px] px-[4px] py-[6px] text-center text-xs leading-tight [&>svg]:size-[20px]" : "w-full", mobile && narrowHidden && "max-[399px]:hidden");
   const content = <><Icon aria-hidden="true" className="h-5 w-5 shrink-0" />{!collapsed && <span lang={item.lang} className="min-w-0 max-w-full [overflow-wrap:anywhere]">{item.label}</span>}</>;
   // A route is a link (open-in-new-tab, copy address, keyboard semantics); a local view is a button.
-  return item.href ? <Link href={item.href} aria-label={item.label} aria-current={active ? "page" : undefined} title={collapsed ? item.label : undefined} className={className} onClick={onNavigate}>{content}</Link>
-    : <Button variant="ghost" size={collapsed ? "icon" : "default"} type="button" aria-label={item.label} aria-current={active ? "page" : undefined} title={collapsed ? item.label : undefined} className={className} onClick={() => { item.onClick?.(); onNavigate?.(); }}>{content}</Button>;
+  const control = item.href ? <Link href={item.href} aria-label={item.label} aria-current={active ? "page" : undefined} className={className} onClick={onNavigate}>{content}</Link>
+    : <Button variant="ghost" size={collapsed ? "icon" : "default"} type="button" aria-label={item.label} aria-current={active ? "page" : undefined} className={className} onClick={() => { item.onClick?.(); onNavigate?.(); }}>{content}</Button>;
+  return <Tooltip content={item.label} describe={false} disabled={!collapsed}>{control}</Tooltip>;
 }

@@ -564,7 +564,7 @@ export default function OnboardingWizard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-subtle" role="status" aria-live="polite">
-              {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden="true" /> {t.saving}</> : !dirty ? <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" /> {t.savedAt}</> : null}
+              {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden="true" /> {t.saving}</> : !dirty ? <><CheckCircle2 className="h-3.5 w-3.5 text-status-success-text" aria-hidden="true" /> {t.savedAt}</> : null}
             </span>
             <Button variant="outline" size="sm" onClick={() => void saveAndExit()} disabled={saving || activating}>{t.saveExit}</Button>
             <Button variant="ghost" size="sm" className="lg:hidden" onClick={handleLogout}>{t.signOut}</Button>

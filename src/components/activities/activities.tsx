@@ -11,6 +11,9 @@ import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { CalendarDays } from "lucide-react";
 
 // SKO-440: clubs, sports and trips. Families see eligibility, cost, timing and terms before asking for a
 // place; a place stays conditional until consent and fee rules are met. Coordinators see who is confirmed
@@ -43,13 +46,13 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
   if (denied || !data) return null;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-activities>
     <header><h3 className="text-base font-bold">{ui("Clubs, sports and trips")}</h3><p className="text-xs text-ink-muted">{ui("A place is confirmed only when its consent and fee rules are complete.")}</p></header>
-    {!data.activities.length ? <p className="text-sm text-ink-muted">{ui("No activities published for this age group yet.")}</p> : <ul className="space-y-2">{data.activities.map(a => <li key={a.id} className={cn("rounded-xl border p-3", a.place?.status === "OFFERED" ? "border-amber-300 bg-amber-50/40" : "border-edge/40")} data-activity={a.id} data-activity-place={a.place?.status ?? "NONE"}>
+    {!data.activities.length ? <EmptyState size="sm" icon={CalendarDays} title={ui("No activities published for this age group yet.")} description={ui("A place is confirmed only when its consent and fee rules are complete.")} /> : <ul className="space-y-2">{data.activities.map(a => <li key={a.id} className={cn("rounded-xl border p-3", a.place?.status === "OFFERED" ? "border-status-warning-border bg-status-warning-surface/40" : "border-edge/40")} data-activity={a.id} data-activity-place={a.place?.status ?? "NONE"}>
       <div className="flex flex-wrap items-start justify-between gap-2"><div>
         <p className="text-sm font-bold"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}</p>
         <p className="text-xs text-ink-muted"><bdi>{dateTime(a.startsAt)}</bdi>–<bdi>{dateTime(a.endsAt)}</bdi> · <span dir="auto">{a.location}</span> · {a.costAmount ? <bdi>{money(a.costAmount, a.costCurrency)}</bdi> : ui("Free")} · {ui("{0} of {1} places left", [String(a.placesLeft), String(a.capacity)])}</p>
-        {a.place ? <p className="text-xs font-bold" data-activity-status>{statusLabel(ui, a.place.status)}{a.place.waitlistPosition ? <> · {ui("Position {0}", [String(a.place.waitlistPosition)])}</> : null}{a.place.status === "OFFERED" && a.place.offerExpiresAt ? <> · {ui("Offer expires {0}", [dateTime(a.place.offerExpiresAt)])}</> : null}</p> : null}
+        {a.place ? <p className="flex flex-wrap items-center gap-1 text-xs text-ink-muted" data-activity-status><Badge size="sm" variant={a.place.status === "CONFIRMED" ? "success" : a.place.status === "OFFERED" ? "warning" : "neutral"} dot>{statusLabel(ui, a.place.status)}</Badge>{a.place.waitlistPosition ? <> · {ui("Position {0}", [String(a.place.waitlistPosition)])}</> : null}{a.place.status === "OFFERED" && a.place.offerExpiresAt ? <> · {ui("Offer expires {0}", [dateTime(a.place.offerExpiresAt)])}</> : null}</p> : null}
         {a.place && ["RESERVED", "CONFIRMED"].includes(a.place.status) ? <p className="text-xs">{[reqLabel(ui, "consent", a.place.requirements.consent), reqLabel(ui, "fee", a.place.requirements.fee)].filter(Boolean).join(" · ")}</p> : null}
-        {!a.place || !["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"].includes(a.place.status) ? (a.blocker ? <p className="text-xs font-bold text-rose-700" data-activity-blocker>{ui(a.blocker)}</p> : null) : null}
+        {!a.place || !["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"].includes(a.place.status) ? (a.blocker ? <p className="text-xs font-semibold text-status-error-text" data-activity-blocker>{ui(a.blocker)}</p> : null) : null}
       </div>
         <div className="flex flex-wrap gap-2">
           {a.place?.status === "OFFERED" ? <><Button size="sm" disabled={busy} onClick={() => setReview(a)} data-activity-accept>{ui("Accept place")}</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run({ action: "answer", placeId: a.place!.id, knownVersion: a.place!.version, accept: false }, "Offer declined.")} data-activity-decline>{ui("Decline offer")}</Button></> : null}
@@ -86,7 +89,7 @@ export function ActivitiesDesk() {
   if (!list) return <section className="sk-panel p-5" data-activities-desk aria-busy="true"><p className="text-sm text-ink-muted">{ui("Checking places before reserving.")}</p></section>;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-activities-desk>
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-lg font-bold">{ui("Clubs, sports and trips")}</h2><p className="text-xs text-ink-muted">{ui("Interest, reservation and confirmed participation are kept apart.")}</p></div><Button size="sm" onClick={() => setCreating(true)} data-activity-new>{ui("Publish activity")}</Button></header>
-    {!list.activities.length ? <p className="text-sm text-ink-muted">{ui("No activities yet.")}</p> : <ul className="space-y-2">{list.activities.map(a => <li key={a.id}><Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", open === a.id ? "border-primary" : "border-edge/40")} onClick={() => void loadRoster(a.id)} data-activity-row={a.id}>
+    {!list.activities.length ? <EmptyState size="sm" icon={CalendarDays} title={ui("No activities yet.")} description={ui("Interest, reservation and confirmed participation are kept apart.")} action={<Button size="sm" onClick={() => setCreating(true)}>{ui("Publish activity")}</Button>} /> : <ul className="space-y-2">{list.activities.map(a => <li key={a.id}><Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", open === a.id ? "border-primary" : "border-edge/40")} onClick={() => void loadRoster(a.id)} data-activity-row={a.id}>
       <span className="block text-sm font-bold"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}{a.status === "CANCELLED" ? ` · ${ui("Cancelled")}` : ""}</span>
       <span className="block text-xs text-ink-muted"><bdi>{dateTime(a.startsAt)}</bdi> · {ui("{0} confirmed, {1} conditional, {2} waiting of {3}", [String(a.counts.CONFIRMED ?? 0), String((a.counts.RESERVED ?? 0) + (a.counts.OFFERED ?? 0)), String(a.counts.WAITLIST ?? 0), String(a.capacity)])}</span>
     </Button></li>)}</ul>}
@@ -101,9 +104,9 @@ export function ActivitiesDesk() {
           {["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"].includes(p.status) ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act({ action: "cancel-place", placeId: p.id, reason: "Cancelled by the coordinator" }, "Place cancelled.")} data-roster-cancel>{ui("Cancel place")}</Button> : null}
         </span>
       </li>)}</ul>
-      <div className="space-y-2" data-activity-sessions><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Sessions")}</p>
+      <div className="space-y-2" data-activity-sessions><p className="sk-eyebrow">{ui("Sessions")}</p>
         {roster.sessions.map(s => <div key={s.id} className="rounded-lg border p-2" data-session={s.id}><p className="text-xs font-bold"><bdi>{dateTime(s.startsAt)}</bdi></p><div className="mt-1 flex flex-wrap gap-2">{roster.places.filter(p => p.status === "CONFIRMED").map(p => { const mark = s.marks.find(m => m.studentId === p.studentId)?.status; return <span key={p.id} className="flex items-center gap-1 text-xs"><bdi>{p.name}</bdi>{["PRESENT", "ABSENT"].map(st => <Button key={st} size="sm" variant={mark === st ? "default" : "outline"} disabled={busy} onClick={() => void act({ action: "attend", sessionId: s.id, studentId: p.studentId, status: st }, "Attendance saved.")} data-attend={st}>{st === "PRESENT" ? ui("Present") : ui("Absent")}</Button>)}</span>; })}</div></div>)}
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => void act({ action: "session", activityId: roster.activity.id, startsAt: roster.activity.startsAt, endsAt: new Date(new Date(roster.activity.startsAt).getTime() + 3_600_000).toISOString() }, "Session added.")} data-session-add>{ui("Add a session")}</Button>
+        <Button size="sm" variant="outline" loading={busy} onClick={() => void act({ action: "session", activityId: roster.activity.id, startsAt: roster.activity.startsAt, endsAt: new Date(new Date(roster.activity.startsAt).getTime() + 3_600_000).toISOString() }, "Session added.")} data-session-add>{ui("Add a session")}</Button>
       </div>
       {roster.activity.status !== "CANCELLED" ? <div className="flex justify-end"><Button size="sm" variant="secondary" disabled={busy} onClick={() => void act({ action: "cancel", activityId: roster.activity.id }, "Activity cancelled. Families were told.")} data-activity-cancel>{ui("Cancel activity")}</Button></div> : null}
       <p className="text-2xs text-ink-muted">{ui("Participant lists exclude private care narratives.")}{roster.activity.costAmount ? <> · {ui("Cost")}: <bdi>{money(roster.activity.costAmount, roster.activity.costCurrency)}</bdi></> : null}</p>

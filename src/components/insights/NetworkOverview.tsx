@@ -232,7 +232,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
           }}
         >
           {derived.rows.length > 0 ? (
-            <ul className="max-h-[300px] space-y-2 overflow-y-auto custom-scrollbar pr-1">
+            <ul className="max-h-[300px] space-y-2 overflow-y-auto custom-scrollbar pe-1">
               {derived.coverage.map((campus, i) => (
                 <li key={campus.id} className="sk-rise" style={{ animationDelay: `${i * 50}ms` }}>
                   <Button variant="outline"
@@ -474,9 +474,9 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                     </td>
                     <td className="px-3 py-2.5 text-end text-xs font-medium tabular-nums">
                       {campus.average === null ? (
-                        <span className="text-ink-faint">—</span>
+                        <span className="text-ink-subtle">—</span>
                       ) : (
-                        <span style={{ color: campus.average >= 40 ? "#0f7a55" : "#a81231" }}>{campus.average}%</span>
+                        <span className={campus.average >= 40 ? "text-status-success-text" : "text-status-error-text"}>{campus.average}%</span>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
@@ -484,12 +484,12 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                     </td>
                     <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.reportCards.toLocaleString()}
-                      <span className="text-ink-faint"> / {campus.exams.toLocaleString()}</span>
+                      <span className="text-ink-subtle"> / {campus.exams.toLocaleString()}</span>
                     </td>
                     <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
                       {campus.messagesSent.toLocaleString()}
                       {campus.messageIssues > 0 ? (
-                        <span style={{ color: "#a81231" }}> · {campus.messageIssues} failed</span>
+                        <span className="text-status-error-text"> · {campus.messageIssues} failed</span>
                       ) : null}
                     </td>
                     <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">

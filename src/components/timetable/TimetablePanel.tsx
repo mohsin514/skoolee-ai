@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { Badge } from "@/components/ui/badge";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -219,7 +220,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         setTeachers(teacherList);
       }
     } catch {
-      toast.error("Failed to load timetable data");
+      toast.error("Could not load the timetable. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -311,14 +312,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable created!");
+        toast.success("Timetable created. Add lessons to each period.");
         setCustomPeriods([]);
         await loadData();
       } else {
-        toast.error(json.error || "Failed to create");
+        toast.error(json.error || "Could not create the timetable. Please try again.");
       }
     } catch {
-      toast.error("Failed to create timetable");
+      toast.error("Could not create the timetable. Check your connection and try again.");
     } finally {
       setCreating(false);
     }
@@ -360,16 +361,16 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable saved!");
+        toast.success("Timetable changes saved.");
         setPendingChanges(new Map());
         await loadData();
       } else if (json.conflicts) {
         json.conflicts.forEach((c: string) => toast.error(c));
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(json.error || "Could not save the timetable. Please try again.");
       }
     } catch {
-      toast.error("Failed to save timetable");
+      toast.error("Could not save the timetable. Check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -387,13 +388,13 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(action === "publish" ? "Timetable published! Teachers and students can now see it." : "Timetable unpublished");
+        toast.success(action === "publish" ? "Timetable published! Teachers and students can now see it." : "Timetable unpublished. It is back to draft.");
         await loadData();
       } else {
-        toast.error(json.error || "Failed");
+        toast.error(json.error || "Could not change the timetable status. Please try again.");
       }
     } catch {
-      toast.error("Action failed");
+      toast.error("Could not change the timetable status. Check your connection and try again.");
     } finally {
       setPublishing(false);
     }
@@ -411,14 +412,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Period config saved!");
+        toast.success("Period settings saved.");
         await loadData();
         return true;
       }
-      toast.error(json.error || "Failed to save");
+      toast.error(json.error || "Could not save the period settings. Please try again.");
       return false;
     } catch {
-      toast.error("Failed to save period config");
+      toast.error("Could not save the period settings. Check your connection and try again.");
       return false;
     } finally {
       setSaving(false);
@@ -444,10 +445,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         toast.success("Timetable deleted");
         await loadData();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(json.error || "Could not delete the timetable. Please try again.");
       }
     } catch {
-      toast.error("Failed to delete");
+      toast.error("Could not delete the timetable. Check your connection and try again.");
     } finally {
       setDeletingTimetable(false); setConfirmDeleteTimetable(false);
     }
@@ -488,7 +489,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
             <div key={i} className="h-9 w-20 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
           ))}
         </div>
-        <div className="rounded-[28px] border border-edge/10 bg-white shadow-xl p-4 flex-1 min-h-[400px] animate-skeleton-in" style={{ animationDelay: "160ms" }}>
+        <div className="sk-panel p-4 flex-1 min-h-[400px] animate-skeleton-in" style={{ animationDelay: "160ms" }}>
           <div className="space-y-3">
             {Array.from({ length: periodDefs.length || 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3">
@@ -580,7 +581,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
                       <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {weekendDays.includes(day.num) && (
-                        <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-3xs font-semibold uppercase text-rose-500">Off</span>
+                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold uppercase text-status-error-text">Off</span>
                       )}
                     </div>
                   ))}
@@ -620,7 +621,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     })}
                   </div>
                 )) : (
-                  <EmptyState size="sm" icon={Clock} title="No timetable periods found" description="Create timetables for classes first." />
+                  <EmptyState size="sm" icon={Clock} title={ui("No timetable periods found")} description={ui("Create timetables for classes first.")} />
                 )}
               </div>
             </div>
@@ -655,8 +656,8 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       {!selectedClassId && (
         <EmptyStateCard
           icon={Calendar}
-          title="Select a Class"
-          description="Choose a class above to view or create its weekly timetable"
+          title={ui("Select a Class")}
+          description={ui("Choose a class above to view or create its weekly timetable")}
         />
       )}
 
@@ -664,7 +665,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         <EmptyState
           className="sk-enter"
           icon={Calendar}
-          title="No Timetable Yet"
+          title={ui("No Timetable Yet")}
           description={`Create a weekly schedule for this class with configurable period timings (${visibleDays.map((d) => d.short).join("–")})`}
           secondaryAction={
             <Button variant="outline"
@@ -696,20 +697,13 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           {/* Action bar */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider ${
-                activeTimetable.status === "PUBLISHED"
-                  ? "bg-emerald-50 text-emerald-600"
-                  : "bg-amber-50 text-amber-600"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${
-                  activeTimetable.status === "PUBLISHED" ? "bg-emerald-500" : "bg-amber-400"
-                }`} />
-                {activeTimetable.status}
-              </div>
+              <Badge variant={activeTimetable.status === "PUBLISHED" ? "success" : "warning"} dot>
+                {activeTimetable.status === "PUBLISHED" ? ui("Published") : ui("Draft")}
+              </Badge>
               {pendingChanges.size > 0 && (
-                <span className="text-2xs font-bold text-amber-600 bg-amber-50 rounded-lg px-2 py-1">
-                  {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? "s" : ""}
-                </span>
+                <Badge variant="warning" size="sm" className="tabular-nums">
+                  {pendingChanges.size === 1 ? ui("1 unsaved change") : ui("{0} unsaved changes", [pendingChanges.size])}
+                </Badge>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -805,7 +799,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
                       <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {isOff && (
-                        <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-3xs font-semibold uppercase text-rose-500">Off</span>
+                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold uppercase text-status-error-text">Off</span>
                       )}
                     </div>
                   );
@@ -893,7 +887,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingSlot(slot); } }}
                         >
                           {subjectName ? (
-                            <div className={`h-full rounded-xl ${color?.bg || "bg-surface-subtle"}  ${color?.border || "border-border-subtle"} border p-2 flex flex-col justify-between transition-all group-hover:shadow-md group-hover:scale-[1.02] ${hasChange ? "ring-2 ring-amber-300" : ""}`}>
+                            <div className={`h-full rounded-xl ${color?.bg || "bg-surface-subtle"}  ${color?.border || "border-border-subtle"} border p-2 flex flex-col justify-between transition-shadow group-hover:shadow-md ${hasChange ? "ring-2 ring-status-warning-border" : ""}`}>
                               <div>
                                 <p className={`text-2xs font-bold leading-tight ${color?.text || "text-ink-muted"}`}>
                                   {subjectName}

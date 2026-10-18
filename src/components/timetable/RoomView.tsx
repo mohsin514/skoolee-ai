@@ -1,6 +1,7 @@
 "use client";
 
 import { DoorOpen } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import type {
   GridDay,
   GridPeriod,
@@ -84,8 +85,8 @@ export function RoomView({
         </div>
 
         {rooms.length === 0 ? (
-          <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
-            No rooms configured. Add rooms in Academic settings.
+          <div className="py-10">
+            <EmptyState size="sm" icon={DoorOpen} title="No rooms configured" description="Add rooms in Academic settings to see room occupancy." />
           </div>
         ) : (
           rooms.map((room) => {

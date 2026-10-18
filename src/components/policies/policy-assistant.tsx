@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui/alert";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,9 +47,9 @@ export function PolicyAssistant() {
       <h2 id="policy-assistant" className="text-lg font-bold">{ui("Ask about school policy")}</h2>
       <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => { e.preventDefault(); if (busy || question.trim().length < 3) return; setBusy(true); const r = await post({ action: "ask", data: { question } }); if (r) { setAnswer(r); void load(); } setBusy(false); }}>
         <FormField name="policy-question" label={ui("Your question")} hint={ui("For example: How do I request leave?")} className="w-full min-w-0 sm:w-auto sm:min-w-[16rem] sm:flex-1"><Input value={question} maxLength={500} onChange={(e) => setQuestion(e.target.value)} /></FormField>
-        <Button type="submit" disabled={busy || question.trim().length < 3}>{ui(busy ? "Checking current policies…" : "Ask")}</Button>
+        <Button type="submit" loading={busy} disabled={busy || question.trim().length < 3}>{ui(busy ? "Checking current policies…" : "Ask")}</Button>
       </form>
-      <div aria-live="polite">{error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}</div>
+      <div>{error ? <Alert tone="danger" compact>{error}</Alert> : null}</div>
       {answer ? <AnswerCard answer={answer} post={post} onChanged={load} /> : <p className="text-sm text-ink-subtle">{ui("Ask about an approved school policy, such as attendance, fees or trips.")}</p>}
       {history.length ? (
         <details className="text-sm">
@@ -85,7 +86,7 @@ function AnswerCard({ answer, post, onChanged }: { answer: Answer; post: (body: 
         </figure>
       ))}
       <p className="text-ink-subtle">{ui(NOTE_LABEL[answer.status])}</p>
-      {sent ? <p className="font-semibold text-emerald-800">{ui("Sent to {0}. The reply will appear under your recent questions.", [ui(OFFICE_LABEL[sent] ?? sent)])}</p>
+      {sent ? <p className="font-medium text-status-success-text">{ui("Sent to {0}. The reply will appear under your recent questions.", [ui(OFFICE_LABEL[sent] ?? sent)])}</p>
         : escalating ? (
           <form className="space-y-2 rounded-lg border border-border p-3" onSubmit={async (e) => {
             e.preventDefault();

@@ -89,7 +89,6 @@ export function TeacherConflictsBanner() {
                 {t.conflicts.slice(0, 8).map((c) => (
                   <span
                     key={`${t.id}-${c.day}-${c.period}`}
-                    title={c.classes.join(" & ")}
                     className="rounded-lg border border-status-error-border bg-status-error-surface px-2 py-1 text-2xs font-medium tabular-nums text-status-error-text"
                   >
                     {c.label} · {c.classes.join(" / ")}

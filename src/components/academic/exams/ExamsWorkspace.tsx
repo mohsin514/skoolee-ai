@@ -4,6 +4,8 @@ import { useLocale } from "@/components/locale/LocaleProvider";
 import { ExamInvigilationPanel } from "@/components/school-ai/exam-session-plan-panel";
 import { examSessionPlanCopy } from "@/components/school-ai/exam-session-plan-copy";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -14,7 +16,6 @@ import {
   ChevronRight,
   ClipboardCheck,
   FileText,
-  Loader2,
   Lock,
   MoreHorizontal,
   PenLine,
@@ -247,14 +248,14 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
   return (
     <div className="sk-rise space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="relative overflow-hidden rounded-[28px] border border-edge/25 bg-gradient-to-br from-primary via-[#7322bb] to-[#5c1a96] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(129,39,207,0.7)]">
+      <header className="relative overflow-hidden rounded-3xl border border-edge/25 sk-brand-surface px-4 py-5 text-white shadow-brand sm:px-6">
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl"
+          className="pointer-events-none absolute -end-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl"
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -bottom-24 left-24 h-56 w-56 rounded-full bg-brand-300/25 blur-3xl"
+          className="pointer-events-none absolute -bottom-24 start-24 h-56 w-56 rounded-full bg-brand-300/25 blur-3xl"
         />
         <div className="relative flex flex-wrap items-center gap-4">
           <div className="min-w-0 flex-1">
@@ -458,7 +459,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
               <span className="block text-sm font-bold text-ink-strong">
                 Other exams ({legacy.length})
               </span>
-              <span className="block text-2xs font-semibold text-ink-muted">
+              <span className="block text-xs font-medium text-ink-subtle">
                 Teachers&apos; quizzes and class tests, plus anything scheduled before exams were
                 organised by term.
               </span>
@@ -540,7 +541,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
             />
           }
         >
-          <p className="text-sm font-semibold text-ink-muted">
+          <p className="text-sm leading-relaxed text-ink-muted">
             The date sheet and seating plan for the empty classes go too. No marks are ever
             deleted.
           </p>
@@ -904,30 +905,29 @@ function ResultsStep({
                   Report cards
                 </Button>
 
-                {action ? (
-                  <Button variant="default"
-                    type="button"
-                    disabled={busy === cls.examId || (!complete && action.next === "LOCKED")}
-                    onClick={() => advance(cls, action.next)}
-                    title={
-                      !complete && action.next === "LOCKED"
-                        ? "Every mark has to be in before the exam can be locked"
-                        : undefined
-                    }
-                    className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer enabled:hover:scale-[1.03]"
-                  >
-                    {busy === cls.examId ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <action.icon className="h-3.5 w-3.5" />
-                    )}
-                    {action.label}
-                  </Button>
-                ) : (
-                  <span className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-                    <Check className="h-3.5 w-3.5" />
+                {action ? (() => {
+                  const lockBlocked = !complete && action.next === "LOCKED";
+                  const btn = (
+                    <Button variant="default"
+                      type="button"
+                      loading={busy === cls.examId}
+                      disabled={busy === cls.examId || lockBlocked}
+                      onClick={() => advance(cls, action.next)}
+                      className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
+                    >
+                      {busy === cls.examId ? null : <action.icon className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {action.label}
+                    </Button>
+                  );
+                  return lockBlocked ? (
+                    <Tooltip content="Every mark has to be in before the exam can be locked">
+                      <span tabIndex={0} className="inline-flex">{btn}</span>
+                    </Tooltip>
+                  ) : btn;
+                })() : (
+                  <Badge variant="success" dot>
                     Published
-                  </span>
+                  </Badge>
                 )}
               </li>
             );

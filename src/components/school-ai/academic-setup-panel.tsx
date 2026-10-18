@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui/alert";
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, CheckCircle2, Eye, FileCheck2, Loader2, Play, Plus, RefreshCw, School, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -158,7 +159,7 @@ function AcademicSetupEditor({ language, record, campuses, campusId: defaultCamp
       {errors.classes && <p role="alert" className="text-sm text-destructive">{errors.classes}</p>}
       {canCreate && <Button variant="outline" disabled={disabled || form.classes.length >= 50} onClick={() => update("classes", [...form.classes, { id: crypto.randomUUID(), name: "", section: null, teachingMode: "SINGLE" }])}><Plus aria-hidden="true" />{c.addClass}</Button>}
     </fieldset>
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {error && <Alert tone="danger" compact>{error}</Alert>}
     <Button disabled={disabled || !dirty && Boolean(record)} onClick={() => void save()}>{busy === "save" && <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "save" ? c.saving : c.save}</Button>
     {record && record.status !== "APPROVED" && <section className="space-y-3 border-t border-border-subtle pt-5">
       {dirty && <p className="text-sm text-ink-muted">{c.reviewBeforeApproval}</p>}

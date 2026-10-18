@@ -19,7 +19,6 @@ import {
   ChevronDown,
   ChevronRight,
   Crown,
-  Loader2,
   Pencil,
   Plus,
   Trash2,
@@ -42,6 +41,9 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { IconButton } from "@/components/ui/icon-button";
+import { SkeletonList, SkeletonRegion } from "@/components/ui/skeleton";
 
 
 interface Member {
@@ -96,6 +98,7 @@ export function DepartmentManager({
   const [memberFor, setMemberFor] = useState<Unit | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<Unit | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -103,7 +106,9 @@ export function DepartmentManager({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not load departments");
       setUnits(data.departments ?? []);
+      setLoadError(false);
     } catch (error) {
+      setLoadError(true);
       toast.error(error instanceof Error ? error.message : "Could not load departments");
     } finally {
       setLoading(false);
@@ -199,10 +204,22 @@ export function DepartmentManager({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-xs font-bold text-ink-muted">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading departments…
-      </div>
+      <SkeletonRegion label="Loading departments…" className="py-2">
+        <SkeletonList rows={4} />
+      </SkeletonRegion>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        title="Departments did not load"
+        description="Could not load the department list. Check your connection and try again."
+        onRetry={() => {
+          setLoading(true);
+          void load();
+        }}
+      />
     );
   }
 
@@ -212,61 +229,58 @@ export function DepartmentManager({
     const head = unit.members.find((m) => m.role === "HEAD");
 
     return (
-      <li key={unit.id} style={{ marginLeft: depth * 20 }} className="space-y-1.5">
+      <li key={unit.id} style={{ marginInlineStart: depth * 20 }} className="space-y-1.5">
         <div
           className={cn(
-            "rounded-2xl border bg-white px-3.5 py-3",
+            "sk-hover-lift rounded-2xl border bg-white px-3.5 py-3",
             unit.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
           )}
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <Button variant="secondary" size="icon"
-              type="button"
+            <IconButton variant="secondary" size="sm"
               onClick={() => toggle(unit.id)}
-              className="flex shrink-0 items-center justify-center"
-              aria-label={isOpen ? `Collapse ${unit.name}` : `Expand ${unit.name}`}
+              label={isOpen ? `Collapse ${unit.name}` : `Expand ${unit.name}`}
+              aria-expanded={isOpen}
             >
-              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5 rtl:rotate-180" />}
-            </Button>
+              {isOpen ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" className="rtl:rotate-180" />}
+            </IconButton>
 
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-bold text-ink">{unit.name}</span>
-                {unit.code ? <span className="text-2xs font-bold text-ink-muted">{unit.code}</span> : null}
-                <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-semibold uppercase text-ink-subtle">
+                <span className="text-sm font-semibold text-ink-strong">{unit.name}</span>
+                {unit.code ? <span className="text-xs font-medium text-ink-muted">{unit.code}</span> : null}
+                <Badge variant="secondary" size="sm">
                   {DEPARTMENT_KIND_LABELS[unit.kind]}
-                </span>
+                </Badge>
                 {!unit.isActive ? (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs font-bold text-slate-500">ARCHIVED</span>
+                  <Badge variant="neutral" size="sm" dot>Archived</Badge>
                 ) : null}
               </span>
-              <span className="mt-0.5 flex items-center gap-1.5 text-2xs font-semibold text-ink-muted">
+              <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-normal text-ink-subtle">
                 {head ? (
                   <span className="inline-flex items-center gap-1 text-primary">
                     <Crown className="h-3 w-3" />
                     {head.isActing ? "Acting head" : "Head"}: {head.user.fullName}
                   </span>
                 ) : (
-                  <span className="text-amber-600">No head assigned</span>
+                  <span className="font-medium text-status-warning-text">No head assigned</span>
                 )}
-                <span>·</span>
+                <span aria-hidden="true">·</span>
                 <span className="inline-flex items-center gap-1">
-                  <Users className="h-3 w-3" /> {unit.members.length}
+                  <Users aria-hidden="true" className="h-3 w-3" /> <span className="tabular-nums">{unit.members.length}</span>
                 </span>
               </span>
             </span>
 
             <span className="flex shrink-0 gap-1">
-              <Button variant="secondary" size="icon"
-                type="button"
+              <IconButton variant="secondary" size="sm"
                 onClick={() => setMemberFor(unit)}
-
-                aria-label={`Manage people in ${unit.name}`}
+                label={`Manage people in ${unit.name}`}
               >
-                <UserPlus className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="secondary" size="icon"
-                type="button"
+                <UserPlus aria-hidden="true" />
+              </IconButton>
+              <IconButton variant="secondary" size="sm"
+                label={`Edit ${unit.name}`}
                 onClick={() =>
                   setDraft({
                     id: unit.id,
@@ -277,33 +291,29 @@ export function DepartmentManager({
                     description: unit.description ?? "",
                   })
                 }
-
-                aria-label={`Edit ${unit.name}`}
               >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="destructive" size="icon"
-                type="button"
+                <Pencil aria-hidden="true" />
+              </IconButton>
+              <IconButton variant="destructive" size="sm"
                 onClick={() => setPendingRemoval(unit)}
-
-                aria-label={`Remove ${unit.name}`}
+                label={`Remove ${unit.name}`}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+                <Trash2 aria-hidden="true" />
+              </IconButton>
             </span>
           </div>
 
           {isOpen ? (
             <div className="mt-3 space-y-2 border-t border-edge/30 pt-3">
-              {unit.description ? <p className="text-2xs font-normal leading-relaxed text-ink-muted">{unit.description}</p> : null}
+              {unit.description ? <p className="text-sm font-normal leading-relaxed text-ink-muted">{unit.description}</p> : null}
               {unit.members.length === 0 ? (
-                <p className="text-2xs font-normal leading-relaxed text-ink-muted">
+                <p className="text-sm font-normal leading-relaxed text-ink-muted">
                   Nobody in this unit yet. Add people, then give one of them charge of it.
                 </p>
               ) : (
                 <ul className="space-y-1">
                   {unit.members.map((member) => (
-                    <li key={member.id} className="flex items-center gap-2 rounded-xl bg-muted/60 px-2.5 py-1.5">
+                    <li key={member.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-muted/60 px-2.5 py-1.5">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-2xs font-bold text-ink-muted">
                         {member.user.profileImageUrl ? (
                           <AvatarImage src={member.user.profileImageUrl} name={member.user.fullName} />
@@ -311,16 +321,16 @@ export function DepartmentManager({
                           initialsOf(member.user.fullName)
                         )}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-2xs font-bold text-ink">
+                      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink-strong">
                         {member.user.fullName}
                         {member.user.staffProfile?.designation ? (
-                          <span className="font-semibold text-ink-muted"> · {member.user.staffProfile.designation}</span>
+                          <span className="font-normal text-ink-muted"> · {member.user.staffProfile.designation}</span>
                         ) : null}
                       </span>
                       {member.isPrimary ? (
                         <Tooltip content="This is their home department">
                           <span tabIndex={0} className="shrink-0 rounded-full">
-                            <Badge variant="neutral" size="sm">HOME</Badge>
+                            <Badge variant="neutral" size="sm">Home</Badge>
                           </span>
                         </Tooltip>
                       ) : null}
@@ -338,14 +348,12 @@ export function DepartmentManager({
                           <option key={key} value={key}>{label}</option>
                         ))}
                       </Select>
-                      <Button variant="destructive" size="icon"
-                        type="button"
+                      <IconButton variant="destructive" size="sm"
                         onClick={() => act({ action: "remove-member", memberId: member.id }, `${member.user.fullName} removed from ${unit.name}`)}
-                        className="shrink-0"
-                        aria-label={`Remove ${member.user.fullName} from ${unit.name}`}
+                        label={`Remove ${member.user.fullName} from ${unit.name}`}
                       >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                        <Trash2 aria-hidden="true" />
+                      </IconButton>
                     </li>
                   ))}
                 </ul>
@@ -365,8 +373,8 @@ export function DepartmentManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-ink">Departments & units</h3>
-          <p className="mt-0.5 max-w-2xl text-xs font-normal leading-relaxed text-ink-muted">
+          <h3 className="text-base font-bold text-ink-strong">Departments & units</h3>
+          <p className="mt-0.5 max-w-2xl text-sm font-normal leading-relaxed text-ink-muted">
             Faculties, departments, year sections and admin units. Nest them however your institution is
             organised — a school usually keeps one flat level, a university nests departments inside faculties.
           </p>
@@ -533,8 +541,8 @@ function MemberPicker({
       <div className="space-y-3">
         {head ? (
           <div className="flex items-center gap-2 rounded-2xl bg-brand-50/60 px-3.5 py-2.5">
-            <Crown className="h-4 w-4 shrink-0 text-primary" />
-            <p className="min-w-0 flex-1 text-xs font-bold text-ink">
+            <Crown aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
+            <p className="min-w-0 flex-1 text-sm font-semibold text-ink-strong">
               {head.isActing ? "Acting head" : "Head"}: {head.user.fullName}
             </p>
             <Button variant="destructive" size="sm"
@@ -571,8 +579,8 @@ function MemberPicker({
           <label className="flex cursor-pointer items-start gap-2.5">
             <SystemCheckbox  checked={isActing} onChange={(e) => setIsActing(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
             <span>
-              <span className="block text-xs font-bold text-ink">Acting charge</span>
-              <span className="block text-2xs font-semibold text-ink-muted">
+              <span className="block text-sm font-semibold text-ink-strong">Acting charge</span>
+              <span className="block text-xs font-normal leading-relaxed text-ink-muted">
                 Covering the post without holding it permanently. Whoever heads it now steps back to member.
               </span>
             </span>
@@ -581,8 +589,8 @@ function MemberPicker({
           <label className="flex cursor-pointer items-start gap-2.5">
             <SystemCheckbox  checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
             <span>
-              <span className="block text-xs font-bold text-ink">Make this their home department</span>
-              <span className="block text-2xs font-semibold text-ink-muted">
+              <span className="block text-sm font-semibold text-ink-strong">Make this their home department</span>
+              <span className="block text-xs font-normal leading-relaxed text-ink-muted">
                 The one the org chart files them under. Someone can belong to several; only one is home.
               </span>
             </span>
@@ -606,12 +614,12 @@ function Labelled({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-2xs font-bold text-ink">
+      <label className="block text-sm font-semibold text-ink-strong">
         {label}
-        {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
+        {required ? <span aria-hidden="true" className="ms-0.5 text-status-error-text">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-2xs font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-xs font-normal leading-relaxed text-ink-subtle">{hint}</p> : null}
     </div>
   );
 }

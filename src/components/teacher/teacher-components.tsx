@@ -26,6 +26,9 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { EmptyState as EmptyStateUi } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 
 /* ── Pure helpers ── */
@@ -56,9 +59,9 @@ export function formatDate(value?: string | Date | null) {
 }
 
 export function statusTone(status?: string) {
-  if (["ACTIVE", "MARKS_ENTRY", "PUBLISHED", "SENT", "APPROVED", "PRESENT"].includes(status || "")) return "bg-emerald-50 text-emerald-600";
+  if (["ACTIVE", "MARKS_ENTRY", "PUBLISHED", "SENT", "APPROVED", "PRESENT"].includes(status || "")) return "bg-status-success-surface text-status-success-text";
   if (["LOCKED", "PRINCIPAL_REVIEWED", "REVIEWED", "LEAVE"].includes(status || "")) return "bg-brand-50 text-primary";
-  if (["ABSENT", "FAILED", "BLOCKED"].includes(status || "")) return "bg-rose-50 text-rose-600";
+  if (["ABSENT", "FAILED", "BLOCKED"].includes(status || "")) return "bg-status-error-surface text-status-error-text";
   return "bg-muted text-ink";
 }
 
@@ -82,8 +85,8 @@ export function StudentMini({ student }: { student: any }) {
         <AvatarImage src={student.profileImageUrl} name={student.fullName} alt={student.fullName} initialsClassName="text-2xs" />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-ink-strong">{student.fullName}</p>
-        <p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+        <p className="truncate text-sm font-semibold text-ink-strong">{student.fullName}</p>
+        <p className="mt-0.5 truncate text-xs font-medium text-ink-subtle">
           {student.rollNo || "No roll"} {student.class ? `- ${classLabel(student.class)}` : ""}
         </p>
       </div>
@@ -95,7 +98,7 @@ export function MiniMetric({ label, value, active, danger }: { label: string; va
   return (
     <div className="rounded-2xl bg-brand-50/70 px-3.5 py-3">
       <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
-      <p className={`mt-0.5 truncate text-lg font-bold ${danger ? "text-rose-600" : active ? "text-primary" : "text-ink-strong"}`}>{value}</p>
+      <p className={`mt-0.5 truncate text-lg font-bold tabular-nums ${danger ? "text-status-error-text" : active ? "text-primary" : "text-ink-strong"}`}>{value}</p>
     </div>
   );
 }
@@ -114,22 +117,14 @@ export function EmptyInline({ text }: { text: string }) {
 
 export function TeacherErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col items-center justify-center p-8">
-      <div className="w-full max-w-md text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
-          <AlertCircle className="h-8 w-8" />
-        </div>
-        <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Something went wrong</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink-strong tracking-tight">Couldn&apos;t load your workspace</h2>
-        <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
-          {error || "We couldn't load your teacher workspace. This may be a permission or connectivity issue."}
-        </p>
-        <div className="mt-6 inline-block">
-          <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={onRetry}>
-            Try Again
-          </BrandButton>
-        </div>
-      </div>
+    <section className="sk-panel relative flex flex-1 flex-col items-center justify-center overflow-hidden p-6 sm:p-8">
+      <ErrorState
+        variant="panel"
+        title="Couldn't load your workspace"
+        description={error || "We couldn't load your teacher workspace. Check your connection, then try again. If it keeps happening, ask your school admin to confirm your teacher access."}
+        onRetry={onRetry}
+        retryLabel="Try again"
+      />
     </section>
   );
 }
@@ -204,7 +199,7 @@ export function FormInput({ label, value, placeholder, type = "text", required, 
   return (
     <label className="block">
       <span className="sk-field-label">
-        {label}{required ? <span className="ms-1 text-rose-500" aria-hidden>*</span> : null}
+        {label}{required ? <span className="ms-1 text-status-error-text" aria-hidden>*</span> : null}
       </span>
       <SystemInput type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full px-4" />
@@ -216,7 +211,7 @@ export function FormSelect({ label, value, children, required, onChange }: { lab
   return (
     <label className="block">
       <span className="sk-field-label">
-        {label}{required ? <span className="ms-1 text-rose-500" aria-hidden>*</span> : null}
+        {label}{required ? <span className="ms-1 text-status-error-text" aria-hidden>*</span> : null}
       </span>
       <SystemSelect value={value} onChange={(event) => onChange(event.target.value)}
         className="h-14 w-full px-4">
@@ -239,13 +234,12 @@ export function ModalActions({ busy, busyLabel, actionLabel, onClose, onSave, bl
   return (
     <div className="space-y-2.5">
       {blocked ? (
-        <p id={blockedId} className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-800">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+        <Alert id={blockedId} tone="warning" compact live="off">
           {blockedReason}
-        </p>
+        </Alert>
       ) : null}
       <div className="flex gap-4">
-        <BrandButton variant="soft" className="flex-1 h-14 hover:bg-rose-50 hover:text-rose-600 transition-all" onClick={onClose}>Cancel</BrandButton>
+        <BrandButton variant="soft" className="flex-1 h-14 transition-all" onClick={onClose}>Cancel</BrandButton>
         <BrandButton
           variant="dark"
           className="flex-[2] h-14"
@@ -466,7 +460,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
             <Button variant="default" size="sm" type="button" onClick={evenSplit}
               title="Split 100% evenly across the four exam types"
               className="inline-flex justify-start items-center gap-1.5">
-              <RefreshCw className="h-3 w-3" /> Even split
+              <RefreshCw className="h-3 w-3" aria-hidden="true" /> Even split
             </Button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -480,15 +474,15 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
               as at 100%, next to a Save button that was live either way. */}
           <div className={cn(
             "rounded-2xl border p-4 transition-colors",
-            weightsOk ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/70",
+            weightsOk ? "border-status-success-border bg-status-success-surface" : "border-status-warning-border bg-status-warning-surface",
           )}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className={cn("inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider",
-                weightsOk ? "text-emerald-700" : "text-amber-800")}>
+                weightsOk ? "text-status-success-text" : "text-status-warning-text")}>
                 {weightsOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
                 Total {weightTotal}%
               </span>
-              <span className={cn("text-2xs font-semibold", weightsOk ? "text-emerald-700" : "text-amber-800")}>
+              <span className={cn("text-2xs font-semibold", weightsOk ? "text-status-success-text" : "text-status-warning-text")}>
                 {weightsOk
                   ? "Ready to save"
                   : weightTotal > 100
@@ -518,7 +512,7 @@ export function GradeConfigModal({ open, classHubs, selectedGradeClassId, gradeC
               {THRESHOLDS.map(([key, label], i) => (
                 <div key={key} className={cn(
                   (outOfOrder === i || (passAboveD && key === "passingPercentage")) &&
-                    "rounded-2xl ring-2 ring-rose-300 ring-offset-2",
+                    "rounded-2xl ring-2 ring-status-error-border ring-offset-2",
                 )}>
                   <ConfigField label={label === "Pass" ? "Pass % ≥" : `${label} ≥`} value={gradeConfig[key]}
                     onChange={(v) => onConfigChange({ ...gradeConfig, [key]: v })} />
@@ -615,18 +609,18 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                 <p className="text-2xl font-bold tabular-nums text-primary">{summary.average}%</p>
                 <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Class average</p>
               </div>
-              <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/70 px-4 py-3 text-center">
-                <p className="text-2xl font-bold tabular-nums text-emerald-700">{summary.passed}</p>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-700/80">Passing</p>
+              <div className="rounded-2xl border border-status-success-border bg-status-success-surface px-4 py-3 text-center">
+                <p className="text-2xl font-bold tabular-nums text-status-success-text">{summary.passed}</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-status-success-text">Passing</p>
               </div>
               <div className={cn(
                 "rounded-2xl border px-4 py-3 text-center",
-                summary.failed > 0 ? "border-rose-200/60 bg-rose-50/70" : "border-edge/25 bg-white",
+                summary.failed > 0 ? "border-status-error-border bg-status-error-surface" : "border-edge/25 bg-white",
               )}>
-                <p className={cn("text-2xl font-bold tabular-nums", summary.failed > 0 ? "text-rose-700" : "text-ink-subtle")}>
+                <p className={cn("text-2xl font-bold tabular-nums", summary.failed > 0 ? "text-status-error-text" : "text-ink-subtle")}>
                   {summary.failed}
                 </p>
-                <p className={cn("text-2xs font-semibold uppercase tracking-wider", summary.failed > 0 ? "text-rose-700/80" : "text-ink-subtle")}>
+                <p className={cn("text-2xs font-semibold uppercase tracking-wider", summary.failed > 0 ? "text-status-error-text" : "text-ink-subtle")}>
                   Below pass
                 </p>
               </div>
@@ -667,10 +661,9 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
                       <td className="px-4 py-4 text-center"><span className="text-lg font-bold text-primary">{grade.overallPercentage}%</span></td>
                       <td className="px-4 py-4 text-center"><span className="rounded-full bg-white border border-edge/10 px-3 py-1 text-2xs font-bold text-ink-strong">{grade.overallGrade}</span></td>
                       <td className="px-4 py-4 text-center">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider ${grade.passed ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${grade.passed ? "bg-emerald-500" : "bg-rose-500"}`} />
+                        <Badge variant={grade.passed ? "success" : "danger"} size="sm" dot>
                           {grade.passed ? "PASS" : "FAIL"}
-                        </span>
+                        </Badge>
                       </td>
                     </tr>
                   );
@@ -718,14 +711,14 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
           <div className="flex flex-wrap gap-2">
             {phone ? (
               <a href={`tel:${phone}`} title={`Call ${student.guardianName || "guardian"}`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-white active:scale-[0.97]">
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-sm font-semibold text-primary transition-all hover:bg-white active:scale-[0.97]">
                 <Phone className="h-3.5 w-3.5" /> Call guardian
               </a>
             ) : null}
             {whatsapp ? (
               <a href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`} target="_blank" rel="noopener noreferrer"
                 title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-xs font-semibold uppercase tracking-wider text-primary transition-all hover:bg-white active:scale-[0.97]">
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border border-primary/10 bg-brand-50 px-4 text-sm font-semibold text-primary transition-all hover:bg-white active:scale-[0.97]">
                 <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
               </a>
             ) : null}
@@ -751,7 +744,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Student Record</p>
-          <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-ink-strong">{student.fullName}</h3>
+          <h3 className="mt-1 truncate text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{student.fullName}</h3>
           <p className="mt-2 text-sm font-medium text-ink-muted">
             {student.rollNo || "No roll number"} &mdash; {classLabel(student.class)}
           </p>
@@ -759,9 +752,9 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
             <p className="mt-2">
               <span className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
-                student.todayAttendance === "PRESENT" ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : student.todayAttendance === "ABSENT" ? "border-rose-200 bg-rose-50 text-rose-700"
-                  : student.todayAttendance === "LEAVE" ? "border-amber-200 bg-amber-50 text-amber-700"
+                student.todayAttendance === "PRESENT" ? "border-status-success-border bg-status-success-surface text-status-success-text"
+                  : student.todayAttendance === "ABSENT" ? "border-status-error-border bg-status-error-surface text-status-error-text"
+                  : student.todayAttendance === "LEAVE" ? "border-status-warning-border bg-status-warning-surface text-status-warning-text"
                   : "border-edge/30 bg-white text-ink-subtle",
               )}>
                 {student.todayAttendance === "PRESENT" ? "In today"
@@ -1016,7 +1009,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{viewReport.exam?.title || "Final Grade"} &middot; {viewReport.exam?.term || ""}</p>
-            <h3 className="mt-1 truncate text-3xl font-bold tracking-tight text-ink-strong">{viewReport.student?.fullName || "Student"}</h3>
+            <h3 className="mt-1 truncate text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{viewReport.student?.fullName || "Student"}</h3>
             <p className="mt-2 text-sm font-medium text-ink-muted">
               {viewReport.student?.rollNo ? `Roll No: ${viewReport.student.rollNo}` : ""} &middot; {classLabel(viewReport.student?.class)}
             </p>

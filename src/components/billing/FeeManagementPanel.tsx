@@ -8,7 +8,6 @@ import {
   Clock,
   CreditCard,
   FileText,
-  Loader2,
   Plus,
   Receipt,
   WalletCards,
@@ -21,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SkeletonTable } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface ClassRecord {
   id: string;
@@ -282,13 +282,13 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      <th className="px-4 py-3 text-left">Class</th>
-                      <th className="px-4 py-3 text-left">Term</th>
-                      <th className="px-4 py-3 text-right">Monthly</th>
-                      <th className="px-4 py-3 text-right">Months</th>
-                      <th className="px-4 py-3 text-right">Exam</th>
-                      <th className="px-4 py-3 text-right">Annual</th>
-                      <th className="px-4 py-3 text-right">Total</th>
+                      <th className="px-4 py-3 text-start">Class</th>
+                      <th className="px-4 py-3 text-start">Term</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Monthly</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Months</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Exam</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Annual</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -298,11 +298,11 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                         <tr key={fee.id} className="border-b">
                           <td className="px-4 py-3">{fee.class.name} {fee.class.section || ""}</td>
                           <td className="px-4 py-3">—</td>
-                          <td className="px-4 py-3 text-right">Rs {(fee.monthlyFee || 0).toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">1</td>
-                          <td className="px-4 py-3 text-right">Rs 0</td>
-                          <td className="px-4 py-3 text-right">Rs 0</td>
-                          <td className="px-4 py-3 text-right font-semibold">Rs {(total || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-end tabular-nums">Rs {(fee.monthlyFee || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-end tabular-nums">1</td>
+                          <td className="px-4 py-3 text-end tabular-nums">Rs 0</td>
+                          <td className="px-4 py-3 text-end tabular-nums">Rs 0</td>
+                          <td className="px-4 py-3 text-end tabular-nums font-semibold">Rs {(total || 0).toLocaleString()}</td>
                         </tr>
                       );
                     })}
@@ -334,15 +334,15 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      <th className="px-4 py-3 text-left">Student</th>
-                      <th className="px-4 py-3 text-left">Class</th>
-                      <th className="px-4 py-3 text-left">Term</th>
-                      <th className="px-4 py-3 text-right">Total</th>
-                      <th className="px-4 py-3 text-right">Paid</th>
-                      <th className="px-4 py-3 text-right">Balance</th>
-                      <th className="px-4 py-3 text-left">Due Date</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
+                      <th className="px-4 py-3 text-start">Student</th>
+                      <th className="px-4 py-3 text-start">Class</th>
+                      <th className="px-4 py-3 text-start">Term</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Total</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Paid</th>
+                      <th className="px-4 py-3 text-end tabular-nums">Balance</th>
+                      <th className="px-4 py-3 text-start">Due Date</th>
+                      <th className="px-4 py-3 text-start">Status</th>
+                      <th className="px-4 py-3 text-start">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -359,13 +359,13 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                             {invoice.student?.class?.name} {invoice.student?.class?.section || ""}
                           </td>
                           <td className="px-4 py-3">{invoice.term} {invoice.academicYear}</td>
-                          <td className="px-4 py-3 text-right font-semibold">Rs {invoice.totalAmount.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">Rs {invoice.paidAmount.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right">Rs {invoice.balanceDue.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-end tabular-nums font-semibold">Rs {invoice.totalAmount.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-end tabular-nums">Rs {invoice.paidAmount.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-end tabular-nums">Rs {invoice.balanceDue.toLocaleString()}</td>
                           <td className="px-4 py-3 text-muted-foreground">{new Date(invoice.dueDate).toLocaleDateString("en-PK")}</td>
                           <td className="px-4 py-3">
                             <Badge className={`text-xs ${cfg.color}`}>
-                              <Icon className="h-3 w-3 mr-1" />
+                              <Icon className="h-3 w-3 me-1" />
                               {cfg.label}
                             </Badge>
                           </td>
@@ -400,9 +400,8 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                     })}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={9} className="py-10 text-center text-muted-foreground">
-                          <Receipt className="mx-auto h-8 w-8 mb-2 opacity-30" />
-                          No invoices found
+                        <td colSpan={9} className="px-4 py-6">
+                          <EmptyState size="sm" icon={Receipt} title="No invoices found" description={filter === "ALL" ? "Generate invoices for a class to start collecting fees." : "No invoices match this filter. Change the filter or generate invoices for a class."} action={<Button type="button" size="sm" onClick={() => setGenerateModal(true)}>Generate invoices</Button>} />
                         </td>
                       </tr>
                     )}
@@ -452,8 +451,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                     placeholder="e.g. RCT-0012"
                   />
                 </div>
-                <Button className="w-full" onClick={recordPayment} disabled={isSubmittingPayment || !paymentForm.amountPaid}>
-                  {isSubmittingPayment && <Loader2 className="h-4 w-4 animate-spin" />}
+                <Button className="w-full" onClick={recordPayment} loading={isSubmittingPayment} disabled={isSubmittingPayment || !paymentForm.amountPaid}>
                   Confirm Payment
                 </Button>
               </div>
@@ -500,8 +498,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                   <Input type="number" min={0} value={feeForm.annualFee} onChange={(event) => setFeeForm((form) => ({ ...form, annualFee: Number(event.target.value) }))} />
                 </div>
               </div>
-              <Button className="w-full" onClick={saveFeeStructure} disabled={isSavingFee || !feeForm.classId || !feeForm.term}>
-                {isSavingFee && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button className="w-full" onClick={saveFeeStructure} loading={isSavingFee} disabled={isSavingFee || !feeForm.classId || !feeForm.term}>
                 Save Fee Structure
               </Button>
             </div>
@@ -537,8 +534,7 @@ export const FeeManagementPanel = forwardRef<FeeManagementPanelHandle, { onReady
                 <Label>Due Date</Label>
                 <Input type="date" value={genForm.dueDate} onChange={(event) => setGenForm((form) => ({ ...form, dueDate: event.target.value }))} />
               </div>
-              <Button className="w-full" onClick={generateInvoices} disabled={isGenerating || !genForm.classId || !genForm.term || !genForm.dueDate}>
-                {isGenerating && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button className="w-full" onClick={generateInvoices} loading={isGenerating} disabled={isGenerating || !genForm.classId || !genForm.term || !genForm.dueDate}>
                 Generate Invoices
               </Button>
             </div>

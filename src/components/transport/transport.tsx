@@ -98,12 +98,12 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
       {onBack ? <Button variant="secondary" onClick={onBack}>{ui("Back")}</Button> : null}
     </header>
     <p className="text-xs text-ink-muted">{ui("Record events only while the vehicle is safely stopped. This is a manifest, not live location.")}</p>
-    {queue.length ? <div className="rounded-xl border border-amber-400 bg-amber-50 p-3 text-sm dark:bg-amber-950/30" data-trip-pending={queue.length}><p className="font-bold">{ui("{0} events saved on this device only — not yet confirmed by the server.", [String(queue.length)])}</p><Button size="sm" className="mt-2" onClick={() => void flush()} data-trip-flush>{ui("Send now")}</Button></div> : null}
+    {queue.length ? <div className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-status-warning-text" data-trip-pending={queue.length}><p className="font-semibold">{ui("{0} events saved on this device only — not yet confirmed by the server.", [String(queue.length)])}</p><Button size="sm" className="mt-2" onClick={() => void flush()} data-trip-flush>{ui("Send now")}</Button></div> : null}
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-trip-counts>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="unresolved">{data.counts.unresolved}</p><p className="text-xs">{ui("Unresolved")}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="boarded">{data.counts.boarded}/{data.counts.expected}</p><p className="text-xs">{ui("{0} of {1} expected students boarded", [String(data.counts.boarded), String(data.counts.expected)])}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="handedOver">{data.counts.handedOver}</p><p className="text-xs">{ui("Handed over")}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold" data-count="absent">{data.counts.absent}</p><p className="text-xs">{ui("Not travelling")}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="unresolved">{data.counts.unresolved}</p><p className="text-xs">{ui("Unresolved")}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="boarded">{data.counts.boarded}/{data.counts.expected}</p><p className="text-xs">{ui("{0} of {1} expected students boarded", [String(data.counts.boarded), String(data.counts.expected)])}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="handedOver">{data.counts.handedOver}</p><p className="text-xs">{ui("Handed over")}</p></div>
+      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="absent">{data.counts.absent}</p><p className="text-xs">{ui("Not travelling")}</p></div>
     </div>
     {data.exceptions.some(e => e.status === "OPEN") ? <div className="sk-panel space-y-2 border-amber-400 p-3" data-trip-exceptions>
       <h3 className="font-bold">{data.exceptions.filter(e => e.status === "OPEN").length === 1 ? ui("One exception needs attention") : ui("{0} exceptions need attention", [String(data.exceptions.filter(e => e.status === "OPEN").length)])}</h3>
@@ -121,7 +121,7 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
     <ul className="space-y-2" data-trip-manifest>{ordered.map(p => {
       const pending = pendingFor(p.studentId);
       return <li key={p.id} className={cn("sk-panel flex flex-wrap items-center justify-between gap-3 p-3", !["EXPECTED", "BOARDED"].includes(p.status) && "opacity-80")} data-passenger={p.studentId} data-passenger-status={p.status}>
-        <div className="min-w-0"><p className="text-base font-bold"><bdi>{p.name}</bdi></p><p className="text-xs text-ink-muted">{p.stop ? <><bdi>{p.stop}</bdi> · </> : null}{statusLabel(ui, p.status)}{p.source === "AMENDMENT" ? <> · {ui("Added by amendment")}</> : null}{p.boardedAt ? <> · {ui("Boarded {0}", [dateTime(p.boardedAt)])}</> : null}{p.receiverName ? <> · {ui("To {0} ({1})", [p.receiverName, receiverLabel(ui, p.receiverType ?? "")])}</> : null}</p>{pending.length ? <p className="text-xs text-amber-700 dark:text-amber-300" data-passenger-pending>{ui("On this device only: {0}", [pending.map(x => ui(x)).join(", ")])}</p> : null}</div>
+        <div className="min-w-0"><p className="text-base font-bold"><bdi>{p.name}</bdi></p><p className="text-xs text-ink-muted">{p.stop ? <><bdi>{p.stop}</bdi> · </> : null}{statusLabel(ui, p.status)}{p.source === "AMENDMENT" ? <> · {ui("Added by amendment")}</> : null}{p.boardedAt ? <> · {ui("Boarded {0}", [dateTime(p.boardedAt)])}</> : null}{p.receiverName ? <> · {ui("To {0} ({1})", [p.receiverName, receiverLabel(ui, p.receiverType ?? "")])}</> : null}</p>{pending.length ? <p className="text-xs text-status-warning-text" data-passenger-pending>{ui("On this device only: {0}", [pending.map(x => ui(x)).join(", ")])}</p> : null}</div>
         {open ? <div className="flex flex-wrap gap-2">
           {p.status === "EXPECTED" ? <><Button size="lg" disabled={busy} onClick={() => void send({ action: "board", studentId: p.studentId }, "Boarding", "Boarding recorded.")} data-board>{ui("Mark boarded")}</Button><Button variant="outline" disabled={busy} onClick={() => { setAbsent(p); setAbsentReason(""); }} data-absent>{ui("Not travelling")}</Button><Button variant="secondary" disabled={busy} onClick={() => setReport({ kind: "MISSING_CHILD", studentId: p.studentId, note: "" })} data-missing>{ui("Report exception")}</Button></> : null}
           {p.status === "BOARDED" ? <><Button size="lg" disabled={busy} onClick={() => { setHand(p); setHandForm({ receiverType: t.direction === "AM" ? "STAFF" : "GUARDIAN", receiverUserId: "", receiverName: "", identityChecked: false }); }} data-handover>{ui("Hand over")}</Button><Button variant="secondary" disabled={busy} onClick={() => setReport({ kind: "MISSING_RECIPIENT", studentId: p.studentId, note: "" })} data-no-recipient>{ui("No one to receive")}</Button></> : null}
@@ -188,8 +188,8 @@ export function TripDesk() {
   if (error) return <p className="sk-panel p-4 text-sm" data-trip-desk-error>{ui(error)}</p>;
   if (!data) return <p className="text-sm text-ink-muted">{ui("Loading the latest manifest; boarding actions are unavailable.")}</p>;
   return <section className="min-w-0 space-y-3" data-trip-desk>
-    <header><h1 className="text-xl font-bold">{ui("Today's trips")}</h1><p className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></p></header>
-    {data.trips.length ? <TripList rows={data.trips} onOpen={setOpen} /> : <p className="sk-panel p-4 text-sm" data-trip-empty>{ui("No trip assigned for today. Contact the transport coordinator.")}</p>}
+    <header><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("Today's trips")}</h1><p className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></p></header>
+    {data.trips.length ? <TripList rows={data.trips} onOpen={setOpen} /> : <div className="sk-panel" data-trip-empty><EmptyState size="sm" title={ui("No trip assigned for today. Contact the transport coordinator.")} /></div>}
   </section>;
 }
 

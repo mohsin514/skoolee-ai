@@ -11,7 +11,6 @@ import {
   BookOpen,
   CreditCard,
   FileText,
-  Loader2,
   Receipt,
   Shield,
   TrendingUp,
@@ -216,7 +215,7 @@ export function FeeOverviewTab({
               ))}
               {(!summary?.atRiskStudents ||
                 summary.atRiskStudents.length === 0) && (
-                <p className="text-xs font-semibold text-ink-subtle italic"><UiText>{"No at-risk students"}</UiText></p>
+                <p className="text-xs font-medium text-ink-subtle"><UiText>{"No at-risk students"}</UiText></p>
               )}
             </div>
           </div>

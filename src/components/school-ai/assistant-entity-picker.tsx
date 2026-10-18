@@ -1,4 +1,5 @@
 "use client";
+import { Alert } from "@/components/ui/alert";
 import { useEffect, useState } from "react";
 import { Check, Database, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ export function AssistantEntityPicker({ language, campusId, focus, value, onChan
     {query.operation === "operations.record_risk_decision" && <><FormField name="assistant-indicator" label={c.indicator}><Select disabled={disabled} value={query.indicator ?? "ATTENDANCE_GAPS"} onChange={event => updateQuery({ ...query, indicator: event.target.value as AssistantCatalogQuery["indicator"], scopeId: undefined })}>{(["ATTENDANCE_GAPS", "UNCOVERED_LESSONS", "UNRELEASED_RESULTS"] as const).map(indicator => <option key={indicator} value={indicator}>{risks[indicator]}</option>)}</Select></FormField><FormField name="assistant-scope" label={c.scope}><Select disabled={disabled || loading} value={query.scopeId ?? ""} onChange={event => updateQuery({ ...query, scopeId: event.target.value || undefined })}><option value="">{c.choose}</option>{scopes.map(row => <option key={row.id} value={row.id}>{row.label}</option>)}</Select></FormField></>}
     </div>
     <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={disabled || loading} onClick={() => { onChange(undefined); setReload(n => n + 1); }}><RefreshCw aria-hidden="true" />{c.refresh}</Button><Button variant="ghost" disabled={disabled || !value} onClick={() => onChange(undefined)}>{c.clear}</Button>{catalog && <Button variant="ghost" disabled={disabled || loading} onClick={() => onChange({ query, snapshot: catalog.snapshot, selected: [] })}>{c.none}</Button>}</div>
-    {(error || stale) && <p role="alert" className="text-sm text-destructive">{error || c.stale}</p>}
+    {(error || stale) && <Alert tone={stale && !error ? "warning" : "danger"} compact>{error || c.stale}</Alert>}
     {catalog?.truncated && <p className="text-sm text-ink-muted">{c.truncated}</p>}
     {!!catalog?.entities.length && <FormField name="assistant-search" label={c.search}><Input value={search} disabled={disabled} onChange={event => { setSearch(event.target.value); setLimit(30); }} /></FormField>}
     {catalog && <p role="status" className="flex items-center gap-2 text-sm font-medium"><Check aria-hidden="true" className="size-4 text-primary" />{c.selected}: {value?.selected.length ?? 0}{query.classId || query.scopeId ? " + 1" : ""}</p>}

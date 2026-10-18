@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, FileClock, GitCompareArrows, History, Loader2, RefreshCw, RotateCcw } from "lucide-react";
+import { CheckCircle2, FileClock, GitCompareArrows, History, RefreshCw, RotateCcw } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -122,7 +122,7 @@ function RevisionInspector({ record, language, onRecord, onAction }: Omit<Props,
         <div className="flex flex-wrap gap-2"><Button variant={mode === "compare" ? "secondary" : "ghost"} aria-pressed={mode === "compare"} onClick={() => setMode("compare")}><GitCompareArrows aria-hidden="true" />{h.comparison}</Button><Button variant={mode === "snapshot" ? "secondary" : "ghost"} aria-pressed={mode === "snapshot"} onClick={() => setMode("snapshot")}><FileClock aria-hidden="true" />{h.snapshot}</Button></div>
         <RevisionChanges key={`${mode}:${selectedVersion}:${baseline}`} language={language} snapshot={mode === "snapshot"} differences={revisionDifferences(mode === "snapshot" || !before ? {} : { title: before.title, status: before.status, data: before.data }, { title: selected.title, status: selected.status, data: selected.data })} />
         <div className="space-y-4 border-t border-border-subtle pt-5">
-          {access.canApprove && current.status !== "APPROVED" && current.status !== "ARCHIVED" && (selectedVersion === current.version ? <><p className="text-sm leading-relaxed text-ink-muted">{c.planApprovalHint}</p><label className="flex min-h-11 items-start gap-3 text-sm leading-relaxed"><Checkbox className="mt-1" checked={reviewed} disabled={Boolean(busy)} onChange={event => setReviewed(event.target.checked)} /><span>{h.reviewConfirm}</span></label><Button disabled={!reviewed || Boolean(busy)} onClick={() => void approve()}>{busy === "approve" ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <CheckCircle2 aria-hidden="true" />}{h.approveCurrent}</Button></> : <p className="text-sm text-ink-muted">{h.currentOnly}</p>)}
+          {access.canApprove && current.status !== "APPROVED" && current.status !== "ARCHIVED" && (selectedVersion === current.version ? <><p className="text-sm leading-relaxed text-ink-muted">{c.planApprovalHint}</p><label className="flex min-h-11 items-start gap-3 text-sm leading-relaxed"><Checkbox className="mt-1" checked={reviewed} disabled={Boolean(busy)} onChange={event => setReviewed(event.target.checked)} /><span>{h.reviewConfirm}</span></label><Button loading={busy === "approve"} disabled={!reviewed || Boolean(busy)} onClick={() => void approve()}>{busy === "approve" ? null : <CheckCircle2 aria-hidden="true" />}{h.approveCurrent}</Button></> : <p className="text-sm text-ink-muted">{h.currentOnly}</p>)}
           {access.canRestore && selectedVersion !== current.version && <Button variant="outline" disabled={Boolean(busy)} onClick={() => setRestoreOpen(true)}><RotateCcw aria-hidden="true" />{h.restore}</Button>}
         </div>
       </>}

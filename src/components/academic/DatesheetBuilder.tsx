@@ -11,11 +11,16 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
@@ -65,6 +70,7 @@ export function DatesheetBuilder({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const tr = useUiText();
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [periods, setPeriods] = useState<ExamPeriod[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -241,7 +247,7 @@ export function DatesheetBuilder({
               >
                 <span className="text-sm font-bold">{s.name}</span>
                 {isScheduled ? (
-                  <span className="text-2xs font-semibold uppercase text-emerald-600">done</span>
+                  <Badge variant="success" size="sm" dot><UiText>Done</UiText></Badge>
                 ) : isArmed ? (
                   <Plus className="h-4 w-4" />
                 ) : null}
@@ -249,9 +255,12 @@ export function DatesheetBuilder({
             );
           })}
           {subjects.length === 0 ? (
-            <p className="rounded-2xl bg-muted px-3 py-4 text-center text-2xs font-semibold text-ink-subtle">
-              No subjects found
-            </p>
+            <EmptyState
+              size="sm"
+              icon={BookOpen}
+              title={tr("No subjects found")}
+              description={tr("Add subjects to these classes to schedule papers.")}
+            />
           ) : null}
         </div>
       </div>
@@ -261,11 +270,11 @@ export function DatesheetBuilder({
         <div className="mb-3 flex items-center gap-2 text-ink-muted">
           <CalendarDays className="h-4 w-4 text-primary" />
           <span className="text-xs font-bold">
-            Datesheet · {days.length} working day{days.length !== 1 ? "s" : ""}
+            {days.length === 1 ? tr("Datesheet · 1 working day") : tr("Datesheet · {0} working days", [days.length])}
           </span>
-          <span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-600">
-            <AlertTriangle className="me-1 inline h-3 w-3" /> weekends hidden
-          </span>
+          <Badge variant="warning" size="sm" className="ms-auto">
+            <AlertTriangle aria-hidden="true" className="h-3 w-3" /> <UiText>Weekends hidden</UiText>
+          </Badge>
         </div>
         <div className="min-w-max">
           <div
@@ -321,17 +330,17 @@ export function DatesheetBuilder({
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
-                            <p className="pe-4 text-2xs font-bold text-ink-strong">
+                            <p className="pe-4 text-2xs font-semibold text-ink-strong">
                               {sched.subject.name}
                             </p>
                             {sched.rooms && sched.rooms.length > 1 ? (
-                              <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-2xs font-bold text-primary">
-                                <DoorOpen className="h-3 w-3" />
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-2xs font-semibold text-primary">
+                                <DoorOpen aria-hidden="true" className="h-3 w-3" />
                                 {sched.rooms.map((r: any) => r.room.roomNumber).join(" + ")}
                               </span>
                             ) : sched.room ? (
-                              <p className="mt-0.5 flex items-center gap-1 text-2xs font-bold text-teal-700">
-                                <DoorOpen className="h-3 w-3" />
+                              <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium text-status-success-text">
+                                <DoorOpen aria-hidden="true" className="h-3 w-3" />
                                 {sched.room.roomNumber}
                               </p>
                             ) : (
@@ -395,6 +404,7 @@ function AssignmentPopover({
   onClose: () => void;
   onScheduled: () => void;
 }) {
+  const tr = useUiText();
   const [rooms, setRooms] = useState<any[]>([]);
   // §58: a paper can be split across rooms, so this is a set rather than one
   // id. Order matters — it is the order students are seated in, and the first
@@ -536,7 +546,7 @@ function AssignmentPopover({
 
   return (
     <Modal
-      title={subject?.name ?? "Schedule paper"}
+      title={subject?.name ?? tr("Schedule paper")}
       eyebrow="Schedule"
       icon={CalendarDays}
       size="xs"
@@ -627,7 +637,7 @@ function AssignmentPopover({
               </p>
             ) : roomsError ? (
               <div className="mt-1 flex items-center gap-2">
-                <p className="text-2xs font-semibold text-rose-500">{roomsError}</p>
+                <Alert tone="danger" compact live="off" className="min-w-0 flex-1">{roomsError}</Alert>
                 <Button variant="secondary"
                   type="button"
                   onClick={() => {
@@ -646,35 +656,20 @@ function AssignmentPopover({
                 No free rooms for this slot.
               </p>
             ) : shortBy > 0 ? (
-              <p
-                role="alert"
-                className="mt-1 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs font-bold leading-relaxed text-rose-600"
-              >
-                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-                <span>
-                  Capacity conflict — {studentsCount} students sit this paper but the selected
-                  room{selectedRooms.length === 1 ? "" : "s"} hold {seatsAvailable} ({shortBy} short).
-                  Tick another room to seat the rest.
-                </span>
-              </p>
+              <Alert tone="danger" compact live="polite" className="mt-1">
+                {tr("Capacity conflict: {0} students sit this paper but the selected rooms hold {1} ({2} short). Tick another room to seat the rest.", [studentsCount, seatsAvailable, shortBy])}
+              </Alert>
             ) : multiRoom && unsized.length > 0 ? (
-              <p
-                role="alert"
-                className="mt-1 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs font-bold leading-relaxed text-rose-600"
-              >
-                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-                <span>
-                  Room {unsized.map((r) => r.roomNumber).join(", ")} has no recorded size, so it
-                  cannot be part of a split. Set its bench layout under Rooms, or pick another room.
-                </span>
-              </p>
+              <Alert tone="danger" compact live="polite" className="mt-1">
+                {tr("Room {0} has no recorded size, so it cannot be part of a split. Set its bench layout under Rooms, or pick another room.", [unsized.map((r) => r.roomNumber).join(", ")])}
+              </Alert>
             ) : multiRoom ? (
-              <p className="mt-1 text-2xs font-semibold text-teal-700">
+              <p className="mt-1 text-2xs font-medium text-status-success-text">
                 Split across {roomIds.length} rooms — {studentsCount} students seated in roll-number
                 order, {selectedRooms[0]?.roomNumber} first.
               </p>
             ) : (
-              <p className="mt-1 text-2xs font-semibold text-teal-700">
+              <p className="mt-1 text-2xs font-medium text-status-success-text">
                 Auto-picked the smallest free room fitting {studentsCount || "the class"} — tick more
                 rooms above to split the paper.
               </p>

@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Lock } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -26,14 +28,14 @@ const useAccess = () => { const { language } = useLocale(); return { language, t
 const asRow = (plan: Plan): PlanRow => ({ ...plan, status: "ACTIVE", validFrom: new Date(plan.validFrom), validUntil: new Date(plan.validUntil) });
 
 function Status({ status }: { status: { tone: "ok" | "error"; text: string } | null }) {
-  return status ? <p role="status" className={`rounded-xl border px-3 py-2 text-sm ${status.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{status.text}</p> : null;
+  return status ? <Alert tone={status.tone === "ok" ? "success" : "danger"} compact live="polite">{status.text}</Alert> : null;
 }
 export function Capability({ t, plan }: { t: AccessCopy; plan: Pick<Plan, "capabilities"> }) {
   const caps = (Object.keys(t.caps) as Array<keyof AccessCopy["caps"]>).filter(key => plan.capabilities[key]);
   return <ul className="flex flex-wrap gap-2 text-xs" aria-label={t.preview}>
-    {caps.map(key => <li key={key} className="rounded-full border px-2 py-0.5 font-semibold">{t.caps[key]}</li>)}
-    {plan.capabilities.assistiveTech.map(tool => <li key={tool} className="rounded-full border px-2 py-0.5" dir="auto">{tool}</li>)}
-    {plan.capabilities.submissionMode !== "STANDARD" && <li className="rounded-full border px-2 py-0.5">{t.submissionModes[plan.capabilities.submissionMode]}</li>}
+    {caps.map(key => <li key={key}><Badge variant="outline" size="sm">{t.caps[key]}</Badge></li>)}
+    {plan.capabilities.assistiveTech.map(tool => <li key={tool}><Badge variant="outline" size="sm" dir="auto">{tool}</Badge></li>)}
+    {plan.capabilities.submissionMode !== "STANDARD" && <li><Badge variant="outline" size="sm">{t.submissionModes[plan.capabilities.submissionMode]}</Badge></li>}
   </ul>;
 }
 /** The calculation behind the effective time, one line per step. */
@@ -114,10 +116,10 @@ function SupportRecords({ t, planId, language }: { t: AccessCopy; planId: string
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const open = async (body?: unknown) => { setError(""); try { const response = await fetch(`/api/accommodations/${planId}/support`, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? t.failed); setRecords(data.records); setNote(""); } catch (cause) { setError(cause instanceof Error ? cause.message : t.failed); } };
-  return <details className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm" onToggle={event => { if ((event.target as HTMLDetailsElement).open && !records) void open(); }}>
+  return <details className="mt-3 rounded-lg border border-status-warning-border bg-status-warning-surface p-3 text-sm" onToggle={event => { if ((event.target as HTMLDetailsElement).open && !records) void open(); }}>
     <summary className="flex cursor-pointer items-center gap-2 font-semibold"><Lock className="h-4 w-4" aria-hidden />{t.support}</summary>
-    <p className="mt-1 text-xs text-amber-900">{t.supportHelp}</p>
-    {error && <p role="alert" className="text-rose-800">{error}</p>}
+    <p className="mt-1 text-xs text-status-warning-text">{t.supportHelp}</p>
+    {error && <p role="alert" className="text-status-error-text">{error}</p>}
     {records && (records.length ? <ul className="mt-2 grid gap-1">{records.map(row => <li key={row.id} dir="auto">{new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(row.createdAt))} · {row.note}</li>)}</ul> : <p className="mt-2 text-slate-600">{t.noSupport}</p>)}
     <div className="mt-2 flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.note}<Input value={note} onChange={event => setNote(event.target.value)} maxLength={4000} /></label><Button type="button" variant="outline" disabled={note.trim().length < 3} onClick={() => void open({ note })}>{t.addNote}</Button></div>
   </details>;

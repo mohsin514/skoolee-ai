@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCards, SkeletonRegion } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,7 +55,12 @@ function useResource<T>(view: string | null) {
     catch (e) { setError(ui((e as Error).message)); setNotice(null); return null; }
     finally { setBusy(false); }
   };
-  return { data, error, notice, busy, post, ui };
+  return { data, error, notice, busy, post, ui, load };
+}
+function LoadGate({ error, label, onRetry }: { error: string | null; label: string; onRetry: () => void }) {
+  const ui = useUiText();
+  if (error) return <ErrorState title={ui("Could not load this page")} description={error} onRetry={onRetry} retryLabel={ui("Try again")} />;
+  return <SkeletonRegion label={label} className="sk-panel p-4"><SkeletonCards count={2} /></SkeletonRegion>;
 }
 function useFields() {
   const [form, setForm] = useState<Record<string, string>>({});
@@ -67,15 +74,15 @@ function Messages({ error, notice }: { error: string | null; notice: string | nu
 
 type Pkg = { key: string; status: string; roles: string[]; checklist: string[]; operators: Record<string, string[]>; done: Record<string, { note: string }>; settings: Record<string, string>; gaps: string[]; obligations: string[] };
 export function CampusPackagesPanel() {
-  const { data, error, notice, busy, post, ui } = useResource<{ packages: Pkg[]; staff: { id: string; fullName: string }[]; templates: string[] }>(null);
+  const { data, error, notice, busy, post, ui, load } = useResource<{ packages: Pkg[]; staff: { id: string; fullName: string }[]; templates: string[] }>(null);
   const { val, bind } = useFields();
-  if (!data) return <section className="sk-panel p-4"><p role="status" className="text-sm text-ink-subtle">{error ?? ui("Checking prerequisites and active commitments…")}</p></section>;
+  if (!data) return <LoadGate error={error} label={ui("Checking prerequisites and active commitments…")} onRetry={() => void load()} />;
   return (
     <section aria-labelledby="campus-packages" className="sk-panel space-y-4 p-4">
-      <div><h2 id="campus-packages" className="text-lg font-bold">{ui("Optional packages")}</h2><p className="text-sm text-ink-subtle">{ui("Enable only what this campus uses. Enabling a package grants no access to private student care records.")}</p></div>
+      <div><h2 id="campus-packages" className="text-lg font-bold text-ink-strong">{ui("Optional packages")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Enable only what this campus uses. Enabling a package grants no access to private student care records.")}</p></div>
       <Messages error={error} notice={notice} />
       {data.packages.map((p) => (
-        <div key={p.key} className="space-y-2 rounded-xl border border-border p-3 text-sm">
+        <div key={p.key} className="sk-panel space-y-2 p-3 text-sm">
           <h3 className="font-semibold">{ui(PACKAGE[p.key])} · {ui(STATUS[p.status] ?? p.status)}</h3>
           {p.key === "SPECIALIST" ? <p className="text-xs text-ink-subtle">{ui("A template to adapt, not a universal workflow. Local requirements must be validated.")}</p> : null}
           <div className="grid gap-2 md:grid-cols-2">
@@ -123,17 +130,17 @@ type Item = { id: string; name: string; serviceDate: string; price: number; curr
 type Order = { id: string; itemId: string; studentName: string; quantity: number; amount: number; currency: string; status: string; holdReason: string | null };
 type Dietary = { id: string; studentName: string; allergens: string[]; diet: string | null; source: string; sourceDate: string; status: string };
 export function CanteenPanel() {
-  const { data, error, notice, busy, post, ui } = useResource<{ status: string; isManager: boolean; isDietary: boolean; items: Item[]; orders: Order[]; reconciliation: { charged: number; refunded: number; orders: number; mismatches: unknown[] }; dietary: Dietary[] | null }>("canteen");
+  const { data, error, notice, busy, post, ui, load } = useResource<{ status: string; isManager: boolean; isDietary: boolean; items: Item[]; orders: Order[]; reconciliation: { charged: number; refunded: number; orders: number; mismatches: unknown[] }; dietary: Dietary[] | null }>("canteen");
   const { money, date } = useLocaleFormat();
   const { val, bind } = useFields();
-  if (!data) return <section className="sk-panel p-4"><p role="status" className="text-sm text-ink-subtle">{error ?? ui("Loading the canteen…")}</p></section>;
+  if (!data) return <LoadGate error={error} label={ui("Loading the canteen…")} onRetry={() => void load()} />;
   const itemName = (id: string) => data.items.find((i) => i.id === id)?.name ?? "";
   return (
     <section aria-labelledby="canteen" className="sk-panel space-y-4 p-4">
-      <div><h2 id="canteen" className="text-lg font-bold">{ui("Canteen")} · {ui(STATUS[data.status] ?? data.status)}</h2><p className="text-sm text-ink-subtle">{ui("Allergen information supports staff checks. It is not a guarantee of allergen safety.")}</p></div>
+      <div><h2 id="canteen" className="text-lg font-bold text-ink-strong">{ui("Canteen")} · {ui(STATUS[data.status] ?? data.status)}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Allergen information supports staff checks. It is not a guarantee of allergen safety.")}</p></div>
       <Messages error={error} notice={notice} />
-      <p className="text-sm">{ui("Charged {0} · refunded {1} · {2} orders · {3} not reconciled", [money(data.reconciliation.charged, data.items[0]?.currency ?? "SAR"), money(data.reconciliation.refunded, data.items[0]?.currency ?? "SAR"), data.reconciliation.orders, data.reconciliation.mismatches.length])}</p>
-      <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id}><bdi>{i.name}</bdi> · {date(i.serviceDate)} · <span dir="ltr">{money(i.price, i.currency)}</span> · {ui("{0} of {1} sold", [i.sold, i.capacity])}{i.allergens.length ? ` · ${ui("Allergens")}: ${i.allergens.join(", ")}` : ""}</li>)}</ul>
+      <p className="text-sm tabular-nums">{ui("Charged {0} · refunded {1} · {2} orders · {3} not reconciled", [money(data.reconciliation.charged, data.items[0]?.currency ?? "SAR"), money(data.reconciliation.refunded, data.items[0]?.currency ?? "SAR"), data.reconciliation.orders, data.reconciliation.mismatches.length])}</p>
+      <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id}><bdi>{i.name}</bdi> · {date(i.serviceDate)} · <span dir="ltr" className="tabular-nums">{money(i.price, i.currency)}</span> · {ui("{0} of {1} sold", [i.sold, i.capacity])}{i.allergens.length ? ` · ${ui("Allergens")}: ${i.allergens.join(", ")}` : ""}</li>)}</ul>
       {data.isManager && data.status === "ENABLED" ? (
         <form className="grid gap-2 md:grid-cols-3" onSubmit={(e) => { e.preventDefault(); void post({ action: "menu-item", data: { serviceDate: val("d"), name: val("n"), price: Number(val("p")), currency: val("c") || "SAR", capacity: Number(val("q")), allergens: val("a").split(",").map((x) => x.trim()).filter(Boolean) } }, "Meal added to the menu."); }}>
           <FormField name="ct-d" label={ui("Service date")}><Input type="date" dir="ltr" value={val("d")} onChange={bind("d")} /></FormField>
@@ -147,7 +154,7 @@ export function CanteenPanel() {
       ) : null}
       <div className="space-y-1 text-sm"><h3 className="font-semibold">{ui("Orders")}</h3>{data.orders.map((o) => (
         <div key={o.id} className="flex flex-wrap items-end gap-2 rounded-lg border border-border p-2">
-          <span><bdi>{o.studentName}</bdi> · <bdi>{itemName(o.itemId)}</bdi> × {o.quantity} · <span dir="ltr">{money(o.amount, o.currency)}</span> · {ui(ORDER[o.status] ?? o.status)}{o.holdReason ? <> · <bdi>{ui(o.holdReason)}</bdi></> : null}</span>
+          <span><bdi>{o.studentName}</bdi> · <bdi>{itemName(o.itemId)}</bdi> × {o.quantity} · <span dir="ltr" className="tabular-nums">{money(o.amount, o.currency)}</span> · {ui(ORDER[o.status] ?? o.status)}{o.holdReason ? <> · <bdi>{ui(o.holdReason)}</bdi></> : null}</span>
           {o.status === "HOLD" && data.isDietary ? <>
             <FormField name={`ho-${o.id}`} label={ui("What was checked")} className="w-64"><Input value={val(`ho-${o.id}`)} onChange={bind(`ho-${o.id}`)} /></FormField>
             <Button type="button" size="sm" disabled={busy} onClick={() => void post({ action: "order-decision", id: o.id, data: { action: "RELEASE", note: val(`ho-${o.id}`) } }, "Order released and charged.")}>{ui("Release")}</Button>
@@ -157,7 +164,7 @@ export function CanteenPanel() {
         </div>
       ))}</div>
       {data.dietary ? (
-        <div className="space-y-1 rounded-xl border border-border p-3 text-sm">
+        <div className="sk-panel space-y-1 p-3 text-sm">
           <h3 className="font-semibold">{ui("Dietary records · restricted to the dietary lead")}</h3>
           {data.dietary.map((d) => (
             <div key={d.id} className="flex flex-wrap items-end gap-2">
@@ -180,15 +187,15 @@ export function CanteenPanel() {
 type Leave = { id: string; studentId: string; studentName: string; destination: string; collectedBy: string; expectedReturnAt: string; status: string; overdue: boolean };
 type Roll = { id: string; label: string; takenAt: string; present: number; exceptions: { studentId: string; studentName: string; kind: string; resolvedAt?: string; resolution?: string }[] };
 export function BoardingOperations() {
-  const { data, error, notice, busy, post, ui } = useResource<{ status: string; isWarden: boolean; isApprover: boolean; boarders: { studentId: string; name: string; room: string }[]; leave: Leave[]; rollCalls: Roll[] }>("boarding");
+  const { data, error, notice, busy, post, ui, load } = useResource<{ status: string; isWarden: boolean; isApprover: boolean; boarders: { studentId: string; name: string; room: string }[]; leave: Leave[]; rollCalls: Roll[] }>("boarding");
   const { dateTime } = useLocaleFormat();
   const { val, bind } = useFields();
   const [present, setPresent] = useState<Record<string, boolean>>({});
-  if (!data) return error ? <section className="sk-panel p-4"><p className="text-sm text-ink-subtle">{error}</p></section> : null;
+  if (!data) return error ? <LoadGate error={error} label="" onRetry={() => void load()} /> : null;
   const open = data.rollCalls.flatMap((r) => r.exceptions.filter((e) => !e.resolvedAt).map((e) => ({ ...e, rollId: r.id, label: r.label })));
   return (
     <section aria-labelledby="boarding-ops" className="sk-panel space-y-4 p-4">
-      <div><h2 id="boarding-ops" className="text-lg font-bold">{ui("Boarding operations")} · {ui(STATUS[data.status] ?? data.status)}</h2><p className="text-sm text-ink-subtle">{ui("School emergency procedures govern missing students.")}</p></div>
+      <div><h2 id="boarding-ops" className="text-lg font-bold text-ink-strong">{ui("Boarding operations")} · {ui(STATUS[data.status] ?? data.status)}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("School emergency procedures govern missing students.")}</p></div>
       <Messages error={error} notice={notice} />
       {open.length ? <div role="alert" className="space-y-2 rounded-xl border border-status-error-text p-3 text-sm">
         <h3 className="font-semibold">{ui("{0} boarding exceptions need follow-up", [open.length])}</h3>
@@ -203,7 +210,7 @@ export function BoardingOperations() {
         ))}
       </div> : null}
       {data.isWarden && data.status === "ENABLED" ? (
-        <form className="space-y-2 rounded-xl border border-border p-3 text-sm" onSubmit={(e) => { e.preventDefault(); void post({ action: "roll-call", data: { label: val("label") || "Roll call", present: Object.entries(present).filter(([, v]) => v).map(([k]) => k) } }, "Roll call saved."); }}>
+        <form className="sk-panel space-y-2 p-3 text-sm" onSubmit={(e) => { e.preventDefault(); void post({ action: "roll-call", data: { label: val("label") || "Roll call", present: Object.entries(present).filter(([, v]) => v).map(([k]) => k) } }, "Roll call saved."); }}>
           <h3 className="font-semibold">{ui("Roll call")}</h3>
           <FormField name="bo-label" label={ui("Roll call time")} className="w-40"><Input dir="ltr" value={val("label")} onChange={bind("label")} /></FormField>
           <ul className="grid gap-1 md:grid-cols-2">{data.boarders.map((b) => <li key={b.studentId}><label className="flex min-h-11 items-center gap-2"><Checkbox checked={!!present[b.studentId]} onChange={(e) => setPresent((m) => ({ ...m, [b.studentId]: e.target.checked }))} /> <bdi>{b.name}</bdi> · <span dir="ltr">{b.room}</span></label></li>)}</ul>
@@ -248,19 +255,19 @@ export function FamilyCanteen() {
   if (!data || !data.children.length) return null;
   return (
     <section aria-labelledby="family-canteen" className="sk-panel space-y-4 p-4">
-      <div><h2 id="family-canteen" className="text-lg font-bold">{ui("Canteen")}</h2><p className="text-sm text-ink-subtle">{ui("Allergen information supports staff checks. It is not a guarantee of allergen safety.")}</p></div>
+      <div><h2 id="family-canteen" className="text-lg font-bold text-ink-strong">{ui("Canteen")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Allergen information supports staff checks. It is not a guarantee of allergen safety.")}</p></div>
       <Messages error={error} notice={notice} />
       {data.children.map((c) => (
-        <div key={c.studentId} className="space-y-3 rounded-xl border border-border p-3 text-sm">
+        <div key={c.studentId} className="sk-panel space-y-3 p-3 text-sm">
           <h3 className="font-semibold"><bdi>{c.name}</bdi>{c.status === "DISABLED" ? ` · ${ui("Ordering is paused")}` : ""}</h3>
           <p>{c.dietary ? <>{ui("Dietary record")}: {c.dietary.allergens.join(", ") || ui("No allergens recorded")} · {ui("Source")}: {ui(SOURCE[c.dietary.source] ?? c.dietary.source)}, {date(c.dietary.sourceDate)} · {ui(DIET[c.dietary.status] ?? c.dietary.status)}</> : ui("No dietary record yet.")}</p>
           <ul className="space-y-2">{c.menu.map((m) => (
             <li key={m.id} className="flex flex-wrap items-center gap-2">
-              <span><bdi>{m.name}</bdi> · {date(m.serviceDate)} · <span dir="ltr">{money(m.price, m.currency)}</span> · {m.remaining > 0 ? ui("{0} left", [m.remaining]) : ui("Sold out")}{m.allergens.length ? ` · ${ui("Allergens")}: ${m.allergens.join(", ")}` : ""}</span>
+              <span><bdi>{m.name}</bdi> · {date(m.serviceDate)} · <span dir="ltr" className="tabular-nums">{money(m.price, m.currency)}</span> · {m.remaining > 0 ? ui("{0} left", [m.remaining]) : ui("Sold out")}{m.allergens.length ? ` · ${ui("Allergens")}: ${m.allergens.join(", ")}` : ""}</span>
               <Button type="button" size="sm" disabled={busy || m.remaining < 1} onClick={() => void post({ action: "order", data: { studentId: c.studentId, itemId: m.id, quantity: 1, idempotencyKey: newKey() } }, "Order received.")}>{ui("Order meal")}</Button>
             </li>
           ))}</ul>
-          {c.orders.length ? <ul>{c.orders.map((o) => <li key={o.id} className="flex flex-wrap items-center gap-2">{c.menu.find((m) => m.id === o.itemId)?.name ?? ""} × {o.quantity} · <span dir="ltr">{money(o.amount, o.currency)}</span> · {ui(ORDER[o.status] ?? o.status)}{o.holdReason ? <> · <bdi>{ui(o.holdReason)}</bdi></> : null}{["PLACED", "HOLD"].includes(o.status) ? <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void post({ action: "order-decision", id: o.id, data: { action: "CANCEL" } }, "Order cancelled; any charge was refunded.")}>{ui("Cancel")}</Button> : null}</li>)}</ul> : null}
+          {c.orders.length ? <ul>{c.orders.map((o) => <li key={o.id} className="flex flex-wrap items-center gap-2">{c.menu.find((m) => m.id === o.itemId)?.name ?? ""} × {o.quantity} · <span dir="ltr" className="tabular-nums">{money(o.amount, o.currency)}</span> · {ui(ORDER[o.status] ?? o.status)}{o.holdReason ? <> · <bdi>{ui(o.holdReason)}</bdi></> : null}{["PLACED", "HOLD"].includes(o.status) ? <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void post({ action: "order-decision", id: o.id, data: { action: "CANCEL" } }, "Order cancelled; any charge was refunded.")}>{ui("Cancel")}</Button> : null}</li>)}</ul> : null}
           <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void post({ action: "limit", data: { studentId: c.studentId, dailyLimit: Number(val(`lim-${c.studentId}`)) } }, "Daily limit saved."); }}>
             <FormField name={`lim-${c.studentId}`} label={ui("Daily spending limit (minor units)")} className="w-56"><Input inputMode="numeric" dir="ltr" value={val(`lim-${c.studentId}`) || (c.limit ?? "").toString()} onChange={bind(`lim-${c.studentId}`)} /></FormField>
             <Button type="submit" size="sm" variant="secondary" disabled={busy}>{ui("Save limit")}</Button>

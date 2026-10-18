@@ -7,6 +7,8 @@ import { Select } from "@/components/ui/select";
 import type { AssessmentLocale, CandidatePaper } from "@/lib/school-ai/assessment";
 import { examReleaseCopy } from "./exam-release-copy";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 // SKO-408: the review desk and rehearsal for one saved paper version.
 type ItemState = "DRAFT" | "NEEDS_SOURCE" | "NEEDS_CORRECTION" | "READY_FOR_REVIEW" | "APPROVED" | "CHANGED_AFTER_APPROVAL";
@@ -62,12 +64,12 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
   const number = (id: string) => view.preview.questions.findIndex(question => question.id === id) + 1;
   const editable = view.status !== "APPROVED" && view.status !== "ARCHIVED" && !disabled;
   return <section aria-labelledby="release-panel-title" className="sk-panel space-y-4 p-5">
-    <div className="flex flex-wrap items-start justify-between gap-2"><h3 id="release-panel-title" className="text-lg font-bold">{t.title}</h3>{view.contentHashPrefix && <p className="text-xs">{t.hash}: <bdi dir="ltr" className="font-mono">#{view.contentHashPrefix}</bdi></p>}</div>
+    <div className="flex flex-wrap items-start justify-between gap-2"><h3 id="release-panel-title" className="text-lg font-bold text-ink-strong">{t.title}</h3>{view.contentHashPrefix && <p className="text-xs">{t.hash}: <bdi dir="ltr" className="font-mono">#{view.contentHashPrefix}</bdi></p>}</div>
     <p className="text-sm text-ink-subtle">{t.intro}</p>
-    {status && <p role="status" className={`rounded-xl border px-3 py-2 text-sm ${status.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{status.text}</p>}
-    {!view.workbench && <p className="text-sm">{t.legacy}</p>}
+    {status && <Alert compact live="polite" tone={status.tone === "ok" ? "success" : "danger"}>{status.text}</Alert>}
+    {!view.workbench && <Alert tone="info" compact live="off">{t.legacy}</Alert>}
     <ol className="grid gap-2" aria-label={t.question}>{view.items.map(item => <li key={item.id} className="space-y-2 rounded-xl border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">{t.question} {number(item.id)} <span className="ms-2 rounded-full border px-2 py-0.5 text-xs" data-item-state={item.state}>{t.states[item.state]}</span> <span className="text-xs text-ink-subtle">{t.revision} {item.itemRevision}</span></p>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">{t.question} {number(item.id)} <Badge variant={item.state === "APPROVED" ? "success" : item.state === "READY_FOR_REVIEW" ? "info" : item.state === "DRAFT" ? "neutral" : item.state === "NEEDS_SOURCE" ? "warning" : "danger"} size="sm" dot className="ms-2" data-item-state={item.state}>{t.states[item.state]}</Badge> <span className="text-xs text-ink-subtle">{t.revision} {item.itemRevision}</span></p>
         <div className="flex flex-wrap gap-2">
           {editable && ["DRAFT", "NEEDS_SOURCE", "NEEDS_CORRECTION", "CHANGED_AFTER_APPROVAL"].includes(item.state) && <Button size="sm" variant="outline" disabled={busy || (item.invalidated.length > 0 && !rechecked[item.id])} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "READY_FOR_REVIEW", itemRevision: item.itemRevision, ...(item.invalidated.length ? { confirmRechecked: item.invalidated } : {}) }), true)}>{t.ready}</Button>}
           {editable && canApprove && item.state === "READY_FOR_REVIEW" && <Button size="sm" disabled={busy} onClick={() => void run(() => call(`${api}/item-review`, { version: view.version, questionId: item.id, target: "APPROVED", itemRevision: item.itemRevision }), true)}>{t.approve}</Button>}
@@ -81,10 +83,10 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
         <p className="text-xs text-ink-subtle">{t.changedFields}: {compare.differingFields.length ? compare.differingFields.map(field => t.fieldLabels[field as keyof typeof t.fieldLabels] ?? field).join(locale === "en" ? ", " : "، ") : t.noChange}</p>
         <div className="grid gap-2 md:grid-cols-2">{([[t.previousItem, compare.previous], [t.candidateItem, compare.candidate]] as const).map(([label, version], index) => <div key={index} className={`space-y-1 rounded-lg border p-2 text-sm ${index === 1 ? "border-primary/40 bg-surface-subtle" : ""}`} data-compare-side={index === 0 ? "previous" : "candidate"}>
           <p className="text-xs font-semibold text-ink-subtle">{label}</p>
-          <p dir="auto" className={compare.differingFields.includes("prompt") ? "rounded bg-amber-50 px-1" : ""}>{version.prompt}</p>
-          {version.options.length ? <ul className={`list-disc ps-5 ${compare.differingFields.includes("options") ? "rounded bg-amber-50" : ""}`}>{version.options.map(option => <li key={option.id} dir="auto">{option.text}{option.id === version.correctOptionId ? " ✓" : ""}</li>)}</ul> : null}
-          <p className={`text-xs ${compare.differingFields.includes("marks") ? "rounded bg-amber-50 px-1" : ""}`}>{t.fieldLabels.marks}: {version.marks}</p>
-          {version.modelAnswer ? <p dir="auto" className={`text-xs text-ink-subtle ${compare.differingFields.includes("modelAnswer") ? "rounded bg-amber-50 px-1" : ""}`}>{t.fieldLabels.modelAnswer}: {version.modelAnswer}</p> : null}
+          <p dir="auto" className={compare.differingFields.includes("prompt") ? "rounded bg-status-warning-surface px-1" : ""}>{version.prompt}</p>
+          {version.options.length ? <ul className={`list-disc ps-5 ${compare.differingFields.includes("options") ? "rounded bg-status-warning-surface" : ""}`}>{version.options.map(option => <li key={option.id} dir="auto">{option.text}{option.id === version.correctOptionId ? " ✓" : ""}</li>)}</ul> : null}
+          <p className={`text-xs ${compare.differingFields.includes("marks") ? "rounded bg-status-warning-surface px-1" : ""}`}>{t.fieldLabels.marks}: {version.marks}</p>
+          {version.modelAnswer ? <p dir="auto" className={`text-xs text-ink-subtle ${compare.differingFields.includes("modelAnswer") ? "rounded bg-status-warning-surface px-1" : ""}`}>{t.fieldLabels.modelAnswer}: {version.modelAnswer}</p> : null}
         </div>)}</div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" disabled={busy} onClick={() => void run(async () => { await call(`${api}/items/${encodeURIComponent(item.id)}/regenerate/accept`, { idempotencyKey: compare.key, version: compare.version }); setCompare(null); }, true)}>{t.acceptCandidate}</Button>

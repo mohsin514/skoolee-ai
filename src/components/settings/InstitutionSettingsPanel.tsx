@@ -136,8 +136,8 @@ export function InstitutionSettingsPanel({
 
   if (loading) {
     return (
-      <div className="sk-panel flex items-center justify-center p-16">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <div className="sk-panel flex items-center justify-center p-16" role="status" aria-busy="true">
+        <Loader2 aria-hidden="true" className="h-6 w-6 motion-safe:animate-spin text-primary" />
       </div>
     );
   }
@@ -374,13 +374,13 @@ function SchoolDialog({
         <div className="space-y-1.5">
           <Label htmlFor="s-tz" className="sk-field-label"><UiText>{"Original Time Zone"}</UiText></Label>
           <InputGroup surfaceClassName="bg-brand-50" className="min-w-0">
-            <Clock data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
+            <Clock data-field-affix="start" className="pointer-events-none absolute start-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="s-tz"
               disabled
               value={form.timezone}
               onChange={(e) => set("timezone", e.target.value)}
-              className="w-full pl-10 pr-4"
+              className="w-full ps-10 pe-4"
             >
               {zones.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </SystemSelect>
@@ -503,12 +503,12 @@ function CampusDialog({
         <div className="space-y-1.5">
           <Label htmlFor="c-board" className="sk-field-label"><UiText>{"Board"}</UiText></Label>
           <InputGroup surfaceClassName="bg-brand-50" className="min-w-0">
-            <GraduationCap data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle" />
+            <GraduationCap data-field-affix="start" className="pointer-events-none absolute start-3.5 h-4 w-4 text-ink-subtle" />
             <SystemSelect
               id="c-board"
               value={form.board}
               onChange={(e) => set("board", e.target.value)}
-              className="w-full pl-10 pr-4"
+              className="w-full ps-10 pe-4"
             >
               {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
             </SystemSelect>
@@ -591,10 +591,10 @@ function LogoPicker({
           <Button variant="default"
             type="button"
             onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="justify-start flex items-center gap-2 px-3.5 disabled:cursor-wait disabled:opacity-60"
+            loading={uploading}
+            className="justify-start flex items-center gap-2 px-3.5"
           >
-            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            {uploading ? null : <Upload aria-hidden="true" className="h-3.5 w-3.5" />}
             {uploading ? tr("Uploading") : value ? tr("Replace") : tr("Choose")}
           </Button>
           {value ? (
@@ -635,13 +635,13 @@ function Field({
         {label} {required ? <span className="text-rose-500">*</span> : null}
       </Label>
       <InputGroup surfaceClassName="bg-brand-50" className="group relative flex items-center">
-        <Icon data-field-affix="start" className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all group-focus-within:text-primary" />
+        <Icon data-field-affix="start" className="pointer-events-none absolute start-3.5 h-4 w-4 text-ink-subtle transition-all group-focus-within:text-primary" />
         <Input
           id={id}
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-10 pr-4 placeholder:text-ink-subtle"
+          className="w-full ps-10 pe-4 placeholder:text-ink-subtle"
         />
       </InputGroup>
     </div>

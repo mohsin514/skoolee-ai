@@ -4,6 +4,8 @@ import { ReconciliationsPanel } from "./reconciliations-panel";
 import { AdjustmentsQueue } from "./adjustments-panel";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
@@ -17,7 +19,6 @@ import {
   Download,
   FileText,
   Landmark,
-  Loader2,
   Plus,
   Printer,
   Search,
@@ -41,10 +42,19 @@ import {
   paisaToRupees,
   rupeesToPaisa,
   paymentMethodLabel,
-  statusBadgeClass,
 } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+
+function invoiceStatusVariant(status: string): BadgeProps["variant"] {
+  switch (status) {
+    case "PAID": return "success";
+    case "PARTIAL": return "warning";
+    case "PENDING": return "info";
+    case "OVERDUE": return "danger";
+    default: return "neutral";
+  }
+}
 
 const METHODS = [
   { value: "", label: "All Methods" },
@@ -170,9 +180,9 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             className="flex-1"
           />
-          <Button aria-label={tr("Search")} variant="default" size="icon" onClick={handleSearch} className="flex items-center justify-center">
-            <Search className="w-3.5 h-3.5" />
-          </Button>
+          <IconButton label={tr("Search")} variant="default" onClick={handleSearch}>
+            <Search className="w-3.5 h-3.5" aria-hidden="true" />
+          </IconButton>
         </div>
       </div>
 
@@ -232,9 +242,9 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
                   <p className="text-2xs font-medium tabular-nums text-ink-subtle">{formatDate(p.paymentDate)}</p>
                   <div className="min-w-0">
                     <p className="text-2xs font-bold text-ink truncate">{p.invoice.invoiceNumber}</p>
-                    <span className={`text-3xs font-semibold uppercase px-1.5 py-0.5 rounded ${statusBadgeClass(p.invoice.status)}`}>
+                    <Badge variant={invoiceStatusVariant(p.invoice.status)} size="sm" dot>
                       {tr(p.invoice.status)}
-                    </span>
+                    </Badge>
                   </div>
                 </div>
               ))}
@@ -512,8 +522,8 @@ function PaymentModal({
             </div>
             <div className="flex gap-3">
               <BrandButton variant="soft" className="flex-1 h-12" onClick={onSaved}><UiText>{"Close"}</UiText></BrandButton>
-              <BrandButton className="flex-1 h-12" onClick={handleDownloadPdf} disabled={downloadingPdf}>
-                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+              <BrandButton className="flex-1 h-12" onClick={handleDownloadPdf} loading={downloadingPdf}>
+                {!downloadingPdf && <Printer className="w-4 h-4" aria-hidden="true" />}
                 {downloadingPdf ? tr("Preparing PDF...") : tr("Download Receipt")}
               </BrandButton>
             </div>
@@ -531,9 +541,9 @@ function PaymentModal({
                   placeholder={tr("Search by name or roll no...")}
                   className="flex-1"
                 />
-                <Button aria-label={tr("Search")} variant="default" size="icon" onClick={searchStudents} disabled={searching} className="h-11 w-11 flex items-center justify-center">
-                  {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                </Button>
+                <IconButton label={tr("Search")} variant="default" onClick={searchStudents} loading={searching}>
+                  {!searching && <Search className="w-4 h-4" aria-hidden="true" />}
+                </IconButton>
               </div>
             </div>
             {studentsList.length > 0 && (
@@ -566,12 +576,12 @@ function PaymentModal({
               </div>
             )}
             {!loadingInvoices && selectedStudent && invoices.length === 0 && (
-              <div className="rounded-2xl bg-green-50 px-4 py-5 border border-green-200 text-center">
-                <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-                  <Banknote className="h-5 w-5 text-green-600" />
+              <div className="rounded-2xl bg-status-success-surface px-4 py-5 border border-status-success-border text-center">
+                <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-status-success-surface">
+                  <Banknote className="h-5 w-5 text-status-success-text" aria-hidden="true" />
                 </div>
-                <p className="text-sm font-bold text-green-800"><UiText>{"All Paid"}</UiText></p>
-                <p className="text-2xs font-semibold text-green-600/70 mt-0.5">{selectedStudent.fullName}<UiText>{"has no pending dues"}</UiText></p>
+                <p className="text-sm font-bold text-status-success-text"><UiText>{"All Paid"}</UiText></p>
+                <p className="text-xs font-medium text-status-success-text/80 mt-0.5">{selectedStudent.fullName}<UiText>{"has no pending dues"}</UiText></p>
                 <Button variant="link" onClick={() => { setSelectedStudent(null); setStudentsList([]); }} className="mt-3 hover:underline"><UiText>{"Search Again"}</UiText></Button>
               </div>
             )}
@@ -586,7 +596,7 @@ function PaymentModal({
                         <p className="text-xs font-bold text-ink-strong">{inv.invoiceNumber || "Invoice"}</p>
                         <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.amountDue, inv.currency)}</p>
                       </div>
-                      <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>{tr(inv.status)}</span>
+                      <Badge variant={invoiceStatusVariant(inv.status)} size="sm" dot>{tr(inv.status)}</Badge>
                     </label>
                   ))}
                   <BrandButton className="w-full" onClick={() => setStep("payment")}><UiText>{"Continue to Payment"}</UiText></BrandButton>
@@ -644,8 +654,8 @@ function PaymentModal({
             {outcomeUnknown && <div data-collect-outcome="unknown"><Alert tone="warning" live="polite" compact>{tr("We could not confirm whether this payment was saved. Check the result before doing anything else; it will not be recorded twice.")}</Alert></div>}
             <div className="flex gap-3">
               <BrandButton variant="soft" className="flex-1 h-12" onClick={() => { setStep("search"); setStudentsList([]); setInvoices([]); }}><UiText>{"Back"}</UiText></BrandButton>
-              <BrandButton className="flex-[2] h-12" onClick={handleRecordPayment} disabled={saving}>
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Banknote className="w-4 h-4" />}
+              <BrandButton className="flex-[2] h-12" onClick={handleRecordPayment} loading={saving}>
+                {!saving && <Banknote className="w-4 h-4" aria-hidden="true" />}
                 {saving ? tr("Recording...") : outcomeUnknown ? tr("Check payment result") : tr("Save & Generate Receipt")}
               </BrandButton>
             </div>
@@ -754,11 +764,11 @@ function BankImportModal({
       footer={committed ? <div className="flex w-full gap-2">
         {batch.state !== "REVERSED" && <BrandButton variant="soft" className="h-12 flex-1" onClick={() => void checkReversal()}>{tr("Check reversal")}</BrandButton>}
         {reversal?.eligible && !confirmReverse && <BrandButton className="h-12 flex-1" onClick={() => setConfirmReverse(true)}>{tr("Reverse batch")}</BrandButton>}
-      </div> : batch?.state === "STAGED" ? <BrandButton className="w-full h-12" onClick={() => void commit()} disabled={busy || batch.summary.accepted < 1}>
-        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
+      </div> : batch?.state === "STAGED" ? <BrandButton className="w-full h-12" onClick={() => void commit()} loading={busy} disabled={batch.summary.accepted < 1}>
+        {!busy && <Landmark className="w-4 h-4" aria-hidden="true" />}
         {busy ? tr("Committing...") : tr("Commit {0} selected transactions", [batch.summary.accepted])}
-      </BrandButton> : <BrandButton className="w-full h-12" onClick={() => void stage()} disabled={busy || !file}>
-        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Landmark className="w-4 h-4" />}
+      </BrandButton> : <BrandButton className="w-full h-12" onClick={() => void stage()} loading={busy} disabled={!file}>
+        {!busy && <Landmark className="w-4 h-4" aria-hidden="true" />}
         {busy ? tr("Validating...") : tr("Validate statement")}
       </BrandButton>}>
       <div className="max-h-[70vh] space-y-4 overflow-y-auto" dir="auto">

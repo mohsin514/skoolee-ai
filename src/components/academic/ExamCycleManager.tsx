@@ -18,7 +18,6 @@ import {
   GraduationCap,
   Info,
   LayoutList,
-  Loader2,
   Lock,
   Plus,
   RefreshCw,
@@ -33,6 +32,11 @@ import { toast } from "@/components/ui/toast";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
+import { SkeletonBlock } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toneOf } from "@/lib/ui/module-tones";
 import { Select as SystemSelect } from "@/components/ui/select";
@@ -291,7 +295,7 @@ export function ExamCycleManager({
         metas.forEach((x) => (metaMap[x.id] = x.meta));
         setMeta(metaMap);
       } catch {
-        if (!silent) toast.error("Failed to load exams");
+        if (!silent) toast.error("Could not load exams. Check your connection and refresh.");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -1118,7 +1122,6 @@ export function ExamCycleManager({
               type="button"
               onClick={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
               aria-label={prefs.sortDir === "asc" ? "Sort descending" : "Sort ascending"}
-              title={prefs.sortDir === "asc" ? "Ascending" : "Descending"}
               className="flex items-center justify-center"
             >
               {prefs.sortDir === "asc" ? (
@@ -1189,17 +1192,16 @@ export function ExamCycleManager({
       ) : exams.length === 0 ? (
         <EmptyBoard isTeacher={isTeacher} onCreate={() => setCreating(true)} />
       ) : filtered.length === 0 ? (
-        <div className="sk-panel flex flex-col items-center justify-center border-dashed p-16 text-center">
-          <Search className="mb-3 h-10 w-10 text-ink-subtle" />
-          <p className="text-sm font-bold text-ink-muted">Nothing matches those filters</p>
-          <Button variant="default"
-            type="button"
-            onClick={resetFilters}
-            className="mt-3 px-4 py-2"
-          >
-            Clear filters
-          </Button>
-        </div>
+        <EmptyState
+          icon={Search}
+          title="Nothing matches those filters"
+          description={isTeacher ? "Clear the filters to see every test again." : "Clear the filters to see every exam again."}
+          action={
+            <Button type="button" onClick={resetFilters}>
+              Clear filters
+            </Button>
+          }
+        />
       ) : prefs.view === "board" ? (
         <>
           {stageFilter !== "ALL" ? (
@@ -1422,16 +1424,18 @@ function BoardLane({
       <Button variant="outline"
         type="button"
         onClick={onToggleCollapse}
-        title={`Expand ${column.title}`}
+        aria-label={`Expand ${column.title}`}
         className="flex w-14 shrink-0 flex-col items-center gap-3 py-4"
       >
-        <ChevronRight className="h-4 w-4 text-ink-subtle" />
-        <span
-          className="rounded-full px-2 py-0.5 text-2xs font-bold"
+        <ChevronRight aria-hidden="true" className="h-4 w-4 text-ink-subtle rtl:rotate-180" />
+        <Badge
+          size="sm"
+          variant="outline"
+          className="border-transparent tabular-nums"
           style={{ backgroundColor: `${column.accent}1a`, color: column.accent }}
         >
           {exams.length}
-        </span>
+        </Badge>
         <span
           className="text-2xs font-semibold uppercase tracking-wider text-ink-muted"
           style={{ writingMode: "vertical-rl" }}
@@ -1471,12 +1475,14 @@ function BoardLane({
           <h3 className="text-sm font-bold text-ink-strong">{column.title}</h3>
         </div>
         <div className="flex items-center gap-1">
-          <span
-            className="rounded-full px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider"
+          <Badge
+            size="sm"
+            variant="outline"
+            className="border-transparent tabular-nums"
             style={{ backgroundColor: `${column.accent}1a`, color: column.accent }}
           >
             {exams.length}
-          </span>
+          </Badge>
           <Button variant="secondary" size="icon"
             type="button"
             onClick={onToggleCollapse}
@@ -1490,19 +1496,9 @@ function BoardLane({
       <p className="mb-3 text-2xs font-semibold text-ink-subtle">{column.hint}</p>
 
       {dropZone ? (
-        <div
-          className={cn(
-            "mb-3 flex items-start gap-1.5 rounded-2xl px-3 py-2 text-2xs font-bold",
-            dropZone.ok ? "bg-brand-50 text-primary" : "bg-rose-50 text-rose-600",
-          )}
-        >
-          {dropZone.ok ? (
-            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          )}
-          <span className="leading-snug">{dropZone.message}</span>
-        </div>
+        <Alert tone={dropZone.ok ? "brand" : "danger"} compact live="polite" className="mb-3">
+          {dropZone.message}
+        </Alert>
       ) : null}
 
       <div role="list" className="flex flex-1 flex-col gap-3">
@@ -1713,21 +1709,20 @@ function BulkBar({
           <Button variant="default"
             key={g.key}
             type="button"
-            disabled={busy}
+            loading={busy}
             onClick={() => onRun(g.key, g.exams)}
             className="justify-start flex items-center gap-1.5 px-3.5 py-2"
             style={{ backgroundColor: g.accent }}
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             {g.label}
-            <span className="rounded-full bg-white/25 px-1.5">{g.exams.length}</span>
+            <span className="rounded-full bg-white/25 px-1.5 tabular-nums">{g.exams.length}</span>
           </Button>
         ))
       )}
       <Button variant="ghost"
         type="button"
         onClick={onClear}
-        className="ml-auto px-3 py-2"
+        className="ms-auto px-3 py-2"
       >
         Clear
       </Button>
@@ -1807,8 +1802,8 @@ function ConfirmMoveModal({
           <BrandButton variant="soft" onClick={onCancel} disabled={busy} className="flex-1">
             Cancel
           </BrandButton>
-          <BrandButton variant="gradient" onClick={onConfirm} disabled={busy} className="flex-1">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          <BrandButton variant="gradient" onClick={onConfirm} loading={busy} className="flex-1">
+            {busy ? null : <CheckCircle2 aria-hidden="true" className="h-4 w-4" />}
             {verdictLabel}
           </BrandButton>
         </div>
@@ -1817,15 +1812,15 @@ function ConfirmMoveModal({
 
         <div className="space-y-3 px-6 py-5">
           {consequence && "confirm" in consequence.verdict ? (
-            <p className="text-xs font-semibold leading-relaxed text-ink">
+            <p className="text-sm leading-relaxed text-ink">
               {consequence.verdict.confirm}
             </p>
           ) : null}
 
           <ul className="max-h-40 space-y-1 overflow-y-auto rounded-2xl bg-surface-subtle p-3 custom-scrollbar">
             {plan.eligible.map(({ exam }) => (
-              <li key={exam.id} className="flex items-center gap-2 text-xs font-bold text-ink-strong">
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+              <li key={exam.id} className="flex items-center gap-2 text-xs font-semibold text-ink-strong">
+                <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-status-success-text" />
                 <span className="truncate">
                   {exam.title} · {classLabel(exam.class)}
                 </span>
@@ -1834,14 +1829,14 @@ function ConfirmMoveModal({
           </ul>
 
           {plan.blocked.length > 0 ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-amber-700">
-                {plan.blocked.length} will stay where {plan.blocked.length === 1 ? "it is" : "they are"}
-              </p>
-              <p className="mt-0.5 text-2xs font-semibold leading-relaxed text-amber-800">
-                {plan.blocked[0].reason}
-              </p>
-            </div>
+            <Alert
+              tone="warning"
+              compact
+              live="off"
+              title={`${plan.blocked.length} will stay where ${plan.blocked.length === 1 ? "it is" : "they are"}`}
+            >
+              {plan.blocked[0].reason}
+            </Alert>
           ) : null}
         </div>
 
@@ -1889,16 +1884,20 @@ function RejectMarksModal({
           <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">
             Cancel
           </BrandButton>
-          <BrandButton
-            variant="gradient"
-            onClick={onSubmit}
-            disabled={busy || tooShort}
-            title={tooShort ? "Write a reason for the teacher first" : "Send these marks back to the teacher"}
-            className="flex-1"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-            Send back
-          </BrandButton>
+          <Tooltip content={tooShort ? "Write a reason for the teacher first" : "Send these marks back to the teacher"}>
+            <span tabIndex={tooShort ? 0 : -1} className="flex flex-1">
+              <BrandButton
+                variant="gradient"
+                onClick={onSubmit}
+                disabled={tooShort}
+                loading={busy}
+                className="flex-1"
+              >
+                {busy ? null : <RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                Send back
+              </BrandButton>
+            </span>
+          </Tooltip>
         </div>
       }
     >
@@ -2059,11 +2058,17 @@ function CreateExamModal({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create exam");
-      toast.success("Exam created");
+      if (!res.ok) {
+        // Server text is not guaranteed to be user-safe; log it and show a human message.
+        console.error("Create exam failed", data?.error);
+        toast.error(role === "TEACHER" ? "Could not create the test. Please try again." : "Could not create the exam. Please try again.");
+        return;
+      }
+      toast.success(role === "TEACHER" ? "Test created" : "Exam created");
       onCreated();
     } catch (e) {
-      toast.error((e as Error)?.message || "Failed to create exam");
+      console.error(e);
+      toast.error(role === "TEACHER" ? "Could not create the test. Please try again." : "Could not create the exam. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -2081,12 +2086,11 @@ function CreateExamModal({
       footer={
         <div>
           {blockedReason && !loadingClasses ? (
-            <p className="mb-2.5 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <Alert tone="warning" compact live="off" className="mb-2.5">
               {blockedReason}
-            </p>
+            </Alert>
           ) : null}
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <Button variant="secondary"
               type="button"
               onClick={onClose}
@@ -2094,39 +2098,32 @@ function CreateExamModal({
             >
               Cancel
             </Button>
-            <BrandButton
-              variant="gradient"
-              onClick={submit}
-              disabled={busy || loadingClasses || Boolean(blockedReason)}
-              title={blockedReason || (role === "TEACHER" ? "Create this test" : "Create this exam")}
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-              {role === "TEACHER" ? "Create Test" : "Create Exam"}
-            </BrandButton>
+            <Tooltip content={blockedReason || (role === "TEACHER" ? "Create this test" : "Create this exam")}>
+              <span tabIndex={loadingClasses || blockedReason ? 0 : -1} className="inline-flex">
+                <BrandButton
+                  variant="gradient"
+                  onClick={submit}
+                  disabled={loadingClasses || Boolean(blockedReason)}
+                  loading={busy}
+                >
+                  {busy ? null : <BookOpen aria-hidden="true" className="h-4 w-4" />}
+                  {role === "TEACHER" ? "Create Test" : "Create Exam"}
+                </BrandButton>
+              </span>
+            </Tooltip>
           </div>
         </div>
       }
     >
         <div className="space-y-4">
           {loadingClasses ? (
-            <div className="space-y-3">
-              <div className="skeleton-shimmer h-40 w-full rounded-2xl bg-border-subtle/40" />
-              <p className="text-center text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                Loading classes…
-              </p>
-            </div>
+            <SkeletonBlock className="h-40 rounded-2xl" label="Loading classes" />
           ) : classesError ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-rose-200 bg-rose-50/50 p-8 text-center">
-              <AlertCircle className="h-8 w-8 text-rose-400" />
-              <p className="text-xs font-bold text-rose-600">{classesError}</p>
-              <Button variant="default"
-                type="button"
-                onClick={loadClasses}
-                className="justify-start flex items-center gap-1.5 px-4 py-2"
-              >
-                <RefreshCw className="h-3 w-3" /> Retry
-              </Button>
-            </div>
+            <ErrorState
+              title="Could not load classes"
+              description={classesError}
+              onRetry={loadClasses}
+            />
           ) : (
             <>
               <Field label="Class">

@@ -1,6 +1,8 @@
 "use client";
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FolderOpen } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -51,7 +53,7 @@ function SourceCard({ label, source, ui }: { label: string; source: Source | und
 
 function Compare({ c, ui }: { c: Comparison; ui: Ui }) {
   if (!c) return null;
-  if (!c.comparable) return <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900" data-pf-compare="incomparable"><p className="font-bold">{ui("The rubric changed between these pieces of work, so criteria are not compared directly.")}</p></div>;
+  if (!c.comparable) return <div data-pf-compare="incomparable"><Alert tone="warning" compact live="off">{ui("The rubric changed between these pieces of work, so criteria are not compared directly.")}</Alert></div>;
   return <table className="w-full text-xs" data-pf-compare="comparable"><thead><tr><th className="text-start">{ui("Criterion")}</th><th>{ui("Earlier")}</th><th>{ui("Later")}</th></tr></thead>
     <tbody>{c.rows.map(r => <tr key={r.id}><td dir="auto">{r.title}</td><td className="text-center"><bdi>{r.before ?? "—"}/{r.maxPoints}</bdi></td><td className="text-center"><bdi>{r.after ?? "—"}/{r.maxPoints}</bdi></td></tr>)}</tbody></table>;
 }
@@ -82,7 +84,7 @@ export function Portfolio({ studentId }: { studentId?: string }) {
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold">{learner ? ui("My learning portfolio") : ui("Learning portfolio of {0}", [data.student.name])}</h3><p className="text-xs text-ink-muted">{ui("Evidence of how understanding changed: work, feedback, a later revision and a reflection. No class rankings.")}</p></div>
       <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => void openAdd()} data-pf-add>{ui("Add evidence")}</Button><a className="inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-bold" href={`/api/portfolio/export${q}`} target="_blank" rel="noreferrer" data-pf-export>{ui("Export reviewed entries")}</a>{!learner ? <Button size="sm" variant="outline" disabled={!shareable.length} onClick={() => { setSharing(true); setShare({ guardianUserId: data.guardians[0]?.id ?? "", days: "30", title: "", entryIds: shareable.map(e => e.id) }); }} data-pf-share>{ui("Share with a guardian")}</Button> : null}</div></header>
 
-    {!data.entries.length ? <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted" data-pf-empty>{ui("Choose one piece of work that shows something you learned.")}</p> : <ol className="space-y-3" data-pf-timeline>{data.entries.map(e => <li key={e.id} className={cn("rounded-2xl border p-3", e.status === "PROPOSED" ? "border-amber-300" : "border-edge/40")} data-pf-entry={e.id} data-pf-status={e.status}>
+    {!data.entries.length ? <div data-pf-empty><EmptyState size="sm" icon={FolderOpen} title={ui("Choose one piece of work that shows something you learned.")} /></div> : <ol className="space-y-3" data-pf-timeline>{data.entries.map(e => <li key={e.id} className={cn("rounded-2xl border p-3", e.status === "PROPOSED" ? "border-amber-300" : "border-edge/40")} data-pf-entry={e.id} data-pf-status={e.status}>
       <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-bold text-brand-700" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-bold" dir="auto">{e.title}</p><p className="text-xs text-ink-muted">{statusLabel(ui, e.status)}{e.familyVisible ? <> · {ui("Visible to authorized guardians")}</> : null}{e.approvedVersion ? <> · {ui("Reviewed reflection version {0}", [String(e.approvedVersion)])}</> : null} · <bdi>{date(e.createdAt)}</bdi></p></div>
         <div className="flex flex-wrap gap-2">{learner ? <Button size="sm" variant="outline" onClick={() => { setEditing(e); setReflection(e.reflection ?? ""); }} data-pf-reflect>{ui("Add reflection")}</Button> : <Button size="sm" variant={e.status === "PROPOSED" ? "default" : "outline"} onClick={() => { setReviewing(e); setComment(e.teacherComment ?? ""); setNote(e.staffNote ?? ""); setFamilyVisible(Boolean(e.familyVisible)); }} data-pf-review>{ui("Review")}</Button>}
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "remove", entryId: e.id }), "Removed from the portfolio. The original assignment is unchanged.")} data-pf-remove>{ui("Remove")}</Button></div></div>
@@ -110,7 +112,7 @@ export function Portfolio({ studentId }: { studentId?: string }) {
 
     {editing ? <ModalFrame title={ui("Reflection")} eyebrow={editing.title} onClose={() => setEditing(null)}>
       <div className="space-y-3" data-pf-reflect-dialog>
-        {editing.teacherComment && editing.status === "CHANGES_REQUESTED" ? <p className="rounded bg-amber-50 p-2 text-sm text-amber-900" dir="auto">{editing.teacherComment}</p> : null}
+        {editing.teacherComment && editing.status === "CHANGES_REQUESTED" ? <Alert tone="warning" compact live="off"><span dir="auto">{editing.teacherComment}</span></Alert> : null}
         <FormField name="pf-text" label={ui("What did you change after the feedback?")} hint={ui("Your teacher's feedback and your submitted work stay exactly as they were.")}><Textarea rows={4} value={reflection} onChange={e => setReflection(e.target.value)} maxLength={3000} /></FormField>
         <div className="flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "reflect", entryId: editing.id, knownVersion: editing.version, reflection }), "Reflection saved.").then(ok => ok && setEditing(null))} data-pf-reflect-save>{ui("Save")}</Button><Button disabled={busy || !reflection.trim()} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "reflect", entryId: editing.id, knownVersion: editing.version, reflection, propose: true }), "Sent to your teacher for review.").then(ok => ok && setEditing(null))} data-pf-propose>{ui("Send for review")}</Button></div>
       </div>

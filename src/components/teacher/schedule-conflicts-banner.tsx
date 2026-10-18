@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DAY_LABELS, detectSlotClashes, type ClashSlot } from "@/lib/timetable/clashes";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 
 /**
@@ -43,40 +44,41 @@ export function ScheduleConflictsBanner({
         className="flex w-full items-center justify-between gap-3 text-start"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
-            <AlertTriangle className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-status-error-surface text-status-error-text">
+            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <p className="text-sm font-bold text-ink-strong">
               You&apos;re double-booked {scopeLabel}
             </p>
-            <p className="mt-0.5 text-2xs font-bold text-ink-muted">
+            <p className="mt-0.5 text-xs font-normal leading-relaxed text-ink-muted">
               {clashes.length} period{clashes.length !== 1 ? "s" : ""} put you in more than one
               class at the same time
             </p>
           </div>
         </div>
         <ChevronDown
-          className={cn("h-4 w-4 shrink-0 text-rose-500 transition-transform", open && "rotate-180")}
+          aria-hidden="true"
+          className={cn("h-4 w-4 shrink-0 text-status-error-text transition-transform", open && "rotate-180")}
         />
       </Button>
 
       {open ? (
         <div className="space-y-2 border-t border-rose-200/50 p-4">
           {clashes.map((clash) => (
-            <div key={clash.key} className="rounded-2xl bg-white p-3">
+            <div key={clash.key} className="sk-panel p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-lg bg-rose-50 px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-rose-700">
+                <Badge variant="danger" size="sm" dot>
                   {DAY_LABELS[clash.dayOfWeek] || `Day ${clash.dayOfWeek}`} · P{clash.periodNumber}
-                </span>
-                <span className="text-2xs font-bold text-ink-muted">{clash.startTime}</span>
+                </Badge>
+                <span className="text-xs font-medium tabular-nums text-ink-subtle">{clash.startTime}</span>
               </div>
-              <p className="mt-1.5 text-xs font-bold leading-relaxed text-ink-strong">
+              <p className="mt-1.5 text-sm font-semibold leading-relaxed text-ink-strong">
                 {clash.classes.join("  &  ")}
               </p>
             </div>
           ))}
-          <p className="pt-1 text-2xs font-bold text-ink-muted">
+          <p className="pt-1 text-xs leading-relaxed text-ink-muted">
             You can&apos;t edit the timetable yourself — ask the office to move one of these periods.
           </p>
         </div>

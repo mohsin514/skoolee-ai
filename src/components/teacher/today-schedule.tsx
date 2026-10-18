@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 
 export interface TimetableSlot {
@@ -93,7 +95,7 @@ export function TodaySchedule({
   /* ── Loading skeleton ── */
   if (loading) {
     return (
-      <div className="sk-panel overflow-hidden border-edge/20 p-6 animate-skeleton-in">
+      <div className="sk-panel overflow-hidden border-edge/20 p-4 sm:p-6 animate-skeleton-in" aria-busy="true" role="status" aria-label="Loading today's schedule">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
             <div className="skeleton-shimmer h-9 w-9 rounded-2xl bg-border-subtle/60" />
@@ -103,7 +105,7 @@ export function TodaySchedule({
         </div>
         <div className="flex gap-3 overflow-hidden">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="skeleton-shimmer h-[120px] w-[200px] shrink-0 rounded-3xl bg-border-subtle/45" />
+            <div key={i} className="skeleton-shimmer h-[120px] w-[200px] max-w-[80vw] shrink-0 rounded-3xl bg-border-subtle/45" />
           ))}
         </div>
       </div>
@@ -118,7 +120,7 @@ export function TodaySchedule({
       <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-primary/[0.07] blur-3xl sk-blob" />
       <div className="pointer-events-none absolute -bottom-28 -left-20 h-64 w-64 rounded-full bg-berry/[0.05] blur-3xl sk-blob sk-blob-2" />
 
-      <div className="relative p-6">
+      <div className="relative p-4 sm:p-6">
         {/* ── Header row ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-3">
@@ -134,14 +136,14 @@ export function TodaySchedule({
               <Clock className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-strong flex items-center gap-2">
+              <h3 className="flex items-center gap-2 text-base font-bold tracking-tight text-ink-strong">
                 Today&apos;s Schedule
                 <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-brand-50 border border-primary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
                   <Timer className="h-3 w-3" />
                   {clock}
                 </span>
               </h3>
-              <p className="mt-0.5 text-2xs font-semibold text-ink-subtle">
+              <p className="mt-0.5 text-xs font-medium tabular-nums text-ink-subtle">
                 {doneCount} of {entries.length} periods done
                 {nextEntry && !liveEntry ? ` · next in ${minutesToNext}m` : liveEntry ? " · class in session" : " · all wrapped up"}
               </p>
@@ -152,14 +154,9 @@ export function TodaySchedule({
             <div className="hidden md:block w-28">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Day progress</span>
-                <span className="text-2xs font-bold text-primary">{Math.round(dayProgress)}%</span>
+                <span className="text-2xs font-bold tabular-nums text-primary">{Math.round(dayProgress)}%</span>
               </div>
-              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-[width] duration-1000 ease-linear"
-                  style={{ width: `${dayProgress}%` }}
-                />
-              </div>
+              <Progress value={dayProgress} max={100} label="Day progress" size="sm" valueText={`${Math.round(dayProgress)}%`} />
             </div>
             <Button variant="default" size="sm"
               type="button"
@@ -167,7 +164,7 @@ export function TodaySchedule({
               className="group flex justify-start items-center gap-1.5"
             >
               Full timetable
-              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5" aria-hidden="true" />
             </Button>
           </div>
         </div>
@@ -176,14 +173,9 @@ export function TodaySchedule({
         <div className="md:hidden mb-5">
           <div className="flex items-center justify-between mb-1">
             <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Day progress</span>
-            <span className="text-2xs font-bold text-primary">{Math.round(dayProgress)}%</span>
+            <span className="text-2xs font-bold tabular-nums text-primary">{Math.round(dayProgress)}%</span>
           </div>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-[width] duration-1000 ease-linear"
-              style={{ width: `${dayProgress}%` }}
-            />
-          </div>
+          <Progress value={dayProgress} max={100} label="Day progress" size="sm" valueText={`${Math.round(dayProgress)}%`} />
         </div>
 
         {/* ── Period cards ── */}
@@ -202,7 +194,7 @@ export function TodaySchedule({
                   active
                     ? "border-transparent bg-gradient-to-br from-primary via-brand-400 to-berry shadow-glow"
                     : clashing
-                    ? "border-rose-200 bg-rose-50/70"
+                    ? "border-status-error-border bg-status-error-surface"
                     : past
                     ? "border-edge/15 bg-white/55"
                     : "border-edge/20 bg-white hover:border-primary/30"
@@ -217,7 +209,7 @@ export function TodaySchedule({
                       active
                         ? "bg-white/20 text-white"
                         : clashing
-                        ? "bg-rose-100 text-rose-700"
+                        ? "bg-status-error-surface text-status-error-text"
                         : past
                         ? "bg-muted text-ink-subtle"
                         : "bg-brand-50 text-primary"
@@ -235,26 +227,26 @@ export function TodaySchedule({
                       Live
                     </span>
                   ) : clashing ? (
-                    <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-rose-700">
-                      <AlertTriangle className="h-2.5 w-2.5" />
+                    <Badge variant="danger" size="sm">
+                      <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
                       Clash
-                    </span>
+                    </Badge>
                   ) : past ? (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-                      <CheckCircle2 className="h-2.5 w-2.5" />
+                    <Badge variant="success" size="sm">
+                      <CheckCircle2 className="h-2.5 w-2.5" aria-hidden="true" />
                       Done
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
+                    <Badge variant="warning" size="sm" dot>
                       Up next
-                    </span>
+                    </Badge>
                   )}
                 </div>
 
                 <p
                   className={cn(
                     "relative z-10 mt-3 text-2xs font-bold tabular-nums tracking-wide",
-                    active ? "text-white/75" : clashing ? "text-rose-600" : past ? "text-ink-subtle" : "text-primary"
+                    active ? "text-white/75" : clashing ? "text-status-error-text" : past ? "text-ink-subtle" : "text-primary"
                   )}
                 >
                   {slot.startTime} — {slot.endTime}

@@ -4,7 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useState, useSyncExt
 import { usePathname } from "next/navigation";
 import { moduleForHref, type NavigationAccess } from "@/lib/navigation/modules";
 import { SkeletonBar, SkeletonRegion } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView";
 
@@ -72,9 +73,9 @@ export function NavigationAccessNotice({ denied = false, fallback }: { denied?: 
   // A caller that supplies access (such as a token-based parent portal) owns
   // its loading request and must keep that request's recovery action visible.
   if (denied && fallback) return <>{fallback}</>;
-  if (state?.status === 'error') return <div role="alert" className="rounded-xl border border-border bg-card p-4 text-sm"><p>{t("Workspace access could not be checked. Your work has not been changed.")}</p><Button variant="outline" onClick={state.retry} className="mt-3">{t("Retry access check")}</Button></div>;
+  if (state?.status === 'error') return <ErrorState description={t("Workspace access could not be checked. Your work has not been changed.")} onRetry={state.retry} retryLabel={t("Retry access check")} />;
   if (denied && state?.status === 'loading') return <WorkspaceAccessSkeleton />;
-  if (denied) return <p role="status" className="rounded-xl border border-border bg-card p-4 text-sm">{t("This workspace is not available with your current access. Choose an available section.")}</p>;
+  if (denied) return <Alert tone="neutral" live="polite">{t("This workspace is not available with your current access. Choose an available section.")}</Alert>;
   return null;
 }
 

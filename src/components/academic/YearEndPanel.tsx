@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
@@ -10,7 +11,6 @@ import {
   TrendingUp,
   UserCheck,
   Users,
-  AlertTriangle,
   X,
   PieChart,
   CalendarClock,
@@ -21,6 +21,7 @@ import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel"
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { InfoTip } from "@/components/ui/tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input as SystemInput } from "@/components/ui/input";
 
 type CalendarRole = "ADMIN" | "PRINCIPAL" | "TEACHER" | "STUDENT" | "PARENT";
@@ -197,9 +198,7 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
                     <h4 className="flex items-center gap-1.5 text-sm font-bold text-ink-strong">Average Grades per Class <InfoTip content="Mean of each student's overall weighted percentage in the class for this year. Shown for classes that are completed or have exams." /></h4>
                   </div>
                   {classAvgs.length === 0 ? (
-                    <p className="py-6 text-center text-xs font-semibold text-ink-subtle">
-                      No completed classes with grades yet for {activeYear}.
-                    </p>
+                    <EmptyState size="sm" icon={PieChart} title={`No completed classes with grades yet for ${activeYear}.`} description="Averages appear once a class is completed or has exam results." />
                   ) : (
                     <div className="space-y-2">
                       {classAvgs.map((c) => (
@@ -270,12 +269,9 @@ export function YearEndPanel({ campusId, role = "ADMIN" }: { campusId?: string; 
           }
         >
               <div>
-                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-rose-200/50 bg-rose-50 p-4">
-                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" />
-                  <p className="text-xs font-semibold leading-relaxed text-rose-700">
-                    Archiving ends the active cycle <span className="font-bold">{activeCycle?.label}</span>. This marks the year as closed and cannot be undone from this panel.
-                  </p>
-                </div>
+                <Alert tone="danger" live="off" compact className="mb-4">
+                  Archiving ends the active cycle <span className="font-semibold">{activeCycle?.label}</span>. This marks the year as closed and cannot be undone from this panel.
+                </Alert>
                 <label className="block">
                   <span className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-ink-muted">
                     Type <span className="font-bold text-rose-600">{activeCycle?.label}</span> to confirm

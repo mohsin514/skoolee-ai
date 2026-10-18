@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { KeyRound, Loader2, RotateCcw } from "lucide-react";
+import { KeyRound, RotateCcw } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { MfaCodeField } from "@/components/auth/mfa/MfaCodeField";
@@ -78,8 +78,8 @@ export function RegenerateCodesDialog({ t, onClose, onCommitted, onDone, onState
         <DialogFooter>
           {step === 1 ? <DialogClose variant="default" label={t.done} disabled={!ack} /> : <>
             <DialogClose label={t.cancel} disabled={busy} />
-            <Button type="submit" form={formId} disabled={busy} aria-busy={busy}>
-              {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <KeyRound aria-hidden="true" />}{t.regenerateAction}
+            <Button type="submit" form={formId} loading={busy}>
+              {!busy && <KeyRound aria-hidden="true" />}{t.regenerateAction}
             </Button>
           </>}
         </DialogFooter>
@@ -90,7 +90,7 @@ export function RegenerateCodesDialog({ t, onClose, onCommitted, onDone, onState
 
       {step === 0 ? (
         <form id={formId} onSubmit={submit} aria-busy={busy} className="space-y-5" noValidate>
-          <p className="text-sm font-semibold leading-relaxed text-ink-muted">{t.regenerateIntro}</p>
+          <p className="text-sm font-normal leading-relaxed text-ink-muted">{t.regenerateIntro}</p>
           <PasswordField id="security-regenerate-password" value={password} onChange={setPassword} readOnly={busy} inputRef={passwordRef} t={t}
             error={error?.scope === "password" ? message : undefined} />
           <MfaCodeField id="security-regenerate-code" value={code} onChange={setCode} recovery={false} onRecoveryChange={() => {}}

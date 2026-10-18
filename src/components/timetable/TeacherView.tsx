@@ -1,6 +1,8 @@
 "use client";
 
-import { ChevronDown, Printer, User } from "lucide-react";
+import { CalendarX, ChevronDown, Printer, User } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 import type { GridDay, GridPeriod, TeacherOption, TimetableData } from "./TimetableStudio";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -60,7 +62,7 @@ export function TeacherView({
           <SystemSelect
             value={selectedTeacherId}
             onChange={(e) => onSelectTeacher(e.target.value)}
-            className="px-4 pr-10 appearance-none"
+            className="px-4 pe-10 appearance-none"
           >
             <option value="">— Select teacher —</option>
             {teachers.map((t) => (
@@ -88,14 +90,8 @@ export function TeacherView({
       </div>
 
       {!selectedTeacherId && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[28px] bg-brand-50">
-            <User className="h-8 w-8 text-primary/30" />
-          </div>
-          <h3 className="text-lg font-bold text-ink-strong">Select a Teacher</h3>
-          <p className="mt-2 max-w-sm text-sm font-semibold text-ink-muted">
-            Choose a teacher above to see their full weekly schedule across every class they teach.
-          </p>
+        <div className="py-16">
+          <EmptyState icon={User} title="Select a teacher" description="Choose a teacher above to see their full weekly schedule across every class they teach." />
         </div>
       )}
 
@@ -155,7 +151,7 @@ export function TeacherView({
                             </p>
                             <p className="text-3xs font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</p>
                             {isConflict && (
-                              <span className="mt-0.5 text-3xs font-semibold uppercase text-rose-600">CONFLICT</span>
+                              <Badge variant="danger" size="sm" className="mt-0.5">Conflict</Badge>
                             )}
                           </div>
                         ) : (
@@ -169,8 +165,8 @@ export function TeacherView({
                 </div>
               ))
             ) : (
-              <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
-                No timetable periods found. Create timetables for classes first.
+              <div className="py-10">
+                <EmptyState size="sm" icon={CalendarX} title="No timetable periods yet" description="Create timetables for classes first." />
               </div>
             )}
           </div>

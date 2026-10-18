@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PublicationReview, PublicationStatus } from "./PublicationReview";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
@@ -476,7 +477,7 @@ function SlotEditorModal({
                   onChange={(e) => setSubjectId(e.target.value)}
                   className="w-full px-4 py-2.5"
                 >
-                  <option value="">— No subject —</option>
+                  <option value="">{ui("— No subject —")}</option>
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
@@ -492,13 +493,13 @@ function SlotEditorModal({
                   onChange={(e) => setTeacherId(e.target.value)}
                   className="w-full px-4 py-2.5"
                 >
-                  <option value="">— No teacher —</option>
+                  <option value="">{ui("— No teacher —")}</option>
                   {freeTeachers.map((t) => (
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
                 </SystemSelect>
                 {!loadingAvail && freeTeachers.length === 0 && (
-                  <p className="mt-1 text-2xs font-semibold text-amber-600">No free teachers for this slot.</p>
+                  <p className="mt-1 text-xs font-medium text-status-warning-text">{ui("No free teachers for this slot.")}</p>
                 )}
               </div>
 
@@ -511,7 +512,7 @@ function SlotEditorModal({
                   onChange={(e) => setRoomId(e.target.value)}
                   className="w-full px-4 py-2.5"
                 >
-                  <option value="">— No room —</option>
+                  <option value="">{ui("— No room —")}</option>
                   {freeRooms.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.roomNumber}{r.capacity > 0 ? ` (${r.capacity} seats)` : ""}
@@ -519,7 +520,7 @@ function SlotEditorModal({
                   ))}
                 </SystemSelect>
                 {!loadingAvail && freeRooms.length === 0 && (
-                  <p className="mt-1 text-2xs font-semibold text-amber-600">No free rooms for this slot.</p>
+                  <p className="mt-1 text-xs font-medium text-status-warning-text">{ui("No free rooms for this slot.")}</p>
                 )}
               </div>
             </>
@@ -669,6 +670,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
   );
 
   const qp = campusId ? `?campusId=${campusId}` : "";
+  const ui = useUiText();
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -701,11 +703,11 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         setTeachers(teacherList);
       }
     } catch {
-      toast.error("Failed to load timetable data");
+      toast.error(ui("Could not load timetables, classes or teachers. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
-  }, [qp]);
+  }, [qp, campusId, ui]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -792,14 +794,14 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable created!");
+        toast.success(ui("Timetable created. Add lessons to each period, then save."));
         setCustomPeriods([]);
         await loadData();
       } else {
-        toast.error(json.error || "Failed to create");
+        toast.error(json.error || ui("Could not create the timetable. Try again."));
       }
     } catch {
-      toast.error("Failed to create timetable");
+      toast.error(ui("Could not create the timetable. Try again."));
     } finally {
       setCreating(false);
     }
@@ -823,7 +825,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       roomId: null,
     };
     handleSlotUpdate(slot.id, change);
-    toast.success(`Placed ${sub?.name || "subject"} — review teacher & save`);
+    toast.success(ui("Placed {0}. Check the teacher, then save.", [sub?.name || ui("subject")]));
   };
 
   const handleSaveAll = async () => {
@@ -853,16 +855,16 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable saved!");
+        toast.success(ui("Timetable saved."));
         setPendingChanges(new Map());
         await loadData();
       } else if (json.conflicts) {
         json.conflicts.forEach((c: string) => toast.error(c));
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(json.error || ui("Could not save. Try again."));
       }
     } catch {
-      toast.error("Failed to save timetable");
+      toast.error(ui("Could not save the timetable. Try again."));
     } finally {
       setSaving(false);
     }
@@ -882,10 +884,10 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         toast.success(ui("Timetable unpublished"));
         await loadData();
       } else {
-        toast.error(json.error || "Failed");
+        toast.error(json.error || ui("Could not update the timetable. Try again."));
       }
     } catch {
-      toast.error("Action failed");
+      toast.error(ui("Could not update the timetable. Try again."));
     } finally {
       setPublishing(false);
     }
@@ -903,21 +905,20 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Period config saved!");
+        toast.success(ui("Period times saved."));
         await loadData();
         return true;
       }
-      toast.error(json.error || "Failed to save");
+      toast.error(json.error || ui("Could not save. Try again."));
       return false;
     } catch {
-      toast.error("Failed to save period config");
+      toast.error(ui("Could not save the period times. Try again."));
       return false;
     } finally {
       setSaving(false);
     }
   };
   const [confirmDeleteTimetable, setConfirmDeleteTimetable] = useState(false), [deletingTimetable, setDeletingTimetable] = useState(false);
-  const ui = useUiText();
   const handleSavePeriodConfig = (configuration: PeriodConfiguration[]) => {
     if (!activeTimetable || pendingChanges.size > 0 || changing) return;
     if (planPeriodChanges(activeTimetable.slots, configuration).clearing.length) setPeriodReview(configuration);
@@ -933,13 +934,13 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable deleted");
+        toast.success(ui("Timetable deleted."));
         await loadData();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(json.error || ui("Could not delete the timetable. Try again."));
       }
     } catch {
-      toast.error("Failed to delete");
+      toast.error(ui("Could not delete the timetable. Try again."));
     } finally {
       setDeletingTimetable(false); setConfirmDeleteTimetable(false);
     }
@@ -1091,22 +1092,19 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
           )}
 
           {selectedClassId && !activeTimetable && (
-            <div className="sk-rise flex flex-col items-center justify-center py-16" style={{ animationDelay: "120ms" }}>
-              <div className="h-20 w-20 rounded-[32px] bg-gradient-to-br from-primary/10 to-brand-50 flex items-center justify-center mb-6">
-                <Calendar className="w-10 h-10 text-primary/40" />
-              </div>
-              <h3 className="text-lg font-bold text-ink-strong mb-2">No Timetable Yet</h3>
-              <p className="text-sm text-ink-muted mb-8 max-w-sm text-center">
-                Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
-              </p>
-              <div className="flex items-center gap-3">
+            <EmptyState
+              className="sk-enter py-16"
+              icon={Calendar}
+              title={ui("No timetable yet")}
+              description={ui("Create a weekly schedule for this class with configurable period timings ({0})", [visibleDays.map((d) => d.short).join("–")])}
+              action={<div className="flex flex-wrap items-center justify-center gap-3">
                 <Button variant="outline"
                   type="button"
                   onClick={() => { setCustomPeriods(defaultPeriods.map((p) => ({ ...p }))); setShowPeriodConfig(true); }}
                   className="flex justify-start items-center gap-2"
                 >
-                  <Clock className="w-4 h-4" />
-                  Configure Periods
+                  <Clock aria-hidden="true" className="w-4 h-4" />
+                  {ui("Configure Periods")}
                 </Button>
                 <Button variant="default"
                   type="button"
@@ -1116,10 +1114,10 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   className="flex justify-start items-center gap-2"
                 >
                   <Plus aria-hidden="true" className="h-4 w-4" />
-                  Quick Create (Default)
+                  {ui("Quick Create (Default)")}
                 </Button>
-              </div>
-            </div>
+              </div>}
+            />
           )}
 
           {selectedClassId && activeTimetable && (
@@ -1146,22 +1144,21 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       30cm while it is being built. */}
                   <div className="flex items-center gap-0.5 rounded-xl border border-edge/25 bg-surface-subtle p-0.5">
                     {(["compact", "comfortable", "roomy"] as const).map((d) => (
+                      <Tooltip key={d} content={
+                          d === "compact"
+                            ? ui("Compact — subject names only")
+                            : d === "comfortable"
+                            ? ui("Comfortable — subject, teacher and room")
+                            : ui("Roomy — full names on their own lines")
+                        }>
                       <Button variant="choice" size="sm"
-                        key={d}
                         type="button"
                         onClick={() => setDensity(d)}
                         aria-pressed={density === d}
-                        title={
-                          d === "compact"
-                            ? "Compact — subject names only"
-                            : d === "comfortable"
-                            ? "Comfortable — subject, teacher and room"
-                            : "Roomy — full names on their own lines"
-                        }
-                        className=""
                       >
                         {d === "compact" ? "S" : d === "comfortable" ? "M" : "L"}
                       </Button>
+                      </Tooltip>
                     ))}
                   </div>
                   <Tooltip content={focused ? ui("Show the subject and conflict panels") : ui("Give the grid the full width")}>
@@ -1241,19 +1238,20 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     {subjects.map((s) => {
                       const c = subjectColorMap.get(s.id);
                       return (
-                        <div
-                          key={s.id}
-                          title={s.teacher ? `${s.name} — ${s.teacher.fullName}` : s.name}
-                          className={`flex max-w-[220px] items-center gap-1.5 rounded-xl ${c?.bg || "bg-gray-100"} px-3 py-1.5`}
+                        <Tooltip key={s.id} content={s.teacher ? `${s.name} — ${s.teacher.fullName}` : s.name}>
+                        <span
+                          tabIndex={0}
+                          className={`flex max-w-[220px] items-center gap-1.5 rounded-xl ${c?.bg || "bg-surface-subtle"} px-3 py-1.5`}
                         >
-                          <span className={`h-2 w-2 shrink-0 rounded-full ${c?.dot || "bg-gray-400"}`} />
-                          <span className={`truncate text-2xs font-bold ${c?.text || "text-gray-600"}`}>{s.name}</span>
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${c?.dot || "bg-ink-faint"}`} />
+                          <span className={`truncate text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{s.name}</span>
                           {s.teacher && (
                             <span className="ms-1 truncate text-2xs font-semibold text-ink-subtle">
                               {s.teacher.fullName}
                             </span>
                           )}
-                        </div>
+                        </span>
+                        </Tooltip>
                       );
                     })}
                   </div>

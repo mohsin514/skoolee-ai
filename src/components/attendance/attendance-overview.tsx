@@ -827,14 +827,14 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                     onClick={() => handleClassClick(cls.classId)}
                     className="flex justify-start items-center gap-4 text-start"
                   >
-                    <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
-                      <BarChart3 className="h-4 w-4 text-rose-600" />
+                    <div className="h-10 w-10 rounded-xl bg-status-error-surface flex items-center justify-center shrink-0">
+                      <BarChart3 aria-hidden="true" className="h-4 w-4 text-status-error-text" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-ink-strong truncate">
                         {cls.className}
                       </p>
-                      <p className="text-2xs font-bold text-rose-500">
+                      <p className="text-xs font-medium tabular-nums text-status-error-text">
                         {cls.percentage}% attendance &middot; {cls.absent} absences
                       </p>
                     </div>

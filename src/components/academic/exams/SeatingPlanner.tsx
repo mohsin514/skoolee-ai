@@ -10,7 +10,6 @@ import {
   DoorOpen,
   Info,
   Layers,
-  Loader2,
   MapPin,
   RefreshCw,
   Sparkles,
@@ -407,10 +406,10 @@ export function SeatingPlanner({
           </BrandButton>
           <BrandButton
             onClick={autoSeat}
-            disabled={seating}
-            icon={seating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            loading={seating}
+            icon={seating ? null : <Wand2 className="h-4 w-4" aria-hidden="true" />}
           >
-            {seating ? "Seating…" : "Fill rooms automatically"}
+            Fill rooms automatically
           </BrandButton>
         </div>
       </div>

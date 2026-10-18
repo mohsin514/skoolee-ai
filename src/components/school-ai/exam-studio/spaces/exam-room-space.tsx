@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { TaskFeedback } from "@/components/ui/task-patterns";
@@ -64,8 +65,8 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
     <section className="sk-panel space-y-3 p-5" aria-labelledby="room-release">
       <h3 id="room-release" className="sr-only">{t.roomRelease}</h3>
       <label className="grid max-w-xl gap-1 text-sm font-semibold">{t.roomPaper}<Select aria-label={t.roomPaper} value={current} onChange={event => { setPaperId(event.target.value); setMessage(null); }}>{approved.map(record => <option key={record.id} value={record.id}>{record.title} · v{record.version}</option>)}</Select></label>
-      {readiness && (blockers ? <p role="alert" className="text-sm font-semibold text-status-warning-text" data-room-state="blocked">{fillStudioCopy(t.roomBlocked, [new Intl.NumberFormat(language).format(blockers)])}</p>
-        : <p className="text-sm font-semibold" data-room-state="ready">{t.roomReady}{readiness.contentHashPrefix ? <> · <bdi dir="ltr" className="font-mono text-xs">#{readiness.contentHashPrefix}</bdi></> : null}</p>)}
+      {readiness && (blockers ? <Alert tone="warning" compact live="polite" data-room-state="blocked">{fillStudioCopy(t.roomBlocked, [new Intl.NumberFormat(language).format(blockers)])}</Alert>
+        : <Alert tone="success" compact live="polite" data-room-state="ready">{t.roomReady}{readiness.contentHashPrefix ? <> · <bdi dir="ltr" className="font-mono text-xs">#{readiness.contentHashPrefix}</bdi></> : null}</Alert>)}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="grid gap-1 text-sm font-semibold">{t.roomTitle}<Input value={title} maxLength={160} onChange={event => setTitle(event.target.value)} /></label>
         <label className="grid gap-1 text-sm font-semibold">{t.roomOpens}<Input type="datetime-local" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label>

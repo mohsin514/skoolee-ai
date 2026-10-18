@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { InfoTip } from "@/components/ui/tooltip";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
@@ -158,15 +160,15 @@ export function ImprovementWorkspace() {
   const close = async () => { setModal(null); await load(); };
   return <div className="min-w-0 space-y-5" data-improvement data-mode={data.mode}>
     <header className="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 className="text-xl font-bold">{ui("Improvement evidence")}</h1><p className="text-sm text-ink-muted" data-disclaimer>{ui("School-configured framework. No accreditation outcome is implied.")}</p></div>
-      <div className="flex flex-wrap gap-2">
-        {data.frameworks.length ? <Select className="w-auto" value={view?.framework.id ?? ""} onChange={e => setFrameworkId(e.target.value)} aria-label={ui("Framework")} data-framework-select>{data.frameworks.map(f => <option key={f.id} value={f.id}>{f.name} · {f.version}{f.status === "RETIRED" ? ` (${ui("Retired")})` : ""}</option>)}</Select> : null}
+      <div><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("Improvement evidence")}</h1><p className="text-sm text-ink-muted" data-disclaimer>{ui("School-configured framework. No accreditation outcome is implied.")}</p></div>
+      <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto">
+        {data.frameworks.length ? <Select className="w-full min-w-0 max-w-full sm:w-auto" value={view?.framework.id ?? ""} onChange={e => setFrameworkId(e.target.value)} aria-label={ui("Framework")} data-framework-select>{data.frameworks.map(f => <option key={f.id} value={f.id}>{f.name} · {f.version}{f.status === "RETIRED" ? ` (${ui("Retired")})` : ""}</option>)}</Select> : null}
         {lead ? <Button variant="outline" onClick={() => setModal({ kind: "framework" })} data-framework-new>{ui("New framework version")}</Button> : null}
       </div>
     </header>
-    {!view ? <p className="sk-panel p-4 text-sm" data-improvement-empty>{ui("No criteria mapped. Select a framework and add your first evidence link.")}</p> : <>
+    {!view ? <Alert tone="info" live="off" data-improvement-empty>{ui("No criteria mapped. Select a framework and add your first evidence link.")}</Alert> : <>
       <section className="sk-panel flex flex-wrap items-center justify-between gap-3 p-4" data-summary>
-        <div><p className="text-lg font-bold" data-summary-current>{ui("Current: {0} of {1}", [String(view.summary.current), String(view.summary.total)])}</p>
+        <div><p className="flex items-center gap-1.5 text-lg font-bold tabular-nums text-ink-strong"><span data-summary-current>{ui("Current: {0} of {1}", [String(view.summary.current), String(view.summary.total)])}</span><InfoTip content={ui("A criterion is current when it has reviewed, accepted evidence that supports it, whose source has not changed and whose review date has not passed, and no accepted evidence contradicts it.")} /></p>
           <p className="text-sm text-ink-muted">{view.summary.needsEvidence ? ui("{0} criteria need current evidence", [String(view.summary.needsEvidence)]) : ui("Every criterion has current, reviewed evidence.")}{view.summary.overdueActions ? ` · ${ui("{0} overdue actions", [String(view.summary.overdueActions)])}` : ""} · {ui("As of {0}", [date(view.asOf)])}</p>
           {data.mode === "REVIEWER" ? <p className="text-xs text-ink-muted" data-reviewer-scope>{ui("You can review the criteria you were granted. Restricted sources stay closed.")}</p> : null}</div>
         <div className="flex flex-wrap gap-2">
@@ -276,7 +278,7 @@ function ExportForm({ view, onDone }: { view: View; onDone: () => void }) {
   const { busy, submit } = useSubmit(() => undefined);
   const [audience, setAudience] = useState("EXTERNAL"), [criterionIds, setCriterionIds] = useState<string[]>([]);
   const gaps = view.criteria.filter(c => (!criterionIds.length || criterionIds.includes(c.id)) && c.gaps.length).length;
-  if (result) return <div className="space-y-3" data-export-result><p className="font-bold">{ui("Evidence pack version {0} created with {1} clearly marked gaps.", [String(result.version), String(result.gaps)])}</p><p className="text-xs">{ui("Digest")}: <bdi dir="ltr" className="font-mono break-all">{result.digest}</bdi></p><p className="text-xs text-ink-muted">{ui("The digest proves this file is unchanged; it does not certify the evidence.")}</p><Button onClick={onDone} data-export-close>{ui("Done")}</Button></div>;
+  if (result) return <div className="space-y-3" data-export-result><Alert tone="success" live="polite" title={ui("Evidence pack version {0} created with {1} clearly marked gaps.", [String(result.version), String(result.gaps)])}><p className="text-xs">{ui("Digest")}: <bdi dir="ltr" className="font-mono break-all">{result.digest}</bdi></p><p className="text-xs">{ui("The digest proves this file is unchanged; it does not certify the evidence.")}</p></Alert><Button onClick={onDone} data-export-close>{ui("Done")}</Button></div>;
   return <div className="space-y-3" data-export-form>
     <FormField name="ex-aud" label={ui("Audience")}><Select value={audience} onChange={e => setAudience(e.target.value)} data-export-audience><option value="EXTERNAL">{ui("External reviewers")}</option><option value="STAFF">{ui("School staff")}</option></Select></FormField>
     <FormField name="ex-crit" label={ui("Criteria (leave empty for all)")}><CriteriaPicker criteria={view.criteria} value={criterionIds} onChange={setCriterionIds} name="export" /></FormField>

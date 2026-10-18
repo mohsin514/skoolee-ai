@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, KeyRound } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-446: school sign-in. The chooser lists a school's enabled providers; the callback hands the provider's
@@ -14,16 +17,36 @@ export function SsoChooser() {
   const ui = useUiText();
   const params = useSearchParams();
   const [school, setSchool] = useState(params.get("school") ?? ""), [data, setData] = useState<{ school: string | null; connections: { id: string; name: string }[] } | null>(null);
+  const [loading, setLoading] = useState(false), [failed, setFailed] = useState(false);
   const error = params.get("error");
-  const look = async (slug: string) => { if (!slug.trim()) return; const r = await fetch(`/api/auth/sso/connections?school=${encodeURIComponent(slug.trim())}`); setData((await r.json()).data); };
+  const look = async (slug: string) => {
+    if (!slug.trim()) return;
+    setLoading(true); setFailed(false); setData(null);
+    try { const r = await fetch(`/api/auth/sso/connections?school=${encodeURIComponent(slug.trim())}`); const json = await r.json().catch(() => null); const next = json?.data; if (!r.ok || !next || !Array.isArray(next.connections)) { setFailed(true); return; } setData(next); }
+    catch { setFailed(true); }
+    finally { setLoading(false); }
+  };
   useEffect(() => { if (params.get("school")) void look(params.get("school")!); }, [params]);
-  return <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-4 p-4" data-sso>
-    <h1 className="text-2xl font-bold">{ui("Sign in with your school account")}</h1>
+  return <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-5 px-4 py-8" data-sso>
+    <div className="space-y-2">
+      <h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("Sign in with your school account")}</h1>
+      <p className="text-sm leading-relaxed text-ink-muted">{ui("Enter your school code to see the sign-in options your school has turned on.")}</p>
+    </div>
     {error ? <Alert tone="danger" compact live="assertive" data-sso-error>{ui(error)}</Alert> : null}
-    <FormField name="sso-school" label={ui("School code")} hint={ui("Your school's Skoolee code, for example cedar-school.")}><Input value={school} onChange={e => setSchool(e.target.value)} dir="ltr" data-sso-school /></FormField>
-    <Button variant="outline" onClick={() => void look(school)} data-sso-find>{ui("Find sign-in options")}</Button>
-    {data ? data.connections.length ? <div className="space-y-2" data-sso-options><p className="text-sm"><bdi>{data.school}</bdi></p>{data.connections.map(c => <a key={c.id} href={`/api/auth/sso/start?connection=${c.id}`} className="flex min-h-11 items-center justify-center rounded-xl border bg-white px-4 font-bold" data-sso-connection={c.name}>{ui("Continue with {0}", [c.name])}</a>)}</div> : <p className="text-sm" data-sso-none>{ui("No identity provider connected. Configure a supported connection.")}</p> : null}
-    <a href="/login" className="text-center text-sm underline">{ui("Use your Skoolee password instead")}</a>
+    <form className="sk-panel sk-enter flex flex-col gap-4 p-4 sm:p-6" onSubmit={e => { e.preventDefault(); void look(school); }}>
+      <FormField name="sso-school" label={ui("School code")} hint={ui("Your school's Skoolee code, for example cedar-school.")}><Input value={school} onChange={e => setSchool(e.target.value)} dir="ltr" autoComplete="organization" data-sso-school /></FormField>
+      <Button type="submit" variant="outline" loading={loading} disabled={!school.trim()} data-sso-find>{ui("Find sign-in options")}</Button>
+    </form>
+    {failed ? <Alert tone="danger" compact live="polite">{ui("Could not look up sign-in options. Check your connection and try again.")}</Alert> : null}
+    {loading ? <SkeletonRegion label={ui("Finding sign-in options…")} className="space-y-2"><Skeleton className="h-11 w-full rounded-xl" /><Skeleton className="h-11 w-full rounded-xl" /></SkeletonRegion> : null}
+    {data ? data.connections.length ? <div className="sk-stagger space-y-2" data-sso-options>
+      <p className="text-sm font-semibold text-ink-strong"><bdi>{data.school}</bdi></p>
+      {data.connections.map(c => <a key={c.id} href={`/api/auth/sso/start?connection=${c.id}`} className={buttonVariants({ variant: "outline", size: "lg", className: "sk-nudge-trigger sk-hover-lift w-full" })} data-sso-connection={c.name}>
+        <span className="min-w-0 truncate">{ui("Continue with {0}", [c.name])}</span>
+        <span aria-hidden="true" className="sk-nudge inline-flex"><ArrowRight className="size-4 rtl:rotate-180" /></span>
+      </a>)}
+    </div> : <div data-sso-none><EmptyState size="sm" icon={KeyRound} title={ui("Your school has not turned on school sign-in")} description={ui("You can still sign in with your Skoolee password.")} /></div> : null}
+    <a href="/login" className="sk-link self-center text-sm font-medium text-primary">{ui("Use your Skoolee password instead")}</a>
   </main>;
 }
 
@@ -40,9 +63,16 @@ export function SsoCallback() {
       if (json.mfaRequired) { router.replace("/protect-account"); return; }
       if (r.ok && json.success) { router.replace("/"); return; }
       setMessage(json.error || "The school identity provider did not confirm this sign-in. Try again or use your Skoolee password.");
-    });
+    }).catch(() => setMessage("The school identity provider did not confirm this sign-in. Try again or use your Skoolee password."));
   }, [params, router]);
-  return <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-4 p-4" data-sso-callback>
-    {message ? <><p role="alert" className="rounded-xl border p-3 text-sm" data-sso-callback-message>{ui(message)}</p><a href="/login" className="text-center text-sm underline">{ui("Use your Skoolee password instead")}</a></> : <p className="text-sm">{ui("Confirming your school sign-in…")}</p>}
+  return <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4 py-8" data-sso-callback>
+    {message ? <>
+      <h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("School sign-in did not finish")}</h1>
+      <Alert tone="danger" live="assertive" data-sso-callback-message>{ui(message)}</Alert>
+      <div className="flex flex-wrap gap-2">
+        <a href="/sso" className={buttonVariants({ variant: "outline", className: "flex-1" })}>{ui("Try school sign-in again")}</a>
+        <a href="/login" className={buttonVariants({ className: "flex-1" })}>{ui("Use your Skoolee password instead")}</a>
+      </div>
+    </> : <SkeletonRegion label={ui("Confirming your school sign-in…")} className="space-y-2"><Skeleton className="h-11 w-full rounded-xl" /><Skeleton className="h-11 w-full rounded-xl" /></SkeletonRegion>}
   </main>;
 }

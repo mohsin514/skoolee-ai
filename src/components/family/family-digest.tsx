@@ -9,6 +9,7 @@ import { FormField } from "@/components/ui/form-field";
 import { ModalFrame } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 
 // SKO-423. Teacher side: a class's weekly update, one child at a time. Each statement comes from released
 // evidence and keeps its source; wording can be edited, nothing can be invented; at most one home activity
@@ -66,17 +67,17 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
   };
   const approved = digest && digest.approvedVersion === digest.version && ["APPROVED", "SCHEDULED"].includes(digest.status);
   return <section className="sk-panel space-y-4 p-5" data-digest-review data-digest-status={digest?.status ?? ""}>
-    <header><h2 className="text-lg font-bold">{ui("Weekly family updates")}</h2><p className="text-xs text-ink-muted">{ui("Only results and feedback already released to families are used. Nothing is sent until you approve this exact version.")}</p></header>
+    <header><h2 className="text-lg font-bold text-ink-strong">{ui("Weekly family updates")}</h2><p className="text-xs text-ink-muted">{ui("Only results and feedback already released to families are used. Nothing is sent until you approve this exact version.")}</p></header>
     <div className="flex flex-wrap items-end gap-3">
       <FormField name="digest-class" label={ui("Class")}><Select value={classId} onChange={e => setClassId(e.target.value)}>{classes.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</Select></FormField>
       <FormField name="digest-week" label={ui("Week starting")}><Input type="date" value={week} onChange={e => setWeek(e.target.value)} /></FormField>
       <Button disabled={busy || !classId} onClick={() => void prepare()} data-digest-prepare>{ui("Open the week's update")}</Button>
     </div>
     {digest ? <>
-      <p className="text-sm font-bold" data-digest-state>{statusLabel(ui, digest.status)} · {ui("Version {0}", [String(digest.version)])}{digest.scheduledFor && digest.status === "SCHEDULED" ? <> · <bdi>{dateTime(digest.scheduledFor)}</bdi></> : null}{digest.sentAt ? <> · <bdi>{dateTime(digest.sentAt)}</bdi></> : null}</p>
+      <p className="text-sm font-semibold text-ink-strong" data-digest-state>{statusLabel(ui, digest.status)} · {ui("Version {0}", [String(digest.version)])}{digest.scheduledFor && digest.status === "SCHEDULED" ? <> · <bdi>{dateTime(digest.scheduledFor)}</bdi></> : null}{digest.sentAt ? <> · <bdi>{dateTime(digest.sentAt)}</bdi></> : null}</p>
       <ul className="divide-y divide-edge/20">{digest.entries.map(entry => <li key={entry.id} className="space-y-1 py-2" data-digest-entry={entry.studentId} data-digest-skipped={String(entry.skipped)} data-digest-entry-status={entry.status}>
-        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold"><bdi>{entry.studentName}</bdi>{entry.skipped ? <span className="ms-2 text-xs font-normal text-ink-muted">{entry.content.noEvidence ? ui("Left out — nothing released this week") : ui("Left out")}</span> : null}{entry.status === "BLOCKED" ? <span className="ms-2 text-xs font-bold text-rose-700">{ui("Not sent — a source changed after approval")}</span> : null}</p>
-          <div className="flex gap-1">{digest.status !== "SENT" ? <Button size="sm" variant="outline" onClick={() => openEdit(entry)} data-digest-edit>{ui("Edit")}</Button> : null}<Button size="sm" variant="secondary" onClick={() => setPreview(entry)} data-digest-preview>{ui("Family view")}</Button></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong"><bdi className="min-w-0 truncate">{entry.studentName}</bdi>{entry.skipped ? <Badge variant="neutral" size="sm">{entry.content.noEvidence ? ui("Left out — nothing released this week") : ui("Left out")}</Badge> : null}{entry.status === "BLOCKED" ? <Badge variant="danger" size="sm" dot>{ui("Not sent — a source changed after approval")}</Badge> : null}</p>
+          <div className="flex flex-wrap gap-1">{digest.status !== "SENT" ? <Button size="sm" variant="outline" onClick={() => openEdit(entry)} data-digest-edit>{ui("Edit")}</Button> : null}<Button size="sm" variant="secondary" onClick={() => setPreview(entry)} data-digest-preview>{ui("Family view")}</Button></div></div>
         {!entry.skipped ? <ul className="ms-4 list-disc text-xs text-ink-muted">{entry.content.statements.map(s => <li key={s.id}>{statementText(ui, s)}</li>)}{entry.content.nextStep ? <li>{ui("Home activity: {0}", [entry.content.nextStep.objective])}</li> : null}</ul> : null}
       </li>)}</ul>
       <div className="flex flex-wrap items-end justify-end gap-2">
@@ -110,8 +111,8 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
 function DigestCard({ ui, weekStart, content, reviewedBy, formatDate }: { ui: Ui; weekStart: string; content: Content; reviewedBy: string | null; formatDate: (v: string) => string }) {
   return <div className="space-y-3" data-digest-card>
     <p className="text-xs text-ink-muted">{ui("Week of {0}", [formatDate(weekStart.slice(0, 10))])}{reviewedBy ? <> · {ui("Reviewed by {0}", [`\u2068${reviewedBy}\u2069`])}</> : null}</p>
-    {content.statements.length ? <section><h4 className="text-sm font-bold">{ui("This week")}</h4><ul className="ms-4 list-disc text-sm">{content.statements.map(s => <li key={s.id}>{statementText(ui, s)}</li>)}</ul></section> : null}
-    {content.nextStep ? <section className="rounded-xl bg-brand-50 p-3" data-digest-home-activity><h4 className="text-sm font-bold">{ui("One thing to try at home")}</h4><p className="text-sm" dir="auto">{content.nextStep.objective}</p><p className="text-xs text-ink-muted">{ui("About {0} minutes", [String(content.nextStep.minutes)])}{content.nextStep.materials ? <> · <span dir="auto">{content.nextStep.materials}</span></> : null}</p><p className="mt-1 text-xs" dir="auto">{ui("If that is not possible: {0}", [content.nextStep.alternative])}</p><p className="mt-1 text-2xs text-ink-muted">{ui("This is optional practice; it does not change any mark.")}</p></section> : null}
+    {content.statements.length ? <section><h4 className="text-sm font-semibold text-ink-strong">{ui("This week")}</h4><ul className="ms-4 list-disc text-sm">{content.statements.map(s => <li key={s.id}>{statementText(ui, s)}</li>)}</ul></section> : null}
+    {content.nextStep ? <section className="rounded-xl bg-brand-50 p-3" data-digest-home-activity><h4 className="text-sm font-semibold text-ink-strong">{ui("One thing to try at home")}</h4><p className="text-sm" dir="auto">{content.nextStep.objective}</p><p className="text-xs text-ink-muted">{ui("About {0} minutes", [String(content.nextStep.minutes)])}{content.nextStep.materials ? <> · <span dir="auto">{content.nextStep.materials}</span></> : null}</p><p className="mt-1 text-xs" dir="auto">{ui("If that is not possible: {0}", [content.nextStep.alternative])}</p><p className="mt-1 text-2xs text-ink-muted">{ui("This is optional practice; it does not change any mark.")}</p></section> : null}
     {content.staffContact ? <p className="text-xs text-ink-muted">{ui("Questions: {0}", [content.staffContact])}</p> : null}
   </div>;
 }
@@ -127,7 +128,7 @@ export function GuardianDigest({ studentId }: { studentId: string }) {
   if (!rows || !rows.length) return null;
   const current = rows[index];
   return <section className="sk-panel space-y-3 p-5" data-guardian-digest={current.id}>
-    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Weekly update")}</h3>{rows.length > 1 ? <div className="flex gap-1"><Button size="sm" variant="outline" disabled={index >= rows.length - 1} onClick={() => setIndex(index + 1)}>{ui("Earlier")}</Button><Button size="sm" variant="outline" disabled={index === 0} onClick={() => setIndex(index - 1)}>{ui("Later")}</Button></div> : null}</div>
+    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Weekly update")}</h3>{rows.length > 1 ? <div className="flex gap-1"><Button size="sm" variant="outline" disabled={index >= rows.length - 1} onClick={() => setIndex(index + 1)}>{ui("Earlier")}</Button><Button size="sm" variant="outline" disabled={index === 0} onClick={() => setIndex(index - 1)}>{ui("Later")}</Button></div> : null}</div>
     <DigestCard ui={ui} weekStart={current.weekStart} content={current.content} reviewedBy={current.reviewedBy} formatDate={date} />
   </section>;
 }

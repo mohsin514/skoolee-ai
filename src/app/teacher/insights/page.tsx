@@ -30,10 +30,10 @@ export default function TeacherInsightsPage() {
   const attendanceStats = data?.attendanceSummary || { total: 0, present: 0, absent: 0, leave: 0, unmarked: 0 };
 
   const attendanceChartData = useMemo(() => [
-    { name: "Present", value: attendanceStats.present, color: "#10b981" },
-    { name: "Absent", value: attendanceStats.absent, color: "#ef4444" },
-    { name: "Leave", value: attendanceStats.leave, color: "#f59e0b" },
-    { name: "Unmarked", value: attendanceStats.unmarked, color: "#d1d5db" },
+    { name: "Present", value: attendanceStats.present, color: "var(--color-status-success-text)" },
+    { name: "Absent", value: attendanceStats.absent, color: "var(--color-status-error-text)" },
+    { name: "Leave", value: attendanceStats.leave, color: "var(--color-status-warning-text)" },
+    { name: "Unmarked", value: attendanceStats.unmarked, color: "var(--color-border-subtle)" },
   ].filter((d) => d.value > 0), [attendanceStats]);
 
   const marksProgressData = useMemo(() => {
@@ -126,10 +126,10 @@ export default function TeacherInsightsPage() {
                 </div>
                 <div className="min-w-0 flex-1 space-y-2">
                   {[
-                    { label: "Present", value: attendanceStats.present, color: "#10b981" },
-                    { label: "Absent", value: attendanceStats.absent, color: "#ef4444" },
-                    { label: "Leave", value: attendanceStats.leave, color: "#f59e0b" },
-                    { label: "Unmarked", value: attendanceStats.unmarked, color: "#d1d5db" },
+                    { label: "Present", value: attendanceStats.present, color: "var(--color-status-success-text)" },
+                    { label: "Absent", value: attendanceStats.absent, color: "var(--color-status-error-text)" },
+                    { label: "Leave", value: attendanceStats.leave, color: "var(--color-status-warning-text)" },
+                    { label: "Unmarked", value: attendanceStats.unmarked, color: "var(--color-border-subtle)" },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
@@ -178,9 +178,9 @@ export default function TeacherInsightsPage() {
                 <BarChart data={marksProgressData} barCategoryGap="20%" margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 600 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10, fontWeight: 600 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <Tooltip contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 32px rgba(55,27,77,0.14)", fontSize: 12, fontWeight: 600 }} cursor={{ fill: "#fbf0fe" }} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Entered" stackId="a" fill="#8127cf" radius={[4, 4, 0, 0]} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Missing" stackId="a" fill="#e8e0ec" radius={[4, 4, 0, 0]} />
+                  <Tooltip contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 8px 32px rgba(55,27,77,0.14)", fontSize: 12, fontWeight: 600 }} cursor={{ fill: "var(--color-surface-hover)" }} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Entered" stackId="a" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Missing" stackId="a" fill="var(--color-edge)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

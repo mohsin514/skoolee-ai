@@ -119,12 +119,12 @@ function SampleCard({ sample, data, post, n }: { sample: Sample; data: Overview;
   const reviewer = sample.reviewerId === data.userId;
   return (
     <div className="space-y-2 rounded-xl border border-border p-3 text-sm">
-      <p className="font-semibold">{ui(METHOD_LABEL[sample.method] ?? sample.method)} · {ui("{0} scripts", [sample.size])} · {ui("threshold {0}", [sample.threshold])} · {ui(STATUS_LABEL[sample.status] ?? sample.status)}{sample.blind ? ` · ${ui("Blind")}` : ""}</p>
+      <p className="font-medium tabular-nums text-ink">{ui(METHOD_LABEL[sample.method] ?? sample.method)} · {ui("{0} scripts", [sample.size])} · {ui("threshold {0}", [sample.threshold])} · {ui(STATUS_LABEL[sample.status] ?? sample.status)}{sample.blind ? ` · ${ui("Blind")}` : ""}</p>
       <ul className="space-y-2">
         {sample.items.map((item, index) => (
-          <li key={item.attemptId} className={`rounded-lg border p-2 ${item.flagged && !item.outcome ? "border-amber-400 bg-amber-50" : "border-border"}`}>
+          <li key={item.attemptId} className={`rounded-lg border p-2 ${item.flagged && !item.outcome ? "border-status-warning-border bg-status-warning-surface" : "border-border"}`}>
             <p>{ui("Script {0}", [index + 1])} · {ui("Original")}: {item.originalTotal == null ? ui("hidden until you mark") : n(item.originalTotal)} · {ui("Second mark")}: {n(item.secondTotal)}{item.discrepancy != null ? ` · ${ui("Difference")}: ${n(item.discrepancy)}` : ""}</p>
-            {item.flagged ? <p className="text-xs font-semibold text-amber-900">{ui(item.outcome ? OUTCOME_LABEL[item.outcome] ?? item.outcome : "Difference above the threshold: a lead must decide.")}</p> : null}
+            {item.flagged ? <p className="text-xs font-semibold text-status-warning-text">{ui(item.outcome ? OUTCOME_LABEL[item.outcome] ?? item.outcome : "Difference above the threshold: a lead must decide.")}</p> : null}
             {reviewer && item.secondTotal == null ? (
               <form className="mt-2 flex flex-wrap items-end gap-2" onSubmit={async (e) => {
                 e.preventDefault();

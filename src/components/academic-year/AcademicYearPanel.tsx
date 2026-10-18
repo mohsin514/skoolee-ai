@@ -13,6 +13,8 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 
 
@@ -335,15 +337,15 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 className="w-full flex items-center justify-between p-5 text-start cursor-pointer hover:bg-brand-50/30 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
+                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${yg.status === "COMPLETED" ? "bg-status-success-surface text-status-success-text" : "bg-brand-50 text-primary"}`}>
                     {yg.status === "COMPLETED" ? <CheckCircle2 className="h-6 w-6" /> : <Calendar className="h-6 w-6" />}
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-ink-strong">Academic Year {yg.year}</h3>
                     <div className="flex items-center gap-3 mt-0.5">
-                      <span className={`text-2xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
+                      <Badge size="sm" dot variant={yg.status === "COMPLETED" ? "success" : "info"}>
                         {yearStatusLabel(yg.status)}
-                      </span>
+                      </Badge>
                       <span className="text-2xs font-semibold text-ink-muted">{yg.classes.length} classes</span>
                       <span className="text-2xs font-semibold text-ink-muted">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
                     </div>
@@ -373,13 +375,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="text-sm font-bold text-ink-strong">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
-                            <p className="text-2xs font-semibold text-ink-subtle mt-0.5">
+                            <p className="text-2xs font-medium text-ink-subtle mt-0.5">
                               {cls.classTeacher?.fullName || "No class teacher"}
                             </p>
                           </div>
-                          <span className={`text-2xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
+                          <Badge size="sm" dot variant={cls.status === "COMPLETED" ? "success" : "info"}>
                             {yearStatusLabel(cls.status)}
-                          </span>
+                          </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-3">
                           <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
@@ -455,12 +457,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
               </div>
             ) : historyRecords.length > 0 ? (
               <div className="space-y-2">
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   <span>#</span><span>Student</span><span>Admission No</span><span>Roll No</span><span>Grade</span><span>Status</span>
                 </div>
                 {historyRecords.map((record, i) => (
-                  <div key={record.id} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl hover:bg-brand-50/30 transition-colors">
-                    <span className="text-xs font-bold text-ink-subtle">{i + 1}</span>
+                  <div key={record.id} className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 gap-y-1 items-center px-4 py-3 rounded-2xl hover:bg-brand-50/30 transition-colors">
+                    <span className="text-xs font-bold text-ink-subtle tabular-nums">{i + 1}</span>
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-50 overflow-hidden">
                         <AvatarImage src={record.student.profileImageUrl} name={record.student.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-2xs" />
@@ -474,24 +476,24 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         )}
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-primary">{record.student.admissionNo || "—"}</span>
-                    <span className="text-xs font-semibold text-ink-muted">{record.rollNo}</span>
-                    <span className="text-sm font-bold text-ink-strong">
+                    <span className="hidden sm:inline text-xs font-bold text-primary tabular-nums">{record.student.admissionNo || "—"}</span>
+                    <span className="hidden sm:inline text-xs font-semibold text-ink-muted tabular-nums">{record.rollNo}</span>
+                    <span className="hidden sm:inline text-sm font-bold text-ink-strong tabular-nums">
                       {record.finalGrade || (record.finalPercentage ? `${Math.round(record.finalPercentage)}%` : "—")}
                     </span>
-                    <span className={`text-2xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                      record.status === "PROMOTED" ? "bg-emerald-50 text-emerald-600" :
-                      record.status === "GRADUATED" ? "bg-blue-50 text-blue-600" :
-                      record.status === "DROPPED" ? "bg-rose-50 text-rose-600" :
-                      "bg-brand-50 text-primary"
-                    }`}>
+                    <Badge size="sm" dot variant={
+                      record.status === "PROMOTED" ? "success" :
+                      record.status === "GRADUATED" ? "info" :
+                      record.status === "DROPPED" ? "danger" :
+                      "default"
+                    }>
                       {record.status}
-                    </span>
+                    </Badge>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-center text-sm font-semibold text-ink-muted py-12">No history records for this class.</p>
+              <EmptyState size="sm" icon={History} title="No history records" description="No student records were saved for this class in this academic year." />
             )}
         </Modal>
       )}
@@ -522,12 +524,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <div key={step} className="flex items-center gap-2">
                       {idx > 0 && <div className={cn("h-0.5 w-8", isDone || isActive ? "bg-primary" : "bg-border-subtle")} />}
                       <div className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all",
-                        isActive ? "bg-primary text-white" : isDone ? "bg-emerald-100 text-emerald-600" : "bg-muted text-ink-subtle"
+                        isActive ? "bg-primary text-white" : isDone ? "bg-status-success-surface text-status-success-text" : "bg-muted text-ink-subtle"
                       )}>
                         {isDone ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
                       </div>
                       <span className={cn("text-2xs font-semibold uppercase tracking-wider hidden sm:block",
-                        isActive ? "text-primary" : isDone ? "text-emerald-600" : "text-ink-subtle"
+                        isActive ? "text-primary" : isDone ? "text-status-success-text" : "text-ink-subtle"
                       )}>
                         {step === "source" ? "Select Class" : step === "review" ? "Review" : "Promote"}
                       </span>
@@ -540,7 +542,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {/* ── Step 1: Source ── */}
             {promoteStep === "source" && (
               <div className="space-y-4">
-                <p className="text-xs font-semibold text-ink-muted">
+                <p className="text-sm font-normal leading-relaxed text-ink-muted">
                   Select the class whose students you want to promote. You can choose any class with students.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -549,9 +551,9 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       className="block text-start">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h4 className="text-sm font-bold text-ink-strong">{clsLabel(cls)}</h4>
-                        <span className={`text-2xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"}`}>
+                        <Badge size="sm" dot variant={cls.status === "COMPLETED" ? "success" : "info"}>
                           {yearStatusLabel(cls.status)}
-                        </span>
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-3 text-2xs font-semibold text-ink-muted">
                         <span>{cls._count.students} students</span>
@@ -585,7 +587,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <GraduationCap className="h-5 w-5 text-primary shrink-0" />
                     <div>
                       <p className="text-sm font-bold text-ink-strong">{clsLabel(sourceClass)}</p>
-                      <p className="text-2xs font-semibold text-ink-muted">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
+                      <p className="text-2xs font-medium text-ink-muted">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
                     </div>
                   </div>
                 )}
@@ -606,17 +608,9 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 ) : (
                   <>
                     {gradeError && (
-                      <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-5">
-                        <div className="flex items-start gap-3">
-                          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-bold text-amber-800">{gradeError}</p>
-                            <p className="text-xs font-semibold text-amber-700/70 mt-1">
-                              Grade data not available — students are listed below without scores. You can still select who to promote.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      <Alert tone="warning" title={gradeError} live="polite">
+                        Grade data not available — students are listed below without scores. You can still select who to promote.
+                      </Alert>
                     )}
 
                     {gradeResults.length > 0 ? (
@@ -626,13 +620,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                           {[
                             { label: "Total Students", value: gradeResults.length, tone: "bg-brand-50 text-primary" },
                             ...(gradeError ? [] : [
-                              { label: "Passed", value: gradeResults.filter((g) => g.passed).length, tone: "bg-emerald-50 text-emerald-600" },
-                              { label: "Failed", value: gradeResults.filter((g) => !g.passed).length, tone: "bg-rose-50 text-rose-500" },
+                              { label: "Passed", value: gradeResults.filter((g) => g.passed).length, tone: "bg-status-success-surface text-status-success-text" },
+                              { label: "Failed", value: gradeResults.filter((g) => !g.passed).length, tone: "bg-status-error-surface text-status-error-text" },
                             ]),
                             { label: "To Promote", value: studentsToPromote.length, tone: "bg-ink-strong text-white" },
                           ].map((s) => (
                             <div key={s.label} className={cn("rounded-2xl px-4 py-3 text-center", s.tone)}>
-                              <p className="text-xl font-bold">{s.value}</p>
+                              <p className="text-xl font-bold tabular-nums">{s.value}</p>
                               <p className="text-2xs font-semibold uppercase tracking-wider opacity-70">{s.label}</p>
                             </div>
                           ))}

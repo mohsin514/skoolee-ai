@@ -146,7 +146,7 @@ export default function AccountantPage() {
           items={NAV}
           activeId={activeView}
           onSelect={setActiveView}
-          navLabel="Finance sections"
+          navLabel={tr("Finance sections")}
           icon={current.icon}
           tone={current.tone}
           eyebrow={tr(current.eyebrow ?? "Finance Console")}

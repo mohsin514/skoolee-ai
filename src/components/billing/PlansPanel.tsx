@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   CreditCard,
   Crown,
-  Loader2,
   Mail,
   RefreshCw,
 } from "lucide-react";
@@ -214,7 +213,7 @@ export function PlansPanel() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Current plan: {billing.limits.name} - {billing.school.status.toLowerCase()}
                 {billing.planEndsAt && (
-                  <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary/80">
+                  <span className="ms-2 inline-flex items-center gap-1 rounded-md bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary/80">
                     <CreditCard className="h-3 w-3" />
                     Paid through {new Date(billing.planEndsAt).toLocaleDateString()}
                   </span>
@@ -222,8 +221,8 @@ export function PlansPanel() {
               </p>
             </div>
             {billing.school.stripeCustomerId && (
-              <Button variant="outline" size="sm" onClick={openPortal} disabled={!!isPlanAction}>
-                {isPlanAction === "PORTAL" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              <Button variant="outline" size="sm" onClick={openPortal} loading={isPlanAction === "PORTAL"} disabled={!!isPlanAction}>
+                {isPlanAction === "PORTAL" ? null : <CreditCard className="h-4 w-4" aria-hidden="true" />}
                 Manage
               </Button>
             )}
@@ -377,6 +376,7 @@ export function PlansPanel() {
                         <Button
                           className="w-full"
                           variant="default"
+                          loading={isPlanAction === plan.type}
                           disabled={!!isPlanAction || !canCheckout}
                           onClick={() => {
                             if (plan.type === "BASIC" || plan.type === "PRO") {
@@ -384,7 +384,7 @@ export function PlansPanel() {
                             }
                           }}
                         >
-                          {isPlanAction === plan.type ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
+                          {isPlanAction === plan.type ? null : <ArrowUpRight className="h-4 w-4" aria-hidden="true" />}
                           {billing.school.stripeSubscriptionId ? "Review change" : "Upgrade"}
                         </Button>
                       )}
@@ -420,10 +420,11 @@ export function PlansPanel() {
               <Button variant="default"
                 type="button"
                 onClick={submitPaymentNotification}
+                loading={isPlanAction !== null}
                 disabled={isPlanAction !== null}
                 className="flex-1 inline-flex items-center justify-center gap-2"
               >
-                {isPlanAction ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {isPlanAction ? null : <CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
                 Notify Owner
               </Button>
             </div>

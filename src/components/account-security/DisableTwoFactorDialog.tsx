@@ -1,7 +1,8 @@
 "use client";
 import { useId, useRef, useState, type FormEvent } from "react";
-import { AlertTriangle, Loader2, RotateCcw, ShieldOff } from "lucide-react";
+import { AlertTriangle, RotateCcw, ShieldOff } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { MfaCodeField } from "@/components/auth/mfa/MfaCodeField";
 import { MfaMethodToggle } from "@/components/auth/mfa/MfaMethodToggle";
@@ -69,18 +70,17 @@ export function DisableTwoFactorDialog({ t, startWithRecovery = false, onClose, 
       footer={
         <DialogFooter>
           <DialogClose label={t.cancel} disabled={busy} />
-          <Button type="submit" form={formId} variant="destructive" disabled={busy || finished} aria-busy={busy}>
-            {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <ShieldOff aria-hidden="true" />}{t.disableAction}
+          <Button type="submit" form={formId} variant="destructive" disabled={finished} loading={busy}>
+            {!busy && <ShieldOff aria-hidden="true" />}{t.disableAction}
           </Button>
         </DialogFooter>
       }>
       <CloseWhen when={finished && !busy} />
       <DialogAlert message={error?.scope === "page" ? message : ""} status={error?.status} alertRef={alertRef} t={t}
         action={error?.reason === "state_changed" ? <Button type="button" variant="outline" size="sm" onClick={onStateChanged}><RotateCcw aria-hidden="true" />{t.reload}</Button> : undefined} />
-      <div className="mb-5 flex items-start gap-3 rounded-2xl border border-status-warning-border bg-status-warning-surface p-4 text-status-warning-text">
-        <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        <p id="security-disable-warning" className="text-sm font-semibold leading-relaxed">{t.disableWarning}</p>
-      </div>
+      <Alert tone="warning" live="off" icon={AlertTriangle} className="mb-5">
+        <p id="security-disable-warning" className="text-sm font-normal leading-relaxed">{t.disableWarning}</p>
+      </Alert>
       <form id={formId} onSubmit={submit} aria-busy={busy} aria-describedby="security-disable-warning" className="space-y-5" noValidate>
         <PasswordField id="security-disable-password" value={password} onChange={setPassword} readOnly={busy} inputRef={passwordRef} t={t}
           error={error?.scope === "password" ? message : undefined} />

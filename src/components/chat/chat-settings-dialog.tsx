@@ -9,12 +9,14 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
-import { Loader2, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import type { ChatSettings } from "@/lib/chat/policy";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
 
@@ -151,10 +153,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
     >
           <div>
             {!settings ? (
-              <p className="flex items-center justify-center gap-2 py-10 text-xs font-bold text-ink-muted">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                {ui("Loading")}
-              </p>
+              <SkeletonList rows={4} label={ui("Loading")} className="py-2" />
             ) : (
               <div className="space-y-1">
                 {TOGGLES.map((toggle) => {
@@ -167,31 +166,21 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                       <div className="min-w-0 flex-1">
                         <label
                           htmlFor={`chat-setting-${toggle.key}`}
-                          className="block cursor-pointer text-xs font-bold text-ink-strong"
+                          className="block cursor-pointer text-sm font-semibold text-ink-strong"
                         >
                           {toggle.label(ui)}
                         </label>
-                        <p className="mt-0.5 text-2xs font-semibold leading-relaxed text-ink-muted">
+                        <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">
                           {toggle.help(ui)}
                         </p>
                       </div>
 
-                      <Button variant="choice" size="icon"
+                      <Switch
                         id={`chat-setting-${toggle.key}`}
-                        type="button"
-                        role="switch"
-                        aria-checked={value}
-                        onClick={() => save({ ...settings, [toggle.key]: !value })}
+                        checked={value}
+                        onChange={() => save({ ...settings, [toggle.key]: !value })}
                         className="mt-0.5 shrink-0"
-                      >
-                        <span
-                          className={cn(
-                            "block h-5 w-5 rounded-full bg-current transition-opacity",
-                            value ? "opacity-100" : "opacity-25"
-                          )}
-                          aria-hidden
-                        />
-                      </Button>
+                      />
                     </div>
                   );
                 })}

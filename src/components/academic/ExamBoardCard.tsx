@@ -152,7 +152,6 @@ export function ExamBoardCard({
             <GripVertical className="h-4 w-4" />
           </span>
           <SystemCheckbox
-
             checked={selected}
             onChange={() => onToggleSelect()}
             onClick={(e) => e.stopPropagation()}
@@ -242,11 +241,11 @@ export function ExamBoardCard({
           style={{ backgroundColor: accent }}
         >
           {action.type === "lock" ? (
-            <Lock className="h-3.5 w-3.5" />
+            <Lock aria-hidden="true" className="h-3.5 w-3.5" />
           ) : action.type === "open" ? (
-            <CalendarDays className="h-3.5 w-3.5" />
+            <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
           ) : (
-            <CheckCircle2 className="h-3.5 w-3.5" />
+            <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
           )}
           {action.label}
         </Button>
@@ -262,7 +261,7 @@ export function ExamBoardCard({
           onClick={onReject}
           className="mt-2 flex w-full items-center justify-center gap-1.5 py-2"
         >
-          <RotateCcw className="h-3.5 w-3.5" /> Send Back
+          <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> Send Back
         </Button>
       ) : null}
     </article>

@@ -1,4 +1,5 @@
 "use client";
+import { Alert } from "@/components/ui/alert";
 import { useState } from "react";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Input } from "@/components/ui/input";
@@ -39,7 +40,7 @@ export function RestoreStudentDialog({ student, onClose, onRestored }: { student
     tone="success"
     busy={busy}
     detail={<div className="space-y-3" data-restore-student>
-      {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
+      {error && <Alert tone="danger" compact>{error}</Alert>}
       {conflict?.rollNo && <FormField name="restore-roll" label={ui("New current roll number (currently {0}, now used by another student)", [student?.rollNo ?? ""])}><Input value={rollNo} maxLength={32} dir="ltr" autoFocus onChange={event => setRollNo(event.target.value)} /></FormField>}
       {conflict?.admissionNo && <FormField name="restore-admission" label={ui("New current admission number (currently {0}, now used by another student)", [student?.admissionNo ?? ""])}><Input value={admissionNo} maxLength={64} dir="ltr" onChange={event => setAdmissionNo(event.target.value)} /></FormField>}
     </div>}

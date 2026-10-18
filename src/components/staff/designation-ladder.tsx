@@ -38,6 +38,11 @@ import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
+import { SkeletonList, SkeletonRegion } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 
 
 interface Designation {
@@ -87,6 +92,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
   const [saving, setSaving] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<Designation | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -96,7 +102,9 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
       setDesignations(data.designations ?? []);
       setPresets(data.presets ?? []);
       setInstitutionType(data.institutionType ?? "SCHOOL");
+      setLoadError(false);
     } catch (error) {
+      setLoadError(true);
       toast.error(error instanceof Error ? error.message : "Could not load the rank ladder");
     } finally {
       setLoading(false);
@@ -199,10 +207,22 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-xs font-bold text-ink-muted">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading the rank ladder…
-      </div>
+      <SkeletonRegion label="Loading the rank ladder…" className="space-y-3 py-2">
+        <SkeletonList rows={5} />
+      </SkeletonRegion>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        title="The rank ladder did not load"
+        description="Could not load the rank ladder. Check your connection and try again."
+        onRetry={() => {
+          setLoading(true);
+          void load();
+        }}
+      />
     );
   }
 
@@ -210,13 +230,13 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-ink">Rank ladder</h3>
-          <p className="mt-0.5 max-w-2xl text-xs font-normal leading-relaxed text-ink-muted">
+          <h3 className="text-base font-bold text-ink-strong">Rank ladder</h3>
+          <p className="mt-0.5 max-w-2xl text-sm font-normal leading-relaxed text-ink-muted">
             Every rank your institution uses, most senior first. Nothing here is fixed — rename what you like,
             reorder by changing the seniority number, and retire what you no longer use.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <BrandButton variant="soft" icon={<Sparkles className="h-4 w-4" />} onClick={() => setShowPresets(true)}>
             Use a preset
           </BrandButton>
@@ -227,23 +247,21 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
       </div>
 
       {designations.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-edge/60 bg-surface-subtle px-6 py-12 text-center">
-          <Layers className="mx-auto h-8 w-8 text-ink-muted" />
-          <p className="mt-3 text-sm font-bold text-ink">No ranks defined yet</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-normal leading-relaxed text-ink-muted">
-            Ranks are what make the chart mean something — who is senior to whom, who can head a department, and
-            what a promotion moves someone into. Start from a preset for your kind of institution, or build the
-            ladder yourself.
-          </p>
-          <div className="mt-4 flex justify-center gap-2">
+        <EmptyState
+          icon={Layers}
+          title="No ranks defined yet"
+          description="Ranks are what make the chart mean something — who is senior to whom, who can head a department, and what a promotion moves someone into. Start from a preset for your kind of institution, or build the ladder yourself."
+          action={
             <BrandButton icon={<Sparkles className="h-4 w-4" />} onClick={() => setShowPresets(true)}>
               Choose a preset
             </BrandButton>
+          }
+          secondaryAction={
             <BrandButton variant="soft" icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
               Add the first rank
             </BrandButton>
-          </div>
-        </div>
+          }
+        />
       ) : (
         <div className="space-y-5">
           {Object.entries(TRACK_TONES).map(([track, tone]) => {
@@ -252,9 +270,9 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
             return (
               <section key={track} className="space-y-2">
                 <h4 className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
+                  <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
                   {tone.label}
-                  <span className="font-bold normal-case tracking-normal">({ranks.length})</span>
+                  <span className="font-semibold normal-case tracking-normal tabular-nums">({ranks.length})</span>
                 </h4>
                 <ul className="space-y-1.5">
                   {ranks.map((d) => {
@@ -263,10 +281,10 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                       <li
                         key={d.id}
                         className={cn(
-                          "flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border bg-white px-3.5 py-3",
+                          "sk-hover-lift flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border bg-white px-3.5 py-3",
                           d.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
                         )}
-                        style={{ borderLeftWidth: 4, borderLeftColor: tone.hex }}
+                        style={{ borderInlineStartWidth: 4, borderInlineStartColor: tone.hex }}
                       >
                         <Tooltip content="Seniority — lower is more senior">
                         <span tabIndex={0} className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-2xs font-bold tabular-nums text-ink-muted">
@@ -276,21 +294,21 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
 
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs font-bold text-ink">{d.name}</span>
-                            {d.shortName ? <span className="text-2xs font-bold text-ink-muted">({d.shortName})</span> : null}
+                            <span className="text-sm font-semibold text-ink-strong">{d.name}</span>
+                            {d.shortName ? <span className="text-xs font-medium text-ink-muted">({d.shortName})</span> : null}
                             {d.isInstitutionHead ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-bold text-primary">
-                                <Crown className="h-2.5 w-2.5" /> HEAD OF INSTITUTION
-                              </span>
+                              <Badge variant="default" size="sm" className="gap-1">
+                                <Crown aria-hidden="true" className="h-2.5 w-2.5" /> Head of institution
+                              </Badge>
                             ) : null}
                             {d.canHeadDepartment ? (
-                              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-2xs font-bold text-indigo-600">CAN HEAD A UNIT</span>
+                              <Badge variant="info" size="sm">Can head a unit</Badge>
                             ) : null}
                             {!d.isActive ? (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-2xs font-bold text-slate-500">RETIRED</span>
+                              <Badge variant="neutral" size="sm" dot>Retired</Badge>
                             ) : null}
                           </span>
-                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-2xs font-semibold text-ink-muted">
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs font-normal text-ink-subtle">
                             {promotesTo ? (
                               <span className="inline-flex items-center gap-1">
                                 <ArrowUp className="h-3 w-3" /> promotes to {promotesTo.name}
@@ -304,8 +322,8 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                         </span>
 
                         <span className="flex shrink-0 gap-1">
-                          <Button variant="secondary" size="icon"
-                            type="button"
+                          <IconButton variant="secondary" size="sm"
+                            label={`Edit ${d.name}`}
                             onClick={() =>
                               setDraft({
                                 id: d.id,
@@ -320,19 +338,15 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                                 description: d.description ?? "",
                               })
                             }
-
-                            aria-label={`Edit ${d.name}`}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="destructive" size="icon"
-                            type="button"
+                            <Pencil aria-hidden="true" />
+                          </IconButton>
+                          <IconButton variant="destructive" size="sm"
+                            label={`Remove ${d.name}`}
                             onClick={() => setPendingRemoval(d)}
-
-                            aria-label={`Remove ${d.name}`}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                            <Trash2 aria-hidden="true" />
+                          </IconButton>
                         </span>
                       </li>
                     );
@@ -375,26 +389,28 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                 <Button variant="ghost"
                   type="button"
                   disabled={applying !== null}
+                  aria-busy={applying === preset.type ? true : undefined}
+                  aria-current={institutionType === preset.type ? "true" : undefined}
                   onClick={() => applyPreset(preset.type)}
                   className={cn(
-                    "flex justify-start w-full items-start gap-3 text-start",
-                    institutionType === preset.type ? "border-primary bg-brand-50/40" : "border-edge/40"
+                    "sk-row-interactive flex h-auto w-full items-start justify-start gap-3 whitespace-normal py-3 text-start",
+                    institutionType === preset.type && "bg-brand-50/40"
                   )}
                 >
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
-                    {applying === preset.type ? <Loader2 className="h-4 w-4 animate-spin" /> : <Layers className="h-4 w-4" />}
+                    {applying === preset.type ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Layers aria-hidden="true" className="h-4 w-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-ink">{preset.label}</span>
+                      <span className="text-sm font-semibold text-ink-strong">{preset.label}</span>
                       {institutionType === preset.type ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-2xs font-bold text-white">
-                          <Check className="h-2.5 w-2.5" /> CURRENT
-                        </span>
+                        <Badge variant="default" size="sm" className="gap-1">
+                          <Check aria-hidden="true" className="h-2.5 w-2.5" /> Current
+                        </Badge>
                       ) : null}
                     </span>
                     <span className="mt-1 block text-xs font-normal leading-relaxed text-ink-muted">{preset.blurb}</span>
-                    <span className="mt-1.5 block text-2xs font-semibold uppercase tracking-wide text-ink-subtle">
+                    <span className="mt-1.5 block text-xs font-medium tabular-nums text-ink-subtle">
                       {preset.rankCount} ranks · {preset.departmentCount} units
                     </span>
                   </span>
@@ -495,12 +511,12 @@ function LabelledField({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-2xs font-bold text-ink">
+      <label className="block text-sm font-semibold text-ink-strong">
         {label}
-        {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
+        {required ? <span aria-hidden="true" className="ms-0.5 text-status-error-text">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-2xs font-normal leading-relaxed text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-xs font-normal leading-relaxed text-ink-subtle">{hint}</p> : null}
     </div>
   );
 }
@@ -520,8 +536,8 @@ function Toggle({
     <label className="flex cursor-pointer items-start gap-2.5">
       <SystemCheckbox  checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
       <span className="min-w-0">
-        <span className="block text-xs font-bold text-ink">{label}</span>
-        <span className="block text-2xs font-normal leading-relaxed text-ink-muted">{hint}</span>
+        <span className="block text-sm font-semibold text-ink-strong">{label}</span>
+        <span className="block text-xs font-normal leading-relaxed text-ink-muted">{hint}</span>
       </span>
     </label>
   );

@@ -226,11 +226,11 @@ export function Header({ title, description, actions }: HeaderProps) {
             </IconButton>
 
             {notifOpen && (
-              <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-edge/15 bg-white shadow-[0_28px_80px_rgba(120,70,180,0.18)]">
+              <div className="animate-dropdown-enter absolute end-0 z-[999] mt-3 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-edge/15 bg-white shadow-2xl">
                 <div className="flex items-center justify-between border-b border-edge/10 px-5 py-4">
                   <h3 className="text-sm font-bold text-ink-strong tracking-tight">Notifications</h3>
                   {unreadCount > 0 && (
-                    <span className="rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-primary">{unreadCount} new</span>
+                    <span className="rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold tabular-nums text-primary">{unreadCount} new</span>
                   )}
                 </div>
                 <NotificationCenter formatTime={relativeTime} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
@@ -273,7 +273,7 @@ export function Header({ title, description, actions }: HeaderProps) {
             {menuOpen && (
               <div
                 role="menu"
-                className="animate-dropdown-enter absolute right-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_24px_70px_rgba(120,70,180,0.16)]"
+                className="animate-dropdown-enter absolute end-0 z-[90] mt-2 w-64 overflow-hidden rounded-[22px] border border-edge/20 bg-white shadow-[0_24px_70px_rgba(120,70,180,0.16)]"
               >
                 <div className="border-b border-edge/15 bg-brand-50/70 p-4">
                   <div className="flex items-center gap-3">

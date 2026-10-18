@@ -7,6 +7,8 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-425: learning actions. The next check-in and the responsible adult come
@@ -45,23 +47,23 @@ export function LearningActions() {
   if (!ctx) return <section className="sk-panel p-5" role="status" data-learning-actions>{ui("Loading learning actions…")}</section>;
   return <section className="sk-panel space-y-3 p-5" aria-labelledby="learning-actions-title" data-learning-actions>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 id="learning-actions-title" className="flex items-center gap-2 text-lg font-bold"><ClipboardList className="size-5 text-primary" aria-hidden />{ui("Learning actions")}</h2>
+      <h2 id="learning-actions-title" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><ClipboardList className="size-5 text-primary" aria-hidden />{ui("Learning actions")}</h2>
       <Button size="sm" onClick={() => setCreating(v => !v)}>{creating ? ui("Close") : ui("New learning action")}</Button>
     </div>
     <p className="text-xs text-ink-muted">{ui("Specific support with a goal, a responsible adult and a review date. Describe skills and actions, not labels.")}</p>
     {creating ? <Editor ctx={ctx} onSaved={async id => { setCreating(false); await load(); setOpen(id); }} /> : null}
-    {!ctx.actions.length ? <div data-empty><EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions yet. Start from a specific concern and the evidence behind it.")} /></div>
-      : <ul className="space-y-2">{ctx.actions.map(row => <li key={row.id} className={`rounded-2xl border p-3 ${row.checkInOverdue ? "border-amber-400" : "border-border"}`} data-action={row.id} data-status={row.status}>
+    {!ctx.actions.length ? <div data-empty><EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions yet")} description={ui("Start from a specific concern and the evidence behind it.")} action={<Button size="sm" onClick={() => setCreating(true)}>{ui("New learning action")}</Button>} /></div>
+      : <ul className="space-y-2">{ctx.actions.map(row => <li key={row.id} className={`rounded-2xl border p-3 ${row.checkInOverdue ? "border-status-warning-border" : "border-border"}`} data-action={row.id} data-status={row.status}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p className="font-bold"><bdi>{row.learner}</bdi> · <bdi>{row.title}</bdi></p>
-              <p className="text-xs">{ui("Responsible adult")}: <bdi>{row.owner ?? ui("Not set")}</bdi> · {ui("Next check-in")}: {row.nextCheckInDate ? date(row.nextCheckInDate) : "—"}{row.checkInOverdue ? <span className="ms-1 font-bold text-amber-900" data-overdue>{ui("Check-in missed")}</span> : null} · {ui("Review")}: {row.reviewDate ? date(row.reviewDate) : "—"}</p>
+              <p className="text-sm font-semibold text-ink-strong"><bdi>{row.learner}</bdi> · <bdi>{row.title}</bdi></p>
+              <p className="text-xs">{ui("Responsible adult")}: <bdi>{row.owner ?? ui("Not set")}</bdi> · {ui("Next check-in")}: {row.nextCheckInDate ? date(row.nextCheckInDate) : "—"}{row.checkInOverdue ? <span className="ms-1 font-semibold text-status-warning-text" data-overdue>{ui("Check-in missed")}</span> : null} · {ui("Review")}: {row.reviewDate ? date(row.reviewDate) : "—"}</p>
               {row.goal ? <p className="text-xs text-ink-muted">{ui("Goal")}: <bdi>{row.goal}</bdi></p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-1 text-xs">
-              <span className="rounded bg-muted px-2 py-0.5 font-bold">{ui(STATUS[row.status] ?? row.status)}</span>
-              {row.origin === "AI" && row.status === "DRAFT" ? <span className="rounded bg-amber-100 px-2 py-0.5 font-bold text-amber-900">{ui("AI suggestion — edit before use")}</span> : null}
-              {row.shared ? <span className="rounded bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800">{ui("Shared with family")}</span> : null}
+              <Badge size="sm" variant="neutral" dot>{ui(STATUS[row.status] ?? row.status)}</Badge>
+              {row.origin === "AI" && row.status === "DRAFT" ? <Badge size="sm" variant="warning">{ui("AI suggestion — edit before use")}</Badge> : null}
+              {row.shared ? <Badge size="sm" variant="success">{ui("Shared with family")}</Badge> : null}
               <Button size="sm" variant="secondary" aria-expanded={open === row.id} onClick={() => setOpen(open === row.id ? null : row.id)}>{open === row.id ? ui("Hide") : ui("Open")}</Button>
             </div>
           </div>
@@ -144,12 +146,12 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
   if (!detail) return <p role="status" className="mt-2 text-sm">{ui("Loading…")}</p>;
   const active = detail.status === "ACTIVE";
   return <div className="mt-3 space-y-3 text-sm" data-panel>
-    {notice ? <p role="status" className="font-bold" data-notice>{notice}</p> : null}
+    {notice ? <Alert compact tone="info" live="polite" data-notice>{notice}</Alert> : null}
     <section className="grid gap-2 sm:grid-cols-2" data-stage="evidence">
-      <div><h4 className="font-bold">{ui("Evidence")}</h4><p className="text-xs">{ui(EVIDENCE_STATE[detail.evidenceState] ?? detail.evidenceState)}</p>
+      <div><h4 className="text-sm font-semibold text-ink-strong">{ui("Evidence")}</h4><p className="text-xs">{ui(EVIDENCE_STATE[detail.evidenceState] ?? detail.evidenceState)}</p>
         <ul className="list-disc ps-5 text-xs">{detail.evidenceRefs.map(ref => <li key={ref.refId}><bdi>{ref.label}</bdi></li>)}</ul>
         {detail.baseline ? <p className="text-xs" data-baseline>{ui("Baseline")}: <bdi>{detail.baseline.measure}</bdi> — {detail.baseline.value ?? "—"}{detail.baseline.denominator ? ` / ${detail.baseline.denominator}` : ""} · {date(detail.baseline.takenOn)}</p> : null}</div>
-      <div><h4 className="font-bold">{ui("Plan")}</h4><p className="text-xs"><bdi>{detail.plannedActivity ?? "—"}</bdi>{detail.minutesPerWeek ? ` · ${ui("{0} minutes per week", [detail.minutesPerWeek])}` : ""}</p>
+      <div><h4 className="text-sm font-semibold text-ink-strong">{ui("Plan")}</h4><p className="text-xs"><bdi>{detail.plannedActivity ?? "—"}</bdi>{detail.minutesPerWeek ? ` · ${ui("{0} minutes per week", [detail.minutesPerWeek])}` : ""}</p>
         {detail.privateNotes ? <p className="mt-1 rounded bg-muted p-2 text-xs" data-private>{ui("Private staff notes")}: <bdi>{detail.privateNotes}</bdi></p> : null}</div>
     </section>
     {["DRAFT", "ACTIVE"].includes(detail.status) ? <div className="flex flex-wrap gap-2">
@@ -160,14 +162,14 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
     {editing ? <Editor ctx={ctx} detail={detail} onSaved={async () => { setEditing(false); await load(); await onChanged(); }} /> : null}
 
     <section className="rounded-xl border border-border p-3" data-stage="share">
-      <h4 className="font-bold">{ui("Family view")}</h4>
+      <h4 className="text-sm font-semibold text-ink-strong">{ui("Family view")}</h4>
       {detail.familyShare ? <p className="text-xs" data-family-preview>{ui("Goal")}: <bdi>{detail.familyShare.goal}</bdi> · {ui("Action for home")}: <bdi>{detail.familyShare.action}</bdi></p> : <p className="text-xs">{ui("Nothing is prepared for the family.")}</p>}
       <p className="text-xs text-ink-muted">{detail.familyShare?.sharedAt ? ui("Shared on {0}. Only this goal and action are visible to the family.", [dateTime(detail.familyShare.sharedAt)]) : ui("Not shared. The family sees nothing until you share it.")}</p>
       {active && detail.familyShare && !detail.familyShare.sharedAt ? <Button size="sm" disabled={busy} onClick={() => void act("share", {}, ui("Shared with the family."))}>{ui("Share with the family")}</Button> : null}
     </section>
 
     {active ? <section className="grid items-end gap-2 rounded-xl border border-border p-3 sm:grid-cols-3" data-stage="check-in">
-      <h4 className="font-bold sm:col-span-3">{ui("Check-in")}</h4>
+      <h4 className="text-sm font-semibold text-ink-strong sm:col-span-3">{ui("Check-in")}</h4>
       <FormField name={`ci-day-${id}`} label={ui("Date")}><Input type="date" max={todayText()} value={check.dueOn} onChange={e => setCheck(c => ({ ...c, dueOn: e.target.value }))} /></FormField>
       <FormField name={`ci-delivered-${id}`} label={ui("Was the activity delivered?")}><Select value={check.delivered} onChange={e => setCheck(c => ({ ...c, delivered: e.target.value }))}><option value="yes">{ui("Yes")}</option><option value="no">{ui("No")}</option></Select></FormField>
       <FormField name={`ci-part-${id}`} label={ui("Participation")}><Select value={check.participation} onChange={e => setCheck(c => ({ ...c, participation: e.target.value }))}>{Object.keys(PARTICIPATION).map(k => <option key={k} value={k}>{ui(PARTICIPATION[k])}</option>)}</Select></FormField>
@@ -184,7 +186,7 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
     </section> : null}
 
     {active ? <section className="grid items-end gap-2 rounded-xl border border-border p-3 sm:grid-cols-3" data-stage="review">
-      <h4 className="font-bold sm:col-span-3">{ui("Outcome review")}</h4>
+      <h4 className="text-sm font-semibold text-ink-strong sm:col-span-3">{ui("Outcome review")}</h4>
       <p className="text-xs text-ink-muted sm:col-span-3">{ui("Compare fresh evidence with the baseline. Taking part is not the same as progress, and a before-and-after comparison does not show the action caused a change.")}</p>
       <FormField name={`rv-decision-${id}`} label={ui("Decision")}><Select value={review.decision} onChange={e => setReview(r => ({ ...r, decision: e.target.value }))}>{Object.keys(DECISION).map(k => <option key={k} value={k}>{ui(DECISION[k])}</option>)}</Select></FormField>
       <FormField name={`rv-measure-${id}`} label={ui("Follow-up measure")}><Input value={review.measure} onChange={e => setReview(r => ({ ...r, measure: e.target.value }))} /></FormField>

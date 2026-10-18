@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { InputGroup } from "@/components/ui/input-group";
@@ -81,7 +83,7 @@ export function FeeStructuresTab({ campusId }: { campusId?: string }) {
 }
 
 function LegacyStructuresTab({ campusId }: { campusId?: string }) {
- const { money: formatPKR } = useLocaleFormat();
+  const { money: formatPKR, date } = useLocaleFormat();
   const tr = useUiText();
   const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
@@ -179,12 +181,9 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       </div>
 
       {unassignedClasses.length > 0 && (
-        <div className="rounded-2xl bg-status-warning-surface border border-status-warning-border px-4 py-3">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-status-warning-text mb-1"><UiText>{"Classes Without Fee Structure"}</UiText></p>
-          <p className="text-xs font-bold text-status-warning-text">
+        <Alert tone="warning" live="off" compact title={tr("Classes Without Fee Structure")}>
             {unassignedClasses.map((c) => classLabel(c.name, c.section)).join(", ")}
-          </p>
-        </div>
+          </Alert>
       )}
 
       {activeStructures.length === 0 ? (
@@ -219,11 +218,11 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
                   <p className="text-sm font-bold text-ink-strong">
                     {classLabel(fs.class.name, fs.class.section)}
                   </p>
-                  <p className="text-2xs font-bold text-ink-subtle">
-                    {formatPKR(fs.monthlyFee, fs.currency)}<UiText>{"/mo · Ended"}</UiText>{new Date(fs.activeTo!).toLocaleDateString()}
+                  <p className="text-2xs font-medium text-ink-subtle tabular-nums">
+                    {formatPKR(fs.monthlyFee, fs.currency)}<UiText>{"/mo · Ended"}</UiText>{" "}{date(fs.activeTo!)}
                   </p>
                 </div>
-                <span className="text-2xs font-semibold uppercase text-ink-subtle px-2 py-1 rounded-lg bg-muted"><UiText>{"Inactive"}</UiText></span>
+                <Badge variant="neutral" size="sm" dot><UiText>{"Inactive"}</UiText></Badge>
               </div>
             ))}
           </div>
@@ -252,7 +251,7 @@ function StructureCard({
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
- const { money: formatPKR } = useLocaleFormat();
+  const { money: formatPKR, date } = useLocaleFormat();
   const tr = useUiText();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const oneTimeFees = fs.oneTimeFeesJson ?? {};
@@ -267,7 +266,7 @@ function StructureCard({
           <p className="text-sm font-bold text-ink-strong">
             {classLabel(fs.class.name, fs.class.section)}
           </p>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mt-0.5"><UiText>{"Since"}</UiText>{new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
+          <p className="text-2xs font-semibold tracking-wide text-ink-subtle mt-0.5"><UiText>{"Since"}</UiText>{" "}{date(fs.activeFrom)} · {fs.installmentType ?? tr("Standard")}
           </p>
         </div>
         <div className="flex items-center gap-1.5">

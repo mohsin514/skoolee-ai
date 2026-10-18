@@ -95,7 +95,7 @@ function HeroSkeleton() {
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-ink-strong via-ink-strong to-brand-950 p-6 shadow-xl sm:p-8">
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-gradient-to-bl from-primary/30 to-transparent blur-[70px]"
+        className="pointer-events-none absolute -end-20 -top-24 h-64 w-64 rounded-full bg-gradient-to-bl from-primary/30 to-transparent blur-[70px]"
       />
       <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <div className="min-w-0">

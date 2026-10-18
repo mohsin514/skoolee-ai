@@ -11,6 +11,7 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { localeTag } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users } from "lucide-react";
 
@@ -122,7 +123,7 @@ function ReviewDialog({ ui, listNames, submitted, counts, unmarked, changed, cla
   return <ModalFrame title={submitted ? ui("Correct a submitted register") : ui("Review the register")} eyebrow={ui("Attendance")} subtitle={ui("{0} on {1}", [className, date])} onClose={onClose}>
     <div className="space-y-3" data-register-review>
       <ul className="grid grid-cols-2 gap-1 text-sm tabular-nums">{["UNMARKED", ...STATUSES].map(key => <li key={key} data-review-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></li>)}</ul>
-      {blocked ? <div role="alert" className="rounded-xl border border-status-warning-border bg-status-warning-surface px-3 py-2 text-sm text-status-warning-text" data-review-unmarked><p className="font-semibold">{ui("These pupils are unmarked. Mark each one before submitting:")}</p><p>{listNames(unmarked.map(entry => entry.name))}</p></div> : null}
+      {blocked ? <Alert tone="warning" live="assertive" data-review-unmarked title={ui("These pupils are unmarked. Mark each one before submitting:")}><p>{listNames(unmarked.map(entry => entry.name))}</p></Alert> : null}
       {submitted ? <>
         <ul className="space-y-1 text-sm" data-review-changes>{changed.map(row => <li key={row.name}><bdi>{row.name}</bdi>: {statusLabel(ui, row.from)} → {statusLabel(ui, row.to)}</li>)}</ul>
         <FormField name="correction-reason" label={ui("Reason for the correction")} hint={ui("Kept with the record's history.")}><Textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>

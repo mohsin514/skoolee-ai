@@ -12,6 +12,9 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { FIELD_TYPES, IDENTITY_FIELDS, IDENTITY_KEYS, answerProblems, label, starterDefinition, visibleDocuments, visibleFields, type Answers, type FieldDef, type FormDefinition, type Language } from "@/lib/admissions/form-rules";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 // SKO-398: the admissions desk. Work starts from ownership and the next action; the review shows the exact
 // form version an application was answered on, keeps office notes apart from messages to the family, lists
@@ -95,9 +98,9 @@ function Pipeline({ forms, owners, classes }: { forms: Form[]; owners: Person[];
       {(() => { const enter = <Button onClick={() => setCreating(true)} disabled={!published.length}><Plus className="size-4" aria-hidden="true" />{ui("Enter an application")}</Button>; return published.length ? enter : <Tooltip content={ui("Publish an application form first.")}><span tabIndex={0} className="inline-flex">{enter}</span></Tooltip>; })()}
     </div>
     {loading && !rows.length ? <p role="status" className="text-sm text-ink-muted">{ui("Loading applications…")}</p>
-      : loadError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{loadError}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
+      : loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => void load()} />
       : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-admissions-empty>{view === "mine" && !status && !q ? ui("Nothing needs your action. Unassigned applications are under Unassigned.") : ui("No applications match these filters. Share a published form's link with families, or enter an application.")}</p>
-      : <ul className="space-y-2" aria-label={ui("Applications")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-rose-200 bg-rose-50/40" : "border-border"}`} data-application={row.reference} data-application-status={row.status}>
+      : <ul className="space-y-2" aria-label={ui("Applications")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-status-error-border bg-status-error-surface/40" : "border-border"}`} data-application={row.reference} data-application-status={row.status}>
         <div className="min-w-0 flex-1 space-y-0.5">
           <p className="font-bold"><bdi dir="ltr">{row.reference}</bdi> · <bdi>{row.childName || ui("(name not given yet)")}</bdi></p>
           <p className="text-xs text-ink-muted"><bdi>{row.formVersion.form.name}</bdi> · {ui("Form version {0}", [row.formVersion.version])}{row.channel === "STAFF" ? ` · ${ui("Entered by staff")}` : ""}{row.lastFamilyContact ? <> · {ui("Last family contact")} <bdi>{dateTime(row.lastFamilyContact)}</bdi></> : null}</p>
@@ -116,7 +119,7 @@ function Questions({ definition, answers, onChange, problems }: { definition: Fo
   const ui = useUiText();
   const { language } = useLocale();
   return <div className="space-y-3">{visibleFields(definition, answers).map(field => <div key={field.key}>
-    {field.section ? <p className="pt-2 text-xs font-semibold uppercase text-ink-subtle">{label(field.section, language as Language)}</p> : null}
+    {field.section ? <p className="sk-eyebrow pt-2">{label(field.section, language as Language)}</p> : null}
     {field.type === "checkbox" ? <label className="flex items-center gap-2 text-sm"><Checkbox checked={answers[field.key] === true} onChange={event => onChange(field.key, event.target.checked)} />{label(field.label, language as Language)}</label>
       : <FormField name={`entry-${field.key}`} label={label(field.label, language as Language)} required={field.required} error={problems[field.key] ? ui(problems[field.key]) : undefined}>
         {field.type === "select" ? <Select value={String(answers[field.key] ?? "")} onChange={event => onChange(field.key, event.target.value)}><option value="">{ui("Choose…")}</option>{field.options?.map(option => <option key={option.value} value={option.value}>{label(option.label, language as Language)}</option>)}</Select>
@@ -136,10 +139,10 @@ function EntryDialog({ forms, onClose, onCreated }: { forms: Form[]; onClose: ()
   };
   return <ModalFrame title={ui("Enter an application")} eyebrow={ui("Admissions")} subtitle={ui("For a family applying in person or by phone. The same form version and rules apply.")} onClose={onClose}>
     <div className="space-y-3">
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
+      {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="entry-form" label={ui("Form")}><Select value={formId} onChange={event => setFormId(event.target.value)}>{forms.map(form => <option key={form.id} value={form.id}>{form.name} · v{form.currentVersion}</option>)}</Select></FormField>
       <FormField name="entry-child" label={ui("Child's full name")}><Input value={childName} onChange={event => setChildName(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{ui("Cancel")}</Button><Button onClick={() => void create()} disabled={busy}>{busy ? ui("Saving…") : ui("Start application")}</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{ui("Cancel")}</Button><Button onClick={() => void create()} loading={busy}>{ui("Start application")}</Button></div>
     </div>
   </ModalFrame>;
 }
@@ -180,22 +183,22 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
     ["record-acceptance", ui("Record acceptance"), "OFFERED"], ["record-decline", ui("Record decline"), "OFFERED"], ["reject", ui("Do not offer"), "SUBMITTED,UNDER_REVIEW,WAITLISTED"], ["withdraw", ui("Withdraw"), "DRAFT,SUBMITTED,UNDER_REVIEW,INFO_REQUESTED,OFFERED,WAITLISTED,ACCEPTED"],
   ] as [string, string, string][]).filter(([, , from]) => from.split(",").includes(detail.status));
   return <ModalFrame title={detail ? ui("Application {0}", [detail.reference]) : ui("Application")} eyebrow={ui("Admissions")} size="lg" onClose={onClose} dirty={Boolean(officeNote || familyMessage || reason)}>
-    {loadError ? <p role="alert" className="text-sm font-bold text-rose-700">{loadError}</p> : !detail || !definition ? <p role="status" className="text-sm">{ui("Loading applications…")}</p> : <div className="space-y-4" data-application-review={detail.reference}>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-review-error>{error}</p> : null}
+    {loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => { setLoadError(""); void load(); }} /> : !detail || !definition ? <SkeletonList rows={4} label={ui("Loading application…")} /> : <div className="space-y-4" data-application-review={detail.reference}>
+      {error ? <Alert tone="danger" compact data-review-error>{error}</Alert> : null}
       <p className="text-sm font-bold" data-review-status={detail.status}>{statusLabel(ui, detail.status)} · <bdi>{detail.formVersion.form.name}</bdi> · {ui("Form version {0}", [detail.formVersion.version])}{detail.enquiry ? <> · {ui("From enquiry")} <bdi>{detail.enquiry.name}</bdi> ({detail.enquiry.source})</> : null}</p>
-      {detail.convertedStudent ? <p className="rounded-xl bg-emerald-50 p-3 text-sm" data-converted>{ui("Enrolled as {0}, roll {1}.", [detail.convertedStudent.fullName, detail.convertedStudent.rollNo])}</p> : null}
+      {detail.convertedStudent ? <Alert tone="success" compact live="off" data-converted>{ui("Enrolled as {0}, roll {1}.", [detail.convertedStudent.fullName, detail.convertedStudent.rollNo])}</Alert> : null}
 
       {staffDraft ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Answers")}>
-        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Answers (entered by staff)")}</p>
+        <p className="sk-eyebrow">{ui("Answers (entered by staff)")}</p>
         <Questions definition={definition} answers={answers} onChange={(key, value) => setAnswers(current => ({ ...current, [key]: value }))} problems={draftProblems} />
         <Button variant="secondary" disabled={busy} onClick={() => void run({ action: "save-answers", answers }, ui("Answers saved."), "POST")}>{ui("Save answers")}</Button>
       </section> : <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Submitted answers")}>
-        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Submitted answers")} · {detail.submissions.length ? ui("Sent {0} time(s), last {1}", [detail.submissions.length, dateTime(detail.submissions[detail.submissions.length - 1].submittedAt)]) : ui("Not sent yet")}</p>
+        <p className="sk-eyebrow">{ui("Submitted answers")} · {detail.submissions.length ? ui("Sent {0} time(s), last {1}", [detail.submissions.length, dateTime(detail.submissions[detail.submissions.length - 1].submittedAt)]) : ui("Not sent yet")}</p>
         <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">{visibleFields(definition, detail.answers).map(field => <div key={field.key}><dt className="text-xs text-ink-muted">{label(field.label, "en")}</dt><dd className="font-semibold"><bdi>{typeof detail.answers[field.key] === "boolean" ? (detail.answers[field.key] ? ui("Yes") : ui("No")) : field.type === "select" ? (field.options?.find(option => option.value === detail.answers[field.key])?.label.en ?? String(detail.answers[field.key] ?? "—")) : String(detail.answers[field.key] ?? "—")}</bdi></dd></div>)}</dl>
       </section>}
 
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Documents")}>
-        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Documents")}</p>
+        <p className="sk-eyebrow">{ui("Documents")}</p>
         {visibleDocuments(definition, detail.answers).map(document => {
           const files = detail.documents.filter(file => file.key === document.key);
           return <div key={document.key} className="flex flex-wrap items-center gap-2" data-review-document={document.key} data-present={files.length > 0}>

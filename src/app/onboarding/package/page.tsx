@@ -255,10 +255,7 @@ function PackageChoice() {
               <p className="mt-3 min-h-14 text-lg font-bold tabular-nums text-ink-strong" dir="ltr"><bdi>{priceText(plan)}</bdi></p>
               {type === "FREE" && <p className="text-xs leading-relaxed text-ink-muted">{copy.freeDescription}</p>}
               {type === "ENTERPRISE" && <p className="text-xs leading-relaxed text-ink-muted">{copy.customDescription}</p>}
-              <p className={`mt-4 flex items-center gap-2 rounded-xl border p-3 text-xs font-semibold ${fits ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-warning-border bg-status-warning-surface text-status-warning-text"}`}>
-                {fits ? <Check aria-hidden="true" className="h-4 w-4 shrink-0" /> : <Building2 aria-hidden="true" className="h-4 w-4 shrink-0" />}
-                {fits ? copy.fits : copy.exceeds}
-              </p>
+              <Alert compact live="off" tone={fits ? "success" : "warning"} icon={fits ? Check : Building2} className="mt-4">{fits ? copy.fits : copy.exceeds}</Alert>
               <dl className="mt-4 space-y-2 rounded-xl border border-border-subtle bg-surface-subtle p-3 text-xs">
                 <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.students}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxStudents < 0 ? copy.unlimited : plan.maxStudents.toLocaleString()}</dd></div>
                 <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxTeachers < 0 ? copy.unlimited : plan.maxTeachers.toLocaleString()}</dd></div>

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-471: the learning transfer bridge. Staff import evidence, the family consents, teachers review each
@@ -75,11 +76,11 @@ export function LearningTransferPanel({ studentId }: { studentId: string }) {
       </div>
       <div className="sm:col-span-2"><Button disabled={busy || !form.institution || !form.learnerRef || !form.curriculumName || !form.curriculumId || !form.version || !form.objectives} onClick={() => void importCase()}>{ui("Review imported evidence")}</Button></div>
     </div> : null}
-    {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
+    {error ? <Alert compact tone="danger">{error}</Alert> : null}
     {cases.length ? <ul className="space-y-2">{cases.map(row => <li key={row.id} className="min-w-0 rounded-xl border border-border p-3 text-sm" data-transfer-case={row.id} data-transfer-status={row.status}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 font-semibold"><bdi>{row.institution}</bdi> · <bdi>{row.curriculumName}</bdi> · <bdi dir="ltr">{row.version}</bdi></p>
-        <div className="flex flex-wrap items-center gap-1 text-xs"><span className="rounded bg-muted px-2 py-0.5 font-bold">{ui(STATUS[row.status] ?? row.status)}</span><span className={`rounded px-2 py-0.5 font-bold ${row.rights === "GRANTED" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-rights={row.rights}>{ui(RIGHTS[row.rights])}</span>
+        <div className="flex flex-wrap items-center gap-1 text-xs"><Badge size="sm" variant="neutral">{ui(STATUS[row.status] ?? row.status)}</Badge><Badge size="sm" dot variant={row.rights === "GRANTED" ? "success" : "warning"} data-rights={row.rights}>{ui(RIGHTS[row.rights])}</Badge>
           <Button size="sm" variant="secondary" aria-expanded={open === row.id} onClick={() => setOpen(open === row.id ? null : row.id)}>{open === row.id ? ui("Hide") : ui("Open")}</Button></div>
       </div>
       {open === row.id ? <TransferCase id={row.id} onChanged={load} /> : null}
@@ -104,7 +105,7 @@ function TransferCase({ id, onChanged }: { id: string; onChanged: () => Promise<
   const load = useCallback(async () => { try { const data: Detail = await call(`/api/learning-transfers/${encodeURIComponent(id)}`); setDetail(data); setTargets(Object.fromEntries(data.objectives.map(o => [o.id, o.mapping?.targetOutcomeIds?.length ? o.mapping.targetOutcomeIds : (o.mapping?.suggestion?.targets ?? []).map(t => t.id)]))); } catch (e) { setError((e as Error).message); } }, [id]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
   const act = async (action: string, data: unknown) => { setBusy(true); setError(""); try { await call("/api/learning-transfers", { action, data }); await load(); await onChanged(); } catch (e) { setError((e as Error).message || ui("The transfer could not be saved. Try again.")); } setBusy(false); };
-  if (!detail) return error ? <p role="alert" className="mt-2 text-sm">{error}</p> : <p role="status" className="mt-2 text-sm">{ui("Loading…")}</p>;
+  if (!detail) return error ? <Alert compact tone="danger" className="mt-2" actions={<Button size="sm" variant="secondary" onClick={() => { setError(""); void load(); }}>{ui("Try again")}</Button>}>{error}</Alert> : <p role="status" className="mt-2 text-sm">{ui("Loading…")}</p>;
   const outcome = (outcomeId: string) => detail.outcomes.find(o => o.id === outcomeId);
   const reviewed = detail.objectives.length > 0 && detail.objectives.every(o => o.mapping && o.mapping.decision !== "PROPOSED" && !o.mapping.stale);
   return <div className="mt-3 min-w-0 space-y-3" data-transfer-detail>
@@ -113,21 +114,21 @@ function TransferCase({ id, onChanged }: { id: string; onChanged: () => Promise<
       <div><dt className="inline font-semibold">{ui("Language of the records")}: </dt><dd className="inline">{detail.source.language ? <bdi dir="ltr">{detail.source.language}</bdi> : ui("Not stated")}</dd></div>
       <div><dt className="inline font-semibold">{ui("Shared by the family")}: </dt><dd className="inline">{detail.consent.fields.length ? list(detail.consent.fields.map(f => ui(FIELD[f] ?? f))) : "—"}{detail.consent.expiresAt ? ` · ${ui("until {0}", [date(detail.consent.expiresAt.slice(0, 10))])}` : ""}</dd></div>
     </dl>
-    {detail.missing.length ? <ul className="flex flex-wrap gap-2 text-xs" aria-label={ui("Missing from the source")}>{detail.missing.map(m => <li key={m} className="rounded bg-amber-50 px-2 py-0.5 text-amber-900">{m === "LANGUAGE" ? ui("Language not stated") : ui("Some objectives have no work")}</li>)}</ul> : null}
-    {detail.rights !== "GRANTED" ? <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm" data-rights-notice>{ui(RIGHTS[detail.rights])}. {ui("The evidence stays hidden until a guardian consents from their account. Your draft is kept.")}</p> : <>
+    {detail.missing.length ? <ul className="flex flex-wrap gap-2 text-xs" aria-label={ui("Missing from the source")}>{detail.missing.map(m => <li key={m}><Badge size="sm" variant="warning">{m === "LANGUAGE" ? ui("Language not stated") : ui("Some objectives have no work")}</Badge></li>)}</ul> : null}
+    {detail.rights !== "GRANTED" ? <Alert tone="warning" live="polite" data-rights-notice>{ui(RIGHTS[detail.rights])}. {ui("The evidence stays hidden until a guardian consents from their account. Your draft is kept.")}</Alert> : <>
       <div className="flex flex-wrap items-end gap-2">
         <div className="grid min-w-0 gap-1 text-sm font-semibold"><label htmlFor={`${fid}-dest`}>{ui("Destination curriculum")}</label>
           <Select id={`${fid}-dest`} value={destination || detail.destination?.id || ""} onChange={event => setDestination(event.target.value)}><option value="">—</option>{detail.curricula.map(c => <option key={c.id} value={c.id}>{c.title} · v{c.version}</option>)}</Select></div>
         <Button size="sm" variant="secondary" disabled={busy || !(destination || detail.destination?.id)} onClick={() => void act("destination", { caseId: id, curriculumRecordId: destination || detail.destination!.id, version: detail.version })}>{detail.destination ? ui("Suggest again") : ui("Use this curriculum")}</Button>
       </div>
-      {detail.destination && !detail.destination.current ? <p className="text-xs text-amber-900">{ui("The destination curriculum has a newer version. Choose it again to review against it.")}</p> : null}
+      {detail.destination && !detail.destination.current ? <p className="text-xs text-status-warning-text">{ui("The destination curriculum has a newer version. Choose it again to review against it.")}</p> : null}
       {detail.destination ? <ol className="space-y-3" aria-label={ui("Mapping workbench")}>{detail.objectives.map(o => <li key={o.id} className="grid min-w-0 gap-3 rounded-xl border border-border p-3 md:grid-cols-2" data-objective={o.id} data-decision={o.mapping?.decision ?? "PROPOSED"} data-stale={o.mapping?.stale ? "true" : "false"}>
         <div className="min-w-0 space-y-1">
           <p className="text-xs font-semibold text-ink-muted">{ui("From the previous school")} · <bdi dir="ltr">{o.id} v{o.version}</bdi></p>
-          <p className="font-semibold"><bdi>{o.title}</bdi></p>
-          <p className="text-xs">{ui("Work")}: {o.work ? <bdi>{o.work}</bdi> : <span className="text-amber-900">{ui("No work shared — a diagnostic check will be proposed")}</span>}</p>
+          <p className="text-sm font-semibold text-ink-strong"><bdi>{o.title}</bdi></p>
+          <p className="text-xs">{ui("Work")}: {o.work ? <bdi>{o.work}</bdi> : <span className="text-status-warning-text">{ui("No work shared — a diagnostic check will be proposed")}</span>}</p>
           {o.result ? <p className="text-xs">{ui("Result there (not converted)")}: <bdi>{o.result}</bdi></p> : null}
-          {o.mapping?.stale ? <p className="text-xs font-bold text-amber-900">{ui("The source changed. Review this mapping again.")}</p> : null}
+          {o.mapping?.stale ? <p className="text-xs font-semibold text-status-warning-text">{ui("The source changed. Review this mapping again.")}</p> : null}
         </div>
         <div className="min-w-0 space-y-2">
           <p className="text-xs font-semibold text-ink-muted">{ui("Destination objectives")} · v{detail.destination?.version}</p>
@@ -135,7 +136,7 @@ function TransferCase({ id, onChanged }: { id: string; onChanged: () => Promise<
           <fieldset className="space-y-1 text-sm"><legend className="sr-only">{ui("Destination objectives")}</legend>{detail.outcomes.map(out => <label key={out.id} className="flex items-start gap-2"><Checkbox checked={(targets[o.id] ?? []).includes(out.id)} onChange={event => setTargets(t => ({ ...t, [o.id]: event.target.checked ? [...(t[o.id] ?? []), out.id] : (t[o.id] ?? []).filter(x => x !== out.id) }))} /><bdi>{out.title}</bdi></label>)}</fieldset>
           <div className="grid gap-1 text-xs font-semibold"><label htmlFor={`${fid}-${o.id}-note`}>{ui("Note")}</label><Input id={`${fid}-${o.id}-note`} value={notes[o.id] ?? o.mapping?.note ?? ""} onChange={event => setNotes(n => ({ ...n, [o.id]: event.target.value }))} /></div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-muted px-2 py-0.5 text-xs font-bold">{ui(DECISION[o.mapping?.decision ?? ""] ?? "Not reviewed")}</span>
+            <Badge size="sm" variant="neutral">{ui(DECISION[o.mapping?.decision ?? ""] ?? "Not reviewed")}</Badge>
             <Button size="sm" disabled={busy || !(targets[o.id] ?? []).length} onClick={() => void act("review", { caseId: id, sourceObjectiveId: o.id, decision: "ACCEPTED", targetOutcomeIds: targets[o.id] ?? [], note: notes[o.id] || null, version: o.mapping!.version })}>{ui("Accept mapping")}</Button>
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act("review", { caseId: id, sourceObjectiveId: o.id, decision: "NOT_COMPARABLE", targetOutcomeIds: [], note: notes[o.id] || null, version: o.mapping!.version })}>{ui("Not comparable")}</Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => void act("review", { caseId: id, sourceObjectiveId: o.id, decision: "REJECTED", targetOutcomeIds: [], note: notes[o.id] || null, version: o.mapping!.version })}>{ui("Reject")}</Button>
@@ -154,7 +155,7 @@ function TransferCase({ id, onChanged }: { id: string; onChanged: () => Promise<
       </div> : null}
       <Button size="sm" variant="outline" disabled={busy} onClick={() => setExporting(true)}>{ui("Download reviewed mapping")}</Button>
     </>}
-    {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
+    {error ? <Alert compact tone="danger">{error}</Alert> : null}
     <ConfirmAction open={exporting} busy={busy} tone="primary" title={ui("Download the reviewed mapping?")}
       description={ui("The file contains only reviewed mappings and the objective titles. Consent is checked again now.")}
       confirmLabel={ui("Download")} cancelLabel={ui("Cancel")}
@@ -204,7 +205,7 @@ export function FamilyTransferConsent() {
         <Button size="sm" disabled={!expiry[row.id]} onClick={() => setConfirm({ id: row.id, action: "grant" })}>{ui("Review and share")}</Button>
       </>}
     </article>)}
-    {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
+    {error ? <Alert compact tone="danger">{error}</Alert> : null}
     <ConfirmAction open={!!confirm} tone={confirm?.action === "revoke" ? "warning" : "primary"}
       title={confirm?.action === "revoke" ? ui("Withdraw consent?") : ui("Share these records?")}
       description={confirm?.action === "revoke" ? ui("The school will no longer read or download these records. Copies already downloaded cannot be recalled.") : ui("Only the parts you choose are shared, and only with your child's current school.")}

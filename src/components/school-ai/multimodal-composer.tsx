@@ -4,6 +4,7 @@ import { voiceFailureFor } from "@/lib/school-ai/voice";
 import { useEffect, useId, useRef, useState } from "react";
 import { Camera, Loader2, Mic, Paperclip, Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { Language } from "@/lib/locale/package";
@@ -134,13 +135,13 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
       onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && value.trim() && !occupied && !recording && onSubmit) { event.preventDefault(); void onSubmit(); } }} />
     <div className={styles.composerToolbar}>
       <div className="flex flex-wrap gap-1">
-        {onUpload && <><Button type="button" variant="ghost" size="icon" title={c.attach} aria-label={c.attach} disabled={occupied || recording} onClick={() => uploadRef.current?.click()}><Paperclip aria-hidden="true" /></Button>
-          <Button type="button" variant="ghost" size="icon" title={c.scanHint} aria-label={c.scan} disabled={occupied || recording} onClick={() => cameraRef.current?.click()}><Camera aria-hidden="true" /></Button>
+        {onUpload && <><IconButton variant="ghost" label={c.attach} disabled={occupied || recording} onClick={() => uploadRef.current?.click()}><Paperclip aria-hidden="true" /></IconButton>
+          <IconButton variant="ghost" label={c.scan} tooltip={c.scanHint} disabled={occupied || recording} onClick={() => cameraRef.current?.click()}><Camera aria-hidden="true" /></IconButton>
           <Input ref={uploadRef} type="file" className="hidden" tabIndex={-1} aria-label={c.attach} accept="application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,.csv" onChange={event => { attachFile(event.target.files?.[0], "upload"); event.target.value = ""; }} />
           <Input ref={cameraRef} type="file" className="hidden" tabIndex={-1} aria-label={c.scan} accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => { attachFile(event.target.files?.[0], "camera"); event.target.value = ""; }} /></>}
-        <Button type="button" variant={recording ? "destructive" : "ghost"} size="icon" aria-label={recording ? c.stopRecording : c.record} title={voiceAvailable ? c.record : c.serviceUnavailable} disabled={occupied && !recording} aria-pressed={recording} onClick={recording ? stop : () => void start()}>{starting || transcribing ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : recording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}</Button>
+        <IconButton variant={recording ? "destructive" : "ghost"} label={recording ? c.stopRecording : c.record} tooltip={voiceAvailable ? undefined : c.serviceUnavailable} disabled={occupied && !recording} aria-pressed={recording} onClick={recording ? stop : () => void start()}>{starting || transcribing ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : recording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}</IconButton>
       </div>
-      {onSubmit && <Button type="button" disabled={occupied || recording || !value.trim()} onClick={() => void onSubmit()}>{busy ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}{busy ? c.working : submitLabel || c.send}</Button>}
+      {onSubmit && <Button type="button" loading={busy} disabled={occupied || recording || !value.trim()} onClick={() => void onSubmit()}>{busy ? null : <Send aria-hidden="true" />}{busy ? c.working : submitLabel || c.send}</Button>}
     </div>
     {(recording || transcribing || feedback) && <p className={`mt-2 text-sm ${failed ? "text-destructive" : "text-ink-muted"}`} role={failed ? "alert" : "status"}>{recording ? c.recording : transcribing ? c.transcribing : feedback}</p>}
   </div>;

@@ -467,7 +467,7 @@ export default function ForgotPasswordPage() {
                 <span aria-hidden="true" className="flex size-16 items-center justify-center rounded-[22px] border border-status-brand-border bg-status-brand-surface text-primary">
                   <Loader2 className="size-7 motion-safe:animate-spin" />
                 </span>
-                <h1 className="text-base font-semibold text-ink-muted">{t.verifying}</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">{t.verifying}</h1>
               </div>
             ) : (
               // ── RESET PASSWORD ──

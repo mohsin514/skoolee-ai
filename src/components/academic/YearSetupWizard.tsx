@@ -10,13 +10,13 @@ import {
   Check,
   CheckCircle2,
   Clock,
-  Loader2,
   Plus,
   Trash2,
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = [
@@ -423,17 +423,17 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
               <Field label="Period #" type="number" value={periodDraft.periodNumber} onChange={(v) => setPeriodDraft((d) => ({ ...d, periodNumber: v }))} />
               <Field label="Start" type="time" value={periodDraft.startTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, startTime: v }))} />
               <Field label="End" type="time" value={periodDraft.endTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, endTime: v }))} />
-              <Button variant="default" onClick={addPeriod} disabled={saving} className="flex items-end justify-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />Add</Button>
+              <Button variant="default" onClick={addPeriod} loading={saving} className="flex items-end justify-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />Add</Button>
             </div>
             <div className="space-y-2">
-              {activePeriods.length === 0 && <p className="rounded-2xl border border-dashed border-edge/30 bg-surface-subtle py-6 text-center text-sm text-ink-muted">No {periodTab.toLowerCase()} periods yet</p>}
+              {activePeriods.length === 0 && <EmptyState size="sm" icon={Clock} title={`No ${periodTab.toLowerCase()} periods yet`} description="Add the first period above with its start and end time." />}
               {activePeriods.map((p) => (
                 <div key={p.id} className="sk-panel flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100 text-sm font-bold text-primary">P{p.periodNumber}</span>
                     <span className="text-sm font-semibold text-ink">{p.startTime} – {p.endTime}</span>
                   </div>
-                  <Button variant="ghost" onClick={() => deletePeriod(p.id)} className=""><Trash2 className="h-4 w-4" /></Button>
+                  <IconButton label={`Remove period ${p.periodNumber}`} variant="ghost" onClick={() => deletePeriod(p.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
                 </div>
               ))}
             </div>
@@ -458,14 +458,14 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
                     <p className="text-sm font-bold text-ink-strong">Room {r.roomNumber}</p>
                     <p className="text-xs text-ink-muted">Capacity {r.capacity}</p>
                   </div>
-                  <Button variant="ghost" onClick={() => deleteRoom(r.id)} className=""><Trash2 className="h-4 w-4" /></Button>
+                  <IconButton label={`Remove room ${r.roomNumber}`} variant="ghost" onClick={() => deleteRoom(r.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
                 </div>
               ))}
               {rooms.length === 0 && <div className="sm:col-span-3"><EmptyState size="sm" icon={Building2} title="No rooms yet" description="Optional. Skip this step if you do not use rooms." /></div>}
             </div>
             <div className="flex justify-end">
-              <Button variant="default" onClick={completeSetup} disabled={saving} className="justify-start flex items-center gap-2 px-6 py-3">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Complete Setup
+              <Button variant="default" onClick={completeSetup} loading={saving} className="justify-start flex items-center gap-2 px-6 py-3">
+                {saving ? null : <Check className="h-4 w-4" aria-hidden="true" />} Complete Setup
               </Button>
             </div>
           </div>
@@ -476,7 +476,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
       <div className="flex justify-between">
         <Button variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}
           className="justify-start flex items-center gap-2 px-5 py-2.5">
-          <ArrowLeft className="h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" /> Back
         </Button>
         {/* Step 1 has pending state to commit (the academic cycle); the later
             steps save each control as it changes, so a plain advance is
@@ -485,17 +485,10 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
           <Button variant="default"
             onClick={step === 0 ? nextFromStep1 : () => setStep((s) => s + 1)}
             disabled={saving}
+            loading={step === 0 && saving}
             className="justify-start flex items-center gap-2 px-5 py-2.5"
           >
-            {step === 0 && saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Saving
-              </>
-            ) : (
-              <>
-                {step === 0 ? "Save & Continue" : "Next"} <ArrowRight className="h-4 w-4" />
-              </>
-            )}
+            {step === 0 ? "Save & Continue" : "Next"} <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
           </Button>
         )}
       </div>

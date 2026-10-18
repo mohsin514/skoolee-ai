@@ -236,7 +236,7 @@ function UrduInput({
       {showKeyboard && (
         <div className="sk-panel sk-enter-scale absolute inset-x-0 top-full z-50 mt-1.5 p-2.5 shadow-lg">
           <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
-            <span lang="ur" className="text-xs font-semibold text-ink-muted">اردو کی بورڈ</span>
+            <span lang="ur" className="text-xs font-medium text-ink-subtle">اردو کی بورڈ</span>
             <IconButton label="Close Urdu keyboard" onClick={() => setShowKeyboard(false)}>
               <X aria-hidden="true" />
             </IconButton>

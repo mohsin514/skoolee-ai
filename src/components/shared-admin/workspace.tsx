@@ -512,11 +512,11 @@ export function SelectionBar({
   if (total === 0) return null;
   return (
     <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-primary/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
-      <span className="rounded-full bg-primary px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-white">
+      <span className="rounded-full bg-primary px-3 py-1.5 text-2xs font-semibold uppercase tabular-nums tracking-wider text-white">
         {total} selected
       </span>
       {actions.length === 0 ? (
-        <span className="text-2xs font-semibold text-ink-muted">
+        <span className="text-xs font-medium text-ink-muted">
           {note || "Nothing can be done to this selection right now."}
         </span>
       ) : (
@@ -534,10 +534,10 @@ export function SelectionBar({
             )}
             style={a.accent ? { backgroundColor: a.accent } : undefined}
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : a.icon ? <a.icon className="h-3.5 w-3.5" /> : null}
+            {busy ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : a.icon ? <a.icon aria-hidden="true" className="h-3.5 w-3.5" /> : null}
             {a.label}
             {a.count !== undefined ? (
-              <span className={cn("rounded-full px-1.5", a.accent ? "bg-white/25" : "bg-muted")}>
+              <span className={cn("rounded-full px-1.5 tabular-nums", a.accent ? "bg-white/25" : "bg-muted")}>
                 {a.count}
               </span>
             ) : null}

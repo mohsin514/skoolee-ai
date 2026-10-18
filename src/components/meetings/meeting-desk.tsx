@@ -55,10 +55,10 @@ export function MeetingDesk() {
   const status = (b: Booking) => b.status === "RESCHEDULE_NEEDED" ? ui("Needs a new time") : b.status === "CONFIRMED" ? ui("Confirmed") : b.status === "HELD" ? ui("Took place") : b.status === "NOT_HELD" ? ui("Did not take place") : ui("Cancelled");
 
   return <section className="sk-panel space-y-5 p-5" data-meeting-desk>
-    <header><h3 className="text-base font-bold">{ui("Parent meetings")}</h3><p className="text-xs text-ink-muted">{ui("Times are in the school's timezone: {0}.", [desk.timezone])} {ui("Times when you teach or are on approved leave are not offered.")}</p></header>
+    <header><h3 className="text-base font-bold text-ink-strong">{ui("Parent meetings")}</h3><p className="text-xs text-ink-muted">{ui("Times are in the school's timezone: {0}.", [desk.timezone])} {ui("Times when you teach or are on approved leave are not offered.")}</p></header>
 
     <div className="space-y-2 rounded-xl border border-dashed p-3" data-meeting-window-form>
-      <p className="text-xs font-bold">{ui("Open meeting times")}</p>
+      <p className="text-xs font-semibold text-ink-strong">{ui("Open meeting times")}</p>
       <div className="grid gap-2 sm:grid-cols-4">
         <FormField name="w-date" label={ui("Day")}><Input type="date" value={form.localDate} min={desk.today} onChange={e => setForm({ ...form, localDate: e.target.value })} /></FormField>
         <FormField name="w-start" label={ui("From")}><Input type="time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} dir="ltr" /></FormField>
@@ -74,16 +74,16 @@ export function MeetingDesk() {
     </div>
 
     {desk.windows.length ? <ul className="space-y-2" data-meeting-windows>{desk.windows.map(w => <li key={w.id} className="rounded-xl border border-edge/40 p-3" data-window={w.id}>
-      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold"><bdi>{date(w.localDate)}</bdi> <bdi>{w.startTime}–{w.endTime}</bdi> · {w.mode === "REMOTE" ? ui("Remote meeting") : w.mode === "EITHER" ? ui("In person or remote") : ui("In person")}{w.location ? <> · <bdi>{w.location}</bdi></> : null}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-strong"><bdi>{date(w.localDate)}</bdi> <bdi>{w.startTime}–{w.endTime}</bdi> · {w.mode === "REMOTE" ? ui("Remote meeting") : w.mode === "EITHER" ? ui("In person or remote") : ui("In person")}{w.location ? <> · <bdi>{w.location}</bdi></> : null}</p>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act({ action: "withdraw", windowId: w.id }, "Times withdrawn. Families with bookings were asked to choose again.")} data-window-withdraw>{ui("Withdraw these times")}</Button></div>
-      <ul className="mt-2 flex flex-wrap gap-1.5">{w.slots.map(s => <li key={s.startsAt} className={cn("rounded-lg border px-2 py-1 text-xs", s.state === "OPEN" ? "border-emerald-300 bg-emerald-50" : s.state === "TAKEN" ? "border-violet-300 bg-violet-50 font-bold" : "border-slate-200 bg-slate-50 text-ink-muted")} data-slot-state={s.state}><bdi>{s.start}–{s.end}</bdi> · {stateLabel[s.state]}</li>)}</ul>
+      <ul className="mt-2 flex flex-wrap gap-1.5">{w.slots.map(s => <li key={s.startsAt} className={cn("rounded-lg border px-2 py-1 text-xs", s.state === "OPEN" ? "border-status-success-border bg-status-success-surface" : s.state === "TAKEN" ? "border-status-brand-border bg-status-brand-surface font-semibold" : "border-border-subtle bg-surface-subtle text-ink-muted")} data-slot-state={s.state}><bdi>{s.start}–{s.end}</bdi> · {stateLabel[s.state]}</li>)}</ul>
     </li>)}</ul> : null}
 
     <div className="space-y-2" data-meeting-bookings>
       <p className="sk-eyebrow">{ui("Booked meetings")}</p>
       {!upcoming.length && !recent.length ? <p className="text-sm text-ink-muted">{ui("No meetings booked yet.")}</p> : null}
       {[...upcoming, ...recent].map(b => <div key={b.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3", b.status === "RESCHEDULE_NEEDED" ? "border-amber-300 bg-amber-50/60" : "border-edge/40")} data-booking={b.id} data-booking-status={b.status}>
-        <div><p className="text-sm font-bold"><bdi>{b.studentName}</bdi> · <bdi>{b.guardianName}</bdi></p><p className="text-xs text-ink-muted"><bdi>{when(b)}</bdi> · {status(b)}{b.status === "RESCHEDULE_NEEDED" ? <> · {b.conflictReason === "LEAVE" ? ui("You are on leave at this time.") : b.conflictReason === "TIMETABLE" ? ui("You now teach at this time.") : ui("You withdrew this time.")}</> : null}</p></div>
+        <div><p className="text-sm font-semibold text-ink-strong"><bdi>{b.studentName}</bdi> · <bdi>{b.guardianName}</bdi></p><p className="text-xs text-ink-muted"><bdi>{when(b)}</bdi> · {status(b)}{b.status === "RESCHEDULE_NEEDED" ? <> · {b.conflictReason === "LEAVE" ? ui("You are on leave at this time.") : b.conflictReason === "TIMETABLE" ? ui("You now teach at this time.") : ui("You withdrew this time.")}</> : null}</p></div>
         <Button size="sm" variant="outline" onClick={() => openBooking(b)} data-booking-open>{ui("Open")}</Button>
       </div>)}
     </div>
@@ -97,7 +97,7 @@ export function MeetingDesk() {
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act({ action: "cancel", bookingId: open.id, knownVersion: open.version }, "Meeting cancelled. The family has been told.")} data-booking-cancel>{ui("Cancel meeting")}</Button>
         </div> : null}
         {open.status === "HELD" ? <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3" data-followup>
-          <p className="text-xs font-bold">{ui("Shared with the family")}{open.followUp?.sharedAt ? <> · {ui("Shared")} <bdi>{dateTime(open.followUp.sharedAt)}</bdi></> : <> · {ui("Draft — the family sees nothing until you share it")}</>}</p>
+          <p className="text-xs font-semibold text-ink-strong">{ui("Shared with the family")}{open.followUp?.sharedAt ? <> · {ui("Shared")} <bdi>{dateTime(open.followUp.sharedAt)}</bdi></> : <> · {ui("Draft — the family sees nothing until you share it")}</>}</p>
           <FormField name="f-summary" label={ui("Summary")}><Textarea rows={3} value={summary} disabled={Boolean(open.followUp?.sharedAt)} onChange={e => setSummary(e.target.value)} /></FormField>
           {drafts.map((d, i) => <div key={i} className="grid gap-2 sm:grid-cols-[1fr_140px_160px_auto]" data-followup-action={i}>
             <Input aria-label={ui("Action")} value={d.text} disabled={Boolean(open.followUp?.sharedAt)} onChange={e => setDrafts(drafts.map((x, j) => j === i ? { ...x, text: e.target.value } : x))} />
@@ -112,7 +112,7 @@ export function MeetingDesk() {
           </div> : null}
         </div> : null}
         <div className="space-y-2 rounded-xl border border-slate-300 bg-slate-50 p-3" data-staff-notes>
-          <p className="text-xs font-bold">{ui("Staff notes — never shown to the family")}</p>
+          <p className="text-xs font-semibold text-ink-strong">{ui("Staff notes — never shown to the family")}</p>
           {open.notes.map(n => <p key={n.id} className="text-sm"><bdi>{n.body}</bdi> <span className="text-xs text-ink-muted">· <bdi>{n.author}</bdi> · <bdi>{dateTime(n.createdAt)}</bdi></span></p>)}
           <div className="flex gap-2"><Textarea rows={2} aria-label={ui("Staff note")} value={note} onChange={e => setNote(e.target.value)} /><Button size="sm" variant="outline" disabled={busy || !note.trim()} onClick={() => void act({ action: "note", bookingId: open.id, body: note }, "Note saved.").then(() => setNote(""))} data-note-add>{ui("Add note")}</Button></div>
         </div>

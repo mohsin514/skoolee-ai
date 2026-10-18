@@ -1,6 +1,8 @@
 "use client";
 
 import { Button as SystemButton } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Progress } from "@/components/ui/progress";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -366,24 +368,19 @@ export function CreateClassWizard({
         <div className="shrink-0 border-b border-edge/15 bg-brand-50/70 px-7 pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 shadow-brand">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-ink-strong">Create Class</h2>
+                <h2 className="text-xl font-bold tabular-nums text-ink-strong">Create Class</h2>
                 <p className="text-xs font-semibold text-ink-muted">
                   {busy ? "Setting up…" : `Step ${step + 1} of ${WIZARD_STEPS.length}`}
                 </p>
               </div>
             </div>
-            <SystemButton variant="ghost"
-              type="button"
-              onClick={onClose}
-              disabled={busy}
-              className="p-2"
-            >
-              <X className="h-5 w-5" />
-            </SystemButton>
+            <IconButton label="Close" onClick={onClose} disabled={busy}>
+              <X className="h-5 w-5" aria-hidden="true" />
+            </IconButton>
           </div>
 
           <div className="mt-4 flex items-center gap-2">
@@ -400,7 +397,7 @@ export function CreateClassWizard({
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 justify-start",
                     isActive
-                      ? "bg-primary text-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
+                      ? "bg-primary text-white shadow-brand"
                       : isDone
                         ? "bg-primary/10 text-primary"
                         : "bg-white/60 text-ink-subtle"
@@ -426,7 +423,7 @@ export function CreateClassWizard({
             <div className="space-y-4">
               <div className="rounded-3xl bg-brand-50/50 p-5 border border-edge/25">
                 <label className="block">
-                  <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Class Name</span>
+                  <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Class Name</span>
                   <SystemInput
                     type="text"
                     value={name}
@@ -438,7 +435,7 @@ export function CreateClassWizard({
               </div>
               <div className="rounded-3xl bg-brand-50/50 p-5 border border-edge/25">
                 <label className="block">
-                  <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Academic Year</span>
+                  <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Academic Year</span>
                   <SystemInput
                     type="number"
                     value={academicYear}
@@ -452,7 +449,7 @@ export function CreateClassWizard({
               {/* Asked up front because it decides whether the later steps ask
                   for one teacher per section or one per subject. */}
               <div className="rounded-3xl bg-brand-50/50 p-5 border border-edge/25">
-                <span className="mb-3 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <span className="mb-3 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   How will these sections be taught?
                 </span>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -467,17 +464,17 @@ export function CreateClassWizard({
                         type="button"
                         onClick={() => setTeachingMode(option.mode)}
                         className={cn(
-                          "p-4 text-left",
+                          "p-4 text-start",
                           active
-                            ? "border-primary bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
+                            ? "border-primary bg-white shadow-brand"
                             : "border-transparent bg-white/60 hover:border-primary/25 hover:bg-white"
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <p className={cn("text-sm font-bold", active ? "text-primary" : "text-ink-strong")}>{option.title}</p>
+                          <p className={cn("text-sm font-semibold", active ? "text-primary" : "text-ink-strong")}>{option.title}</p>
                           {active ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
                         </div>
-                        <p className="mt-1 text-2xs font-bold leading-relaxed text-ink-muted">{option.copy}</p>
+                        <p className="mt-1 text-xs font-normal leading-relaxed text-ink-muted">{option.copy}</p>
                       </SystemButton>
                     );
                   })}
@@ -492,7 +489,7 @@ export function CreateClassWizard({
                   simply be one class. That's stored as a single row with no
                   section name. */}
               <div className="rounded-3xl bg-brand-50/50 p-5 border border-edge/25">
-                <span className="mb-3 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <span className="mb-3 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                   Does this class have sections?
                 </span>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -507,17 +504,17 @@ export function CreateClassWizard({
                         type="button"
                         onClick={() => setHasSections(option.has)}
                         className={cn(
-                          "p-4 text-left",
+                          "p-4 text-start",
                           active
-                            ? "border-primary bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
+                            ? "border-primary bg-white shadow-brand"
                             : "border-transparent bg-white/60 hover:border-primary/25 hover:bg-white"
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <p className={cn("text-sm font-bold", active ? "text-primary" : "text-ink-strong")}>{option.title}</p>
+                          <p className={cn("text-sm font-semibold", active ? "text-primary" : "text-ink-strong")}>{option.title}</p>
                           {active ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
                         </div>
-                        <p className="mt-1 text-2xs font-bold leading-relaxed text-ink-muted">{option.copy}</p>
+                        <p className="mt-1 text-xs font-normal leading-relaxed text-ink-muted">{option.copy}</p>
                       </SystemButton>
                     );
                   })}
@@ -526,10 +523,10 @@ export function CreateClassWizard({
 
               {!hasSections ? (
                 <div className="sk-panel p-5">
-                  <p className="mb-3 text-sm font-bold text-ink-strong">
+                  <p className="mb-3 text-sm font-semibold text-ink-strong">
                     {name.trim() || "This class"}
                     {teachingMode === "SINGLE" ? (
-                      <span className="ml-2 text-2xs font-bold text-ink-subtle">Class Teacher</span>
+                      <span className="ms-2 text-2xs font-bold text-ink-subtle">Class Teacher</span>
                     ) : null}
                   </p>
                   {teachingMode === "SINGLE" ? (
@@ -544,16 +541,16 @@ export function CreateClassWizard({
                           setSections([{ key: sections[0]?.key || crypto.randomUUID(), name: "", teacherId }])
                         }
                       />
-                      <p className="mt-3 text-2xs font-bold leading-relaxed text-ink-muted">
+                      <p className="mt-3 text-xs font-normal leading-relaxed text-ink-muted">
                         This teacher takes every subject for this class.
                       </p>
                     </>
                   ) : (
-                    <p className="text-2xs font-bold leading-relaxed text-ink-muted">
+                    <p className="text-xs font-normal leading-relaxed text-ink-muted">
                       Subject teachers are assigned in the Subjects step. You can add a homeroom teacher for this class later from the class.
                     </p>
                   )}
-                  <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-muted">
+                  <p className="mt-2 text-xs font-normal leading-relaxed text-ink-muted">
                     You can split this into sections later — the students and subjects move across with it.
                   </p>
                 </div>
@@ -561,7 +558,7 @@ export function CreateClassWizard({
               <>
               <div className="rounded-3xl bg-brand-50/50 p-5 border border-edge/25">
                 <label className="block">
-                  <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                  <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     Sections <span className="text-ink-subtle">(comma separated)</span>
                   </span>
                   <SystemInput
@@ -573,7 +570,7 @@ export function CreateClassWizard({
                     className="h-14 w-full px-4 transition-all"
                   />
                 </label>
-                <p className="mt-2 pl-2 text-2xs font-bold text-ink-muted">
+                <p className="mt-2 ps-2 text-xs font-normal text-ink-muted">
                   {teachingMode === "SINGLE"
                     ? "Each section becomes its own class row (e.g. Grade 8 - A, Grade 8 - B). Assign the class teacher for each below."
                     : "Each section becomes its own class row (e.g. Grade 8 - A, Grade 8 - B). Subject teachers are assigned in the next step."}
@@ -584,10 +581,10 @@ export function CreateClassWizard({
                 <div className="space-y-3">
                   {sections.map((section) => (
                     <div key={section.key} className="sk-panel p-5">
-                      <p className="mb-3 text-sm font-bold text-ink-strong">
+                      <p className="mb-3 text-sm font-semibold text-ink-strong">
                         Section {section.name}
                         {teachingMode === "SINGLE" ? (
-                          <span className="ml-2 text-2xs font-bold text-ink-subtle">Class Teacher</span>
+                          <span className="ms-2 text-2xs font-bold text-ink-subtle">Class Teacher</span>
                         ) : null}
                       </p>
                       {teachingMode === "SINGLE" ? (
@@ -599,12 +596,12 @@ export function CreateClassWizard({
                             availability={availability}
                             onChange={(teacherId) => updateSection(section.key, { teacherId })}
                           />
-                          <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-muted">
+                          <p className="mt-2 text-xs font-normal leading-relaxed text-ink-muted">
                             This teacher takes every subject for this section.
                           </p>
                         </>
                       ) : (
-                        <p className="text-2xs font-bold leading-relaxed text-ink-muted">
+                        <p className="text-xs font-normal leading-relaxed text-ink-muted">
                           Subject teachers are assigned in the Subjects step. The homeroom teacher can be added later from the class.
                         </p>
                       )}
@@ -612,7 +609,7 @@ export function CreateClassWizard({
                   ))}
                 </div>
               ) : (
-                <p className="rounded-3xl bg-brand-50/30 p-5 text-xs font-bold text-ink-subtle">
+                <p className="rounded-3xl bg-brand-50/30 p-5 text-xs font-medium text-ink-subtle">
                   {teachingMode === "SINGLE"
                     ? "Type section names above — teacher assignment rows appear automatically."
                     : "Type section names above to continue to subject setup."}
@@ -628,8 +625,8 @@ export function CreateClassWizard({
               <div className="rounded-3xl bg-brand-50/50 p-5 border border-edge/25">
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <p className="text-sm font-bold text-ink-strong">Subjects</p>
-                    <p className="mt-1 text-2xs font-bold text-ink-muted">
+                    <p className="text-sm font-semibold text-ink-strong">Subjects</p>
+                    <p className="mt-1 text-xs font-normal text-ink-muted">
                       Created once per section ({sectionCount} section{sectionCount !== 1 ? "s" : ""}).
                     </p>
                   </div>
@@ -666,24 +663,24 @@ export function CreateClassWizard({
                     <div key={subject.key} className="sk-panel p-5">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-ink-strong">Subject {index + 1}</p>
+                          <p className="text-sm font-semibold text-ink-strong">Subject {index + 1}</p>
                           {teachingMode === "SUBJECT" && hasSections && sectionNames.length > 0 ? (
-                            <p className="mt-0.5 text-2xs font-bold leading-snug text-ink-muted">
+                            <p className="mt-0.5 text-xs font-normal leading-snug text-ink-muted">
                               Created in every section ({sectionNames.length}): {sectionNames.join(", ")}
                             </p>
                           ) : null}
                         </div>
-                        <SystemButton variant="ghost"
-                          type="button"
+                        <IconButton
+                          size="sm"
+                          label={`Remove ${subject.name.trim() || `subject ${index + 1}`}`}
                           onClick={() => setSubjects((current) => current.filter((s) => s.key !== subject.key))}
-                          className="flex items-center justify-center"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </SystemButton>
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        </IconButton>
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
                         <label className="block">
-                          <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Subject Name</span>
+                          <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Subject Name</span>
                           <SystemInput
                             type="text"
                             value={subject.name}
@@ -693,7 +690,7 @@ export function CreateClassWizard({
                           />
                         </label>
                         <label className="block">
-                          <span className="mb-2 block pl-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Total Marks</span>
+                          <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Total Marks</span>
                           <SystemInput
                             type="number"
                             value={subject.totalMarks}
@@ -724,11 +721,11 @@ export function CreateClassWizard({
                                 }
                                 className="flex items-center gap-1.5 px-2 py-1 justify-start"
                               >
-                                {expandedSubjects[subject.key] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                {expandedSubjects[subject.key] ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3 rtl:rotate-180" aria-hidden="true" />}
                                 {expandedSubjects[subject.key] ? "Hide per-section teachers" : "Assign a different teacher per section"}
                               </SystemButton>
                               {expandedSubjects[subject.key] ? (
-                                <div className="mt-3 space-y-3 border-l-2 border-edge/25 pl-3">
+                                <div className="mt-3 space-y-3 border-s-2 border-edge/25 ps-3">
                                   {sectionNames.map((sec) => {
                                     const hasOverride = !!subject.teacherBySection?.[sec];
                                     return (
@@ -746,7 +743,7 @@ export function CreateClassWizard({
                                           }}
                                         />
                                         {hasOverride ? (
-                                          <p className="mt-1 pl-1 text-2xs font-bold text-primary/70">
+                                          <p className="mt-1 ps-1 text-xs font-medium text-primary/70">
                                             Overrides the default for this section.
                                           </p>
                                         ) : null}
@@ -763,7 +760,7 @@ export function CreateClassWizard({
                   ))}
                 </div>
               ) : (
-                <p className="rounded-3xl bg-brand-50/30 p-5 text-xs font-bold text-ink-subtle">
+                <p className="rounded-3xl bg-brand-50/30 p-5 text-xs font-medium text-ink-subtle">
                   No subjects yet — you can skip this and add them later from the class detail view.
                 </p>
               )}
@@ -773,8 +770,8 @@ export function CreateClassWizard({
           {step === 3 ? (
             <div className="space-y-4">
               <div className="rounded-3xl bg-brand-50/50 p-5 border border-edge/25">
-                <p className="text-sm font-bold text-ink-strong">Syllabus Topics</p>
-                <p className="mt-1 text-2xs font-bold text-ink-muted">
+                <p className="text-sm font-semibold text-ink-strong">Syllabus Topics</p>
+                <p className="mt-1 text-xs font-normal text-ink-muted">
                   Optional quick-entry — one topic per line. Can always be managed later from the class detail view.
                 </p>
               </div>
@@ -782,7 +779,7 @@ export function CreateClassWizard({
                 <div className="space-y-3">
                   {subjects.map((subject, index) => (
                     <div key={subject.key} className="sk-panel p-5">
-                      <p className="mb-3 text-sm font-bold text-ink-strong">{subject.name.trim() || `Subject ${index + 1}`}</p>
+                      <p className="mb-3 text-sm font-semibold text-ink-strong">{subject.name.trim() || `Subject ${index + 1}`}</p>
                       <SystemTextarea
                         value={subject.topicsText}
                         onChange={(e) => updateSubject(subject.key, { topicsText: e.target.value })}
@@ -794,7 +791,7 @@ export function CreateClassWizard({
                   ))}
                 </div>
               ) : (
-                <p className="rounded-3xl bg-brand-50/30 p-5 text-xs font-bold text-ink-subtle">
+                <p className="rounded-3xl bg-brand-50/30 p-5 text-xs font-medium text-ink-subtle">
                   No subjects to plan yet — skip this step.
                 </p>
               )}
@@ -803,9 +800,9 @@ export function CreateClassWizard({
 
           {step === 4 ? (
             <div className="space-y-4">
-              <div className="rounded-3xl bg-gradient-to-br from-brand-50 via-white to-brand-100 border border-edge/25 p-6 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+              <div className="rounded-3xl bg-gradient-to-br from-brand-50 via-white to-brand-100 border border-edge/25 p-6 shadow-lg">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 shadow-brand">
                     <GraduationCap className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -818,8 +815,8 @@ export function CreateClassWizard({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="sk-panel p-4">
                     <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">Sections</p>
-                    <p className="mt-1 text-xl font-bold text-ink-strong">{hasSections ? sectionCount : "—"}</p>
-                    <p className="mt-1 text-2xs font-bold text-ink-muted">
+                    <p className="mt-1 text-xl font-bold tabular-nums text-ink-strong">{hasSections ? sectionCount : "—"}</p>
+                    <p className="mt-1 text-xs font-normal text-ink-muted">
                       {hasSections
                         ? sections.map((s) => s.name).join(", ")
                         : "No sections — single class"}
@@ -827,11 +824,11 @@ export function CreateClassWizard({
                   </div>
                   <div className="sk-panel p-4">
                     <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">{hasSections ? "Subjects per section" : "Subjects"}</p>
-                    <p className="mt-1 text-xl font-bold text-ink-strong">{subjects.length}</p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-ink-strong">{subjects.length}</p>
                   </div>
                   <div className="sk-panel p-4">
                     <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">Syllabus topics</p>
-                    <p className="mt-1 text-xl font-bold text-ink-strong">
+                    <p className="mt-1 text-xl font-bold tabular-nums text-ink-strong">
                       {subjects.reduce((sum, s) => sum + parseTopics(s.topicsText).length, 0)}
                     </p>
                   </div>
@@ -845,8 +842,8 @@ export function CreateClassWizard({
                     {subjects.map((subject, index) => (
                       <div key={subject.key} className="flex items-center justify-between rounded-2xl bg-brand-50/50 px-4 py-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-ink-strong">{subject.name.trim() || `Subject ${index + 1}`}</p>
-                          <p className="mt-0.5 text-2xs font-bold text-ink-muted">
+                          <p className="truncate text-sm font-semibold text-ink-strong">{subject.name.trim() || `Subject ${index + 1}`}</p>
+                          <p className="mt-0.5 text-xs font-normal text-ink-muted">
                             {subject.totalMarks || 100} marks · {parseTopics(subject.topicsText).length} topic{parseTopics(subject.topicsText).length !== 1 ? "s" : ""}
                           </p>
                         </div>
@@ -886,24 +883,19 @@ export function CreateClassWizard({
         <div className="shrink-0 border-t border-edge/15 bg-brand-50/40 px-7 py-4">
           {busy ? (
             <div className="flex items-center gap-4">
-              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" />
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-xs font-bold text-ink-strong">
                     {progress.total > 0 ? `Creating… (${progress.done} of ${progress.total})` : "Creating…"}
                   </p>
-                  <p className="text-2xs font-bold text-ink-muted">{Math.round(progressPercent)}%</p>
+                  <p className="text-xs font-normal text-ink-muted">{Math.round(progressPercent)}%</p>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-edge/20">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-300"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
+                <Progress value={progressPercent} label="Creating classes" size="sm" />
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <SystemButton variant="ghost"
                 type="button"
                 onClick={step === 0 ? onClose : goBack}
@@ -911,7 +903,7 @@ export function CreateClassWizard({
               >
                 {step === 0 ? "Cancel" : (
                   <>
-                    <ArrowLeft className="h-4 w-4" />
+                    <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
                     Back
                   </>
                 )}
@@ -923,7 +915,7 @@ export function CreateClassWizard({
                   className="flex h-12 items-center gap-2 px-6 justify-start"
                 >
                   Next
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
                 </SystemButton>
               ) : (
                 <SystemButton variant="default"

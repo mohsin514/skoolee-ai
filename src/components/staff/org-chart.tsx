@@ -1,4 +1,5 @@
 "use client";
+import { Alert } from "@/components/ui/alert";
 import { InputGroup , FieldAction } from "@/components/ui/input-group";
 
 
@@ -303,7 +304,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs font-semibold uppercase tracking-wide text-ink-subtle">
         {Object.entries(TRACK_TONES).map(([key, tone]) => (
           <span key={key} className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} aria-hidden="true" />
             {tone.label}
           </span>
         ))}
@@ -315,9 +316,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       </div>
 
       {unplaced > 0 ? (
-        <p className="rounded-xl bg-amber-50 px-3 py-2 text-2xs font-bold text-amber-700">
+        <Alert tone="warning" compact live="off">
           {unplaced} staff {unplaced === 1 ? "member has" : "members have"} no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.
-        </p>
+        </Alert>
       ) : null}
 
       {/* ── Canvas ───────────────────────────────────────── */}
@@ -327,7 +328,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        className="relative h-[620px] cursor-grab touch-none overflow-hidden rounded-2xl border border-edge/40 bg-surface-subtle active:cursor-grabbing"
+        className="relative h-[min(460px,70svh)] sm:h-[620px] cursor-grab touch-none overflow-hidden rounded-2xl border border-edge/40 bg-surface-subtle active:cursor-grabbing"
         style={{
           backgroundImage: "radial-gradient(#cfc2d6 1px, transparent 1px)",
           backgroundSize: "22px 22px",
@@ -335,9 +336,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       >
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <Users className="h-8 w-8 text-ink-muted" />
-            <p className="text-sm font-semibold text-ink-strong">No staff on this campus yet</p>
-            <p className="max-w-xs text-xs font-semibold text-ink-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
+            <Users className="h-8 w-8 text-ink-muted" aria-hidden="true" />
+            <p className="text-base font-semibold text-ink-strong">No staff on this campus yet</p>
+            <p className="max-w-xs text-sm leading-relaxed text-ink-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
           </div>
         ) : (
           <div

@@ -8,12 +8,12 @@ import { useEffect, useRef, useState } from "react";
  * instead of each re-deriving its own card styling.
  */
 
-export const BRAND = "#8127cf";
+export const BRAND = "var(--color-primary)";
 
 export type Tone = "purple" | "green" | "rose" | "amber";
 
 export const TONES: Record<Tone, { ring: string; text: string; soft: string; solid: string }> = {
-  purple: { ring: "#8127cf", text: "text-primary", soft: "bg-brand-50", solid: "bg-primary" },
+  purple: { ring: "var(--color-primary)", text: "text-primary", soft: "bg-brand-50", solid: "bg-primary" },
   green: { ring: "#059669", text: "text-emerald-600", soft: "bg-emerald-50", solid: "bg-emerald-600" },
   rose: { ring: "#e11d48", text: "text-rose-600", soft: "bg-rose-50", solid: "bg-rose-600" },
   amber: { ring: "#d97706", text: "text-amber-600", soft: "bg-amber-50", solid: "bg-amber-600" },
@@ -117,7 +117,7 @@ export function ProgressRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#efe9f3"
+          stroke="var(--color-edge)"
           strokeWidth={stroke}
         />
         <circle

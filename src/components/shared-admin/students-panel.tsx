@@ -27,6 +27,7 @@ import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import {
@@ -549,14 +550,10 @@ export function StudentsPanel({
       render: (s) => (
         <div className="flex flex-wrap gap-1">
           {s.category?.name ? (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-              {s.category.name}
-            </span>
+            <Badge variant="success" size="sm">{s.category.name}</Badge>
           ) : null}
           {s.group?.name ? (
-            <span className="rounded-full bg-sky-50 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-sky-600">
-              {s.group.name}
-            </span>
+            <Badge variant="info" size="sm">{s.group.name}</Badge>
           ) : null}
           {!s.category?.name && !s.group?.name ? (
             <span className="text-2xs font-semibold text-ink-subtle">—</span>
@@ -956,14 +953,10 @@ function StudentCard({
                 {classLabel(student.class)}
               </span>
               {student.category?.name ? (
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-                  {student.category.name}
-                </span>
+                <Badge variant="success" size="sm">{student.category.name}</Badge>
               ) : null}
               {student.group?.name ? (
-                <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-sky-600">
-                  {student.group.name}
-                </span>
+                <Badge variant="info" size="sm">{student.group.name}</Badge>
               ) : null}
             </div>
           </div>

@@ -16,6 +16,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -366,24 +367,24 @@ export function AcademicCalendar({
           {calendarView === "month" ? (
             <>
               <Button variant="outline" size="icon" onClick={prevMonth} aria-label={tr("Previous month")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
               </Button>
               <Button variant="outline"
                 onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
                 className="min-h-[44px] px-[10px] py-[6px]"
               ><UiText>{"Today"}</UiText></Button>
               <Button variant="outline" size="icon" onClick={nextMonth} aria-label={tr("Next month")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
               </Button>
             </>
           ) : (
             <div className="flex flex-wrap items-center gap-[8px]">
               <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y - 1)} aria-label={tr("Previous year")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
               </Button>
-              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{viewYear}</span>
+              <span className="text-sm font-semibold tabular-nums text-ink-strong">{viewYear}</span>
               <Button variant="outline" size="icon" onClick={() => setViewYear((y) => y + 1)} aria-label={tr("Next year")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
               </Button>
             </div>
           )}
@@ -687,11 +688,7 @@ function AgendaList({
 
   if (grouped.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center px-[12px] py-[24px] sm:p-10 text-center">
-        <CalendarDays className="mb-3 h-9 w-9 text-ink-subtle" />
-        <p className="text-sm font-bold text-ink-muted"><UiText>{"Nothing on the calendar this year"}</UiText></p>
-        <p className="mt-1 text-xs font-semibold text-ink-subtle"><UiText>{"Terms, holidays and exam dates all appear here once they are set."}</UiText></p>
-      </div>
+      <EmptyState size="sm" icon={CalendarDays} title={tr("Nothing on the calendar this year")} description={tr("Terms, holidays and exam dates all appear here once they are set.")} />
     );
   }
 

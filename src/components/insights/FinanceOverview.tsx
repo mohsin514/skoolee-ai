@@ -187,7 +187,7 @@ export function FinanceOverview({
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
               <Receipt className="h-7 w-7 text-edge" aria-hidden />
-              <p className="mt-2 px-2 text-2xs font-bold leading-tight text-ink-subtle"><UiText>{"No invoices raised yet"}</UiText></p>
+              <p className="mt-2 px-2 text-xs font-medium leading-snug text-ink-subtle"><UiText>{"No invoices raised yet"}</UiText></p>
             </div>
           )
         }

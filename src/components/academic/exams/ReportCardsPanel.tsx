@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Download,
   FileText,
-  Loader2,
   Lock,
   RefreshCw,
   Send,
@@ -442,16 +441,13 @@ function LegacyReportCardsPanel({
                     type="button"
                     disabled={step.state !== "ready" || !!busy}
                     onClick={step.onRun}
+                    loading={running}
                     className={"justify-start " + (cn(
                       "flex shrink-0 items-center gap-1.5 px-4",
                       "",
                     ))}
                   >
-                    {running ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Icon className="h-3.5 w-3.5" />
-                    )}
+                    {running ? null : <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
                     {step.cta}
                   </Button>
                 )}
@@ -477,26 +473,20 @@ function LegacyReportCardsPanel({
                   type="button"
                   disabled={!!busy}
                   onClick={approveAll}
+                  loading={busy === "approve-all"}
                   className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
                 >
-                  {busy === "approve-all" ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  )}<UiText>{"Approve all ("}</UiText>{needingRemarks})
+                  {busy === "approve-all" ? null : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}<UiText>{"Approve all ("}</UiText>{needingRemarks})
                 </Button></Tooltip>
               ) : null}
               <Tooltip content={tr("Rebuild every report card from the marks as they stand now")}><Button variant="outline"
                 type="button"
                 disabled={!!busy}
                 onClick={() => run("generate", "Report cards rebuilt")}
+                loading={busy === "generate"}
                 className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
               >
-                {busy === "generate" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}<UiText>{"Rebuild"}</UiText></Button></Tooltip>
+                {busy === "generate" ? null : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}<UiText>{"Rebuild"}</UiText></Button></Tooltip>
             </>
           ) : null
         }
@@ -574,14 +564,11 @@ function LegacyReportCardsPanel({
                         <Tooltip content={tr("Approve this remark so the results can be reviewed")}><span tabIndex={0} className="inline-flex"><Button variant="secondary"
                           type="button"
                           disabled={!!busy || published}
+                          loading={busy === `approve-${c.id}`}
                           onClick={() => approveOne(c)}
                           className="justify-start inline-flex items-center gap-1 px-2.5 enabled:cursor-pointer"
                         >
-                          {busy === `approve-${c.id}` ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-3 w-3" />
-                          )}<UiText>{"Approve"}</UiText></Button></span></Tooltip>
+                          {busy === `approve-${c.id}` ? null : <CheckCircle2 className="h-3 w-3" aria-hidden="true" />}<UiText>{"Approve"}</UiText></Button></span></Tooltip>
                       )}
                     </TableCell>
                     <TableCell className="px-4 py-2.5 text-end">

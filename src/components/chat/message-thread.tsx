@@ -37,6 +37,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
@@ -185,7 +186,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     initial={{ opacity: 0, y: 3 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -3 }}
-                    className="flex items-center gap-1.5 text-2xs font-bold text-primary"
+                    className="flex items-center gap-1.5 text-2xs font-semibold text-primary"
                   >
                     <TypingDots />
                     {fill(ui("{0} typing"), [others.map((t) => t.fullName.split(" ")[0]).join(", ")])}
@@ -233,7 +234,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
               className={cn(
                 "flex justify-start shrink-0 items-center gap-1",
                 showMembers
-                  ? "bg-primary text-white shadow-[0_6px_16px_-6px_rgba(129,39,207,0.6)]"
+                  ? "bg-primary text-white shadow-brand"
                   : "text-ink-muted hover:bg-brand-50"
               )}
             >
@@ -262,7 +263,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96, y: -4 }}
                     transition={{ type: "spring", stiffness: 460, damping: 30 }}
-                    className="absolute end-0 top-full z-20 mt-1.5 w-48 origin-top-right rtl:origin-top-left overflow-hidden rounded-2xl border border-edge/30 bg-white/95 p-1 shadow-[0_20px_50px_-14px_rgba(120,70,180,0.35)] backdrop-blur-xl"
+                    className="absolute end-0 top-full z-20 mt-1.5 w-48 origin-top-right rtl:origin-top-left overflow-hidden rounded-2xl border border-edge/30 bg-popover/95 p-1 shadow-xl backdrop-blur-xl"
                   >
                     <MenuItem
                       icon={detail.isMuted ? Bell : BellOff}
@@ -324,11 +325,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                 {detail.members.map((m) => (
                   <li
                     key={m.userId}
-                    className="flex items-center gap-1.5 rounded-full bg-white py-1 ps-1 pe-2.5 text-2xs font-bold text-ink shadow-[0_2px_8px_-2px_rgba(120,70,180,0.12)] ring-1 ring-edge/25"
+                    className="flex items-center gap-1.5 rounded-full bg-white py-1 ps-1 pe-2.5 text-2xs font-semibold text-ink shadow-xs ring-1 ring-edge/25"
                   >
                     <ChatAvatar name={m.fullName} seed={m.userId} imageUrl={m.profileImageUrl} size="sm" online={m.isOnline} />
                     <bdi className="max-w-[120px] truncate">{m.fullName}</bdi>
-                    <span className="text-ink-faint">{roleLabel(m.role, locale.language)}</span>
+                    <span className="font-medium text-ink-subtle">{roleLabel(m.role, locale.language)}</span>
                   </li>
                 ))}
               </ul>
@@ -386,7 +387,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     {showDay && <DaySeparator label={dayLabel(message.createdAt, ui, tag)} />}
 
                     {message.kind === "SYSTEM" ? (
-                      <p className="py-2 text-center text-2xs font-bold text-ink-faint">
+                      <p className="py-2 text-center text-2xs font-medium tabular-nums text-ink-subtle">
                         <span className="rounded-full bg-white/70 px-2.5 py-1 ring-1 ring-edge/25">
                           {message.body}
                         </span>
@@ -418,14 +419,14 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
           {others.length > 0 && (
             <div className="mt-2 flex justify-start ps-1">
-              <span className="flex items-center gap-1.5 rounded-2xl rounded-es-md bg-white px-3 py-2.5 shadow-[0_4px_14px_-6px_rgba(120,70,180,0.2)] ring-1 ring-edge/25">
+              <span className="flex items-center gap-1.5 rounded-2xl rounded-es-md bg-white px-3 py-2.5 shadow-sm ring-1 ring-edge/25">
                 <TypingDots />
               </span>
             </div>
           )}
 
           {detail.kind === "DIRECT" && counterpartRead && messages.length > 0 && (
-            <p className="mt-2 flex items-center justify-end gap-1 pe-1 text-2xs font-bold text-ink-faint">
+            <p className="mt-2 flex items-center justify-end gap-1 pe-1 text-2xs font-medium tabular-nums text-ink-subtle">
               <CheckCheck className="h-3 w-3 text-primary" />
               {fill(ui("Seen {0}"), [clockTime(counterpartRead, tag)])}
             </p>
@@ -471,7 +472,7 @@ function DaySeparator({ label }: { label: string }) {
   return (
     <div className="my-4 flex items-center gap-3">
       <span className="h-px flex-1 bg-gradient-to-r from-transparent to-edge/50" aria-hidden />
-      <span className="rounded-full bg-white/90 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle shadow-[0_2px_10px_-4px_rgba(120,70,180,0.18)] ring-1 ring-edge/25">
+      <span className="rounded-full bg-white/90 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle shadow-xs ring-1 ring-edge/25">
         {label}
       </span>
       <span className="h-px flex-1 bg-gradient-to-l from-transparent to-edge/50" aria-hidden />
@@ -646,7 +647,7 @@ function MessageBubble({
                           src={a.url}
                           alt={a.fileName}
                           loading="lazy"
-                          className="max-h-72 w-auto rounded-xl shadow-[0_6px_18px_-8px_rgba(120,70,180,0.4)]"
+                          className="max-h-72 w-auto rounded-xl shadow-md"
                         />
                       </li>
                     ) : (
@@ -697,7 +698,7 @@ function MessageBubble({
           </p>
         </div>
         {isPending && sendState && sendState.status !== "sending" && (
-          <div role="alert" className="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-2xs font-bold text-rose-700" data-send-state={sendState.status}>
+          <div role="alert" className="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-2xs font-medium text-status-error-text" data-send-state={sendState.status}>
             <AlertTriangle className="h-3 w-3" aria-hidden />
             <span>{sendState.status === "unconfirmed" ? (sendState.error ? ui(sendState.error) : null) : ui("Not sent: {0}", [sendState.error ? ui(sendState.error) : ui("the server refused it")])}</span>
             <Button size="sm" variant="secondary" type="button" onClick={onRetry} aria-label={ui("Retry sending this message")}><RotateCcw className="h-3 w-3" aria-hidden />{ui("Retry")}</Button>
@@ -709,7 +710,7 @@ function MessageBubble({
       {!message.isDeleted && !isPending && (
         <div
           className={cn(
-            "flex shrink-0 items-center gap-0.5 self-center rounded-full bg-white/90 p-0.5 opacity-0 shadow-[0_4px_14px_-6px_rgba(120,70,180,0.3)] ring-1 ring-edge/25 backdrop-blur transition-all",
+            "flex shrink-0 items-center gap-0.5 self-center rounded-full bg-white/90 p-0.5 opacity-0 shadow-sm [@media(hover:none)]:opacity-100 ring-1 ring-edge/25 backdrop-blur transition-all",
             "focus-within:opacity-100 group-hover:opacity-100",
             isMine && "order-1"
           )}
@@ -774,16 +775,13 @@ function ThreadPlaceholder() {
 function EmptyThread({ title }: { title: string }) {
   const ui = useUiText();
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-      <span className="grid h-14 w-14 place-items-center rounded-3xl bg-white text-primary shadow-[0_10px_28px_-12px_rgba(129,39,207,0.5)] ring-1 ring-edge/25">
-        <Sparkles className="h-6 w-6" />
-      </span>
-      <div>
-        <p className="text-sm font-semibold text-ink-strong">{ui("No messages yet")}</p>
-        <p className="mt-1 text-xs text-ink-muted">
-          {fill(ui("Say hello to {0}."), [title.split(" ")[0]])}
-        </p>
-      </div>
+    <div className="py-10">
+      <EmptyState
+        size="sm"
+        icon={Sparkles}
+        title={ui("No messages yet")}
+        description={fill(ui("Say hello to {0}."), [title.split(" ")[0]])}
+      />
     </div>
   );
 }

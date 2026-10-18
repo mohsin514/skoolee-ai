@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { InputGroup } from "@/components/ui/input-group";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -11,7 +13,6 @@ import {
   Award,
   Check,
   ChevronRight,
-  Loader2,
   RotateCcw,
   Scale,
   Sparkles,
@@ -182,7 +183,7 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
               Assess · {academicYear}
             </p>
             <h2 className="mt-0.5 text-2xl font-bold tracking-tight">Grading &amp; passing rules</h2>
-            <p className="mt-1 text-xs font-semibold text-white/65">
+            <p className="mt-1 text-sm font-normal leading-relaxed text-white/70">
               What counts as a pass, how each exam type is weighted, and where the grade
               boundaries fall. Set per class — every section of that class gets the same rules.
             </p>
@@ -191,25 +192,23 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
       </header>
 
       {drifted > 0 ? (
-        <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-amber-200/70 bg-amber-50/60 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-          <p className="min-w-0 flex-1 text-xs font-medium text-status-warning-text">
+        <Alert tone="warning" compact live="off">
+          <p className="min-w-0 text-sm leading-relaxed">
             {drifted} class{drifted === 1 ? " has" : "es have"} sections with different rules — two
             children in the same year passing at different marks. Open the class and save once to
             bring every section back into line.
           </p>
-        </div>
+        </Alert>
       ) : null}
 
       {unset > 0 ? (
-        <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-edge/25 bg-surface-subtle px-4 py-3">
-          <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-          <p className="min-w-0 flex-1 text-xs font-medium text-ink-muted">
+        <Alert tone="brand" compact live="off" icon={Sparkles}>
+          <p className="min-w-0 text-sm leading-relaxed">
             {unset} class{unset === 1 ? "" : "es"} are still on the default rules — a 50% pass mark
             and a 10 / 20 / 30 / 40 weighting. That is a working default, not a decision anyone
             made.
           </p>
-        </div>
+        </Alert>
       ) : null}
 
       <Panel
@@ -254,22 +253,19 @@ export function GradingRulesPanel({ campusId }: { campusId?: string }) {
                     </span>
                     <span className="flex flex-wrap gap-1">
                       {group.sections.map((s) => (
-                        <span
-                          key={s.id}
-                          className="rounded bg-brand-100 px-1.5 py-px text-2xs font-bold text-primary"
-                        >
+                        <Badge key={s.id} variant="secondary" size="sm">
                           {s.section ?? "—"}
-                        </span>
+                        </Badge>
                       ))}
                     </span>
                     {group.drifted ? (
-                      <span className="rounded bg-amber-100 px-1.5 py-px text-2xs font-semibold uppercase tracking-wider text-amber-700">
+                      <Badge variant="warning" size="sm" dot>
                         Sections disagree
-                      </span>
+                      </Badge>
                     ) : !group.configured ? (
-                      <span className="rounded bg-muted px-1.5 py-px text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                      <Badge variant="neutral" size="sm">
                         Default
-                      </span>
+                      </Badge>
                     ) : null}
                   </span>
                   <span className="mt-1 block text-2xs font-bold text-ink-subtle">
@@ -582,9 +578,9 @@ function RulesEditor({
               Grade boundaries
             </p>
             {ladderBroken ? (
-              <span className="rounded-lg bg-rose-50 px-2 py-0.5 text-2xs font-bold text-rose-600">
+              <Alert tone="danger" compact live="polite">
                 Each grade must start below the one above
-              </span>
+              </Alert>
             ) : null}
             <Button variant="secondary"
               type="button"

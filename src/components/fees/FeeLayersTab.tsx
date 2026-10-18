@@ -1,12 +1,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, Check, Layers, Loader2, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
+import { BookOpen, Check, Layers, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
@@ -194,12 +195,12 @@ function TypesPanel({ campusId }: { campusId?: string }) {
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
-                <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(t)} className="flex items-center justify-center">
-                  <BookOpen className="w-3.5 h-3.5" />
-                </Button>
-                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(t)} className="flex items-center justify-center">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                <IconButton label={tr("Edit fee item")} variant="secondary" onClick={() => openModal(t)}>
+                  <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                </IconButton>
+                <IconButton label={tr("Delete fee item")} variant="secondary" onClick={() => setDeleting(t)}>
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                </IconButton>
                 <ConfirmAction
                   open={deleting?.id === t.id}
                   title={tr("Delete Fee Type")}
@@ -347,12 +348,12 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
                       {g.lines.length}<UiText>{"fee line(s) ·"}</UiText>{g.assignments.length}<UiText>{"class assignment(s)"}</UiText></p>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(g)} className="flex items-center justify-center">
-                      <BookOpen className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(g)} className="flex items-center justify-center">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    <IconButton label={tr("Edit fee item")} variant="secondary" onClick={() => openModal(g)}>
+                      <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                    </IconButton>
+                    <IconButton label={tr("Delete fee item")} variant="secondary" onClick={() => setDeleting(g)}>
+                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    </IconButton>
                     <ConfirmAction
                       open={deleting?.id === g.id}
                       title={tr("Delete Fee Group")}
@@ -531,12 +532,12 @@ function MasterPanel({ campusId }: { campusId?: string }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-sm font-bold text-primary">{formatPKR(line.amount, selectedGroup?.currency)}</p>
-                  <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(line)} className="flex items-center justify-center">
-                    <BookOpen className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(line)} className="flex items-center justify-center">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  <IconButton label={tr("Edit fee item")} variant="secondary" onClick={() => openModal(line)}>
+                    <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                  </IconButton>
+                  <IconButton label={tr("Delete fee item")} variant="secondary" onClick={() => setDeleting(line)}>
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  </IconButton>
                   <ConfirmAction
                     open={deleting?.id === line.id}
                     title={tr("Delete Master Line")}
@@ -686,9 +687,9 @@ function AssignPanel({ campusId }: { campusId?: string }) {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(a)} className="flex items-center justify-center">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                <IconButton label={tr("Delete fee item")} variant="secondary" onClick={() => setDeleting(a)}>
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                </IconButton>
                 <ConfirmAction
                   open={deleting?.id === a.id}
                   title={tr("Remove Assignment")}
@@ -930,12 +931,12 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
               <div className="flex items-center gap-1.5">
                 <Button variant="outline" type="button" onClick={() => openAssign(d)} className="justify-start px-2.5 flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" /><UiText>{"Assign"}</UiText></Button>
-                <Button aria-label={tr("Edit fee item")} variant="secondary" size="icon" type="button" onClick={() => openModal(d)} className="flex items-center justify-center">
-                  <BookOpen className="w-3.5 h-3.5" />
-                </Button>
-                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(d)} className="flex items-center justify-center">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                <IconButton label={tr("Edit fee item")} variant="secondary" onClick={() => openModal(d)}>
+                  <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                </IconButton>
+                <IconButton label={tr("Delete fee item")} variant="secondary" onClick={() => setDeleting(d)}>
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                </IconButton>
                 <ConfirmAction
                   open={deleting?.id === d.id}
                   title={tr("Delete Discount")}
@@ -1178,9 +1179,9 @@ function CarryPanel({ campusId }: { campusId?: string }) {
                 <span className={`text-sm font-bold ${f.balance < 0 ? "text-status-success-text" : "text-status-error-text"} tabular-nums`}>
                   {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance), f.currency)}
                 </span>
-                <Button aria-label={tr("Delete fee item")} variant="secondary" size="icon" type="button" onClick={() => setDeleting(f)} className="flex items-center justify-center">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                <IconButton label={tr("Delete fee item")} variant="secondary" onClick={() => setDeleting(f)}>
+                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                </IconButton>
                 <ConfirmAction
                   open={deleting?.id === f.id}
                   title={tr("Delete Carry-Forward")}
@@ -1382,37 +1383,27 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
                     ? tr("{0}% of balance", [rule.value])
                     : rule.type === "PER_DAY"
                       ? tr("{0} per day", [formatPKR(rule.value)])
-                      : formatPKR(rule.value) + " flat"}
+                      : tr("{0} flat", [formatPKR(rule.value)])}
                   {" · "}{rule.graceDays > 0 ? tr("{0} day grace", [rule.graceDays]) : tr("no grace period")}
                 </p>
               </div>
               <Button aria-pressed={rule.isActive} variant="choice"
                 type="button"
                 onClick={() => handleToggle(rule)}
-                disabled={togglingId === rule.id}
+                loading={togglingId === rule.id}
                 className={"justify-start " + (`flex items-center gap-2 px-3 py-1.5 ${
                   ""
                 } `)}
               >
-                {togglingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                {togglingId !== rule.id && <Check className="w-3 h-3" aria-hidden="true" />}
                 {rule.isActive ? tr("Active") : tr("Inactive")}
               </Button>
-              <Button variant="secondary" size="icon"
-                type="button"
-                onClick={() => openModal(rule)}
-                className="flex items-center justify-center"
-                aria-label={tr("Edit fine rule")}
-              >
-                <Tag className="w-4 h-4" />
-              </Button>
-              <Button variant="secondary" size="icon"
-                type="button"
-                onClick={() => setDeleting(rule)}
-                className="flex items-center justify-center"
-                aria-label={tr("Delete fine rule")}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <IconButton label={tr("Edit fine rule")} variant="secondary" onClick={() => openModal(rule)}>
+                <Tag className="w-4 h-4" aria-hidden="true" />
+              </IconButton>
+              <IconButton label={tr("Delete fine rule")} variant="secondary" onClick={() => setDeleting(rule)}>
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+              </IconButton>
             </div>
           ))}
         </div>

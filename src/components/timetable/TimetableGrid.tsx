@@ -212,10 +212,14 @@ export function TimetableGrid({
                   <div
                     key={day.num}
                     className={cn(
-                      "flex cursor-pointer items-center justify-center border-l border-muted p-1",
+                      "flex cursor-pointer items-center justify-center border-s border-muted p-1",
                       offCls,
                     )}
                     onClick={() => onCellClick(slot)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onCellClick(slot); } }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={style?.label || effectiveType}
                     title={style?.label || effectiveType}
                   >
                     <span className={cn("text-2xs font-bold", style?.text || "text-ink-subtle")}>
@@ -291,13 +295,13 @@ export function TimetableGrid({
                       <span
                         aria-hidden
                         className={cn(
-                          "absolute inset-y-0 left-0 w-[3px]",
+                          "absolute inset-y-0 start-0 w-[3px]",
                           color?.dot?.replace("bg-", "bg-") || "bg-gray-300",
                         )}
                       />
                       <p
                         className={cn(
-                          "truncate pl-1.5 font-bold leading-tight",
+                          "truncate ps-1.5 font-bold leading-tight",
                           d.subject,
                           color?.text || "text-gray-600",
                         )}
@@ -307,7 +311,7 @@ export function TimetableGrid({
                       {d.showMeta && (teacherName || roomName) ? (
                         <div
                           className={cn(
-                            "flex min-w-0 pl-1.5",
+                            "flex min-w-0 ps-1.5",
                             d.stackMeta ? "flex-col gap-0.5" : "items-center gap-2",
                           )}
                         >
@@ -340,7 +344,7 @@ export function TimetableGrid({
                       {/* An unplaced teacher is the thing that breaks a
                           timetable, so say so instead of leaving a blank. */}
                       {d.showMeta && !teacherName ? (
-                        <span className={cn("pl-1.5 font-bold text-amber-600", d.meta)}>
+                        <span className={cn("ps-1.5 font-semibold text-amber-600", d.meta)}>
                           No teacher
                         </span>
                       ) : null}

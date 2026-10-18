@@ -2,6 +2,8 @@
 
 import { IconButton } from "@/components/ui/icon-button";
 import { InfoTip } from "@/components/ui/tooltip";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button as SystemButton } from "@/components/ui/button";
 import React, {
   useCallback,
@@ -239,22 +241,23 @@ function SectionTransfer({ section, siblings, ui, onDone }: { section: any; sibl
     <div className="rounded-3xl border border-edge/40 bg-surface-subtle p-5" data-testid="section-transfer">
       <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Move students to another section")}</p>
       {siblings.length === 0 ? (
-        <p className="mt-2 text-2xs font-bold text-ink-muted">{ui("Add another section first, then move the students there.")}</p>
+        <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">{ui("Add another section first, then move the students there.")}</p>
       ) : (
         <div className="mt-3 space-y-3">
-          <label className="block space-y-1 text-2xs font-bold text-ink">
+          <label className="block space-y-1 text-sm font-semibold text-ink">
             <span>{ui("Move to section")}</span>
             <SystemSelect aria-label={ui("Move to section")} value={target} onChange={(event) => { setTarget(event.target.value); setPreview(null); }}>
               {siblings.map((sibling) => <option key={sibling.id} value={sibling.id}>{classLabel(sibling)}</option>)}
             </SystemSelect>
           </label>
-          <label className="block space-y-1 text-2xs font-bold text-ink">
+          <label className="block space-y-1 text-sm font-semibold text-ink">
             <span>{ui("Effective from")}</span>
             <SystemInput type="date" aria-label={ui("Effective from")} value={effectiveDate} max={new Date().toISOString().slice(0, 10)} onChange={(event) => { setEffectiveDate(event.target.value); setPreview(null); }} />
           </label>
-          {error ? <p role="alert" className="text-2xs font-bold text-status-error-text">{error}</p> : null}
+          {error ? <Alert tone="danger" compact>{error}</Alert> : null}
           {preview ? (
-            <div role="status" className="space-y-2 rounded-2xl bg-white p-3 text-2xs font-bold text-ink">
+            <Alert tone="info" compact live="polite">
+              <div className="space-y-2">
               <p>{ui("{0} student(s) move to {1}. {2} attendance, {3} report and {4} invoice record(s) stay with their original enrollment.", [preview.ready, preview.to.label, preview.preserved.attendance, preview.preserved.reports, preview.preserved.invoices])}</p>
               {preview.blocked.length ? (
                 <div className="text-status-error-text">
@@ -262,7 +265,8 @@ function SectionTransfer({ section, siblings, ui, onDone }: { section: any; sibl
                   <ul className="list-disc ps-4">{preview.blocked.map((row) => <li key={row.studentId}>{row.name}: {row.reason}</li>)}</ul>
                 </div>
               ) : null}
-            </div>
+              </div>
+            </Alert>
           ) : null}
           {preview && !preview.blocked.length ? (
             <SystemButton type="button" variant="dark" loading={busy} disabled={busy || !target} onClick={() => call("apply")} className="h-11 w-full">
@@ -411,7 +415,7 @@ function SettingsDrawer({
             <p className="text-2xs font-semibold uppercase tracking-wider text-amber-800">
               {ui("Class archive")}
             </p>
-            <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-muted">
+            <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
               {ui("Archive this class to remove it from current class lists. Its students, academic records, fees, and history are preserved.")}
             </p>
             <SystemButton variant="secondary"
@@ -558,17 +562,14 @@ function AddSectionPanel({
           {names.map((n) => {
             const isTaken = taken.has(n.toLowerCase());
             return (
-              <span
+              <Badge
                 key={n}
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-2xs font-bold",
-                  isTaken
-                    ? "bg-rose-50 text-rose-600 line-through"
-                    : "bg-brand-100 text-primary",
-                )}
+                size="sm"
+                variant={isTaken ? "danger" : "secondary"}
+                className={cn(isTaken && "line-through")}
               >
                 {cls.name} {n}
-              </span>
+              </Badge>
             );
           })}
         </div>
@@ -577,7 +578,7 @@ function AddSectionPanel({
       {/* Copy subjects from — the reason most sections get added at all. */}
       {sections.some((sec) => (sec.subjects?.length || 0) > 0) ? (
         <label className="mt-3 block">
-          <span className="mb-1 block text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
             {ui("Copy subjects from")}
           </span>
           <SystemSelect
@@ -599,7 +600,7 @@ function AddSectionPanel({
       ) : null}
 
       <label className="mt-2 block">
-        <span className="mb-1 block text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
+        <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           {ui("Class teacher")}
         </span>
         <SystemSelect
@@ -616,9 +617,9 @@ function AddSectionPanel({
       </label>
 
       {blocked && input.trim() ? (
-        <p className="mt-2 text-2xs font-bold leading-relaxed text-rose-600">{blocked}</p>
+        <Alert tone="warning" compact live="off" className="mt-2">{blocked}</Alert>
       ) : names.length > 0 ? (
-        <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-muted">
+        <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
           {cloneCount > 0
             ? ui(names.length === 1 ? (cloneCount === 1 ? "Creates {0} section with {1} subject each." : "Creates {0} section with {1} subjects each.") : (cloneCount === 1 ? "Creates {0} sections with {1} subject each." : "Creates {0} sections with {1} subjects each."), [names.length, cloneCount])
             : ui(names.length === 1 ? "Creates {0} section." : "Creates {0} sections.", [names.length])}
@@ -687,12 +688,12 @@ function MatrixView({
             {sections.map((sec) => (
               <th
                 key={sec.id}
-                className="bg-gradient-to-br from-primary to-brand-400 px-4 py-4 text-center text-2xs font-semibold uppercase tracking-wider text-white/90 last:rounded-tr-3xl"
+                className="bg-gradient-to-br from-primary to-brand-400 px-4 py-4 text-center text-2xs font-semibold uppercase tracking-wider text-white/90 last:rounded-se-3xl"
               >
                 <span className="block">
                   {sec.section ? ui("Section {0}", [sec.section]) : ui("Main")}
                 </span>
-                <span className="mt-1 block text-3xs font-bold text-white/55">
+                <span className="mt-1 block text-2xs font-medium text-white/70">
                   {ui("{0} students", [sectionStudentCount(sec, allStudents)])}
                 </span>
               </th>
@@ -720,9 +721,9 @@ function MatrixView({
                       subjectName,
                     );
                     return sample?.totalMarks ? (
-                      <span className="rounded-full bg-brand-50 px-2 py-0.5 text-3xs font-bold text-primary">
+                      <Badge size="sm" variant="secondary" className="tabular-nums">
                         {ui("{0} marks", [sample.totalMarks])}
-                      </span>
+                      </Badge>
                     ) : null;
                   })()}
                 </div>
@@ -758,7 +759,7 @@ function MatrixView({
                     ) : isBusy ? (
                       <div className="flex flex-col items-center gap-1.5 py-1">
                         <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                        <span className="text-3xs font-bold text-primary/60">{ui("Saving...")}</span>
+                        <span className="text-2xs font-semibold text-primary/60">{ui("Saving...")}</span>
                       </div>
                     ) : isSingle ? (
                       <div className="flex flex-col items-center gap-1">
@@ -772,7 +773,7 @@ function MatrixView({
                                 initialsClassName="text-2xs"
                               />
                             </div>
-                            <span className="max-w-[100px] truncate text-2xs font-bold text-ink-muted">
+                            <span className="min-w-0 max-w-full truncate text-2xs font-bold text-ink-muted">
                               {teacher.fullName || ui("Teacher")}
                             </span>
                           </>
@@ -781,7 +782,7 @@ function MatrixView({
                             {ui("No class teacher")}
                           </span>
                         )}
-                        <span className="text-3xs font-bold text-ink-subtle">
+                        <span className="text-2xs font-medium text-ink-subtle">
                           {ui("Follows class teacher")}
                         </span>
                       </div>
@@ -797,7 +798,7 @@ function MatrixView({
                                 initialsClassName="text-2xs"
                               />
                             </div>
-                            <span className="max-w-[110px] truncate text-2xs font-bold text-ink-strong">
+                            <span className="min-w-0 max-w-full truncate text-2xs font-bold text-ink-strong">
                               {teacher.fullName || ui("Teacher")}
                             </span>
                           </>
@@ -1096,9 +1097,9 @@ function SectionDetailView({
                 {ui("Subjects ({0})", [subjectCount])}
               </p>
               {teachingMode === "SINGLE" && subjectCount > 0 ? (
-                <span className="rounded-full bg-teal-100 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-teal-700">
+                <Badge size="sm" variant="success">
                   {ui("All follow class teacher")}
-                </span>
+                </Badge>
               ) : null}
             </div>
 
@@ -1160,12 +1161,12 @@ function SectionDetailView({
                               {subject.name}
                             </p>
                             {subject.totalMarks ? (
-                              <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-3xs font-bold text-primary">
+                              <Badge size="sm" variant="secondary" className="shrink-0 tabular-nums">
                                 {ui("{0} marks", [subject.totalMarks])}
-                              </span>
+                              </Badge>
                             ) : null}
                           </div>
-                          <p className="mt-1 text-2xs font-bold text-ink-subtle">
+                          <p className="mt-1 text-xs font-medium text-ink-subtle">
                             {teachingMode === "SINGLE" ? (
                               <span className="text-teal-700">
                                 {ui("Follows class teacher")}
@@ -1395,7 +1396,7 @@ function SectionDetailView({
                 <p className="truncate text-base font-bold text-ink-strong">
                   {section.classTeacher?.fullName || ui("Unassigned")}
                 </p>
-                <p className="truncate text-2xs font-bold text-ink-subtle">
+                <p className="truncate text-xs font-normal text-ink-subtle">
                   {section.classTeacher?.email || ui("No teacher assigned")}
                 </p>
               </div>
@@ -1444,9 +1445,9 @@ function SectionDetailView({
                   {ui("Students")}
                 </p>
               </div>
-              <span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-2xs font-bold text-rose-700">
+              <Badge size="sm" variant="danger" className="tabular-nums">
                 {students.length}
-              </span>
+              </Badge>
             </div>
             {students.length > 0 ? (
               <div className="mt-3 flex items-center gap-1">
@@ -1630,7 +1631,7 @@ function SectionDetailView({
                   <p className="truncate text-xs font-bold text-ink-strong">
                     {student.fullName}
                   </p>
-                  <p className="text-2xs font-bold text-ink-subtle">
+                  <p className="text-xs font-normal text-ink-subtle tabular-nums">
                     {ui("Roll {0}", [student.rollNo || "N/A"])}
                   </p>
                 </div>
@@ -1780,22 +1781,19 @@ export function ClassManager({
                   <School className="h-5 w-5 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
+                  <h1 className="truncate text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">
                     <span className="bg-gradient-to-r from-primary via-brand-400 to-brand-700 bg-clip-text text-transparent">
                       {className}
                     </span>
                   </h1>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-0.5 text-3xs font-semibold uppercase tracking-wider text-primary">
+                    <Badge size="sm" variant="secondary" className="tabular-nums">
                       {academicYear}
-                    </span>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-3xs font-semibold uppercase tracking-wider",
-                        primaryTeachingMode === "SINGLE"
-                          ? "bg-teal-100 text-teal-700"
-                          : "bg-amber-100 text-amber-700",
-                      )}
+                    </Badge>
+                    <Badge
+                      size="sm"
+                      variant={primaryTeachingMode === "SINGLE" ? "success" : "warning"}
+                      className="gap-1"
                     >
                       {primaryTeachingMode === "SINGLE" ? (
                         <UserCheck className="h-2.5 w-2.5" />
@@ -1805,7 +1803,7 @@ export function ClassManager({
                       {primaryTeachingMode === "SINGLE"
                         ? ui("Single Teacher")
                         : ui("Per Subject")}
-                    </span>
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -1988,7 +1986,7 @@ export function ClassManager({
                   >
                     {ui("All Sections")}
                   </p>
-                  <p className="text-3xs font-bold text-ink-subtle">
+                  <p className="text-2xs font-medium text-ink-subtle">
                     {ui("Matrix view")}
                   </p>
                 </div>
@@ -2047,23 +2045,23 @@ export function ClassManager({
                             ? ui("Section {0}", [sec.section])
                             : ui("Main Section")}
                         </p>
-                        <p className="mt-0.5 truncate text-3xs font-bold text-ink-subtle">
+                        <p className="mt-0.5 truncate text-2xs font-medium text-ink-subtle">
                           {sec.classTeacher?.fullName || ui("No teacher yet")}
                         </p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="text-3xs font-bold text-ink-subtle">
+                          <span className="text-2xs font-medium text-ink-subtle tabular-nums">
                             {ui(studentCount !== 1 ? "{0} students" : "{0} student", [studentCount])}
                           </span>
-                          <span className="text-3xs font-bold text-ink-subtle">
+                          <span className="text-2xs font-medium text-ink-subtle tabular-nums">
                             {ui(sectionSubjectCount !== 1 ? "{0} subjects" : "{0} subject", [sectionSubjectCount])}
                           </span>
                           {/* Says what the dot means. A section can look fine
                               in the list and still have nobody teaching it. */}
                           {gaps.length > 0 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-3xs font-bold text-amber-700">
-                              <AlertCircle className="h-2 w-2" />
+                            <Badge size="sm" variant="warning" className="gap-1">
+                              <AlertCircle className="h-2.5 w-2.5" aria-hidden="true" />
                               {ui(gaps.length === 2 ? "Needs teacher & subjects" : gaps[0] === "teacher" ? "Needs teacher" : "Needs subjects")}
-                            </span>
+                            </Badge>
                           ) : null}
                         </div>
                       </div>
@@ -2098,7 +2096,7 @@ export function ClassManager({
                     </span>
                     <span className="min-w-0">
                       <span className="block text-xs font-bold text-primary">{ui("Add section")}</span>
-                      <span className="block text-3xs font-bold text-ink-subtle">
+                      <span className="block text-2xs font-medium text-ink-subtle">
                         {ui("Copies subjects across")}
                       </span>
                     </span>
@@ -2133,7 +2131,7 @@ export function ClassManager({
                       <h2 className="text-lg font-bold text-ink-strong">
                         {ui("Subject-Teacher Matrix")}
                       </h2>
-                      <p className="text-2xs font-bold text-ink-muted">
+                      <p className="text-sm font-normal text-ink-muted">
                         {ui("Overview of all subjects and teacher assignments across sections")}
                       </p>
                     </div>
@@ -2175,7 +2173,7 @@ export function ClassManager({
                             ? ui("Section {0}", [selectedSection.section])
                             : ui("Main Section")}
                         </h2>
-                        <p className="text-2xs font-bold text-ink-muted">
+                        <p className="text-sm font-normal text-ink-muted">
                           {selectedSection.classTeacher?.fullName ||
                             ui("No class teacher assigned")}{" "}
                           / {ui(selectedStudents.length !== 1 ? "{0} students" : "{0} student", [selectedStudents.length])}

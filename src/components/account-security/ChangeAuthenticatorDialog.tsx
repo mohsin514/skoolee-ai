@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, Loader2, RotateCcw, ShieldCheck, Smartphone } from "lucide-react";
+import { ArrowRight, RotateCcw, ShieldCheck, Smartphone } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { AuthenticatorSetup } from "@/components/auth/mfa/AuthenticatorSetup";
@@ -147,7 +147,6 @@ export function ChangeAuthenticatorDialog({ mode, t, startWithRecovery = false, 
   const message = error ? mfaErrorText(t, error, recovery) : "";
   const pageMessage = error?.scope === "page" ? message : "";
   const live = feedback === "key" || feedback === "codes" ? t.copied : feedback === "download" ? t.downloaded : feedback === "copyFailed" ? t.copyFailed : success;
-  const spinner = <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />;
   const alertAction = error?.reason === "setup_expired"
     ? <Button type="button" variant="outline" size="sm" onClick={restart}><RotateCcw aria-hidden="true" />{t.restart}</Button>
     : error?.reason === "state_changed"
@@ -162,8 +161,8 @@ export function ChangeAuthenticatorDialog({ mode, t, startWithRecovery = false, 
             default action would then submit the still-empty confirm form. */}
         {step === 1
           ? <Button key="scan" type="button" onClick={() => { setError(null); setStep(2); }}>{t.continue}<ArrowRight aria-hidden="true" className="rtl:-scale-x-100" /></Button>
-          : <Button key={`submit-${step}`} type="submit" form={formId} disabled={busy} aria-busy={busy}>
-            {busy ? spinner : null}{step === 0 ? t.continue : t.confirm}{busy ? null : <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />}
+          : <Button key={`submit-${step}`} type="submit" form={formId} loading={busy}>
+            {step === 0 ? t.continue : t.confirm}{busy ? null : <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />}
           </Button>}
       </>}
     </DialogFooter>
@@ -180,7 +179,7 @@ export function ChangeAuthenticatorDialog({ mode, t, startWithRecovery = false, 
 
       {step === 0 && (
         <form id={formId} onSubmit={begin} aria-busy={busy} className="space-y-5" noValidate>
-          <p className="text-sm font-semibold leading-relaxed text-ink-muted">{mode === "change" ? t.verifyIntro : t.enableIntro}</p>
+          <p className="text-sm font-normal leading-relaxed text-ink-muted">{mode === "change" ? t.verifyIntro : t.enableIntro}</p>
           <PasswordField id="security-change-password" value={password} onChange={setPassword} readOnly={busy} inputRef={passwordRef} t={t}
             error={error?.scope === "password" ? message : undefined} />
           {mode === "change" && <>
@@ -194,7 +193,7 @@ export function ChangeAuthenticatorDialog({ mode, t, startWithRecovery = false, 
       )}
 
       {step === 1 && <>
-        <p ref={scanRef} tabIndex={-1} className="mb-5 text-sm font-semibold leading-relaxed text-ink-muted">{t.scanBody}</p>
+        <p ref={scanRef} tabIndex={-1} className="mb-5 text-sm font-normal leading-relaxed text-ink-muted">{t.scanBody}</p>
         <AuthenticatorSetup secret={secret} uri={uri} t={t} onCopy={() => void copyKey()} copied={feedback === "key"} idPrefix="security" />
       </>}
 

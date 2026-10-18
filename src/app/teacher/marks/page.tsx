@@ -575,7 +575,7 @@ export default function MarksPage() {
                                     );
                                   }
                                 }}
-                                title={isLocked ? "This exam is locked — marks are read-only" : `${student.fullName} · ${subject.name}, max ${max}. Enter moves down, ⌘D fills down.`}
+                                aria-description={isLocked ? "This exam is locked. Marks are read-only." : undefined}
                                 aria-label={`${subject.name} marks for ${student.fullName}, out of ${max}`}
                                 className={"w-full text-center"} />
                               {isOverLimit && <p id={`mark-${key}-error`} className="sk-field-message mt-1 text-center text-xs font-medium text-destructive">Enter 0 to {max}.</p>}

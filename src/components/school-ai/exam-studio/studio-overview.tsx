@@ -6,6 +6,7 @@ import type { Language } from "@/lib/locale/package";
 import type { AiWorkspaceRecord } from "@/lib/school-ai/types";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TaskFeedback } from "@/components/ui/task-patterns";
 import { studioShellCopy } from "./studio-shell-copy";
 import styles from "./studio-shell.module.css";
@@ -50,7 +51,7 @@ export function StudioOverview({ records, language, scopeReady, canReadSources, 
     <div className={styles.lower}>
       <section className={`sk-panel ${styles.recent}`}>
         <h2 className={styles.heading}>{t.recent}</h2><p className={styles.hint}>{t.recentHint}</p>
-        {!scopeReady ? <p className="py-8 text-sm text-ink-muted">{t.chooseScope}</p> : !relevant.length ? <div className="mt-5"><TaskFeedback kind="empty" title={t.noWork}><p>{t.noWorkHint}</p></TaskFeedback></div> : relevant.slice(0, 5).map(record => <div key={record.id} className={styles.record}>
+        {!scopeReady ? <div className="mt-5"><EmptyState size="sm" icon={Layers} title={t.chooseScope} /></div> : !relevant.length ? <div className="mt-5"><TaskFeedback kind="empty" title={t.noWork}><p>{t.noWorkHint}</p></TaskFeedback></div> : relevant.slice(0, 5).map(record => <div key={record.id} className={styles.record}>
           <span className={styles.stepIcon}><FileText className="size-4" aria-hidden="true" /></span>
           <div className={styles.recordBody}><bdi dir="auto" className={styles.recordTitle}>{record.title}</bdi><p className={styles.recordMeta}>{record.kind === "SOURCE" ? t.source : record.kind === "PAPER" ? t.paper : t.curriculumKind} · {t.version} <bdi>{record.version}</bdi></p></div>
           <Badge variant="outline">{statusLabel(record.status)}</Badge>

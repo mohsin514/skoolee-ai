@@ -118,20 +118,20 @@ export function ExamTimelineView({
                   </p>
                 </div>
               </div>
-              <span
-                className={cn(
-                  "rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider",
+              <Badge
+                variant={
                   rel.tone === "today"
-                    ? "bg-primary text-white"
+                    ? "default"
                     : rel.tone === "soon"
-                      ? "bg-amber-50 text-amber-700"
+                      ? "warning"
                       : rel.tone === "past"
-                        ? "bg-muted text-ink-subtle"
-                        : "bg-teal-50 text-teal-700",
-                )}
+                        ? "neutral"
+                        : "info"
+                }
+                className="shrink-0"
               >
                 {rel.text}
-              </span>
+              </Badge>
             </header>
 
             <ul className="divide-y divide-edge/8">
@@ -159,7 +159,7 @@ export function ExamTimelineView({
                         <span className="block text-sm font-bold text-ink-strong">
                           {p.subject?.name || "Paper"}
                         </span>
-                        <span className="block text-2xs font-semibold text-ink-muted">
+                        <span className="block text-xs text-ink-subtle">
                           {classLabel(p.exam?.class)} · {p.exam?.title}
                         </span>
                       </span>
@@ -189,16 +189,16 @@ export function ExamTimelineView({
       })}
 
       {unscheduled.length > 0 ? (
-        <section className="overflow-hidden rounded-3xl border border-dashed border-amber-200 bg-amber-50/40">
-          <header className="border-b border-amber-200/60 px-5 py-3">
-            <p className="text-sm font-bold text-amber-800">
+        <section className="overflow-hidden rounded-3xl border border-dashed border-status-warning-border bg-status-warning-surface">
+          <header className="border-b border-status-warning-border px-5 py-3">
+            <p className="text-sm font-bold text-status-warning-text">
               {unscheduled.length} exam{unscheduled.length > 1 ? "s" : ""} with no dates yet
             </p>
-            <p className="text-2xs font-semibold text-amber-700">
+            <p className="text-xs leading-relaxed text-status-warning-text">
               These will not appear on the datesheet families see.
             </p>
           </header>
-          <ul className="divide-y divide-amber-200/40">
+          <ul className="divide-y divide-status-warning-border">
             {unscheduled.map((e) => (
               <li key={e.id}>
                 <Button variant="secondary"
@@ -208,13 +208,13 @@ export function ExamTimelineView({
                 >
                   <span>
                     <span className="block text-sm font-bold text-ink-strong">{e.title}</span>
-                    <span className="block text-2xs font-semibold text-ink-muted">
+                    <span className="block text-xs text-ink-subtle">
                       {classLabel(e.class)} · {e.term} {e.academicYear}
                     </span>
                   </span>
-                  <span className="rounded-xl bg-amber-500 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-white">
+                  <Badge variant="warning" className="shrink-0">
                     Set dates
-                  </span>
+                  </Badge>
                 </Button>
               </li>
             ))}

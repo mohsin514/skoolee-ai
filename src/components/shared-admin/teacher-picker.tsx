@@ -8,6 +8,8 @@ import { AlertTriangle, Ban, Search, Sparkles, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export interface PickerTeacher {
   id: string;
@@ -194,7 +196,7 @@ export function TeacherPicker({
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-ink-strong">Unassigned</p>
                   {showUnassignedHint ? (
-                    <p className="mt-0.5 text-2xs font-bold text-ink-subtle">No teacher assigned yet</p>
+                    <p className="mt-0.5 text-2xs font-medium text-ink-subtle">No teacher assigned yet</p>
                   ) : null}
                 </div>
               </SystemButton>
@@ -216,7 +218,6 @@ export function TeacherPicker({
                   key={t.id}
                   type="button"
                   disabled={!!blocked}
-                  title={blocked || undefined}
                   onClick={() => pick(t.id)}
                   className={cn(
                     "flex w-full items-start gap-3 px-3 py-2.5 text-start justify-start",
@@ -234,18 +235,13 @@ export function TeacherPicker({
                     <div className="flex items-center gap-1.5">
                       <p className="truncate text-xs font-bold text-ink-strong">{t.fullName || "Unnamed teacher"}</p>
                       {specialtyLabel ? (
-                        <span
-                          className={cn(
-                            "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-3xs font-semibold uppercase tracking-wider",
-                            a?.teachesAllSubjects ? "bg-emerald-50 text-emerald-600" : "bg-brand-50 text-primary"
-                          )}
-                        >
-                          {a?.teachesAllSubjects ? <Sparkles className="h-2 w-2" /> : null}
+                        <Badge variant={a?.teachesAllSubjects ? "success" : "default"} size="sm" className="shrink-0 gap-1">
+                          {a?.teachesAllSubjects ? <Sparkles aria-hidden="true" className="h-2.5 w-2.5" /> : null}
                           {specialtyLabel}
-                        </span>
+                        </Badge>
                       ) : null}
                     </div>
-                    <p className="mt-0.5 truncate text-2xs font-bold text-ink-muted">
+                    <p className="mt-0.5 truncate text-2xs font-medium tabular-nums text-ink-muted">
                       {subjectLoad(t)} subject{subjectLoad(t) !== 1 ? "s" : ""} · {classLoad(t)} class{classLoad(t) !== 1 ? "es" : ""}
                     </p>
 
@@ -273,7 +269,7 @@ export function TeacherPicker({
               );
             })}
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-center text-2xs font-bold text-ink-subtle">No teachers match your search.</p>
+              <EmptyState size="sm" icon={Search} title="No teachers match your search." description="Try a different name or clear the search." />
             ) : null}
           </div>
         </div>
@@ -292,7 +288,7 @@ export function TeacherPicker({
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-bold text-ink-strong">{selected?.fullName || "Assigned teacher"}</span>
                   {selected ? (
-                    <span className="block text-2xs font-bold text-ink-muted">
+                    <span className="block text-2xs font-medium tabular-nums text-ink-muted">
                       {subjectLoad(selected)} subjects · {classLoad(selected)} classes
                       {selectedAvail?.teachesAllSubjects
                         ? " · All subjects"
@@ -306,9 +302,9 @@ export function TeacherPicker({
             ) : (
               <span className="text-sm font-bold text-ink-muted">{allowUnassigned ? "Assign / Unassigned" : "Select teacher"}</span>
             )}
-            <span className="ms-3 shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-primary">
+            <Badge size="sm" className="ms-3 shrink-0">
               Change
-            </span>
+            </Badge>
           </SystemButton>
 
           {/* Warnings on the current selection stay visible while collapsed, so

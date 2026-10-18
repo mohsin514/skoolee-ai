@@ -2,7 +2,7 @@
 
 import { Button as SystemButton } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
-import { BookMarked, ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { BookMarked, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { EmptyInline } from "@/components/shared-admin";
@@ -10,6 +10,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
+import { SkeletonBar, SkeletonRegion } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 
 type TopicStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
@@ -168,10 +169,10 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
       {open ? (
         <div className="mt-4 space-y-3">
           {loading ? (
-            <div className="flex items-center gap-2 py-2 text-xs font-medium text-ink-subtle">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              Loading syllabus…
-            </div>
+            <SkeletonRegion className="space-y-1.5" label="Loading syllabus">
+              <SkeletonBar className="h-9 w-full rounded-xl" />
+              <SkeletonBar className="h-9 w-4/5 rounded-xl" />
+            </SkeletonRegion>
           ) : (
             <>
               {syllabusTopics.length ? (

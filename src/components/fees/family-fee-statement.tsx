@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Banknote, CalendarClock, CheckCircle2, Receipt } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { OnlinePayAction, PaymentReturnStatus } from "./online-payment";
 import { InstallmentSchedule } from "./installment-plan-panel";
@@ -58,7 +59,7 @@ export function FamilyFeeStatement({ studentId, onSummary }: { studentId?: strin
   return <div className="space-y-4" data-family-statement>
     {paymentRef && <PaymentReturnStatus key={paymentRef} orderRef={paymentRef} onSettled={settled} />}
     {statement.invoices.length === 0 ? <div className="sk-panel"><EmptyState icon={Receipt} title={ui("No fee obligations are available for this child.")} description={ui("New invoices from the school will appear here.")} /></div> : <>
-      {statement.currencies.length > 1 && <label className="block w-full max-w-xs text-sm font-semibold text-ink-strong">{ui("Currency")}<Select aria-label={ui("Currency")} className="mt-1 w-full" value={code} onChange={event => setCurrency(event.target.value)}>{statement.currencies.map(option => <option key={option} value={option}>{option}</option>)}</Select></label>}
+      {statement.currencies.length > 1 && <FormField name="statementCurrency" label={ui("Currency")} hint={ui("Shows the invoices billed in this currency.")} className="w-full max-w-xs"><Select className="w-full" value={code} onChange={event => setCurrency(event.target.value)}>{statement.currencies.map(option => <option key={option} value={option}>{option}</option>)}</Select></FormField>}
       <div className="sk-stagger grid grid-cols-2 gap-3 md:grid-cols-4" data-statement-summary>
         <Figure icon={Banknote} label={ui("Outstanding")} value={fmt(s.outstanding)} tone="rose" />
         <Figure icon={CalendarClock} label={ui("Overdue")} value={fmt(s.overdue)} tone={s.overdue ? "rose" : "muted"} />

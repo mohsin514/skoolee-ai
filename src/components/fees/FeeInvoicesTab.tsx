@@ -24,8 +24,14 @@ import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
+import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import { downloadPdfFile } from "@/lib/download";
 import type { ClassOption, Invoice, InvoiceStatus } from "./fee-types";
+
+const INVOICE_TONE: Record<string, "success" | "warning" | "info" | "danger" | "neutral"> = { PAID: "success", PARTIAL: "warning", PENDING: "info", OVERDUE: "danger", CANCELLED: "neutral" };
 import {
   API,
   classLabel,
@@ -34,7 +40,6 @@ import {
   formatPKR,
   paisaToRupees,
   paymentMethodLabel,
-  statusBadgeClass,
 } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -67,11 +72,13 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
   const [showDetail, setShowDetail] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const qp = campusId ? `campusId=${encodeURIComponent(campusId)}` : "";
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const params = new URLSearchParams();
       if (campusId) params.set("campusId", campusId);
@@ -88,8 +95,11 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         setInvoices(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
+      setLoadFailed(true);
       toast.error(tr("Failed to load invoices"));
     } finally {
       setLoading(false);
@@ -238,41 +248,27 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-2xs font-bold text-ink-subtle">{tr("Invoices")}: {total}</p>
+      <p className="text-xs font-medium text-ink-subtle">{tr("Invoices")}: <span className="tabular-nums">{total}</span></p>
 
       {loading ? (
-        <div className="sk-panel overflow-hidden animate-skeleton-in">
-          <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-muted/50">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="h-3 rounded-full bg-border-subtle/40 skeleton-shimmer" />
-            ))}
-          </div>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 border-t border-muted" style={{ animationDelay: `${i * 50}ms` }}>
-              <div className="space-y-1.5">
-                <div className="h-3.5 w-24 rounded-full bg-border-subtle/50 skeleton-shimmer" />
-                <div className="h-2.5 w-16 rounded-full bg-border-subtle/30 skeleton-shimmer" />
-              </div>
-              <div className="space-y-1.5">
-                <div className="h-3.5 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
-                <div className="h-2.5 w-14 rounded-full bg-border-subtle/30 skeleton-shimmer" />
-              </div>
-              {Array.from({ length: 5 }).map((_, j) => (
-                <div key={j} className="h-3.5 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer self-center" />
-              ))}
-            </div>
-          ))}
-        </div>
+        <SkeletonTable rows={6} columns={7} label={tr("Loading invoices…")} />
+      ) : loadFailed ? (
+        <ErrorState
+          title={tr("Invoices could not be loaded")}
+          description={tr("Check your connection and try again.")}
+          onRetry={() => void loadInvoices()}
+        />
       ) : invoices.length === 0 ? (
         <EmptyState
           icon={FileText}
           title={tr("No invoices found")}
           description={tr("Generate invoices or adjust your filters.")}
+          action={<Button onClick={() => setShowGenerate(true)}><Plus className="size-4" aria-hidden="true" />{tr("Generate Invoices")}</Button>}
         />
       ) : (
         <>
-          <div className="sk-panel sk-rise overflow-hidden">
-            <div className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <div className="sk-panel sk-rise overflow-x-auto">
+            <div className="grid min-w-[760px] grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               <span><UiText>{"Student"}</UiText></span>
               <span><UiText>{"Invoice"}</UiText></span>
               <span><UiText>{"Total"}</UiText></span>
@@ -281,47 +277,41 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
               <span><UiText>{"Status"}</UiText></span>
               <span></span>
             </div>
-            <div className="divide-y divide-muted">
+            <div className="min-w-[760px] divide-y divide-muted">
               {invoices.map((inv) => (
                 <div
                   key={inv.id}
-                  className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
+                  className="grid grid-cols-[1fr_1fr_100px_100px_100px_90px_80px] gap-3 px-5 py-3 items-center sk-row-interactive"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-ink-strong truncate">{inv.student.fullName}</p>
-                    <p className="text-2xs font-bold text-ink-subtle">
+                    <p className="text-xs font-semibold text-ink-strong truncate">{inv.student.fullName}</p>
+                    <p className="text-2xs text-ink-subtle">
                       {classLabel(inv.student.class.name, inv.student.class.section)}
                     </p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-ink-strong truncate">{inv.invoiceNumber}</p>
-                    <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{formatDate(inv.dueDate)}
+                    <p className="text-xs font-semibold text-ink-strong truncate">{inv.invoiceNumber}</p>
+                    <p className="text-2xs tabular-nums text-ink-subtle"><UiText>{"Due:"}</UiText>{formatDate(inv.dueDate)}
                     </p>
                   </div>
-                  <p className="text-xs font-bold text-ink-strong">{formatPKR(inv.totalAmount, inv.currency)}</p>
-                  <p className="text-xs font-bold text-emerald-600">{formatPKR(inv.totalAmountPaid, inv.currency)}</p>
-                  <p className="text-xs font-bold text-rose-600">{formatPKR(inv.balanceDue, inv.currency)}</p>
-                  <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg w-fit ${statusBadgeClass(inv.status)}`}>
+                  <p className="text-xs font-semibold tabular-nums text-ink-strong">{formatPKR(inv.totalAmount, inv.currency)}</p>
+                  <p className="text-xs font-semibold tabular-nums text-emerald-700">{formatPKR(inv.totalAmountPaid, inv.currency)}</p>
+                  <p className="text-xs font-semibold tabular-nums text-rose-700">{formatPKR(inv.balanceDue, inv.currency)}</p>
+                  <Badge size="sm" dot variant={INVOICE_TONE[inv.status] ?? "neutral"} className="w-fit">
                     {tr(inv.status)}
-                  </span>
+                  </Badge>
                   <div className="flex items-center gap-1 justify-end">
-                    <Button variant="secondary" size="icon" aria-label={inv.status === "PAID" ? tr("View Receipt") : tr("View Details")}
-                      type="button"
+                    <IconButton variant="secondary" size="sm" label={inv.status === "PAID" ? tr("View Receipt") : tr("View Details")}
                       onClick={() => viewDetail(inv.id)}
-                      title={inv.status === "PAID" ? tr("View Receipt") : tr("View Details")}
-                      className="flex items-center justify-center"
                     >
-                      {inv.status === "PAID" ? <Receipt className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    </Button>
+                      {inv.status === "PAID" ? <Receipt aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                    </IconButton>
                     {inv.status !== "PAID" && inv.status !== "CANCELLED" && inv.status !== "OVERDUE" && (
-                      <Button variant="secondary" size="icon" aria-label={tr("Mark as Overdue")}
-                        type="button"
+                      <IconButton variant="secondary" size="sm" label={tr("Mark as Overdue")}
                         onClick={() => handleStatusChange(inv.id, "OVERDUE")}
-                        title={tr("Mark as Overdue")}
-                        className="flex items-center justify-center"
                       >
-                        <AlertTriangle className="w-3 h-3" />
-                      </Button>
+                        <AlertTriangle aria-hidden="true" />
+                      </IconButton>
                     )}
                   </div>
                 </div>
@@ -337,15 +327,15 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                 disabled={page <= 1}
                 className="justify-start flex items-center gap-1 px-3"
               >
-                <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
-              <span className="text-2xs font-semibold uppercase text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
+                <ChevronLeft className="w-3 h-3 rtl:rotate-180" aria-hidden="true" /><UiText>{"Prev"}</UiText></Button>
+              <span className="text-xs font-medium tabular-nums text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
               </span>
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
                 className="justify-start flex items-center gap-1 px-3"
-              ><UiText>{"Next"}</UiText><ChevronRight className="w-3 h-3" />
+              ><UiText>{"Next"}</UiText><ChevronRight className="w-3 h-3 rtl:rotate-180" aria-hidden="true" />
               </Button>
             </div>
           )}
@@ -458,9 +448,9 @@ function InvoiceDetailModal({
                   {inv.student?.fullName} · {inv.student?.class?.name}
                 </p>
               </div>
-              <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg ${statusBadgeClass(inv.status)}`}>
+              <Badge size="sm" dot variant={INVOICE_TONE[inv.status] ?? "neutral"}>
                 {tr(inv.status)}
-              </span>
+              </Badge>
             </div>
 
             {inv.status === "PAID" && inv.payments?.length > 0 && (
@@ -546,7 +536,7 @@ function Row({ label, value, className, bold }: { label: string; value: string; 
   return (
     <div className="flex items-center justify-between">
       <span className="text-2xs font-semibold uppercase text-ink-subtle">{label}</span>
-      <span className={`text-sm ${bold ? "font-bold" : "font-bold"} ${className ?? "text-ink-strong"}`}>{value}</span>
+      <span className={`text-sm tabular-nums ${bold ? "font-bold" : "font-semibold"} ${className ?? "text-ink-strong"}`}>{value}</span>
     </div>
   );
 }
@@ -607,8 +597,8 @@ function GenerateInvoicesModal({
       size="xs"
       onClose={onClose}
       footer={
-        <BrandButton className="w-full h-12" onClick={handleGenerate} disabled={generating}>
-          {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+        <BrandButton className="w-full h-12" onClick={handleGenerate} disabled={generating} aria-busy={generating || undefined}>
+          {generating ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <FileText className="w-4 h-4" aria-hidden="true" />}
           {generating ? tr("Generating...") : tr("Generate Invoices")}
         </BrandButton>
       }

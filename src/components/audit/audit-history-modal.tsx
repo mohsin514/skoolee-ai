@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import type { AuditHistoryEntry, AuditHistoryPage } from "@/lib/audit-history";
 import { AUDIT_CATEGORIES, auditCategory, type AuditCategory } from "@/lib/audit-categories";
 
@@ -73,10 +76,10 @@ export function AuditHistoryModal({ onClose, initialCampusId = "" }: { onClose: 
         <FormField name="audit-from" label={t.from}><Input type="date" value={filter.from} onChange={event => setFilter(value => ({ ...value, from: event.target.value }))} /></FormField>
         <FormField name="audit-to" label={t.to}><Input type="date" value={filter.to} onChange={event => setFilter(value => ({ ...value, to: event.target.value }))} /></FormField>
       </fieldset>
-      <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="outline" disabled={loading} onClick={() => void load()}><RefreshCw aria-hidden="true" className={loading ? "animate-spin" : ""} />{t.refresh}</Button><Button variant="outline" disabled={loading || exportState === "busy"} onClick={() => void exportCsv()}><Download aria-hidden="true" />{exportState === "busy" ? t.exporting : t.export}</Button><span role="status" className="text-sm text-ink-subtle">{loading ? t.loading : `${new Intl.NumberFormat(language).format(rows.length)} ${t.loaded}`}</span></div>
-      {exportState === "denied" || exportState === "failed" ? <p role="alert" className="sk-panel border-status-error-border p-3 text-sm text-status-error-text">{exportState === "denied" ? t.exportDenied : t.exportFailed}</p> : exportState === "done" ? <p role="status" className="text-sm text-ink-subtle">{t.exported}</p> : null}
-      {error && <p role="alert" className="sk-panel border-status-error-border p-3 text-sm text-status-error-text">{t[error]}</p>}
-      {!loading && !error && rows.length === 0 && <p className="sk-panel p-5 text-sm">{t.empty}</p>}
+      <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="outline" disabled={loading} onClick={() => void load()}><RefreshCw aria-hidden="true" className={loading ? "animate-spin" : ""} />{t.refresh}</Button><Button variant="outline" loading={exportState === "busy"} disabled={loading || exportState === "busy"} onClick={() => void exportCsv()}><Download aria-hidden="true" />{exportState === "busy" ? t.exporting : t.export}</Button><span role="status" className="text-sm text-ink-subtle">{loading ? t.loading : `${new Intl.NumberFormat(language).format(rows.length)} ${t.loaded}`}</span></div>
+      {exportState === "denied" || exportState === "failed" ? <Alert tone="danger" compact live="assertive">{exportState === "denied" ? t.exportDenied : t.exportFailed}</Alert> : exportState === "done" ? <p role="status" className="text-sm text-ink-subtle">{t.exported}</p> : null}
+      {error && <ErrorState description={t[error]} onRetry={() => void load()} retryLabel={t.refresh} />}
+      {!loading && !error && rows.length === 0 && <EmptyState size="sm" icon={History} title={t.empty} />}
       <ol className="space-y-3">{rows.map(row => <li key={row.id} className="sk-panel space-y-2 p-4"><div className="flex flex-wrap justify-between gap-2"><strong>{t[row.action]} · {typeLabel(row.tableName)}</strong><time dateTime={row.createdAt} className="text-xs text-ink-subtle">{new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(row.createdAt))}</time></div><p className="text-sm">{t.actor}: <bdi>{row.actor?.fullName ?? t.system}</bdi></p><p className="break-all text-xs text-ink-subtle">{t.record}: <bdi>{row.recordId}</bdi></p>{row.changes.length ? <dl className="space-y-1 text-sm">{row.changes.map(change => <div key={change.field} className="flex flex-wrap gap-2"><dt>{t[change.field as "version"] ?? change.field}:</dt><dd><bdi>{change.before ?? t.none}</bdi> → <bdi>{change.after ?? t.none}</bdi></dd></div>)}</dl> : <p className="text-xs text-ink-subtle">{t.details}</p>}</li>)}</ol>
       {page?.nextCursor && <Button variant="outline" disabled={loading} onClick={() => void load(page.nextCursor!, true)}>{t.more}</Button>}
     </div>

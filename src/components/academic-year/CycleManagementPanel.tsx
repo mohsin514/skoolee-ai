@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock,
+  Activity, ArrowRight, CheckCircle2, Clock,
   Pause, Play, Plus, XCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
@@ -13,6 +13,8 @@ import { YearClosureChecklist } from "@/components/academic/YearClosureChecklist
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 
 
 interface Cycle {
@@ -25,11 +27,11 @@ interface Cycle {
   createdAt: string;
 }
 
-const statusConfig: Record<string, { color: string; bg: string; icon: typeof Activity; label: string }> = {
-  DRAFT: { color: "text-blue-700", bg: "bg-blue-50 border-blue-200/40", icon: Clock, label: "Draft" },
-  ACTIVE: { color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/40", icon: CheckCircle2, label: "Active" },
-  PAUSED: { color: "text-amber-700", bg: "bg-amber-50 border-amber-200/40", icon: Pause, label: "Paused" },
-  ENDED: { color: "text-gray-600", bg: "bg-gray-50 border-gray-200/40", icon: XCircle, label: "Ended" },
+const statusConfig: Record<string, { color: string; bg: string; icon: typeof Activity; label: string; badge: "info" | "success" | "warning" | "neutral" }> = {
+  DRAFT: { color: "text-status-info-text", bg: "bg-status-info-surface", icon: Clock, label: "Draft", badge: "info" },
+  ACTIVE: { color: "text-status-success-text", bg: "bg-status-success-surface", icon: CheckCircle2, label: "Active", badge: "success" },
+  PAUSED: { color: "text-status-warning-text", bg: "bg-status-warning-surface", icon: Pause, label: "Paused", badge: "warning" },
+  ENDED: { color: "text-ink-muted", bg: "bg-surface-subtle", icon: XCircle, label: "Ended", badge: "neutral" },
 };
 
 export function CycleManagementPanel({
@@ -150,16 +152,16 @@ export function CycleManagementPanel({
     <div className="space-y-6">
       {/* Active cycle highlight */}
       {activeCycle && (
-        <div className="sk-rise rounded-[28px] border border-emerald-200/30 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 shadow-sm">
+        <div className="sk-panel sk-gradient-border sk-rise p-6 shadow-md" style={{ animationDelay: "80ms" }}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-status-success-surface text-status-success-text shadow-sm">
                 <Activity className="h-7 w-7" />
               </div>
               <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-600/70">Current Active Cycle</p>
+                <p className="sk-eyebrow text-status-success-text">Current Active Cycle</p>
                 <h3 className="text-xl font-bold text-ink-strong tracking-tight">{activeCycle.label}</h3>
-                <p className="text-xs font-semibold text-ink-muted mt-0.5">
+                <p className="text-xs font-normal text-ink-muted mt-0.5">
                   Academic Year {activeCycle.academicYear}
                   {activeCycle.startDate && ` · Started ${new Date(activeCycle.startDate).toLocaleDateString()}`}
                 </p>
@@ -196,20 +198,9 @@ export function CycleManagementPanel({
       )}
 
       {!activeCycle && (
-        <div className="sk-rise rounded-[28px] border border-rose-200/30 bg-gradient-to-br from-rose-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-500 shadow-sm">
-              <AlertTriangle className="h-7 w-7" />
-            </div>
-            <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-rose-500/70">No Active Cycle</p>
-              <h3 className="text-lg font-bold text-ink-strong tracking-tight">Teachers cannot operate without an active cycle</h3>
-              <p className="text-xs font-semibold text-ink-muted mt-0.5">
-                Create and activate a cycle to allow attendance, marks entry, and reports.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert tone="danger" title="No active cycle — teachers cannot operate without one" live="off" className="sk-rise">
+          Create and activate a cycle to allow attendance, marks entry, and reports.
+        </Alert>
       )}
 
       {/* Create new cycle */}
@@ -273,13 +264,13 @@ export function CycleManagementPanel({
               <div
                 key={cycle.id}
                 className={cn(
-                  "sk-rise flex items-center justify-between rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-200",
-                  isActive ? "border-emerald-200/40 ring-1 ring-emerald-100" : "border-edge/15 hover:border-primary/15 hover:shadow-md"
+                  "sk-panel sk-rise sk-hover-lift flex flex-wrap items-center justify-between gap-3 p-4",
+                  isActive && "border-status-success-border ring-1 ring-status-success-border"
                 )}
                 style={{ animationDelay: `${i * 60}ms` }}
               >
-                <div className="flex items-center gap-4">
-                  <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", config.bg)}>
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", config.bg)}>
                     <Icon className={cn("h-5 w-5", config.color)} />
                   </div>
                   <div>
@@ -293,10 +284,9 @@ export function CycleManagementPanel({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-2xs font-semibold uppercase tracking-wide", config.bg, config.color)}>
-                    <Icon className="h-3 w-3" />
+                  <Badge size="sm" dot variant={config.badge}>
                     {config.label}
-                  </span>
+                  </Badge>
 
                   {cycle.status === "DRAFT" && (
                     <Button variant="default" size="sm"

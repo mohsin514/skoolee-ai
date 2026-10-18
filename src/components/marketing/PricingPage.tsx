@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Alert } from "@/components/ui/alert";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { ANNUAL_DISCOUNT, PLAN_ORDER, PLANS, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
@@ -13,7 +14,7 @@ type Language = "en" | "ar" | "ur";
 type PricingCopy = {
   title: string; description: string; country: string; language: string; currency: string; priceCurrency: string; featureList: string;
   monthly: string; annual: string; save: string; billedMonthly: string; billedAnnual: string; free: string;
-  custom: string; students: string; teachers: string; campuses: string; credits: string; rollover: string;
+  custom: string; perMonth: string; perYear: string; students: string; teachers: string; campuses: string; credits: string; rollover: string;
   regional: string; trial: string; sales: string; version: string; example: string; unlimited: string;
   countryNames: Record<Country, string>; planNames: Record<PlanType, string>;
 };
@@ -32,7 +33,7 @@ const copy = {
     billedMonthly: "per month, billed monthly",
     billedAnnual: "per month, billed annually",
     free: "Free",
-    custom: "Contact for a quote",
+    custom: "Contact for a quote", perMonth: "/mo", perYear: "/yr",
     featureList: "Plan capabilities are limited to the features available for this plan.",
     students: "Students",
     teachers: "Teacher accounts",
@@ -61,7 +62,7 @@ const copy = {
     billedMonthly: "شهريًا، مع فوترة شهرية",
     billedAnnual: "شهريًا، مع فوترة سنوية",
     free: "مجاني",
-    custom: "اطلب عرض سعر",
+    custom: "اطلب عرض سعر", perMonth: "/شهر", perYear: "/سنة",
     featureList: "تقتصر إمكانات الخطة على الميزات المتاحة لهذه الخطة.",
     students: "الطلاب",
     teachers: "حسابات المعلمين",
@@ -90,7 +91,7 @@ const copy = {
     billedMonthly: "ماہانہ ادائیگی",
     billedAnnual: "سالانہ ادائیگی، ماہانہ اوسط",
     free: "مفت",
-    custom: "قیمت کے لیے رابطہ کریں",
+    custom: "قیمت کے لیے رابطہ کریں", perMonth: "/ماہ", perYear: "/سال",
     featureList: "پلان کی سہولتیں اسی پلان میں دستیاب خصوصیات تک محدود ہیں۔",
     students: "طلبہ",
     teachers: "اساتذہ کے اکاؤنٹس",
@@ -130,18 +131,18 @@ export function PricingPage() {
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary">{t.version} · {COMMERCIAL_CONTRACT.version}</p>
-            <h1 className="mt-3 max-w-3xl text-3xl font-extrabold leading-tight sm:text-5xl">{t.title}</h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-[#554c5b]">{t.description}</p>
+            <p className="sk-eyebrow text-primary">{t.version} · {COMMERCIAL_CONTRACT.version}</p>
+            <h1 className="mt-3 max-w-3xl text-3xl font-extrabold leading-tight tracking-tight text-ink-strong sm:text-5xl">{t.title}</h1>
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink-muted">{t.description}</p>
           </div>
           <div className="grid gap-3 rounded-2xl border border-border-subtle bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-1">
-            <label className="grid gap-1.5 text-sm font-bold">
+            <label className="grid gap-1.5 text-sm font-semibold text-ink-strong">
               {t.country}
               <Select value={country} onChange={(event) => setCountry(event.target.value as Country)}>
                 {COUNTRIES.map((item) => <option key={item} value={item}>{t.countryNames[item]}</option>)}
               </Select>
             </label>
-            <label className="grid gap-1.5 text-sm font-bold">
+            <label className="grid gap-1.5 text-sm font-semibold text-ink-strong">
               {t.language}
               <Select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
                 <option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option>
@@ -151,13 +152,13 @@ export function PricingPage() {
         </div>
 
         <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border-subtle bg-white p-4">
-          <p className="text-sm font-semibold">{t.currency}: <bdi>{regionalCurrency}</bdi> <span className="mx-2 text-[#9a8ea0]">·</span> {t.priceCurrency}: <bdi>{COMMERCIAL_CONTRACT.currency}</bdi></p>
-          <div className="inline-flex rounded-full border border-[#d7c5df] bg-brand-50 p-1" role="group" aria-label={`${t.monthly} / ${t.annual}`}>
+          <p className="text-sm font-semibold">{t.currency}: <bdi>{regionalCurrency}</bdi> <span className="mx-2 text-ink-subtle">·</span> {t.priceCurrency}: <bdi>{COMMERCIAL_CONTRACT.currency}</bdi></p>
+          <div className="inline-flex rounded-full border border-edge bg-brand-50 p-1" role="group" aria-label={`${t.monthly} / ${t.annual}`}>
             {(["monthly", "annual"] as const).map((value) => <Button key={value} type="button" variant={period === value ? "default" : "ghost"} aria-pressed={period === value} onClick={() => setPeriod(value)} className="rounded-full">{value === "monthly" ? t.monthly : t.annual}{value === "annual" && <span className="ms-2 text-xs">({t.save} {Math.round(ANNUAL_DISCOUNT * 100)}%)</span>}</Button>)}
           </div>
         </div>
 
-        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">{t.regional} {t.rollover}</p>
+        <Alert tone="warning" live="off" className="mt-4">{t.regional} {t.rollover}</Alert>
 
         <section aria-label={t.title} className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {PLAN_ORDER.map((key) => {
@@ -165,16 +166,16 @@ export function PricingPage() {
             const monthly = plan.price === null ? null : period === "annual" ? annualMonthlyPrice(plan.price) : plan.price;
             const annualTotal = plan.price === null ? null : Math.round(plan.price * (1 - ANNUAL_DISCOUNT) * 12);
             return (
-              <article key={key} className="flex min-w-0 flex-col rounded-2xl border border-[#e3d4e9] bg-white p-5 shadow-sm">
+              <article key={key} className="sk-panel sk-hover-lift flex min-w-0 flex-col p-5">
                 <h2 className="text-lg font-bold text-primary">{t.planNames[key]}</h2>
                 <div className="mt-4 min-h-16">
-                  {plan.isCustom ? <p className="text-xl font-bold">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-extrabold">{t.free}</p> : <><p className="text-3xl font-extrabold"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-ink-muted">/mo</span></p><p className="mt-1 text-xs text-ink-muted">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}/yr` : t.billedMonthly}</p></>}
+                  {plan.isCustom ? <p className="text-xl font-bold tracking-tight text-ink-strong">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong">{t.free}</p> : <><p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-ink-muted">{t.perMonth}</span></p><p className="mt-1 text-xs text-ink-muted">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}${t.perYear}` : t.billedMonthly}</p></>}
                 </div>
                 <dl className="mt-4 space-y-3 border-y border-[#eee5f1] py-4 text-sm">
-                  <div className="flex justify-between gap-3"><dt>{t.students}</dt><dd className="font-bold">{formatLimit(plan.maxStudents)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt>{t.teachers}</dt><dd className="font-bold">{formatLimit(plan.maxTeachers)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt>{t.campuses}</dt><dd className="font-bold">{formatLimit(plan.maxCampuses)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt>{t.credits}</dt><dd className="font-bold">{formatLimit(plan.aiCredits)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt>{t.students}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxStudents)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt>{t.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxTeachers)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt>{t.campuses}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxCampuses)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt>{t.credits}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.aiCredits)}</dd></div>
                 </dl>
                 <p className="mt-4 text-xs leading-5 text-[#63566a]">{t.featureList}</p>
                 <div className="mt-auto pt-5">

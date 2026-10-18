@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -83,7 +84,7 @@ export function ScenarioPlanner() {
       </div>
       <div aria-live="polite">
         {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
-        {notice ? <p role="status" className="text-sm font-semibold text-emerald-800">{notice}</p> : null}
+        {notice ? <Alert tone="success" compact>{notice}</Alert> : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3 text-sm">

@@ -3,6 +3,7 @@
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import React from "react";
 import {
   ArrowDownWideNarrow,
@@ -238,9 +239,9 @@ export function ExamTableView({
                         {action.label}
                       </Button>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-                        <CheckCircle2 className="h-3 w-3" /> Done
-                      </span>
+                      <Badge variant="success">
+                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Done
+                      </Badge>
                     )}
                   </div>
                 </TableCell>

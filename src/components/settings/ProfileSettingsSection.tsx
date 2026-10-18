@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Camera, Loader2, Lock, Mail, RotateCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { Camera, Lock, Mail, RotateCcw, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { AnnouncementPreferencesPanel } from "@/components/school-ai/announcement-preferences-panel";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { AvatarImage } from "@/components/ui/avatar-image";
@@ -168,8 +168,8 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
         {dirty ? (
           <Button type="button" variant="ghost" disabled={saving} onClick={() => { setForm(baseline!); setMessage(null); setNameError(""); }}>{t("Discard changes")}</Button>
         ) : null}
-        <Button type="submit" disabled={saving || !dirty} aria-busy={saving}>
-          {saving ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <Save aria-hidden="true" />}
+        <Button type="submit" disabled={!dirty} loading={saving}>
+          {saving ? null : <Save aria-hidden="true" />}
           {t(saving ? "Saving…" : "Save changes")}
         </Button>
       </div>

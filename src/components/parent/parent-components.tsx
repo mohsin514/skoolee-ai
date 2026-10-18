@@ -10,12 +10,12 @@ export function ParentErrorState({ error, onRetry }: { error?: string | null; on
   return (
     <section className="flex-1 flex flex-col items-center justify-center p-8">
       <div className="w-full max-w-md text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
-          <AlertCircle className="h-8 w-8" />
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-status-error-surface text-status-error-text">
+          <AlertCircle className="h-8 w-8" aria-hidden="true" />
         </div>
         <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Something went wrong</p>
         <h2 className="mt-2 text-2xl font-bold text-ink-strong tracking-tight">Couldn&apos;t load your portal</h2>
-        <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
+        <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
           {error || "This link may have expired. Please contact the school for a new access link."}
         </p>
         <div className="mt-6 inline-block">

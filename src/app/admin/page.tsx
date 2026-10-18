@@ -490,7 +490,7 @@ export default function CampusAdminDashboard() {
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       toast.success(ui("Class teacher updated"));
-      (result.clashes || []).forEach((c: any) => toast.warning(c.message));
+      (result.clashes || []).forEach((c: any) => toast.warning(c?.teacherName && c?.label ? ui("{0} already teaches at {1}", [c.teacherName, c.label]) : ui("This teacher already has a lesson at this time")));
       setSelectedClass((current: any) =>
         current?.id === classId
           ? { ...current, classTeacher: result.data?.classTeacher || null, _count: result.data?._count || current._count }
@@ -655,7 +655,7 @@ export default function CampusAdminDashboard() {
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       toast.success(ui("Subject teacher updated"));
-      (result.clashes || []).forEach((c: any) => toast.warning(c.message));
+      (result.clashes || []).forEach((c: any) => toast.warning(c?.teacherName && c?.label ? ui("{0} already teaches at {1}", [c.teacherName, c.label]) : ui("This teacher already has a lesson at this time")));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
     } catch (error) {
@@ -679,7 +679,7 @@ export default function CampusAdminDashboard() {
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       toast.success(mode === "SINGLE" ? ui("All subjects now follow the class teacher") : ui("Each subject can now have its own teacher"));
-      (result.clashes || []).forEach((c: any) => toast.warning(c.message));
+      (result.clashes || []).forEach((c: any) => toast.warning(c?.teacherName && c?.label ? ui("{0} already teaches at {1}", [c.teacherName, c.label]) : ui("This teacher already has a lesson at this time")));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
     } catch (error) {
@@ -1057,7 +1057,7 @@ export default function CampusAdminDashboard() {
 
   if (loading && !data) {
     return (
-      <RoleShellSkeleton navRows={9} label="Loading the campus command centre">
+      <RoleShellSkeleton navRows={9} label={ui("Loading the campus command centre")}>
         <CommandCentreSkeleton />
       </RoleShellSkeleton>
     );

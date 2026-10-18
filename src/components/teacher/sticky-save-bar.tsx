@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Loader2, RotateCcw, Save } from "lucide-react";
+import { RotateCcw, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -143,9 +143,9 @@ export function StickySaveBar({
           type="button"
           onClick={onSave}
           disabled={saving || blocked}
+          loading={saving}
           className="inline-flex min-w-[132px] items-center justify-center gap-2 focus-on-dark"
         >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {saving ? savingLabel : saveLabel}
         </Button>
         </span>

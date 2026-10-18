@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useLocale } from "@/components/locale/LocaleProvider";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { fill, getObjectiveMapCopy, type ObjectiveMapCopy } from "./objective-map-copy";
 
 // SKO-406 objective map. Planned, taught and assessed stay separate columns with their evidence;
@@ -73,9 +77,9 @@ export function ObjectiveMap() {
     return true;
   }), [view, q, filter]);
 
-  const banner = status && <p role="status" className={`rounded-xl border px-3 py-2 text-sm ${status.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{status.text}</p>;
-  if (list && !list.length) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner}<p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-600">{t.noCurricula}</p></div>;
-  if (!list || !view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner ?? <p className="text-sm text-slate-600" aria-live="polite">{t.loading}</p>}</div>;
+  const banner = status && <Alert tone={status.tone === "ok" ? "success" : "danger"} live="polite" compact>{status.text}</Alert>;
+  if (list && !list.length) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner}<EmptyState title={t.noCurricula} /></div>;
+  if (!list || !view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner ?? <SkeletonList rows={4} label={t.loading} />}</div>;
 
   const byId = (id: string) => view.objectives.find(objective => objective.id === id);
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-5">
@@ -86,24 +90,24 @@ export function ObjectiveMap() {
     </div>
     {banner}
 
-    <section aria-label={t.pack} className="grid gap-2 rounded-xl border bg-white p-4 text-sm">
-      <h2 className="text-base font-semibold">{t.pack}</h2>
+    <section aria-label={t.pack} className="grid gap-2 sk-panel p-4 text-sm">
+      <h2 className="text-base font-semibold text-ink-strong">{t.pack}</h2>
       <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-4">
-        <div><dt className="text-xs text-slate-500">{t.board}</dt><dd dir="auto">{view.pack.board}</dd></div>
-        <div><dt className="text-xs text-slate-500">{t.year}</dt><dd dir="auto">{view.pack.academicYear}</dd></div>
-        <div><dt className="text-xs text-slate-500">{t.edition}</dt><dd dir="auto">{view.pack.edition ?? "—"}</dd></div>
-        <div><dt className="text-xs text-slate-500">{t.authority}</dt><dd dir="auto">{view.pack.authority ?? "—"}</dd></div>
+        <div><dt className="text-xs text-ink-subtle">{t.board}</dt><dd dir="auto">{view.pack.board}</dd></div>
+        <div><dt className="text-xs text-ink-subtle">{t.year}</dt><dd dir="auto">{view.pack.academicYear}</dd></div>
+        <div><dt className="text-xs text-ink-subtle">{t.edition}</dt><dd dir="auto">{view.pack.edition ?? "—"}</dd></div>
+        <div><dt className="text-xs text-ink-subtle">{t.authority}</dt><dd dir="auto">{view.pack.authority ?? "—"}</dd></div>
       </dl>
-      <p><span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${view.pack.rights === "APPROVED" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>{view.pack.rights ? t.rights[view.pack.rights] : t.rightsUnknown}</span></p>
-      <p className="text-xs text-slate-600">{t.sources}: {view.pack.sources.map(source => source.title).join(" · ")}</p>
+      <p><Badge dot variant={view.pack.rights === "APPROVED" ? "success" : "warning"}>{view.pack.rights ? t.rights[view.pack.rights] : t.rightsUnknown}</Badge></p>
+      <p className="text-xs text-ink-muted">{t.sources}: {view.pack.sources.map(source => source.title).join(" · ")}</p>
     </section>
 
-    {view.structureIssues.length > 0 && <section role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"><p className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" aria-hidden />{t.structure}</p><ul className="mt-1 list-disc ps-5">{view.structureIssues.map(issue => <li key={issue}>{issue}</li>)}</ul></section>}
+    {view.structureIssues.length > 0 && <Alert tone="danger" icon={AlertTriangle} title={t.structure}><ul className="mt-1 list-disc ps-5">{view.structureIssues.map(issue => <li key={issue}>{issue}</li>)}</ul></Alert>}
 
     <section aria-labelledby="objectives-heading" className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 id="objectives-heading" className="text-base font-semibold">{t.objectives}</h2><p className="text-xs text-slate-600">{t.noMastery}</p></div>
-        <div className="grid grid-cols-2 gap-2">
+        <div><h2 id="objectives-heading" className="text-base font-semibold text-ink-strong">{t.objectives}</h2><p className="text-xs text-ink-muted">{t.noMastery}</p></div>
+        <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
           <label className="grid gap-1 text-xs font-semibold">{t.search}<Input type="search" value={q} onChange={event => setQ(event.target.value)} /></label>
           <label className="grid gap-1 text-xs font-semibold">{t.filter}<Select value={filter} onChange={event => setFilter(event.target.value as typeof filter)}>
             {(["all", "notTaught", "notAssessed"] as const).map(value => <option key={value} value={value}>{t.filters[value]}</option>)}</Select></label>
@@ -112,29 +116,29 @@ export function ObjectiveMap() {
       <ul className="grid gap-3" aria-label={t.objectives}>{rows.map(objective => <ObjectiveRow key={objective.id} t={t} objective={objective} coverage={view.coverage.find(row => row.outcomeId === objective.id)!} prerequisites={objective.prerequisiteIds.map(byId).filter(Boolean) as Objective[]} language={language} label={label} />)}</ul>
     </section>
 
-    <section aria-labelledby="compare-heading" className="space-y-3 rounded-xl border bg-white p-4">
+    <section aria-labelledby="compare-heading" className="space-y-3 sk-panel p-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 id="compare-heading" className="text-base font-semibold">{t.compare}</h2>
+        <h2 id="compare-heading" className="text-base font-semibold text-ink-strong">{t.compare}</h2>
         {view.versions.some(row => row.version < view.record.version) && <label className="grid gap-1 text-xs font-semibold">{t.compareWith}<Select value={compareTo || String(view.comparison?.from ?? "")} onChange={event => setCompareTo(event.target.value)}>
           {view.versions.filter(row => row.version < view.record.version).map(row => <option key={row.version} value={row.version}>v{row.version}</option>)}</Select></label>}
       </div>
-      {!view.comparison ? <p className="text-sm text-slate-600">{t.noCompare}</p> : <>
-        <ul className="grid gap-2 text-sm">{view.comparison.changes.map(change => <li key={change.outcomeId} className="rounded-lg bg-slate-50 px-3 py-2">
-          <span className={`me-2 rounded-full border px-2 py-0.5 text-xs font-semibold ${change.change === "ADDED" ? "border-emerald-300" : change.change === "RETIRED" ? "border-rose-300" : "border-amber-300"}`}>{t[change.change === "ADDED" ? "added" : change.change === "CHANGED" ? "changed" : "retired"]}</span>
-          {change.change === "CHANGED" ? <><s className="text-slate-500">{label(change.before)}</s> → {label(change.after)}</> : label(change.after ?? change.before)}
+      {!view.comparison ? <p className="text-sm text-ink-muted">{t.noCompare}</p> : <>
+        <ul className="grid gap-2 text-sm">{view.comparison.changes.map(change => <li key={change.outcomeId} className="rounded-lg bg-surface-subtle px-3 py-2">
+          <Badge size="sm" className="me-2" variant={change.change === "ADDED" ? "success" : change.change === "RETIRED" ? "danger" : "warning"}>{t[change.change === "ADDED" ? "added" : change.change === "CHANGED" ? "changed" : "retired"]}</Badge>
+          {change.change === "CHANGED" ? <><s className="text-ink-subtle">{label(change.before)}</s> → {label(change.after)}</> : label(change.after ?? change.before)}
         </li>)}</ul>
         <h3 className="text-sm font-semibold">{t.impact}</h3>
-        <p className="text-xs font-semibold text-slate-600">{t.affectedPapers}</p>
-        {view.comparison.impact.affected.length ? <ul className="grid gap-1 text-sm">{view.comparison.impact.affected.map(paper => <li key={paper.paperId} dir="auto">{paper.title} · v{paper.curriculumVersion} · {fill(t.questions, { n: paper.questions.length })}</li>)}</ul> : <p className="text-sm text-slate-600">{t.noAffected}</p>}
-        {view.comparison.impact.preserved.length > 0 && <p className="text-sm text-slate-600">{t.preserved} ({view.comparison.impact.preserved.length})</p>}
+        <p className="text-xs font-semibold text-ink-muted">{t.affectedPapers}</p>
+        {view.comparison.impact.affected.length ? <ul className="grid gap-1 text-sm">{view.comparison.impact.affected.map(paper => <li key={paper.paperId} dir="auto">{paper.title} · v{paper.curriculumVersion} · {fill(t.questions, { n: paper.questions.length })}</li>)}</ul> : <p className="text-sm text-ink-muted">{t.noAffected}</p>}
+        {view.comparison.impact.preserved.length > 0 && <p className="text-sm text-ink-muted">{t.preserved} ({view.comparison.impact.preserved.length})</p>}
       </>}
     </section>
 
-    <section aria-labelledby="unmapped-heading" className="space-y-2 rounded-xl border bg-white p-4 text-sm">
-      <h2 id="unmapped-heading" className="text-base font-semibold">{t.unmapped}</h2>
-      {!view.unmapped.questions.length && !view.unmapped.resources.length ? <p className="text-slate-600">{t.allMapped}</p> : <>
-        {view.unmapped.questions.length > 0 && <><p className="text-xs font-semibold text-slate-600">{t.unmappedQuestions}</p><ul className="grid gap-1">{view.unmapped.questions.map(row => <li key={`${row.paperId}:${row.questionId}`} dir="auto">{row.paperTitle} · {row.prompt}</li>)}</ul></>}
-        {view.unmapped.resources.length > 0 && <><p className="text-xs font-semibold text-slate-600">{t.unmappedResources}</p><ul className="grid gap-1">{view.unmapped.resources.map(row => <li key={row.id} dir="auto">{row.title}</li>)}</ul></>}
+    <section aria-labelledby="unmapped-heading" className="space-y-2 sk-panel p-4 text-sm">
+      <h2 id="unmapped-heading" className="text-base font-semibold text-ink-strong">{t.unmapped}</h2>
+      {!view.unmapped.questions.length && !view.unmapped.resources.length ? <p className="text-ink-muted">{t.allMapped}</p> : <>
+        {view.unmapped.questions.length > 0 && <><p className="text-xs font-semibold text-ink-muted">{t.unmappedQuestions}</p><ul className="grid gap-1">{view.unmapped.questions.map(row => <li key={`${row.paperId}:${row.questionId}`} dir="auto">{row.paperTitle} · {row.prompt}</li>)}</ul></>}
+        {view.unmapped.resources.length > 0 && <><p className="text-xs font-semibold text-ink-muted">{t.unmappedResources}</p><ul className="grid gap-1">{view.unmapped.resources.map(row => <li key={row.id} dir="auto">{row.title}</li>)}</ul></>}
       </>}
     </section>
 
@@ -147,14 +151,14 @@ function ObjectiveRow({ t, objective, coverage, prerequisites, language, label }
   const taught = coverage.taught.sections.length, assessed = coverage.assessed.releases.length, planned = coverage.planned.topics.length;
   const line = taught && assessed ? t.statusLine.both : taught ? fill(t.statusLine.taughtOnly, { n: taught }) : assessed ? t.statusLine.assessedOnly : planned ? t.statusLine.plannedOnly : t.statusLine.nothing;
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(`${value}T00:00:00Z`));
-  const cell = (name: string, value: number, text: string) => <div className="rounded-lg bg-slate-50 px-2 py-1"><dt className="text-2xs text-slate-500">{name}</dt><dd className={`text-sm font-semibold ${value ? "" : "text-slate-500"}`}>{value ? text : t.none}</dd></div>;
-  return <li className="rounded-xl border bg-white p-4">
+  const cell = (name: string, value: number, text: string) => <div className="rounded-lg bg-surface-subtle px-2 py-1"><dt className="text-2xs text-ink-subtle">{name}</dt><dd className={`text-sm font-semibold ${value ? "" : "text-ink-subtle"}`}>{value ? text : t.none}</dd></div>;
+  return <li className="sk-panel p-4">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div className="min-w-0"><p className="font-semibold">{label(objective)}</p>
-        {objective.description && <p className="text-sm text-slate-700" dir="auto">{objective.description}</p>}
-        {prerequisites.length > 0 && <p className="text-xs text-slate-500">{t.prerequisites}: {prerequisites.map((item, index) => <span key={item.id}>{index ? ", " : ""}{label(item)}</span>)}</p>}
+        {objective.description && <p className="text-sm text-ink" dir="auto">{objective.description}</p>}
+        {prerequisites.length > 0 && <p className="text-xs text-ink-subtle">{t.prerequisites}: {prerequisites.map((item, index) => <span key={item.id}>{index ? ", " : ""}{label(item)}</span>)}</p>}
       </div>
-      {!objective.included && <span className="rounded-full border px-2 py-0.5 text-xs">{t.notIncluded}</span>}
+      {!objective.included && <Badge variant="neutral" size="sm">{t.notIncluded}</Badge>}
     </div>
     <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
       {cell(t.planned, planned, fill(t.topics, { n: planned }))}
@@ -163,7 +167,7 @@ function ObjectiveRow({ t, objective, coverage, prerequisites, language, label }
       {cell(t.resources, coverage.resources.length, fill(t.resourceCount, { n: coverage.resources.length }))}
     </dl>
     <p className="mt-2 text-sm">{line}</p>
-    <Button variant="ghost" type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-indigo-700"><ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />{t.evidence}</Button>
+    <Button variant="ghost" type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-primary"><ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />{t.evidence}</Button>
     {open && <div className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
       <Evidence title={t.plannedEvidence} items={coverage.planned.topics.map(topic => ({ key: topic.id, text: topic.title }))} none={t.none} />
       <Evidence title={t.taughtEvidence} items={coverage.taught.sections.map(row => ({ key: row.section, text: `${row.section} · ${fill(t.taughtOn, { date: date(row.taughtOn) })}` }))} none={t.none} />
@@ -175,7 +179,7 @@ function ObjectiveRow({ t, objective, coverage, prerequisites, language, label }
 }
 
 function Evidence({ title, items, none }: { title: string; items: Array<{ key: string; text: string }>; none: string }) {
-  return <div><p className="text-xs font-semibold text-slate-600">{title}</p>{items.length ? <ul className="list-disc ps-5">{items.map(item => <li key={item.key} dir="auto">{item.text}</li>)}</ul> : <p className="text-xs text-ink-subtle">{none}</p>}</div>;
+  return <div><p className="text-xs font-semibold text-ink-muted">{title}</p>{items.length ? <ul className="list-disc ps-5">{items.map(item => <li key={item.key} dir="auto">{item.text}</li>)}</ul> : <p className="text-xs text-ink-subtle">{none}</p>}</div>;
 }
 
 function MappingPanel({ t, view, label, onSaved, onError }: { t: ObjectiveMapCopy; view: MapView; label: (o?: Pick<Objective, "code" | "title">) => React.ReactNode; onSaved: () => Promise<void>; onError: (text: string) => void }) {
@@ -194,10 +198,10 @@ function MappingPanel({ t, view, label, onSaved, onError }: { t: ObjectiveMapCop
     } catch (error) { onError(error instanceof Error ? error.message : t.failed); }
     finally { setBusy(false); }
   };
-  return <section aria-labelledby="mapping-heading" className="space-y-3 rounded-xl border bg-white p-4 text-sm">
-    <h2 id="mapping-heading" className="text-base font-semibold">{t.mappings}</h2>
-    <p className="text-slate-600">{t.mappingHelp}</p>
-    {!view.canDecide ? <p className="text-slate-600">{t.leadOnly}</p> : <form onSubmit={submit} aria-label={t.mappings} className="grid gap-3 sm:grid-cols-2">
+  return <section aria-labelledby="mapping-heading" className="space-y-3 sk-panel p-4 text-sm">
+    <h2 id="mapping-heading" className="text-base font-semibold text-ink-strong">{t.mappings}</h2>
+    <p className="text-ink-muted">{t.mappingHelp}</p>
+    {!view.canDecide ? <p className="text-ink-muted">{t.leadOnly}</p> : <form onSubmit={submit} aria-label={t.mappings} className="grid gap-3 sm:grid-cols-2">
       <label className="grid gap-1 text-xs font-semibold">{t.from}<Select name="from" required defaultValue=""><option value="" disabled>{t.choose}</option>{view.objectives.map(row => <option key={row.id} value={row.id}>{row.code ? `${row.code} · ` : ""}{row.title}</option>)}</Select></label>
       <label className="grid gap-1 text-xs font-semibold">{t.target}<Select value={targetId} required onChange={event => setTargetId(event.target.value)}><option value="" disabled>{t.choose}</option>{view.mappingTargets.map(item => <option key={item.id} value={item.id}>{item.title} · {item.board} · v{item.version}</option>)}</Select></label>
       <label className="grid gap-1 text-xs font-semibold">{t.targetObjective}<Select name="to" required defaultValue="" key={targetId} disabled={!target}><option value="" disabled>{t.choose}</option>{target?.objectives.map(row => <option key={row.id} value={row.id}>{row.code ? `${row.code} · ` : ""}{row.title}</option>)}</Select></label>
@@ -207,9 +211,9 @@ function MappingPanel({ t, view, label, onSaved, onError }: { t: ObjectiveMapCop
       <div className="sm:col-span-2"><Button type="submit" disabled={busy || !target}>{t.record}</Button></div>
     </form>}
     <h3 className="text-sm font-semibold">{t.decisions}</h3>
-    {view.mappings.length ? <ul className="grid gap-2">{view.mappings.map(row => <li key={row.id} className="rounded-lg bg-slate-50 px-3 py-2">
-      {label(describe(row.fromRecordId, row.fromOutcomeId))} <span className="mx-1 rounded-full border px-2 py-0.5 text-xs font-semibold">{t.relations[row.relation]}</span> {label(describe(row.toRecordId, row.toOutcomeId))}
-      {row.note && <p className="text-xs text-slate-600" dir="auto">{row.note}</p>}
-    </li>)}</ul> : <p className="text-slate-600">{t.noDecisions}</p>}
+    {view.mappings.length ? <ul className="grid gap-2">{view.mappings.map(row => <li key={row.id} className="rounded-lg bg-surface-subtle px-3 py-2">
+      {label(describe(row.fromRecordId, row.fromOutcomeId))} <Badge variant="outline" size="sm" className="mx-1">{t.relations[row.relation]}</Badge> {label(describe(row.toRecordId, row.toOutcomeId))}
+      {row.note && <p className="text-xs text-ink-muted" dir="auto">{row.note}</p>}
+    </li>)}</ul> : <p className="text-ink-muted">{t.noDecisions}</p>}
   </section>;
 }

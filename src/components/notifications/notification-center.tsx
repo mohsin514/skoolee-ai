@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, AtSign, Bell, CheckCircle2, ClipboardList, Eye, Reply } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
@@ -71,14 +74,14 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
   return <div data-notification-center>
     <div role="tablist" aria-label={ui("Notification views")} className="flex gap-1 border-b border-border px-3 pt-2">
       {TABS.map(item => <Button variant="ghost" key={item.key} role="tab" type="button" aria-selected={tab === item.key} onClick={() => { setItems(null); setTab(item.key); }}
-        className={cn("flex items-center gap-1 rounded-t-lg px-3 py-2 text-xs font-bold", tab === item.key ? "border-b-2 border-primary text-primary" : "text-ink-muted")} data-tab={item.key}>
-        {ui(item.label)}{badge(item.key) ? <span className="rounded-full bg-muted px-1.5 text-2xs" data-tab-count={badge(item.key)}>{badge(item.key)}</span> : null}
+        className={cn("flex items-center gap-1 rounded-t-lg px-3 py-2 text-xs font-semibold", tab === item.key ? "border-b-2 border-primary text-primary" : "text-ink-muted")} data-tab={item.key}>
+        {ui(item.label)}{badge(item.key) ? <Badge size="sm" variant="neutral" className="tabular-nums" data-tab-count={badge(item.key)}>{badge(item.key)}</Badge> : null}
       </Button>)}
     </div>
-    {tab === "actions" && counts?.overdueActions ? <p className="mx-3 mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-2xs font-bold text-rose-700" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</p> : null}
+    {tab === "actions" && counts?.overdueActions ? <div className="mx-3 mt-2"><Badge variant="danger" dot className="tabular-nums" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</Badge></div> : null}
     <div className="max-h-[360px] space-y-1 overflow-y-auto p-2" aria-live="polite">
-      {error ? <div role="alert" className="flex items-center justify-between gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
-        : items === null ? <p role="status" className="py-8 text-center text-xs text-ink-muted">{ui("Loading…")}</p>
+      {error ? <Alert tone="danger" compact live="off" actions={<Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button>}>{error}</Alert>
+        : items === null ? <SkeletonList rows={3} label={ui("Loading…")} />
         : items.length === 0 ? <EmptyState size="sm" icon={Bell} title={tab === "actions" ? ui("No assigned actions need your attention.") : tab === "mentions" ? ui("No one has messaged you directly.") : ui("No notifications yet")} />
         : items.map(item => {
           const Icon = item.category === "ACTION" ? ClipboardList : item.category === "MENTION" ? AtSign : Bell;

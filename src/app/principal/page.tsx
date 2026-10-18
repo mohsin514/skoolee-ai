@@ -318,12 +318,12 @@ export default function PrincipalDashboard() {
     try {
       const res = await fetch("/api/students", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedStudent.id, classId: moveClassId }) });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to move student");
+      if (!res.ok) throw new Error(result.error || ui("Could not move the student. Please try again."));
       const moved = result.data;
       const cls = moved?.class ? [moved.class.name, moved.class.section].filter(Boolean).join(" ") : "";
-      toast.success(moved?.rollNo ? `Moved to ${cls} — new roll: ${moved.rollNo}` : "Student moved");
+      toast.success(moved?.rollNo ? ui("Moved to {0} — new roll: {1}", [cls, String(moved.rollNo)]) : ui("Student moved"));
       setShowMoveStudentModal(false); setSelectedStudent(null); await refetch();
-    } catch (error: any) { toast.error(error.message); } finally { setMovingStudentBusy(false); }
+    } catch (error: any) { toast.error(error); } finally { setMovingStudentBusy(false); }
   };
 
   const handleStaffAdded = async () => {
@@ -339,38 +339,38 @@ export default function PrincipalDashboard() {
     setConfirmAction({ title: ui("Remove {0}", [ui(label)]), description: ui("Are you sure you want to remove this {0}? This action cannot be undone.", [ui(label).toLowerCase()]), confirmLabel: ui("Remove"), tone: "danger", run: async () => { setConfirmBusy(true); try { await removeStaff(userId); toast.success(ui("{0} removed", [ui(label)])); await refetch(); } catch (error: any) { toast.error(error); } finally { setConfirmBusy(false); } } });
   };
 
-  const handleResendInvite = async (inviteId: string) => { try { await resendInvitation(inviteId); toast.success("Invitation resent"); await refetch(); } catch (error: any) { toast.error(error.message); } };
-  const handleCancelInvite = async (inviteId: string) => { try { await cancelInvitation(inviteId); toast.success("Invitation cancelled"); await refetch(); } catch (error: any) { toast.error(error.message); } };
+  const handleResendInvite = async (inviteId: string) => { try { await resendInvitation(inviteId); toast.success(ui("Invitation resent")); await refetch(); } catch (error: any) { toast.error(error); } };
+  const handleCancelInvite = async (inviteId: string) => { try { await cancelInvitation(inviteId); toast.success(ui("Invitation cancelled")); await refetch(); } catch (error: any) { toast.error(error); } };
 
   const handleChangeClassTeacher = async (classId: string, teacherId: string) => {
     setSavingClassTeacherId(classId);
-    try { const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: classId, classTeacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class teacher"); toast.success("Class teacher updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingClassTeacherId(null); }
+    try { const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: classId, classTeacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || ui("Could not change the class teacher. Please try again.")); toast.success(ui("Class teacher updated")); await refetch(); }
+    catch (error: any) { toast.error(error); } finally { setSavingClassTeacherId(null); }
   };
 
   const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
     setSavingClassUpdate(true);
-    try { const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...updates, id: classId }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class"); toast.success("Class updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingClassUpdate(false); }
+    try { const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...updates, id: classId }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || ui("Could not save the class. Please try again.")); toast.success(ui("Class updated")); await refetch(); }
+    catch (error: any) { toast.error(error); } finally { setSavingClassUpdate(false); }
   };
 
   const handleUpdateStudent = async (studentId: string, updates: { fullName?: string; rollNo?: number; guardianName?: string; guardianPhone?: string; guardianEmail?: string }) => {
     setSavingStudentUpdate(true);
-    try { const res = await fetch(`/api/students/${studentId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update student"); toast.success("Student updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingStudentUpdate(false); }
+    try { const res = await fetch(`/api/students/${studentId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || ui("Could not save the student. Please try again.")); toast.success(ui("Student updated")); await refetch(); }
+    catch (error: any) { toast.error(error); } finally { setSavingStudentUpdate(false); }
   };
 
   const handleCreateSubject = async (classId: string, subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }) => {
-    if (!subject.name.trim()) { toast.error("Subject name is required"); return false; }
+    if (!subject.name.trim()) { toast.error(ui("Subject name is required")); return false; }
     setCreatingSubjectClassId(classId);
-    try { const res = await fetch("/api/subjects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId, name: subject.name.trim(), totalMarks: subject.totalMarks || 100, teacherId: subject.teacherId || undefined, applyToAllSections: subject.applyToAllSections || undefined }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to create subject"); toast.success(result.createdCount > 1 ? `Subject added to ${result.createdCount} sections` : "Subject added"); await refetch(); return true; }
-    catch (error: any) { toast.error(error.message); return false; } finally { setCreatingSubjectClassId(null); }
+    try { const res = await fetch("/api/subjects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId, name: subject.name.trim(), totalMarks: subject.totalMarks || 100, teacherId: subject.teacherId || undefined, applyToAllSections: subject.applyToAllSections || undefined }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || ui("Could not add the subject. Please try again.")); toast.success(result.createdCount > 1 ? ui("Subject added to {0} sections", [String(result.createdCount)]) : ui("Subject added")); await refetch(); return true; }
+    catch (error: any) { toast.error(error); return false; } finally { setCreatingSubjectClassId(null); }
   };
 
   const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
     setSavingSubjectUpdateId(subjectId);
-    try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update subject"); toast.success("Subject updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingSubjectUpdateId(null); }
+    try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || ui("Could not save the subject. Please try again.")); toast.success(ui("Subject updated")); await refetch(); }
+    catch (error: any) { toast.error(error); } finally { setSavingSubjectUpdateId(null); }
   };
 
   const handleChangeSubjectTeacher = async (classId: string, subjectId: string, teacherId: string, effectiveFrom?: string) => {
@@ -484,12 +484,12 @@ export default function PrincipalDashboard() {
     const impact = await fetchAcademicImpact("subject", subject.id).catch((error: Error) => { toast.error(error.message); return null; });
     if (!impact) return;
     const blocked = Boolean(impact.counts.marks || impact.counts.exams || impact.counts.examSchedules);
-    setConfirmAction({ title: ui("Delete {0}?", [subject.name]), description: subjectRemovalText(impact, ui), confirmLabel: blocked ? ui("Close") : ui("Delete Subject"), tone: blocked ? "primary" : "danger", run: async () => { if (blocked) return; setConfirmBusy(true); try { const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success(ui("Subject deleted · {0}", [new Date().toLocaleString()])); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
+    setConfirmAction({ title: ui("Delete {0}?", [subject.name]), description: subjectRemovalText(impact, ui), confirmLabel: blocked ? ui("Close") : ui("Delete Subject"), tone: blocked ? "primary" : "danger", run: async () => { if (blocked) return; setConfirmBusy(true); try { const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || ui("Could not delete the subject. Please try again.")); toast.success(ui("Subject deleted · {0}", [new Date().toLocaleString()])); await refetch(); } catch (error: any) { toast.error(error); } finally { setConfirmBusy(false); } } });
   };
 
   const handleUpdateTeacher = async (teacherId: string, updates: Record<string, any>) => {
-    try { const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: teacherId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update teacher"); toast.success("Teacher updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); }
+    try { const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: teacherId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || ui("Could not save the teacher. Please try again.")); toast.success(ui("Teacher updated")); await refetch(); }
+    catch (error: any) { toast.error(error); }
   };
 
   const runReportAction = async (examId: string, action: ReportAction, successMessage: string) => {

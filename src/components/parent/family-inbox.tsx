@@ -70,10 +70,10 @@ export function FamilyInbox() {
         <Button size="sm" variant="outline" aria-pressed={child === "all"} onClick={() => setChild("all")} className={cn(child === "all" && "border-primary text-primary")} data-inbox-child="all">{ui("All children")}</Button>
         {data.children.map(c => <Button key={c.id} size="sm" variant="outline" aria-pressed={child === c.id} onClick={() => setChild(c.id)} className={cn(child === c.id && "border-primary text-primary")} data-inbox-child={c.id}><bdi>{c.name}</bdi></Button>)}
       </div> : null}
-      {shown.length === 0 ? <div data-inbox-empty><EmptyState size="sm" icon={InboxIcon} title={view === "ACTION" ? ui("You are up to date. New school requests will appear here.") : ui("Nothing here.")} /></div> : <ul className="space-y-2">
+      {shown.length === 0 ? <div data-inbox-empty><EmptyState size="sm" icon={InboxIcon} title={view === "ACTION" ? ui("You are up to date") : ui("Nothing here.")} description={view === "ACTION" ? ui("New school requests will appear here.") : ui("Requests in this view will appear here when there are any.")} /></div> : <ul className="space-y-2">
         {shown.map(item => <li key={item.id} className={cn("rounded-2xl border p-3", item.state === "ACTION" && item.overdue ? "border-rose-200 bg-rose-50/40" : "border-edge/30 bg-white")} data-inbox-item={item.id} data-inbox-state={item.state} data-inbox-child-id={item.childId}>
-          <p className="text-xs font-semibold text-ink-subtle"><bdi>{item.childName}</bdi> · <bdi>{item.schoolName}</bdi> · <bdi>{item.campusName}</bdi></p>
-          <p className="mt-1 text-sm font-semibold text-ink-strong">{kindLabel(ui, item)}{item.kind === "PAY_FEE" && item.title ? <> · <bdi>{item.title}</bdi></> : item.kind === "FEEDBACK_RETURNED" || item.kind === "REPORT_PUBLISHED" || item.kind === "TRIP_CONSENT" || item.kind === "MEETING_ACTION" ? <> · <bdi>{item.title}</bdi></> : null}</p>
+          <p className="text-xs font-semibold text-ink-subtle [overflow-wrap:anywhere]"><bdi>{item.childName}</bdi> · <bdi>{item.schoolName}</bdi> · <bdi>{item.campusName}</bdi></p>
+          <p className="mt-1 text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{kindLabel(ui, item)}{item.kind === "PAY_FEE" && item.title ? <> · <bdi>{item.title}</bdi></> : item.kind === "FEEDBACK_RETURNED" || item.kind === "REPORT_PUBLISHED" || item.kind === "TRIP_CONSENT" || item.kind === "MEETING_ACTION" ? <> · <bdi>{item.title}</bdi></> : null}</p>
           <p className="text-xs text-ink-muted">
             {item.kind === "EXPLAIN_ABSENCE" || item.kind === "CLARIFY_ABSENCE" ? <><bdi>{item.detail && /^\d{4}-\d{2}-\d{2}$/.test(item.detail) ? date(item.detail) : item.detail}</bdi></> : item.kind === "PAY_FEE" && item.detail ? <bdi>{item.detail}</bdi> : null}
             {item.kind === "LEAVE_REQUEST" || item.kind === "TRIP_CONSENT" ? <bdi>{item.detail}</bdi> : null}
@@ -82,7 +82,7 @@ export function FamilyInbox() {
             {item.state === "EXPIRED" ? <> · <span className="font-bold">{ui("The time to respond has passed")}</span></> : null}
             {item.state === "UPDATE" ? <> · <bdi>{dateTime(item.at)}</bdi></> : null}
           </p>
-          {outcome(ui, item) ? <p className="text-xs font-bold" data-inbox-outcome>{outcome(ui, item)}</p> : null}
+          {outcome(ui, item) ? <p className="text-xs font-semibold text-ink" data-inbox-outcome>{outcome(ui, item)}</p> : null}
           {item.completedByOther && item.state !== "ACTION" ? <p className="text-xs text-ink-muted" data-inbox-other-guardian>{ui("Answered by another authorized guardian.")}</p> : null}
           {item.state !== "EXPIRED" ? <Button size="sm" variant={item.state === "ACTION" ? "default" : "outline"} className="mt-2" onClick={() => open(item)} data-inbox-open>{item.state === "ACTION" ? ui("Open request") : ui("View")}</Button> : null}
         </li>)}

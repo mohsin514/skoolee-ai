@@ -9,12 +9,14 @@ import {
   GraduationCap, HelpCircle, Users, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AttendanceOverview } from "./attendance-overview";
 import { AttendanceExceptions, AttendanceRulePanel } from "./class-register";
 import { LearnerLeaveQueue, TripsDesk } from "@/components/family/staff-requests";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 
 export function UnifiedAttendancePanel() {
@@ -86,19 +88,9 @@ export function UnifiedAttendancePanel() {
     ? teacherRoster.filter((t: any) => t.fullName?.toLowerCase().includes(teacherSearch.toLowerCase()) || t.email?.toLowerCase().includes(teacherSearch.toLowerCase()))
     : teacherRoster;
 
-  const tStatusColor = (s: string) => {
-    if (s === "PRESENT") return "bg-emerald-50 text-emerald-600";
-    if (s === "ABSENT") return "bg-rose-50 text-rose-600";
-    if (s === "LEAVE") return "bg-amber-50 text-amber-600";
-    return "bg-muted text-ink-subtle";
-  };
+  const tStatusVariant = (s: string) =>
+    s === "PRESENT" ? "success" as const : s === "ABSENT" ? "danger" as const : s === "LEAVE" ? "warning" as const : "neutral" as const;
 
-  const tStatusIcon = (s: string) => {
-    if (s === "PRESENT") return <Check className="h-3.5 w-3.5" />;
-    if (s === "ABSENT") return <X className="h-3.5 w-3.5" />;
-    if (s === "LEAVE") return <Clock className="h-3.5 w-3.5" />;
-    return <HelpCircle className="h-3.5 w-3.5" />;
-  };
 
   const tRate = teacherSummary.total > 0
     ? Math.round(((teacherSummary.present + teacherSummary.leave) / teacherSummary.total) * 1000) / 10
@@ -148,7 +140,7 @@ export function UnifiedAttendancePanel() {
               <div className="flex items-center gap-2 rounded-xl border border-edge/20 bg-white px-4 h-10">
                 <CalendarCheck className="h-4 w-4 text-primary" />
                 <span className="text-sm font-bold text-ink-strong">{dateLabel}</span>
-                {isToday ? <span className="text-3xs font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-600 rounded-full px-2 py-0.5">Today</span> : null}
+                {isToday ? <Badge variant="success" size="sm">Today</Badge> : null}
               </div>
               <Button variant="outline" size="icon" type="button" onClick={() => shiftDate(1)}
                 className="flex items-center justify-center">
@@ -167,7 +159,7 @@ export function UnifiedAttendancePanel() {
               </svg>
               <SystemInput type="text" placeholder="Search teachers..." value={teacherSearch}
                 onChange={(e) => setTeacherSearch(e.target.value)}
-                className="w-52 pl-9 pr-3" />
+                className="w-full sm:w-52 ps-9 pe-3" />
             </InputGroup>
           </div>
 
@@ -229,7 +221,7 @@ export function UnifiedAttendancePanel() {
                     <div className="col-span-5 h-2 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                     <div className="col-span-2 h-2 w-12 rounded-full bg-border-subtle/40 skeleton-shimmer mx-auto" />
                     <div className="col-span-3 h-2 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer mx-auto" />
-                    <div className="col-span-2 h-2 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer ml-auto" />
+                    <div className="col-span-2 h-2 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer ms-auto" />
                   </div>
                   {Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-2xl bg-muted/50 animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
@@ -242,22 +234,19 @@ export function UnifiedAttendancePanel() {
                       </div>
                       <div className="col-span-2 h-3 w-12 rounded-full bg-border-subtle/40 skeleton-shimmer mx-auto" />
                       <div className="col-span-3 h-5 w-16 rounded-full bg-border-subtle/30 skeleton-shimmer mx-auto" />
-                      <div className="col-span-2 h-3 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer ml-auto" />
+                      <div className="col-span-2 h-3 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer ms-auto" />
                     </div>
                   ))}
                 </div>
               ) : filteredTeachers.length === 0 ? (
-                <div className="py-12 text-center">
-                  <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                  <p className="text-sm font-bold text-ink-subtle">{teacherSearch ? "No teachers match your search" : "No teachers found"}</p>
-                </div>
+                <EmptyState size="sm" icon={Users} title={teacherSearch ? "No teachers match your search" : "No teachers found"} description={teacherSearch ? "Try a different name or clear the search." : "Teachers appear here once they are added to the school."} />
               ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pe-1 custom-scrollbar">
                   <div className="grid grid-cols-12 gap-2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
                     <span className="col-span-5">Teacher</span>
                     <span className="col-span-2 text-center">Check-in</span>
                     <span className="col-span-3 text-center">Status</span>
-                    <span className="col-span-2 text-right">Rate</span>
+                    <span className="col-span-2 text-end">Rate</span>
                   </div>
                   {filteredTeachers.map((teacher: any) => {
                     const status = teacher.status || "UNMARKED";
@@ -276,14 +265,13 @@ export function UnifiedAttendancePanel() {
                             <p className="text-2xs font-semibold text-ink-subtle truncate">{teacher.email}</p>
                           </div>
                         </div>
-                        <span className="col-span-2 text-xs font-bold text-ink-muted text-center">{teacher.attendance?.checkInTime || "—"}</span>
+                        <span className="col-span-2 text-xs font-medium tabular-nums text-ink-muted text-center">{teacher.attendance?.checkInTime || "—"}</span>
                         <div className="col-span-3 flex justify-center">
-                          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-2xs font-semibold uppercase tracking-wider", tStatusColor(status))}>
-                            {tStatusIcon(status)}
+                          <Badge variant={tStatusVariant(status)} dot>
                             {status === "PRESENT" ? "Present" : status === "ABSENT" ? "Absent" : status === "LEAVE" ? "Leave" : "Unmarked"}
-                          </span>
+                          </Badge>
                         </div>
-                        <span className="col-span-2 text-right text-sm font-bold text-ink-muted">{teacher.attendance?.checkInTime ? "On Time" : "—"}</span>
+                        <span className="col-span-2 text-end text-sm font-medium text-ink-muted">{teacher.attendance?.checkInTime ? "On Time" : "—"}</span>
                       </div>
                     );
                   })}
@@ -327,13 +315,9 @@ export function UnifiedAttendancePanel() {
                   ))}
                 </div>
               ) : teacherMonthly.length === 0 ? (
-                <div className="py-10 text-center">
-                  <CalendarCheck className="mx-auto h-8 w-8 text-ink-subtle mb-3" />
-                  <p className="text-sm font-bold text-ink-subtle">No records</p>
-                  <p className="text-xs font-semibold text-ink-subtle mt-1">No teacher attendance for {formatMonthLbl(teacherSelectedMonth)}</p>
-                </div>
+                <EmptyState size="sm" icon={CalendarCheck} title="No records" description={`No teacher attendance for ${formatMonthLbl(teacherSelectedMonth)}`} />
               ) : (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pe-1 custom-scrollbar">
                   {teacherMonthly.map((record: any) => {
                     const pCount = record.presentDays ?? record.present ?? 0;
                     const totalDays = record.totalDays ?? record.total ?? 0;
@@ -346,7 +330,7 @@ export function UnifiedAttendancePanel() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-bold text-ink-strong truncate">{record.fullName || "Teacher"}</p>
-                            <p className="text-3xs font-bold text-ink-subtle mt-0.5">
+                            <p className="text-2xs font-medium tabular-nums text-ink-subtle mt-0.5">
                               {pCount}P · {record.absentDays ?? record.absent ?? 0}A · {record.leaveDays ?? record.leave ?? 0}L
                             </p>
                           </div>

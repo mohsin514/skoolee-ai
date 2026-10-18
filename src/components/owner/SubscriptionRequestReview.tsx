@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Inbox } from "lucide-react";
 
 
@@ -96,7 +97,7 @@ function ProviderEventQueue() {
   return <section className="mt-10" aria-labelledby="provider-events-title" data-provider-events>
     <h2 id="provider-events-title" className="text-lg font-bold text-ink-strong">Payment provider events needing review</h2>
     <p className="mt-1 text-sm text-ink-muted">Verified events the system did not apply automatically. Marking one handled records your note only; correct any billing state through a reviewed request or the provider.</p>
-    {events === null ? <p role="status" className="mt-4 text-sm">Loading events…</p> : events.length === 0 ? <div className="mt-4"><EmptyState size="sm" icon={Inbox} title="No provider events need review" description="Verified provider events that could not be applied automatically appear here." /></div> : <div className="mt-4 space-y-3">
+    {events === null ? <div role="status" aria-label="Loading events" className="mt-4"><SkeletonList rows={3} /></div> : events.length === 0 ? <div className="mt-4"><EmptyState size="sm" icon={Inbox} title="No provider events need review" description="Verified provider events that could not be applied automatically appear here." /></div> : <div className="mt-4 space-y-3">
       {events.map(row => <article key={row.eventId} className="sk-panel space-y-2 p-4" data-provider-event={row.eventId} data-state={row.state}>
         <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong">{row.provider} · {row.eventType} <Badge variant={row.state === "NEEDS_REVIEW" ? "warning" : "danger"} dot>{row.state === "NEEDS_REVIEW" ? "Needs review" : "Failed"}</Badge></p>
         <p className="text-xs text-ink-subtle tabular-nums"><bdi>{row.eventId}</bdi> · {new Date(row.receivedAt).toLocaleString()} · attempts {row.attemptCount}{row.schoolId ? ` · institution ${row.schoolId}` : " · no matching institution"}</p>

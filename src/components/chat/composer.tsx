@@ -205,9 +205,9 @@ export function Composer({
                   {(editing ?? replyTo)?.body}
                 </p>
               </div>
-              <Button variant="outline" size="icon"
+              <IconButton variant="outline" size="sm" label={editing ? ui("Cancel edit") : ui("Cancel reply")}
                 type="button"
-                aria-label={editing ? ui("Cancel edit") : ui("Cancel reply")}
+                
                 onClick={() => {
                   if (editing) {
                     onClearEditing();
@@ -219,7 +219,7 @@ export function Composer({
                 className="shrink-0"
               >
                 <X className="h-3.5 w-3.5" />
-              </Button>
+              </IconButton>
             </div>
           </motion.div>
         )}
@@ -267,14 +267,13 @@ export function Composer({
                     {ui("Retry")}
                   </Button>
                 )}
-                <Button variant="outline" size="icon"
+                <IconButton variant="outline" size="sm" label={ui("Remove {0}", [f.file.name])}
                   type="button"
-                  aria-label={ui("Remove {0}", [f.file.name])}
                   onClick={() => setFiles((prev) => prev.filter((_, index) => index !== i))}
 
                 >
                   <X className="h-3 w-3" />
-                </Button>
+                </IconButton>
               </li>
             ))}
           </motion.ul>

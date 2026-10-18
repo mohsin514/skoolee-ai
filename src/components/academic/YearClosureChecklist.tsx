@@ -1,13 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { useCallback, useEffect, useState } from "react";
 import {
-  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Circle,
-  Loader2,
   Lock,
   ShieldCheck,
 } from "lucide-react";
@@ -223,53 +222,50 @@ export function YearClosureChecklist({
         {data.canClose ? (
           <Button variant="default"
             onClick={() => closeYear(false)}
-            disabled={closing}
+            loading={closing}
             className="justify-start flex items-center gap-2 px-5 py-3"
           >
-            {closing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            {closing ? null : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
             Close {data.openCycle.label} & Start Next Year
           </Button>
         ) : (
           <div className="space-y-3">
-            <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <p className="text-xs font-semibold text-amber-800">
-                {data.openCycle.label} cannot be closed yet, so the next academic year cannot be
-                started.{" "}
-                {isEmptyYear
-                  ? "Run this year's exams first, or ask the principal to close it if it was created by mistake."
-                  : "Clear the items above first."}
-              </p>
-            </div>
+            <Alert tone="warning" live="off" compact>
+              {data.openCycle.label} cannot be closed yet, so the next academic year cannot be
+              started.{" "}
+              {isEmptyYear
+                ? "Run this year's exams first, or ask the principal to close it if it was created by mistake."
+                : "Clear the items above first."}
+            </Alert>
 
             {/* Principals get a deliberate override, never a silent one. */}
             {canForceClose ? (
               confirmForce ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-                  <p className="text-xs font-bold text-rose-800">
-                    Close {data.openCycle.label} anyway?
-                  </p>
-                  <p className="mt-1 text-2xs font-semibold text-rose-700">
-                    Marks will be locked and report cards frozen as they are. Anything unfinished
-                    stays unfinished. This cannot be undone.
-                  </p>
-                  <div className="mt-3 flex gap-2">
-                    <Button variant="destructive"
-                      onClick={() => closeYear(true)}
-                      disabled={closing}
-                      className="justify-start flex items-center gap-2 px-4 py-2"
-                    >
-                      {closing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                      Yes, close it anyway
-                    </Button>
-                    <Button variant="outline"
-                      onClick={() => setConfirmForce(false)}
-                      className="px-4 py-2"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
+                <Alert
+                  tone="danger"
+                  live="off"
+                  title={`Close ${data.openCycle.label} anyway?`}
+                  actions={
+                    <>
+                      <Button variant="outline"
+                        onClick={() => setConfirmForce(false)}
+                        className="px-4 py-2"
+                      >
+                        Cancel
+                      </Button>
+                      <Button variant="destructive"
+                        onClick={() => closeYear(true)}
+                        loading={closing}
+                        className="justify-start flex items-center gap-2 px-4 py-2"
+                      >
+                        Yes, close it anyway
+                      </Button>
+                    </>
+                  }
+                >
+                  Marks will be locked and report cards frozen as they are. Anything unfinished
+                  stays unfinished. This cannot be undone.
+                </Alert>
               ) : (
                 <Button variant="link"
                   onClick={() => setConfirmForce(true)}

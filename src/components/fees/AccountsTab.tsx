@@ -3,6 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
@@ -92,12 +94,12 @@ interface AccountRow {
   _count?: { entries: number };
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  ASSET: "bg-blue-50 text-blue-600",
-  LIABILITY: "bg-amber-50 text-amber-600",
-  EQUITY: "bg-emerald-50 text-emerald-600",
-  INCOME: "bg-green-50 text-green-600",
-  EXPENSE: "bg-rose-50 text-rose-600",
+const TYPE_TONES: Record<string, "info" | "warning" | "secondary" | "success" | "danger"> = {
+  ASSET: "info",
+  LIABILITY: "warning",
+  EQUITY: "secondary",
+  INCOME: "success",
+  EXPENSE: "danger",
 };
 
 function ChartPanel({ campusId }: { campusId?: string }) {
@@ -110,16 +112,20 @@ function ChartPanel({ campusId }: { campusId?: string }) {
   const [type, setType] = useState("INCOME");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<AccountRow | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch(`${API}/accounts/chart${qp}`);
       const json = await res.json();
       if (json.success) setAccounts(json.data);
+      else setLoadFailed(true);
     } catch {
+      setLoadFailed(true);
       toast.error(tr("Failed to load accounts"));
     } finally {
       setLoading(false);
@@ -192,17 +198,19 @@ function ChartPanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Chart of Accounts"}</UiText></p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="sk-eyebrow mb-1"><UiText>{"Chart of Accounts"}</UiText></p>
           <p className="text-sm font-bold text-ink-strong"><UiText>{"Bookkeeping heads used by the ledger"}</UiText></p>
-          <p className="text-2xs font-semibold text-ink-subtle mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" and payroll to \"Salaries Expense\". Accounts with entries keep their type and cannot be deleted; deactivate them to stop new entries."}</UiText></p>
+          <p className="text-xs leading-relaxed text-ink-muted mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" and payroll to \"Salaries Expense\". Accounts with entries keep their type and cannot be deleted; deactivate them to stop new entries."}</UiText></p>
         </div>
         <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Account"}</UiText></BrandButton>
       </div>
 
       {loading ? (
         <SkeletonRows />
+      ) : loadFailed ? (
+        <ErrorState title={tr("Accounts could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
       ) : accounts.length === 0 ? (
         <EmptyState
           icon={Wallet}
@@ -213,26 +221,26 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       ) : (
         <div className="space-y-3">
           {accounts.map((acc) => (
-            <div key={acc.id} className="sk-panel p-5 flex items-center gap-4">
+            <div key={acc.id} className="sk-panel flex flex-wrap items-center gap-3 p-4 sm:flex-nowrap sm:gap-4 sm:p-5">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Wallet className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-ink-strong">
-                  {acc.name}
-                  {acc.isSystem ? <span className="ms-2 text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"System"}</UiText></span> : null}
-                  {acc.isActive === false ? <span className="ms-2 rounded bg-amber-50 px-1.5 py-0.5 text-2xs font-semibold uppercase text-amber-700" data-account-inactive><UiText>{"Inactive"}</UiText></span> : null}
+                <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong">
+                  <span className="min-w-0 truncate">{acc.name}</span>
+                  {acc.isSystem ? <Badge variant="neutral" size="sm"><UiText>{"System"}</UiText></Badge> : null}
+                  {acc.isActive === false ? <Badge variant="warning" size="sm" dot data-account-inactive><UiText>{"Inactive"}</UiText></Badge> : null}
                 </p>
-                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
+                <p className="text-xs tabular-nums text-ink-subtle mt-0.5">
                   {acc._count ? tr("{0} entries", [acc._count.entries]) : ""}
                 </p>
               </div>
-              <span className={`text-2xs font-semibold uppercase px-2 py-1 rounded-lg ${TYPE_COLORS[acc.type] || "bg-gray-50 text-gray-500"}`}>
+              <Badge size="sm" variant={TYPE_TONES[acc.type] ?? "neutral"}>
                 {acc.type}
-              </span>
-              <Button variant="secondary" size="icon" type="button" onClick={() => openModal(acc)} className="flex items-center justify-center" aria-label={tr("Edit account")}>
-                <Pencil className="w-4 h-4" />
-              </Button>
+              </Badge>
+              <IconButton label={tr("Edit account")} variant="secondary" onClick={() => openModal(acc)}>
+                <Pencil className="w-4 h-4" aria-hidden="true" />
+              </IconButton>
               {!acc.isSystem && (acc._count?.entries ?? 0) > 0 ? (
                 <Button variant="secondary" size="sm" type="button" onClick={() => void toggleActive(acc)} data-account-toggle={acc.id}>
                   {acc.isActive === false ? tr("Reactivate") : tr("Deactivate")}
@@ -269,6 +277,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
                 <option value="LIABILITY"><UiText>{"Liability"}</UiText></option>
                 <option value="EQUITY"><UiText>{"Equity"}</UiText></option>
               </SystemSelect>
+              <span className="mt-1 block text-xs leading-relaxed text-ink-subtle">{editing && ((editing._count?.entries ?? 0) > 0 || editing.isSystem) ? tr("The type is locked because this account is a system account or already has entries.") : tr("Income and expense heads are used for ledger entries. The type cannot be changed once the account has entries.")}</span>
             </label>
             <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save Changes") : tr("Create Account")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
@@ -425,12 +434,12 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
               >
                 {m.isActive ? tr("Active") : tr("Inactive")}
               </Button>
-              <Button variant="secondary" size="icon" type="button" onClick={() => openModal(m)} className="flex items-center justify-center" aria-label={tr("Edit method")}>
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(m)} className="flex items-center justify-center" aria-label={tr("Delete method")}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <IconButton label={tr("Edit method")} variant="secondary" onClick={() => openModal(m)}>
+                <Pencil className="w-4 h-4" aria-hidden="true" />
+              </IconButton>
+              <IconButton label={tr("Delete method")} variant="secondary" onClick={() => setDeleting(m)}>
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+              </IconButton>
             </div>
           ))}
         </div>
@@ -615,7 +624,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
               </div>
               <div className="text-end">
                 <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
-                <p className="text-sm font-bold text-ink-strong">{formatPKR(b.openingBalance, b.currency)}</p>
+                <p className="text-sm font-bold tabular-nums text-ink-strong">{formatPKR(b.openingBalance, b.currency)}</p>
               </div>
               <Button aria-pressed={b.isActive} variant="choice"
                 type="button"
@@ -624,12 +633,12 @@ function BanksPanel({ campusId }: { campusId?: string }) {
               >
                 {b.isActive ? tr("Active") : tr("Inactive")}
               </Button>
-              <Button variant="secondary" size="icon" type="button" onClick={() => openModal(b)} className="flex items-center justify-center" aria-label={tr("Edit bank")}>
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(b)} className="flex items-center justify-center" aria-label={tr("Delete bank")}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <IconButton label={tr("Edit bank")} variant="secondary" onClick={() => openModal(b)}>
+                <Pencil className="w-4 h-4" aria-hidden="true" />
+              </IconButton>
+              <IconButton label={tr("Delete bank")} variant="secondary" onClick={() => setDeleting(b)}>
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+              </IconButton>
             </div>
           ))}
         </div>
@@ -855,9 +864,8 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       {loading ? (
         <div role="status" aria-label={tr("Loading ledger")}><SkeletonRows /></div>
       ) : loadError ? (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700" data-ledger-error>
-          <span>{loadError}</span>
-          <Button size="sm" variant="secondary" onClick={() => void load()}>{tr("Retry")}</Button>
+        <div data-ledger-error>
+          <ErrorState description={loadError} onRetry={() => void load()} retryLabel={tr("Retry")} />
         </div>
       ) : entries.length === 0 ? (
         filtered ? (

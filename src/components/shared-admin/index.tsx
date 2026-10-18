@@ -2,6 +2,8 @@
 import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
 import { IconButton } from "@/components/ui/icon-button";
 import { Button as SystemButton } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
@@ -457,15 +459,15 @@ export function LeadershipPanel({
               </div>
               <div className="flex items-center gap-2">
                 {adminCount > 0 ? (
-                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
+                  <Badge variant="default" className="tabular-nums">
                     {adminCount} active
-                  </span>
+                  </Badge>
                 ) : null}
                 {pendingCount > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
-                    <Clock className="w-3 h-3" />
+                  <Badge variant="warning" className="tabular-nums">
+                    <Clock aria-hidden="true" />
                     {pendingCount}
-                  </span>
+                  </Badge>
                 ) : null}
                 <StatusPill status="Owner Managed" />
               </div>
@@ -507,12 +509,11 @@ export function LeadershipPanel({
                 </div>
                 <div className="min-w-0 flex-1">
                   <h4 className="text-base font-bold text-ink-strong tracking-tight truncate">{data.principal.fullName}</h4>
-                  <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mt-0.5 truncate">{data.principal.email}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink-subtle">{data.principal.email}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-emerald-600">
-                      <UserCheck className="w-2.5 h-2.5" />
+                    <Badge variant="success" size="sm" dot>
                       Active
-                    </span>
+                    </Badge>
                   </div>
                 </div>
                 <SystemButton variant="destructive" type="button" onClick={() => onRemove(data.principal.id, "Principal")}
@@ -548,9 +549,9 @@ export function LeadershipPanel({
               </div>
               <div className="flex items-center gap-2">
                 {opsCount > 0 ? (
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-blue-600">
+                  <Badge variant="info" className="tabular-nums">
                     {opsCount} active
-                  </span>
+                  </Badge>
                 ) : null}
               </div>
             </div>
@@ -564,11 +565,11 @@ export function LeadershipPanel({
                   </div>
                   <div className="min-w-0 flex-1">
                     <h4 className="text-sm font-bold text-ink-strong truncate">{staff.fullName}</h4>
-                    <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider truncate">{staff.email}</p>
+                    <p className="truncate text-xs text-ink-subtle">{staff.email}</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-blue-600">
+                  <Badge variant="info" size="sm" className="shrink-0">
                     {staff.role}
-                  </span>
+                  </Badge>
                   <SystemButton variant="destructive" type="button" onClick={() => onRemove(staff.id, staff.role)}
                     className="shrink-0 px-3 flex items-center gap-1 justify-center">
                     <Trash2 className="w-3 h-3" />
@@ -949,10 +950,7 @@ export function ExamDetailModal({
             {tab === "marks" && (
               <div className="overflow-x-auto rounded-2xl border border-edge/10">
                 {students.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle">No students found for this exam</p>
-                  </div>
+                  <EmptyState size="sm" icon={Users} title="No students found for this exam" description="Students enrolled in this exam's class will appear here." />
                 ) : (
                   <table className="w-full text-start">
                     <thead>
@@ -1215,9 +1213,9 @@ export function ExamCreateModal({
           </FormSelect>
         </div>
         {classes.length === 0 && (
-          <p className="text-2xs font-semibold text-amber-600">
-            No classes found. Create a class first, then add an exam cycle.
-          </p>
+          <Alert tone="warning" live="off" compact title="No classes found">
+            Create a class first, then add an exam cycle.
+          </Alert>
         )}
         <ModalActions busy={busy} busyLabel="Creating..." actionLabel="Create Exam Cycle" onClose={onClose} onSave={handleCreate} />
       </div>
@@ -2455,9 +2453,9 @@ export function ClassDetailModal({
             <PanelTitle icon={BookOpen} title="Subjects" />
             <div className="flex items-center gap-2">
               {unassignedCount > 0 && teachingMode === "SUBJECT" ? (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
+                <Badge variant="warning" dot className="tabular-nums">
                   {unassignedCount} unassigned
-                </span>
+                </Badge>
               ) : null}
               <StatusPill status={teachingMode === "SINGLE" ? "One Teacher" : "Per Subject"} />
             </div>
@@ -2891,14 +2889,14 @@ export function StudentDetailModal({
             <span className="text-sm font-bold text-ink" dir="rtl">{student.nameUr}</span>
           ) : null}
           {student.category?.name ? (
-            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
+            <Badge variant="success">
               {student.category.name}
-            </span>
+            </Badge>
           ) : null}
           {student.group?.name ? (
-            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-sky-600">
+            <Badge variant="info">
               {student.group.name}
-            </span>
+            </Badge>
           ) : null}
         </>
       }
@@ -3926,14 +3924,14 @@ export function TeacherDetailModal({
               : `${teacher._count?.taughtSubjects || taughtSubjects.length} subjects`}
           </span>
           {(teacher._count?.ledClasses || ledClasses.length) > 0 ? (
-            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-sky-600">
+            <Badge variant="info">
               Class teacher · {teacher._count?.ledClasses || ledClasses.length}
-            </span>
+            </Badge>
           ) : null}
           {!teacher.onboardingComplete ? (
-            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-amber-600">
+            <Badge variant="warning">
               Onboarding pending
-            </span>
+            </Badge>
           ) : null}
         </>
       }
@@ -5143,16 +5141,16 @@ export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView
             <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider leading-none truncate">{teacher.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {classes > 0 ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-sky-600">
-                  <School className="h-2.5 w-2.5" />
+                <Badge variant="info" size="sm">
+                  <School className="h-2.5 w-2.5" aria-hidden="true" />
                   Class teacher · {classes}
-                </span>
+                </Badge>
               ) : null}
               {!teacher.onboardingComplete ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider text-amber-600">
-                  <Clock className="h-2.5 w-2.5" />
+                <Badge variant="warning" size="sm">
+                  <Clock className="h-2.5 w-2.5" aria-hidden="true" />
                   Onboarding
-                </span>
+                </Badge>
               ) : null}
             </div>
           </div>
@@ -6422,14 +6420,14 @@ export function AdmissionQueriesPanel({
                     </span>
                   )}
                   {q.assignedTo ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-sky-600">
-                      <User className="h-3 w-3" /> {q.assignedTo.fullName}
-                    </span>
+                    <Badge variant="info">
+                      <User className="h-3 w-3" aria-hidden="true" /> {q.assignedTo.fullName}
+                    </Badge>
                   ) : null}
                   {q.convertedStudent ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-                      <UserCheck className="h-3 w-3" /> {q.convertedStudent.fullName}
-                    </span>
+                    <Badge variant="success">
+                      <UserCheck className="h-3 w-3" aria-hidden="true" /> {q.convertedStudent.fullName}
+                    </Badge>
                   ) : null}
                 </div>
               </SystemButton>
@@ -8274,12 +8272,12 @@ export { RolePermissionsPanel } from "./role-permissions-panel";
 // ────────────────────────────────────────────────────────────
 // Module 12 — Class Rooms
 const ROOM_COLORS = [
-  "bg-gradient-to-br from-primary to-[#55208b]",
-  "bg-gradient-to-br from-[#0ea5e9] to-[#1d4ed8]",
+  "bg-gradient-to-br from-primary to-brand-700",
+  "bg-gradient-to-br from-sky-500 to-blue-700",
   "bg-gradient-to-br from-emerald-500 to-emerald-700",
   "bg-gradient-to-br from-amber-500 to-amber-700",
-  "bg-gradient-to-br from-[#ef4444] to-[#991b1b]",
-  "bg-gradient-to-br from-[#8b5cf6] to-[#5b21b6]",
+  "bg-gradient-to-br from-red-500 to-red-800",
+  "bg-gradient-to-br from-violet-500 to-violet-800",
 ];
 
 /**

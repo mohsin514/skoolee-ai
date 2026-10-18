@@ -26,6 +26,8 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import type { OrgChartData, OrgNode } from "@/lib/staff/hierarchy";
 import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
 
 
 type Tab = "chart" | "departments" | "ladder" | "workload";
@@ -55,6 +57,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selected, setSelected] = useState<OrgNode | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -64,18 +67,21 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
         const payload = await res.json();
         if (!res.ok) throw new Error(payload.error || "Could not load the staff hierarchy");
         setData(payload);
+        setLoadError(false);
         // Keep the open dialog pointed at the refreshed record, not a stale copy.
         setSelected((current) =>
           current ? (payload.nodes as OrgNode[]).find((n) => n.id === current.id) ?? null : null
         );
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not load the staff hierarchy");
+        console.error(error);
+        setLoadError(true);
+        toast.error(ui("Could not load the staff hierarchy. Check your connection and try again."));
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [campusId]
+    [campusId, ui]
   );
 
   useEffect(() => {
@@ -103,14 +109,18 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-24 text-xs font-bold text-ink-muted">
-        <Loader2 className="h-4 w-4 animate-spin" />
+      <div role="status" aria-live="polite" className="flex items-center justify-center gap-2 py-24 text-sm font-medium text-ink-muted">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         Building the staff hierarchy…
       </div>
     );
   }
 
-  const needsLadder = (data?.designations.length ?? 0) === 0;
+  if (!data && loadError) {
+    return <ErrorState variant="panel" onRetry={() => load()} />;
+  }
+
+  const needsLadder = data ? data.designations.length === 0 : false;
 
   return (
     <div className="space-y-4">
@@ -144,7 +154,7 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
               onClick={() => setTab(t.key)}
               className="flex flex-1 items-center justify-center gap-2"
             >
-              <t.icon className="h-3.5 w-3.5" />
+              <t.icon className="h-3.5 w-3.5" aria-hidden="true" />
               {ui(t.label)}
               {t.key === "ladder" && needsLadder ? (
                 <><span className="ms-1 h-1.5 w-1.5 rounded-full bg-status-warning-text" aria-hidden="true" /><span className="sr-only">{ui("Needs setting up")}</span></>
@@ -155,31 +165,27 @@ export function StaffHierarchyPanel({ campusId }: { campusId?: string }) {
         <Button variant="outline" size="sm"
           type="button"
           onClick={() => load(true)}
-          disabled={refreshing}
+          loading={refreshing}
           className="flex justify-start items-center gap-1.5"
         >
-          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
-          Refresh
+          {refreshing ? null : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
+          {ui("Refresh")}
         </Button>
       </div>
 
       {/* ── Body ─────────────────────────────────────────── */}
       {tab === "chart" ? (
         needsLadder ? (
-          <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/50 px-6 py-12 text-center">
-            <Layers className="mx-auto h-8 w-8 text-amber-600" />
-            <p className="mt-3 text-sm font-bold text-ink">Define your ranks first</p>
-            <p className="mx-auto mt-1 max-w-lg text-xs font-semibold text-ink-muted">
-              The chart draws who is senior to whom, and it reads that from your rank ladder. Pick the preset for
-              your kind of institution — school, college, university or training institute — and adjust it from
-              there. Nothing is fixed.
-            </p>
-            <div className="mt-4">
-              <BrandButton icon={<Layers className="h-4 w-4" />} onClick={() => setTab("ladder")}>
+          <EmptyState
+            icon={Layers}
+            title="Define your ranks first"
+            description="The chart draws who is senior to whom, and it reads that from your rank ladder. Pick the preset for your kind of institution — school, college, university or training institute — and adjust it from there. Nothing is fixed."
+            action={
+              <BrandButton icon={<Layers className="h-4 w-4" aria-hidden="true" />} onClick={() => setTab("ladder")}>
                 Set up the rank ladder
               </BrandButton>
-            </div>
-          </div>
+            }
+          />
         ) : (
           data && (
             <OrgChart
@@ -245,8 +251,8 @@ function Stat({
       </span>
       <span className="min-w-0">
         <span className="block text-lg font-bold leading-none tabular-nums text-ink">{value}</span>
-        <span className="mt-0.5 block truncate text-2xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</span>
-        {hint ? <span className="block truncate text-2xs font-semibold text-ink-muted">{hint}</span> : null}
+        <span className="mt-0.5 block truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</span>
+        {hint ? <span className="block truncate text-xs font-medium text-ink-subtle">{hint}</span> : null}
       </span>
     </div>
   );

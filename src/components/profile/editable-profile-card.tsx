@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 
 export type EditableProfile = {
@@ -245,17 +246,14 @@ export function EditableProfileCard({ compact, initialProfile, onSaved, classNam
               </div>
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {profile.teachesAllSubjects ? (
-                  <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-2xs font-bold text-emerald-700">
+                  <Badge variant="success" size="sm" dot>
                     All subjects
-                  </span>
+                  </Badge>
                 ) : (
                   profile.subjectSpecialties?.map((subject) => (
-                    <span
-                      key={subject}
-                      className="rounded-full bg-primary/10 px-3 py-1 text-2xs font-bold text-primary"
-                    >
+                    <Badge key={subject} variant="default" size="sm">
                       {subject}
-                    </span>
+                    </Badge>
                   ))
                 )}
               </div>

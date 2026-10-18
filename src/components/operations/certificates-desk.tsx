@@ -8,6 +8,11 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { Tooltip } from "@/components/ui/tooltip";
 import { ModalFrame, PanelTitle } from "@/components/shared-admin";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -96,16 +101,16 @@ function DocumentsTab({ templates, canApprove }: { templates: Template[]; canApp
         <FormField name="certificate-filter-status" label={ui("Show")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="">{ui("All documents")}</option><option value="PENDING_APPROVAL">{ui("Waiting for approval")}</option><option value="ISSUED">{ui("Issued")}</option><option value="REVOKED">{ui("Revoked")}</option><option value="SUPERSEDED">{ui("Replaced")}</option><option value="REJECTED">{ui("Rejected")}</option></Select></FormField>
         <FormField name="certificate-filter-q" label={ui("Search serial, title or pupil")}><Input value={q} onChange={event => setQ(event.target.value)} /></FormField>
       </div>
-      <Button onClick={() => setIssueOpen({})} disabled={!approved.length} title={!approved.length ? ui("Approve a template first.") : undefined}><Plus className="size-4" aria-hidden="true" />{ui("Issue document")}</Button>
+      {approved.length ? <Button onClick={() => setIssueOpen({})}><Plus className="size-4" aria-hidden="true" />{ui("Issue document")}</Button> : <Tooltip content={ui("Approve a template first.")}><span tabIndex={0} className="inline-flex"><Button disabled><Plus className="size-4" aria-hidden="true" />{ui("Issue document")}</Button></span></Tooltip>}
     </div>
-    {!approved.length ? <p className="rounded-2xl bg-amber-50 p-3 text-sm text-amber-900" data-no-approved-template>{ui("No template is approved yet. Create one under Templates; a campus leader approves it before documents can be issued.")}</p> : null}
-    {loading && !rows.length ? <p role="status" className="text-sm text-ink-muted">{ui("Loading documents…")}</p>
-      : loadError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{loadError}</span><Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></div>
-      : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{status || q ? ui("No documents match these filters.") : ui("No documents issued yet.")}</p>
+    {!approved.length ? <Alert tone="warning" live="off" data-no-approved-template>{ui("No template is approved yet. Create one under Templates; a campus leader approves it before documents can be issued.")}</Alert> : null}
+    {loading && !rows.length ? <SkeletonList rows={3} label={ui("Loading documents…")} />
+      : loadError ? <ErrorState description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
+      : !rows.length ? <EmptyState size="sm" icon={FileText} title={status || q ? ui("No documents match these filters.") : ui("No documents issued yet.")} />
       : <ul className="space-y-2" aria-label={ui("Documents")}>{rows.map(row => <li key={row.id} className="space-y-2 rounded-2xl border border-border p-3 text-sm" data-issue={row.serial} data-issue-status={row.status}>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 font-bold"><bdi dir="ltr">{row.serial}</bdi> · <bdi>{row.title}</bdi></p>
-          <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${row.status === "ISSUED" ? "bg-emerald-50 text-emerald-700" : row.status === "PENDING_APPROVAL" ? "bg-amber-50 text-amber-800" : "bg-muted"}`}>{statusLabel(ui, row.status)}</span>
+          <p className="min-w-0 flex-1 font-semibold text-ink-strong"><bdi dir="ltr">{row.serial}</bdi> · <bdi>{row.title}</bdi></p>
+          <Badge size="sm" dot variant={row.status === "ISSUED" ? "success" : row.status === "PENDING_APPROVAL" ? "warning" : "neutral"}>{statusLabel(ui, row.status)}</Badge>
         </div>
         <p className="text-xs text-ink-muted"><bdi>{row.student.fullName}</bdi> · <bdi dir="ltr">{row.student.rollNo}</bdi> · {kindLabel(ui, row.templateVersion.kind)} · {ui("Template version {0}", [row.templateVersion.version])} · {languageLabel(ui, row.language)}</p>
         <p className="text-xs text-ink-muted">{row.requestedBy ? <>{ui("Requested by")} <bdi>{row.requestedBy}</bdi></> : null}{row.approvedBy && row.status !== "REJECTED" ? <> · {ui("Approved by")} <bdi>{row.approvedBy}</bdi></> : null}{row.issuedAt ? <> · <bdi>{dateTime(row.issuedAt)}</bdi></> : null}</p>
@@ -159,26 +164,26 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
   };
   return <ModalFrame title={reissue ? ui("Reissue {0}", [reissue.serial]) : ui("Issue document")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(student || reason)}>
     <div className="space-y-3" data-issue-dialog>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-issue-error>{error}</p> : null}
+      {error ? <Alert tone="danger" compact data-issue-error>{error}</Alert> : null}
       <FormField name="issue-template" label={ui("Template")}><Select value={templateId} onChange={event => setTemplateId(event.target.value)}>{templates.map(template => <option key={template.id} value={template.id}>{template.name} · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)} · v{template.currentVersion}</option>)}</Select></FormField>
-      {reissue ? <p className="text-sm">{ui("Pupil")}: <bdi className="font-bold">{reissue.student.fullName}</bdi> · <bdi dir="ltr">{reissue.student.rollNo}</bdi></p> : <>
+      {reissue ? <p className="text-sm">{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{reissue.student.fullName}</bdi> · <bdi dir="ltr">{reissue.student.rollNo}</bdi></p> : <>
         <FormField name="issue-student" label={ui("Find the pupil (name, roll or admission number)")}><Input value={query} onChange={event => { setQuery(event.target.value); setStudent(null); setPreview(null); }} /></FormField>
-        {!student && matches.length ? <ul className="max-h-48 space-y-1 overflow-y-auto" aria-label={ui("Matching pupils")}>{matches.map(match => <li key={match.id}><Button variant="choice" className="w-full justify-start text-start" onClick={() => setStudent(match)} data-student-option={match.rollNo}><bdi className="font-bold">{match.fullName}</bdi>&nbsp;· <bdi dir="ltr">{match.rollNo}</bdi>{match.admissionNo ? <>&nbsp;· <bdi dir="ltr">{match.admissionNo}</bdi></> : null}&nbsp;· <bdi>{match.className}</bdi></Button></li>)}</ul> : null}
+        {!student && matches.length ? <ul className="max-h-48 space-y-1 overflow-y-auto" aria-label={ui("Matching pupils")}>{matches.map(match => <li key={match.id}><Button variant="choice" className="w-full justify-start text-start" onClick={() => setStudent(match)} data-student-option={match.rollNo}><bdi className="font-semibold text-ink-strong">{match.fullName}</bdi>&nbsp;· <bdi dir="ltr">{match.rollNo}</bdi>{match.admissionNo ? <>&nbsp;· <bdi dir="ltr">{match.admissionNo}</bdi></> : null}&nbsp;· <bdi>{match.className}</bdi></Button></li>)}</ul> : null}
         {!student && query.trim().length >= 2 && !matches.length ? <p className="text-xs text-ink-muted">{ui("No pupil in this campus matches.")}</p> : null}
-        {student ? <p className="text-sm" data-chosen-student>{ui("Pupil")}: <bdi className="font-bold">{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi>{student.className ? <> · <bdi>{student.className}</bdi></> : null}</p> : null}
+        {student ? <p className="text-sm" data-chosen-student>{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi>{student.className ? <> · <bdi>{student.className}</bdi></> : null}</p> : null}
       </>}
       {preview ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Preview")} data-issue-preview>
-        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Preview")} · {kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)} · {ui("Template version {0}", [preview.templateVersion])}</p>
-        <div dir={preview.language === "en" ? "ltr" : "rtl"} lang={preview.language} className="space-y-1 rounded-lg bg-white p-3 text-sm">
-          <p className="font-bold">{preview.schoolName}</p>
-          <p className="text-base font-bold">{preview.title}</p>
+        <p className="sk-eyebrow">{ui("Preview")} · {kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)} · {ui("Template version {0}", [preview.templateVersion])}</p>
+        <div dir={preview.language === "en" ? "ltr" : "rtl"} lang={preview.language} className="space-y-1 rounded-lg border border-edge bg-card p-3 text-sm text-ink">
+          <p className="font-semibold text-ink-strong">{preview.schoolName}</p>
+          <p className="text-base font-bold text-ink-strong">{preview.title}</p>
           <p className="whitespace-pre-wrap leading-relaxed">{preview.body}</p>
         </div>
-        {preview.missing.length ? <p role="alert" className="text-xs font-bold text-rose-700" data-preview-missing>{ui("Missing from the pupil's record: {0}", [preview.missing.map(field => fieldLabel(ui, field)).join(", ")])}</p> : null}
+        {preview.missing.length ? <Alert tone="danger" compact data-preview-missing>{ui("Missing from the pupil's record: {0}", [preview.missing.map(field => fieldLabel(ui, field)).join(", ")])}</Alert> : null}
         <p className="text-xs text-ink-muted">{preview.requiresApproval ? ui("A campus leader must approve this document before it can be downloaded.") : ui("This document is issued as soon as you confirm.")}</p>
       </section> : null}
       {reissue ? <FormField name="issue-reason" label={ui("Reason for reissue")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField> : null}
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void issue()} disabled={busy || !preview || preview.missing.length > 0} aria-busy={busy}>{busy ? ui("Saving…") : preview?.requiresApproval ? ui("Request approval") : ui("Issue")}</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void issue()} loading={busy} disabled={busy || !preview || preview.missing.length > 0}>{preview?.requiresApproval ? ui("Request approval") : ui("Issue")}</Button></div>
     </div>
   </ModalFrame>;
 }
@@ -196,11 +201,11 @@ function DecisionDialog({ issue, action, onClose, onDone }: { issue: Issue; acti
   const title = action === "approve" ? ui("Approve {0}", [issue.serial]) : action === "reject" ? ui("Reject {0}", [issue.serial]) : ui("Revoke {0}", [issue.serial]);
   return <ModalFrame title={title} eyebrow={ui("Certificates and ID cards")} onClose={onClose} dirty={Boolean(note)}>
     <div className="space-y-3" data-decision={action}>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{error}</p> : null}
-      <p className="text-sm"><bdi className="font-bold">{issue.title}</bdi> · <bdi>{issue.student.fullName}</bdi> · <bdi dir="ltr">{issue.student.rollNo}</bdi></p>
+      {error ? <Alert tone="danger" compact>{error}</Alert> : null}
+      <p className="text-sm"><bdi className="font-semibold text-ink-strong">{issue.title}</bdi> · <bdi>{issue.student.fullName}</bdi> · <bdi dir="ltr">{issue.student.rollNo}</bdi></p>
       {action === "approve" ? <p className="text-xs text-ink-muted">{ui("Check the pupil's name, dates and the template version. Approving issues the document with today's date.")}</p> : null}
       <FormField name="decision-note" label={action === "approve" ? ui("Note (optional)") : ui("Reason (required)")}><Input value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} disabled={busy} variant={action === "approve" ? "default" : "destructive"}>{busy ? ui("Saving…") : action === "approve" ? ui("Approve and issue") : action === "reject" ? ui("Reject") : ui("Revoke")}</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy} variant={action === "approve" ? "default" : "destructive"}>{action === "approve" ? ui("Approve and issue") : action === "reject" ? ui("Reject") : ui("Revoke")}</Button></div>
     </div>
   </ModalFrame>;
 }
@@ -221,7 +226,7 @@ function TemplatesTab({ templates, canApprove, onChanged }: { templates: Templat
       : <ul className="space-y-2" aria-label={ui("Templates")}>{templates.map(template => {
         const changed = !template.approved || template.approved.title !== template.draft.title || template.approved.body !== template.draft.body;
         return <li key={template.id} className="space-y-1 rounded-2xl border border-border p-3 text-sm" data-template={template.name} data-template-version={template.currentVersion}>
-          <p className="font-bold"><bdi>{template.name}</bdi> · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)}</p>
+          <p className="font-semibold text-ink-strong"><bdi>{template.name}</bdi> · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)}</p>
           <p className="text-xs text-ink-muted">{template.approved ? ui("Approved version {0} · {1}", [template.approved.version, dateTime(template.approved.approvedAt)]) : ui("Draft — not approved")}{changed && template.approved ? ` · ${ui("Draft has unapproved changes")}` : ""}{template.requiresApproval ? ` · ${ui("Each document needs a leader's approval")}` : ""}</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => setEditing(template)}>{ui("Edit draft")}</Button>
@@ -247,7 +252,7 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
   };
   return <ModalFrame title={template ? ui("Edit template draft") : ui("New template")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(form.body || form.title)}>
     <div className="space-y-3" data-template-dialog>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-template-error>{error}</p> : null}
+      {error ? <Alert tone="danger" compact data-template-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="template-name" label={ui("Template name")}><Input value={form.name} maxLength={120} onChange={set("name")} /></FormField>
         <FormField name="template-kind" label={ui("Type")}><Select value={form.kind} onChange={event => setForm(current => ({ ...current, kind: event.target.value as Template["kind"], pageSize: event.target.value === "ID_CARD" ? "ID_CARD" : current.pageSize === "ID_CARD" ? "A4" : current.pageSize, requiresApproval: event.target.value === "ID_CARD" ? true : current.requiresApproval }))}><option value="STUDENT_CERTIFICATE">{ui("Certificate")}</option><option value="ID_CARD">{ui("ID card")}</option></Select></FormField>
@@ -258,7 +263,7 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
       <FormField name="template-title" label={ui("Document title")}><Input value={form.title} maxLength={120} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("title")} /></FormField>
       <FormField name="template-body" label={ui("Document text")}><Textarea value={form.body} rows={6} maxLength={4000} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("body")} /></FormField>
       <p className="text-xs text-ink-muted">{ui("Insert pupil details with {{variable}}. Available:")} <bdi dir="ltr" className="break-words font-mono">{VARIABLES.map(name => `{{${name}}}`).join(" ")}</bdi></p>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} disabled={busy}>{busy ? ui("Saving…") : ui("Save draft")}</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy} disabled={busy}>{ui("Save draft")}</Button></div>
     </div>
   </ModalFrame>;
 }

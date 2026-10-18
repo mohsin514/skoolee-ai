@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { TaskFeedback } from "@/components/ui/task-patterns";
@@ -111,11 +113,11 @@ function FormSetView({ report, language, busy, canCreate, canApprove, onReviewed
       </div>}
     </section>
     {report.languages.map(version => <LanguageCompare key={version.recordId} version={version} language={language} formSetId={report.id} canCreate={canCreate} canApprove={canApprove} onReviewed={onReviewed} />)}
-    {sealed ? <p role="status" className="sk-panel p-4 text-sm font-semibold">{t.sealed}</p> : report.blockers.length > 0 || !report.assignable
-      ? <section role="alert" className="space-y-1 rounded-xl border border-status-warning-border p-3 text-sm"><p className="font-semibold">{t.blockersTitle}</p><ul className="list-disc ps-5">
+    {sealed ? <Alert tone="success" compact live="polite">{t.sealed}</Alert> : report.blockers.length > 0 || !report.assignable
+      ? <Alert tone="warning" title={t.blockersTitle} live="polite"><ul className="list-disc ps-5">
         {formBlockers.map((blocker, index) => <li key={index} data-blocker={blocker.code}>{fill(t.blocker, [blocker.label!, t[CODE_COPY[blocker.code] ?? "codeOther"]])}</li>)}
         {setBlockers.map((blocker, index) => <li key={`set-${index}`} data-blocker={blocker.code}>{fill(t.blockerSet, [t[CODE_COPY[blocker.code] ?? "codeOther"]])}</li>)}
-        {!report.blockers.length && <li>{t.notReady}</li>}</ul></section>
+        {!report.blockers.length && <li>{t.notReady}</li>}</ul></Alert>
       : <AssignSet language={language} busy={busy} onAssign={onAssign} rosterPaperId={rosterPaperId} />}
   </div>;
 }
@@ -176,7 +178,7 @@ function LanguageCompare({ version, language, formSetId, canCreate, canApprove, 
     <p className="text-sm">{fill(t.agreed, [number(version.agreed), number(version.items.length)])}</p>
     <ModelReview version={version} language={language} formSetId={formSetId} canCreate={canCreate} canApprove={canApprove} onReviewed={onReviewed} />
     <ol className="grid gap-2">{version.items.map(item => <li key={item.number} className="rounded-xl border p-3 text-sm" data-language-item={item.number} data-language-codes={item.codes.join(" ")}>
-      <p className="mb-2 text-xs font-semibold">{fill(t.form, [version.label])} · #{number(item.number)}{item.codes.map(code => <span key={code} className="ms-2 rounded-full border border-status-error-border px-2 text-status-error-text">{t[MISMATCH_COPY[code] ?? "mismatchKey"]}</span>)}{item.untranslated ? <span className="ms-2 rounded-full border border-status-warning-border px-2 text-status-warning-text">{t.untranslated}</span> : null}</p>
+      <p className="mb-2 text-xs font-semibold">{fill(t.form, [version.label])} · #{number(item.number)}{item.codes.map(code => <Badge key={code} variant="danger" size="sm" className="ms-2">{t[MISMATCH_COPY[code] ?? "mismatchKey"]}</Badge>)}{item.untranslated ? <Badge variant="warning" size="sm" className="ms-2">{t.untranslated}</Badge> : null}</p>
       <div className="grid gap-3 md:grid-cols-2"><div><p className="text-xs font-semibold text-ink-subtle">{t.original}</p>{side(item.original, version.originalLanguage)}</div><div><p className="text-xs font-semibold text-ink-subtle">{t.translated}</p>{side(item.translated, version.language)}</div></div>
     </li>)}</ol>
   </section>;

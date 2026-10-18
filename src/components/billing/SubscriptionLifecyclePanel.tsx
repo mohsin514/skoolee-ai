@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-373: the institution's software subscription — never family tuition.
@@ -228,7 +229,7 @@ export function SubscriptionLifecyclePanel() {
       {scheduled
         ? <Button type="button" disabled={saving} onClick={() => void submit("resume")}>{ui("Resume subscription")}</Button>
         : <Button type="button" variant="outline" disabled={saving || Boolean(cancelPreview)} onClick={() => void submit("cancel-preview")}>{ui("Cancel subscription…")}</Button>}
-      <Button type="button" variant="outline" disabled={saving || reason.trim().length < 10} onClick={() => void submit("refund")} title={ui("A refund request is reviewed; it is not an approved refund.")}>{ui("Request refund review")}</Button>
+      <Tooltip content={ui("A refund request is reviewed; it is not an approved refund.")}><span tabIndex={saving || reason.trim().length < 10 ? 0 : undefined} className="inline-flex"><Button type="button" variant="outline" disabled={saving || reason.trim().length < 10} onClick={() => void submit("refund")}>{ui("Request refund review")}</Button></span></Tooltip>
       {school.stripeSubscriptionId ? <Button type="button" variant="outline" disabled={saving} onClick={() => void recoverPayment()}>{ui("Update payment method")}</Button> : null}
     </div>
     <p className="text-xs text-slate-600">{ui("A refund request is reviewed; it is not an approved refund.")}</p>

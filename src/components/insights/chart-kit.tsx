@@ -245,7 +245,7 @@ export function HeroFigure({
         <span className="text-5xl font-extrabold leading-none tracking-tight text-white sm:text-6xl">{value}</span>
         {accent}
       </div>
-      {caption ? <p className="mt-3 text-2xs font-bold leading-relaxed text-white/55">{caption}</p> : null}
+      {caption ? <p className="mt-3 text-2xs font-medium leading-relaxed text-white/55">{caption}</p> : null}
       {children}
     </div>
   );
@@ -372,7 +372,7 @@ export function RadialGauge({
         <span className="mt-1 px-4 text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-subtle">
           {label}
         </span>
-        {sublabel ? <span className="mt-0.5 text-2xs font-bold text-ink-faint">{sublabel}</span> : null}
+        {sublabel ? <span className="mt-0.5 text-2xs font-medium text-ink-subtle">{sublabel}</span> : null}
       </div>
     </div>
   );
@@ -557,7 +557,7 @@ export function SingleFigure({
         <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
         <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</span>
       </span>
-      {note ? <p className="max-w-[220px] text-2xs font-bold leading-relaxed text-ink-faint">{note}</p> : null}
+      {note ? <p className="max-w-56 text-2xs font-medium leading-relaxed text-ink-subtle">{note}</p> : null}
     </div>
   );
 }

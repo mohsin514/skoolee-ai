@@ -35,6 +35,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "@/components/role-dashboard";
 import { AvatarImage, initialsOf } from "@/components/ui/avatar-image";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   CHANGE_KIND_LABELS,
   DEPARTMENT_KIND_LABELS,
@@ -319,15 +321,15 @@ export function PositionDialog({
       chips={
         <div className="flex flex-wrap items-center gap-1.5">
           {tone ? (
-            <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold uppercase", tone.chip)}>{tone.label}</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", tone.chip)}>{tone.label}</span>
           ) : null}
           {node.headOf.map((h) => (
-            <span key={h.id} className="rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-bold text-primary">
+            <Badge key={h.id} variant="default" size="sm">
               {h.isActing ? "Acting head" : "Head"} · {h.name}
-            </span>
+            </Badge>
           ))}
           {node.dueForReview ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-bold text-amber-700">Due for review</span>
+            <Badge variant="warning" size="sm" dot>Due for review</Badge>
           ) : null}
         </div>
       }
@@ -425,7 +427,7 @@ export function PositionDialog({
               <Building2 className="h-3.5 w-3.5 text-indigo-600" />
               <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Departments they belong to</h4>
             </div>
-            <p className="text-2xs font-semibold text-ink-muted">
+            <p className="text-xs font-normal text-ink-muted">
               A school runs many departments and people cross them — a teacher covering Physics and Maths, a
               professor sitting on admissions. Add as many as apply; the one marked <strong className="font-bold">home</strong> is
               the one the chart files them under.
@@ -443,16 +445,16 @@ export function PositionDialog({
                       </span>
                     </span>
                     {m.role === "HEAD" ? (
-                      <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-2xs font-bold text-primary">
-                        {m.isActing ? "ACTING HEAD" : "HEAD"}
-                      </span>
+                      <Badge variant="default" size="sm" className="shrink-0">
+                        {m.isActing ? "Acting head" : "Head"}
+                      </Badge>
                     ) : m.role !== "MEMBER" ? (
-                      <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-2xs font-bold text-indigo-600">
-                        {DEPARTMENT_ROLE_LABELS[m.role].toUpperCase()}
-                      </span>
+                      <Badge variant="info" size="sm" className="shrink-0">
+                        {DEPARTMENT_ROLE_LABELS[m.role]}
+                      </Badge>
                     ) : null}
                     {m.isPrimary ? (
-                      <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-bold text-emerald-600">HOME</span>
+                      <Badge variant="success" size="sm" className="shrink-0">HOME</Badge>
                     ) : (
                       <Button variant="secondary" size="sm"
                         type="button"
@@ -481,7 +483,7 @@ export function PositionDialog({
                 ))}
               </ul>
             ) : (
-              <p className="rounded-xl bg-white px-3 py-2.5 text-2xs font-semibold text-ink-muted">
+              <p className="rounded-xl bg-white px-3 py-2.5 text-xs font-normal text-ink-muted">
                 Not in any department yet.
               </p>
             )}
@@ -562,7 +564,7 @@ export function PositionDialog({
               <Link2 className="h-3.5 w-3.5 text-cyan-600" />
               <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Secondary reporting lines</h4>
             </div>
-            <p className="text-2xs font-semibold text-ink-muted">
+            <p className="text-xs font-normal text-ink-muted">
               For work that cuts across the chart — exam duty, a committee, a project. Drawn dashed, and they never change who this person answers to day to day.
             </p>
 
@@ -574,7 +576,7 @@ export function PositionDialog({
                       {line.manager.fullName}
                       {line.label ? <span className="font-semibold text-ink-muted"> · {line.label}</span> : null}
                     </span>
-                    <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-2xs font-semibold uppercase text-cyan-700">{line.kind}</span>
+                    <Badge variant="info" size="sm">{line.kind}</Badge>
                     <Button variant="destructive" size="icon" type="button" onClick={() => removeLine(line.id)}  aria-label="Remove line">
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -630,8 +632,8 @@ function ServiceRecord({
 }) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-12 text-xs font-bold text-ink-muted">
-        <Loader2 className="h-4 w-4 animate-spin" />
+      <div role="status" aria-live="polite" className="flex items-center justify-center gap-2 py-12 text-sm font-medium text-ink-muted">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         Loading the service record…
       </div>
     );
@@ -664,9 +666,7 @@ function ServiceRecord({
       <section className="space-y-2">
         <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Every position held</h4>
         {history.length === 0 ? (
-          <p className="rounded-2xl bg-muted/60 px-4 py-6 text-center text-xs font-semibold text-ink-muted">
-            Nothing recorded yet. The first change you save here starts the record.
-          </p>
+          <EmptyState size="sm" icon={History} title="Nothing recorded yet" description="The first change you save here starts the record." />
         ) : (
           <ol className="relative space-y-3 border-s border-edge/50 ps-5">
             {history.map((entry) => (
@@ -675,8 +675,8 @@ function ServiceRecord({
                 <div className="rounded-2xl border border-edge/30 bg-white p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold text-ink">{CHANGE_KIND_LABELS[entry.changeKind] ?? entry.changeKind}</span>
-                    {entry.isActing ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-2xs font-bold text-amber-700">ACTING</span> : null}
-                    {!entry.effectiveTo ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-bold text-emerald-600">CURRENT</span> : null}
+                    {entry.isActing ? <Badge variant="warning" size="sm">ACTING</Badge> : null}
+                    {!entry.effectiveTo ? <Badge variant="success" size="sm" dot>CURRENT</Badge> : null}
                     <span className="ms-auto text-2xs font-semibold tabular-nums text-ink-muted">
                       {new Date(entry.effectiveFrom).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                       {entry.effectiveTo ? ` → ${new Date(entry.effectiveTo).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
@@ -687,14 +687,14 @@ function ServiceRecord({
                     {entry.departmentName ? <span className="font-semibold text-ink-muted"> · {entry.departmentName}</span> : null}
                   </p>
                   {entry.reportsToName ? (
-                    <p className="text-2xs font-semibold text-ink-muted">Reporting to {entry.reportsToName}</p>
+                    <p className="text-xs font-normal text-ink-muted">Reporting to {entry.reportsToName}</p>
                   ) : null}
                   {entry.orderRef ? (
                     <p className="mt-1 text-2xs font-bold text-ink-muted">Order {entry.orderRef}</p>
                   ) : null}
-                  {entry.notes ? <p className="mt-1 text-2xs font-semibold text-ink-muted">{entry.notes}</p> : null}
+                  {entry.notes ? <p className="mt-1 text-xs font-normal text-ink-muted">{entry.notes}</p> : null}
                   {entry.approvedBy ? (
-                    <p className="mt-1 text-2xs font-semibold text-ink-muted">Recorded by {entry.approvedBy.fullName}</p>
+                    <p className="mt-1 text-xs font-normal text-ink-muted">Recorded by {entry.approvedBy.fullName}</p>
                   ) : null}
                 </div>
               </li>
@@ -711,7 +711,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div className="space-y-1.5">
       <label className="block text-2xs font-bold text-ink">{label}</label>
       {children}
-      {hint ? <p className="text-2xs font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-xs font-normal text-ink-muted">{hint}</p> : null}
     </div>
   );
 }

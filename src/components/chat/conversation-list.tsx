@@ -1,5 +1,6 @@
 "use client";
-import { chatUnreadBadge, chatEmptyIcon } from "./chat-styles";
+import { chatUnreadBadge } from "./chat-styles";
+import { EmptyState } from "@/components/ui/empty-state";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -42,10 +43,10 @@ function relativeTime(iso: string | null, ui: Ui, tag: string) {
   return then.toLocaleDateString(tag, { day: "numeric", month: "short" });
 }
 
-const KIND_BADGE: Record<string, { label: (ui: Ui) => string; className: string }> = {
-  GROUP: { label: (ui) => ui("Group"), className: "bg-brand-50 text-primary" },
-  CLASS: { label: (ui) => ui("Class"), className: "bg-emerald-50 text-emerald-700" },
-  ANNOUNCEMENT: { label: (ui) => ui("Notice"), className: "bg-amber-50 text-amber-700" },
+const KIND_BADGE: Record<string, { label: (ui: Ui) => string; variant: "default" | "success" | "warning" }> = {
+  GROUP: { label: (ui) => ui("Group"), variant: "default" },
+  CLASS: { label: (ui) => ui("Class"), variant: "success" },
+  ANNOUNCEMENT: { label: (ui) => ui("Notice"), variant: "warning" },
 };
 
 export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
@@ -189,8 +190,8 @@ function ConversationRow({
       onClick={onOpen}
       aria-current={isActive ? "true" : undefined}
       className={cn(
-        "group relative isolate flex w-full justify-start items-start gap-3 rounded-2xl px-3 py-3 text-start",
-        isActive ? "bg-accent text-foreground" : "hover:bg-muted"
+        "sk-row-interactive group relative isolate flex h-auto w-full items-start justify-start gap-3 rounded-2xl px-3 py-3 text-start",
+        isActive && "text-foreground"
       )}
     >
 
@@ -216,7 +217,7 @@ function ConversationRow({
           {c.isMuted && <BellOff className="h-3 w-3 shrink-0 self-center text-ink-faint" aria-label={ui("Muted")} />}
           <span
             className={cn(
-              "shrink-0 text-2xs font-bold",
+              "shrink-0 text-2xs font-semibold tabular-nums",
               unread ? "text-berry" : "text-ink-faint"
             )}
           >
@@ -226,17 +227,17 @@ function ConversationRow({
 
         <span className="mt-1 flex items-center gap-1.5">
           {badge && (
-            <Badge size="sm" variant="neutral" className={cn("shrink-0", badge.className)}>
+            <Badge size="sm" variant={badge.variant} className="shrink-0">
               {badge.label(ui)}
             </Badge>
           )}
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-xs",
-              unread ? "font-bold text-ink" : "font-semibold text-ink-muted"
+              unread ? "font-semibold text-ink" : "font-normal text-ink-muted"
             )}
           >
-            {sentByMe && <span className="text-ink-faint">{ui("You:")} </span>}
+            {sentByMe && <span className="text-ink-subtle">{ui("You:")} </span>}
             {c.lastMessagePreview && MEDIA_PREVIEWS.has(c.lastMessagePreview)
               ? ui(c.lastMessagePreview)
               : c.lastMessagePreview || c.subtitle ? <bdi>{c.lastMessagePreview || c.subtitle}</bdi> : ui("No messages yet")}
@@ -250,7 +251,7 @@ function ConversationRow({
         </span>
 
         {c.kind === "DIRECT" && c.counterpart && (
-          <span className="mt-1 block truncate text-2xs font-medium text-ink-faint">
+          <span className="mt-1 block truncate text-2xs font-medium text-ink-subtle">
             {roleLabel(c.counterpart.role, locale.language)}
           </span>
         )}
@@ -294,23 +295,21 @@ function EmptyList({
           };
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-      <span className={chatEmptyIcon}>
-        <Inbox className="h-7 w-7" />
-      </span>
-      <div>
-        <p className="text-sm font-semibold text-foreground">{copy.title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-ink-muted">{copy.body}</p>
-      </div>
-      {filter === "all" && (
-        <Button variant="default" size="sm"
-          type="button"
-          onClick={onNewChat}
-          className="hover:-translate-y-0.5"
-        >
-          {ui("Start a conversation")}
-        </Button>
-      )}
+    <div className="flex h-full items-center justify-center px-2 py-8">
+      <EmptyState
+        size="sm"
+        icon={Inbox}
+        title={copy.title}
+        description={copy.body}
+        action={
+          filter === "all" ? (
+            <Button variant="default" size="sm" type="button" onClick={onNewChat}>
+              <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
+              {ui("Start a conversation")}
+            </Button>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

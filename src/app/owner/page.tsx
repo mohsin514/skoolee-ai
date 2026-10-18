@@ -591,20 +591,20 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
       toast.success(emergency ? t("Emergency support access started; school review is required") : t("Support request sent to the school approver"));
       setPurpose(""); setImpact(""); setEmergencyReason(""); setEmergency(false); await load();
       window.dispatchEvent(new Event("skoolee:support-session-change"));
-    } catch (error) { toast.error(error instanceof Error ? error.message : t("Could not request support access")); }
+    } catch { toast.error(t("Could not request support access")); }
     finally { setBusy(false); }
   };
 
   const start = (grant: SupportGrantRow) => track(`start:${grant.id}`, t("Could not start support access"), async () => {
     const response = await fetch(`/api/owner/support/grants/${grant.id}/start`, { method: "POST" });
     const json = await response.json();
-    if (!response.ok) { toast.error(json.error || t("Could not start support access")); return; }
+    if (!response.ok) { toast.error(t("Could not start support access")); return; }
     toast.success(t("Support access started")); await load(); window.dispatchEvent(new Event("skoolee:support-session-change"));
   });
   const stop = (grant: SupportGrantRow) => track(`stop:${grant.id}`, t("Could not revoke support access"), async () => {
     const response = await fetch(`/api/owner/support/grants/${grant.id}`, { method: "DELETE" });
     const json = await response.json();
-    if (!response.ok) { toast.error(json.error || t("Could not revoke support access")); return; }
+    if (!response.ok) { toast.error(t("Could not revoke support access")); return; }
     toast.success(t("Support access revoked; queued actions were cancelled")); await load(); window.dispatchEvent(new Event("skoolee:support-session-change"));
   });
   const closeIncident = async (grant: SupportGrantRow) => {
@@ -613,14 +613,14 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
     await track(`close:${grant.id}`, t("Could not close support incident"), async () => {
       const response = await fetch(`/api/owner/support/grants/${grant.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "closed", closureEvidence: evidence }) });
       const json = await response.json();
-      if (!response.ok) { toast.error(json.error || t("Could not close support incident")); return; }
+      if (!response.ok) { toast.error(t("Could not close support incident")); return; }
       toast.success(t("Incident closed with evidence")); await load();
     });
   };
   const inspect = (grant: Pick<SupportGrantRow, "id">, domain: string) => track(`inspect:${grant.id}:${domain}`, t("Support access expired or was revoked"), async () => {
     const response = await fetch(`/api/owner/support/workspace?grantId=${encodeURIComponent(grant.id)}&domain=${encodeURIComponent(domain)}`, { cache: "no-store" });
     const json = await response.json();
-    if (!response.ok) { toast.error(json.error || t("Support access expired or was revoked")); return; }
+    if (!response.ok) { toast.error(t("Support access expired or was revoked")); return; }
     setPreview({ id: grant.id, domain, data: json.data });
   });
   const queueAction = async () => {
@@ -631,13 +631,13 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
     await track("queue", t("Could not queue support action"), async () => {
       const response = await fetch("/api/owner/support/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: "school_profile", action: chosenAction, payload }) });
       const json = await response.json();
-      if (!response.ok) { toast.error(json.error || t("Could not queue support action")); return; }
+      if (!response.ok) { toast.error(t("Could not queue support action")); return; }
       toast.success(t("Action queued for scoped support")); setWriteValue(""); await load();
     });
   };
   const executeAction = (id: string, type: string) => track(`execute:${id}`, t("Could not complete support action"), async () => {
     const response = await fetch(`/api/owner/support/actions/${id}/execute`, { method: "POST" });
-    if (!response.ok) { const json = await response.json().catch(() => ({})); toast.error(json.error || t("Could not complete support action")); return; }
+    if (!response.ok) { toast.error(t("Could not complete support action")); return; }
     if (type === "export") {
       const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "school-profile.csv"; anchor.click(); URL.revokeObjectURL(url);
     }
@@ -954,7 +954,7 @@ function SchoolsView({ stats, statsFailed = false, onRefreshStats, onOpenBilling
       onRefreshStats();
       return true;
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err);
       return false;
     }
   };
@@ -1567,7 +1567,7 @@ function AuditLogView() {
                   {isExpanded && (
                     <div className="sk-fade-in mt-4 space-y-3 border-t border-border-subtle pt-4">
                       {log.errorMessage && (
-                        <Alert tone="danger" live="off" compact title="Error">
+                        <Alert tone="danger" live="off" compact title="Action failed">
                           {log.errorMessage}
                         </Alert>
                       )}
@@ -1659,7 +1659,7 @@ function SessionsView() {
       toast.success("Session ended. The user has been signed out of it.");
       loadSessions(pagination.page);
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err);
     } finally {
       setTerminatingId(null);
     }
@@ -2013,7 +2013,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
       setDefaultsFailed(false);
     } catch (err: any) {
       console.error("[pricing] save error", err);
-      toast.error(err?.message || String(err));
+      toast.error(err);
     } finally {
       setSavingDefaults(false);
     }
@@ -2075,7 +2075,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
       toast.success(json.message);
       setPricingMessage("Pricing saved — Super Admins will see updated prices immediately.");
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err);
     } finally {
       setSavingPricing(false);
     }
@@ -2238,7 +2238,7 @@ function PaymentSettingsView() {
       if (!res.ok) throw new Error(json.error);
       window.location.href = json.url;
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err);
     } finally {
       setConnectLoading(false);
     }
@@ -2257,7 +2257,7 @@ function PaymentSettingsView() {
       toast.success(json.message);
       loadSettings();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err);
     } finally {
       setSaving(false);
     }

@@ -144,11 +144,12 @@ export function AiActionPanel({
 
         />
 
-        <BrandButton className="w-full h-12" onClick={runAI} disabled={busy}
-          title="Run this AI action (⌘↵ from the context box)"
+        <Tooltip content="Run this AI action (⌘↵ from the context box)">
+        <BrandButton className="w-full h-12" onClick={runAI} disabled={busy} aria-busy={busy || undefined}
           icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}>
           {busy ? "Drafting" : "Run AI"}
         </BrandButton>
+        </Tooltip>
 
         {output ? (
           <div className="sk-fade-in rounded-2xl border border-status-success-border bg-status-success-surface p-4">

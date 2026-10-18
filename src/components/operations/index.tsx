@@ -18,7 +18,6 @@ import {
   Mail,
   MessageSquare,
   FileText,
-  Loader2,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PanelTitle } from "@/components/shared-admin";
@@ -62,6 +61,8 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -86,6 +87,7 @@ const tdCls = "px-3 py-2.5 text-sm font-medium text-ink-strong";
 const TXN_KIND_LABEL: Record<string, string> = { RECEIVE: "Received", SELL: "Sold", ISSUE: "Issued", RETURN: "Returned" };
 
 function EmptyRow({ cols, text, state, onRetry }: { cols: number; text?: string; state?: "loading" | "error"; onRetry?: () => void }) {
+  const ui = useUiText();
   return (
     <tr>
       <td colSpan={cols} className="px-3 py-6">
@@ -93,12 +95,12 @@ function EmptyRow({ cols, text, state, onRetry }: { cols: number; text?: string;
           <SkeletonTable rows={3} columns={Math.min(cols, 5)} />
         ) : state === "error" ? (
           <ErrorState
-            title="These records could not be loaded"
-            description="Check your connection, then try again."
+            title={ui("These records could not be loaded")}
+            description={ui("Check your connection, then try again.")}
             onRetry={onRetry}
           />
         ) : (
-          <EmptyState size="sm" title={text ?? "Nothing here yet"} description="Use the form above to add the first record." />
+          <EmptyState size="sm" title={ui(text ?? "Nothing here yet")} description={ui("Use the form above to add the first record.")} />
         )}
       </td>
     </tr>
@@ -106,10 +108,24 @@ function EmptyRow({ cols, text, state, onRetry }: { cols: number; text?: string;
 }
 
 function DeleteBtn({ onClick, loading }: { onClick: () => void; loading: boolean }) {
+  const ui = useUiText();
+  const [asking, setAsking] = useState(false);
   return (
-    <Button variant="destructive" size="icon" type="button" aria-label="Delete" onClick={onClick} disabled={loading}>
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-    </Button>
+    <>
+      <IconButton label={ui("Delete")} variant="destructive" size="md" onClick={() => setAsking(true)} disabled={loading} loading={loading}>
+        <Trash2 aria-hidden="true" />
+      </IconButton>
+      <ConfirmAction
+        open={asking}
+        title={ui("Delete this record?")}
+        description={ui("This permanently deletes the record. This cannot be undone.")}
+        confirmLabel={ui("Delete")}
+        tone="danger"
+        busy={loading}
+        onConfirm={() => { setAsking(false); onClick(); }}
+        onCancel={() => setAsking(false)}
+      />
+    </>
   );
 }
 
@@ -235,7 +251,7 @@ function RoutesTab() {
       const j = await r.json();
       if (!j.success) throw new Error(j.error);
       toast.success("Route removed"); load();
-    } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
+    } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
@@ -318,7 +334,7 @@ function VehiclesTab() {
       const j = await r.json();
       if (!j.success) throw new Error(j.error);
       toast.success("Vehicle removed"); load();
-    } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
+    } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
@@ -400,6 +416,7 @@ export function DormitoryPanel() {
 }
 
 function DormRoomTypesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -428,7 +445,7 @@ function DormRoomTypesTab() {
 
   const del = async (id: string) => {
     setDeleting(id);
-    try { const r = await fetch(`/api/dormitory/room-types?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
+    try { const r = await fetch(`/api/dormitory/room-types?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
@@ -505,7 +522,7 @@ function DormRoomsTab() {
 
   const del = async (id: string) => {
     setDeleting(id);
-    try { const r = await fetch(`/api/dormitory/rooms?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Room removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
+    try { const r = await fetch(`/api/dormitory/rooms?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Room removed"); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
@@ -573,6 +590,7 @@ export function LibraryPanel() {
 }
 
 function BookCategoriesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -602,7 +620,7 @@ function BookCategoriesTab() {
 
   const del = async (id: string) => {
     setDeleting(id);
-    try { const r = await fetch(`/api/library/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
+    try { const r = await fetch(`/api/library/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
@@ -635,6 +653,7 @@ function BookCategoriesTab() {
 }
 
 function BooksTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -672,7 +691,7 @@ function BooksTab() {
 
   const del = async (id: string) => {
     setDeleting(id);
-    try { const r = await fetch(`/api/library/books?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
+    try { const r = await fetch(`/api/library/books?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
@@ -730,6 +749,7 @@ function BooksTab() {
 }
 
 function MembersTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -759,7 +779,7 @@ function MembersTab() {
 
   const del = async (id: string) => {
     setDeleting(id);
-    try { const r = await fetch(`/api/library/members?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
+    try { const r = await fetch(`/api/library/members?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
@@ -834,7 +854,7 @@ function IssuesTab() {
       const r = await fetch("/api/library/issues", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "return" }) });
       const j = await r.json(); if (!j.success) throw new Error(j.error);
       toast.success("Book returned"); load();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) { toast.error(e); }
   };
 
   return (
@@ -908,6 +928,7 @@ export function InventoryPanel() {
 }
 
 function ItemCategoriesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -931,7 +952,7 @@ function ItemCategoriesTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
+  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>
@@ -962,6 +983,7 @@ function ItemCategoriesTab() {
 }
 
 function StoresTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -985,7 +1007,7 @@ function StoresTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/stores?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
+  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/stores?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>
@@ -1016,6 +1038,7 @@ function StoresTab() {
 }
 
 function SuppliersTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -1039,7 +1062,7 @@ function SuppliersTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/suppliers?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
+  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/suppliers?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>
@@ -1079,6 +1102,7 @@ function SuppliersTab() {
 }
 
 function ItemsTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -1112,7 +1136,7 @@ function ItemsTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/items?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
+  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/items?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>

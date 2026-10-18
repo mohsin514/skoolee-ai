@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, XCircle } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Modal } from "@/components/ui/modal";
@@ -75,10 +75,10 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
           <Button variant="outline" onClick={onClose} disabled={loading}>{t("Cancel")}</Button>
           <Button
             onClick={handleSubmit}
-            disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
-            aria-busy={loading}
+            disabled={!currentPassword || !newPassword || newPassword !== confirmPassword}
+            loading={loading}
           >
-            {loading ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <KeyRound aria-hidden="true" />}
+            {loading ? null : <KeyRound aria-hidden="true" />}
             {t(loading ? "Updating..." : "Update Password")}
           </Button>
         </div>
@@ -110,10 +110,10 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
               {[1, 2, 3, 4].map((level) => (
                 <div key={level} className={cn("h-1.5 flex-1 rounded-full", level <= strength.level
                   ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
-                  : "bg-[#efe8f5]")} />
+                  : "bg-brand-100")} />
               ))}
             </div>
-            <span className={cn("text-xs font-bold", strength.level <= 1 ? "text-rose-600" : strength.level <= 2 ? "text-amber-700" : "text-emerald-700")}>
+            <span className={cn("text-xs font-semibold", strength.level <= 1 ? "text-rose-600" : strength.level <= 2 ? "text-amber-700" : "text-emerald-700")}>
               {t(strength.label)}
             </span>
           </div>

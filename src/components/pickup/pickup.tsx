@@ -1,6 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { ScanLine } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -93,7 +98,7 @@ export function PickupGate() {
     if (!Detector) { toast.error(ui("This device cannot read codes. Type the code instead.")); return; }
     try { const found = (await new Detector({ formats: ["qr_code"] }).detect(await createImageBitmap(file))).map(c => c.rawValue).find(v => v.startsWith("SKPU1:")); if (found) { setCode(found); await doScan(found); } else toast.error(ui("No pickup code found in the photo.")); } catch { toast.error(ui("No pickup code found in the photo.")); }
   };
-  if (error && !queue) return <section className="sk-panel p-5" data-pickup-gate><p className="text-sm font-bold text-rose-700">{error}</p></section>;
+  if (error && !queue) return <section data-pickup-gate><ErrorState description={error} onRetry={() => void loadQueue()} retryLabel={ui("Try again")} /></section>;
   const decided = check && ["RELEASED", "BLOCKED", "ESCALATED"].includes(check.status);
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-pickup-gate>
     <header><h2 className="text-lg font-bold">{ui("Pickup desk")}</h2><p className="text-xs text-ink-muted">{ui("Scan a pickup code or type it. A valid code still needs the recipient's identity checked before release.")}</p></header>
@@ -103,25 +108,25 @@ export function PickupGate() {
       <div className="flex items-end gap-2"><Button disabled={busy || code.trim().length < 20} onClick={() => void doScan()} data-pg-scan>{ui("Check code")}</Button></div>
     </div>
     <label className="inline-flex items-center gap-2 text-xs"><span>{ui("Or take a photo of the code")}</span><input ref={video} type="file" accept="image/*" capture="environment" className="max-w-full text-xs" onChange={e => void readPhoto(e.target.files?.[0])} /></label>
-    {error ? <p className="rounded-lg bg-rose-50 p-2 text-sm font-bold text-rose-800" role="alert" data-pg-error>{error}</p> : null}
+    {error ? <div data-pg-error><Alert tone="danger" compact>{error}</Alert></div> : null}
 
-    {check ? <div className={cn("space-y-3 rounded-2xl border-2 p-4", check.status === "RELEASED" ? "border-emerald-400 bg-emerald-50/50" : check.status === "OPEN" ? "border-amber-300 bg-amber-50/40" : "border-rose-300 bg-rose-50/40")} data-pg-check={check.checkId} data-pg-status={check.status} aria-live="polite">
+    {check ? <div className={cn("space-y-3 rounded-2xl border-2 p-4", check.status === "RELEASED" ? "border-status-success-border bg-status-success-surface" : check.status === "OPEN" ? "border-status-warning-border bg-status-warning-surface" : "border-status-error-border bg-status-error-surface")} data-pg-check={check.checkId} data-pg-status={check.status} aria-live="polite">
       <p className="text-sm font-bold" data-pg-state>{check.status === "RELEASED" ? ui("Release recorded to the verified recipient; this code is now used.") : check.status === "OPEN" ? ui("Code valid · identity still needs checking") : check.status === "ESCALATED" ? ui("Sent to the pickup lead. Keep the student supervised.") : blockText(ui, check.blockReason)}</p>
       <div className="grid gap-2 sm:grid-cols-2 text-sm">
-        <div><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Student")}</p><p className="font-bold"><bdi>{check.student.name}</bdi></p><p className="text-xs"><bdi>{check.student.className}</bdi></p></div>
-        {check.recipient ? <div><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Recipient")}</p><p className="font-bold"><bdi>{check.recipient.name}</bdi> · <span dir="auto">{check.recipient.relation}</span></p><p className="text-xs">{ui("Check identity by: {0}", [methodLabel(ui, check.recipient.idMethod)])}{check.recipient.idLast4 ? <> · {ui("ID ends with")} <bdi>{check.recipient.idLast4}</bdi></> : null}</p><p className="text-xs">{ui("Authorized by {0} · valid until {1}", [check.recipient.authorizedBy, dateTime(check.recipient.validUntil)])}</p></div> : null}
+        <div><p className="sk-eyebrow">{ui("Student")}</p><p className="font-bold"><bdi>{check.student.name}</bdi></p><p className="text-xs"><bdi>{check.student.className}</bdi></p></div>
+        {check.recipient ? <div><p className="sk-eyebrow">{ui("Recipient")}</p><p className="font-bold"><bdi>{check.recipient.name}</bdi> · <span dir="auto">{check.recipient.relation}</span></p><p className="text-xs">{ui("Check identity by: {0}", [methodLabel(ui, check.recipient.idMethod)])}{check.recipient.idLast4 ? <> · {ui("ID ends with")} <bdi>{check.recipient.idLast4}</bdi></> : null}</p><p className="text-xs">{ui("Authorized by {0} · valid until {1}", [check.recipient.authorizedBy, dateTime(check.recipient.validUntil)])}</p></div> : null}
       </div>
-      {check.restriction ? <p className="rounded-lg bg-rose-100 p-2 text-sm font-bold text-rose-900" data-pg-restriction>{ui("Restriction on file")}: <span dir="auto">{check.restriction.instruction}</span></p> : null}
-      {check.exceptionStatus === "APPROVED" ? <p className="text-xs font-bold text-emerald-800">{ui("The pickup lead approved an exception. Identity must still be checked.")}</p> : null}
+      {check.restriction ? <div data-pg-restriction><Alert tone="danger" compact live="off">{ui("Restriction on file")}: <span dir="auto">{check.restriction.instruction}</span></Alert></div> : null}
+      {check.exceptionStatus === "APPROVED" ? <p className="text-xs font-semibold text-status-success-text">{ui("The pickup lead approved an exception. Identity must still be checked.")}</p> : null}
       {!decided ? <div className="space-y-2">
         <FormField name="pg-method" label={ui("Identity checked with")}><Select value={method} onChange={e => setMethod(e.target.value)}>{METHODS.map(m => <option key={m} value={m}>{methodLabel(ui, m)}</option>)}</Select></FormField>
         <label className="flex items-center gap-2 text-sm"><Checkbox checked={identity} onChange={e => setIdentity(e.target.checked)} data-pg-identity /> {ui("I have checked the recipient's identity with this method.")}</label>
         <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={async () => { const d = await post({ action: "escalate", checkId: check.checkId, note }); if (d) setCheck({ ...check, status: "ESCALATED", exceptionStatus: "REQUESTED" }); }} data-pg-escalate>{ui("Contact pickup lead")}</Button><Button disabled={busy || !identity} onClick={async () => { const d = await post({ action: "release", checkId: check.checkId, identityConfirmed: identity, identityMethod: method }); if (d) setCheck(d); }} data-pg-release>{ui("Confirm release")}</Button></div>
       </div> : check.status !== "RELEASED" && check.status !== "ESCALATED" ? <div className="space-y-2"><FormField name="pg-note" label={ui("Note for the pickup lead")}><Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} /></FormField><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { setCheck(null); setCode(""); }}>{ui("Rescan current code")}</Button><Button disabled={busy} onClick={async () => { const d = await post({ action: "escalate", checkId: check.checkId, note }); if (d) setCheck({ ...check, status: "ESCALATED", exceptionStatus: "REQUESTED" }); }} data-pg-escalate>{ui("Contact pickup lead")}</Button></div></div> : null}
-    </div> : <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted">{ui("Scan a pickup code or look up an authorized pickup request.")}</p>}
+    </div> : <EmptyState size="sm" icon={ScanLine} title={ui("Scan a pickup code or look up an authorized pickup request.")} />}
 
-    {queue?.checks.length ? <div className="space-y-1" data-pg-queue><p className="text-xs font-semibold uppercase text-ink-muted">{ui("Today's checks")}</p>{queue.checks.map(c => <div key={c.checkId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs" data-pg-row={c.checkId} data-pg-row-status={c.status}>
-      <span><bdi>{c.createdAt ? dateTime(c.createdAt) : ""}</bdi> · <bdi>{c.student.name}</bdi> · <span dir="auto">{c.gate}</span> · {c.status === "RELEASED" ? ui("Released") : c.status === "ESCALATED" ? ui("With the pickup lead") : c.status === "OPEN" ? ui("Identity not yet checked") : blockText(ui, c.blockReason)}</span>
+    {queue?.checks.length ? <div className="space-y-1" data-pg-queue><p className="sk-eyebrow">{ui("Today's checks")}</p>{queue.checks.map(c => <div key={c.checkId} className="sk-row-interactive flex flex-wrap items-center justify-between gap-2 rounded-lg border border-edge px-3 py-2 text-xs" data-pg-row={c.checkId} data-pg-row-status={c.status}>
+      <span><bdi>{c.createdAt ? dateTime(c.createdAt) : ""}</bdi> · <bdi>{c.student.name}</bdi> · <span dir="auto">{c.gate}</span> </span><Badge size="sm" dot variant={c.status === "RELEASED" ? "success" : c.status === "OPEN" || c.status === "ESCALATED" ? "warning" : "danger"}>{c.status === "RELEASED" ? ui("Released") : c.status === "ESCALATED" ? ui("With the pickup lead") : c.status === "OPEN" ? ui("Identity not yet checked") : blockText(ui, c.blockReason)}</Badge>
       {queue.lead && c.exceptionStatus === "REQUESTED" ? <LeadDecision checkId={c.checkId} onDone={() => void loadQueue()} /> : null}
     </div>)}</div> : null}
     {queue?.lead ? <Restrictions /> : null}
@@ -145,7 +150,7 @@ function Restrictions() {
   const open = useCallback(async (id: string) => { setStudent(id); setHist(await call(`/api/pickup/restrictions?studentId=${encodeURIComponent(id)}`)); }, []);
   const kindLabel = (k: string) => ({ CUSTODY_ORDER: ui("Custody order"), DO_NOT_RELEASE: ui("Do not release"), LEAD_APPROVAL: ui("Pickup lead approval needed") } as Record<string, string>)[k] ?? k;
   return <div className="space-y-2 rounded-xl border p-3" data-pg-restrictions>
-    <p className="text-xs font-semibold uppercase text-ink-muted">{ui("Restrictions and pickup history")}</p>
+    <p className="sk-eyebrow">{ui("Restrictions and pickup history")}</p>
     <FormField name="pg-find" label={ui("Find a student")}><Input value={q} onChange={e => setQ(e.target.value)} /></FormField>
     {found.length ? <ul className="text-sm">{found.map(s => <li key={s.id}><Button variant="link" size="sm" className="h-auto min-h-0 p-0" onClick={() => void open(s.id)}><bdi>{s.fullName}</bdi>{s.rollNo ? ` · ${s.rollNo}` : ""}</Button></li>)}</ul> : null}
     {student && hist ? <div className="space-y-2">

@@ -189,7 +189,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 420, damping: 34 }}
-              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-8px_60px_-12px_rgba(120,70,180,0.4)] sm:max-h-[82vh] sm:rounded-[28px] sm:shadow-[0_30px_80px_-20px_rgba(120,70,180,0.5)]"
+              className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-[28px] bg-card shadow-2xl sm:max-h-[82vh] sm:rounded-[28px]"
             >
               {/* ── Head ── */}
               <header className="relative shrink-0 overflow-hidden border-b border-edge/25 bg-gradient-to-br from-white via-white to-brand-50/70 px-5 pb-4 pt-4">
@@ -200,7 +200,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
 
                 <div className="relative flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-berry text-white shadow-[0_8px_20px_-8px_rgba(129,39,207,0.75)]">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-berry text-white shadow-brand">
                       <UserRoundSearch className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
@@ -423,7 +423,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                                       className={cn(
                                         "grid h-5 w-5 shrink-0 place-items-center rounded-lg border transition-all",
                                         isSelected
-                                          ? "border-primary bg-gradient-to-br from-primary to-brand-400 text-white shadow-[0_4px_12px_-4px_rgba(129,39,207,0.7)]"
+                                          ? "border-primary bg-gradient-to-br from-primary to-brand-400 text-white shadow-brand"
                                           : "border-edge/60"
                                       )}
                                       aria-hidden
@@ -450,7 +450,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
               </div>
 
               {mode === "group" && (
-                <footer className="shrink-0 border-t border-edge/25 bg-white px-5 py-4">
+                <footer className="shrink-0 border-t border-edge/25 bg-card px-5 py-4">
                   <Button variant="default" size="sm"
                     type="button"
                     onClick={submitGroup}

@@ -129,7 +129,7 @@ export default function AIPage() {
             {/* One wash, not six. */}
             <span
               aria-hidden
-              className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/[0.07] blur-3xl"
+              className="pointer-events-none absolute -end-24 -top-24 h-64 w-64 rounded-full bg-primary/[0.07] blur-3xl"
             />
             <CornerSparkles />
             <div className="relative p-4 sm:p-5">
@@ -158,12 +158,12 @@ export default function AIPage() {
               opening this screen for the first time has no idea what any of
               the five actions actually produce; that is the gap worth
               filling. */}
-          <aside className="sk-enter relative overflow-hidden rounded-[28px] bg-gradient-to-br from-ink-strong via-[#2d2433] to-ink-strong p-5 text-white shadow-xl" style={{ "--sk-delay": "80ms" } as CSSProperties}>
+          <aside className="sk-enter relative overflow-hidden rounded-[28px] bg-gradient-to-br from-ink-strong via-brand-950 to-ink-strong p-5 text-white shadow-xl" style={{ "--sk-delay": "80ms" } as CSSProperties}>
             <span
               aria-hidden
-              className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
+              className="pointer-events-none absolute -end-20 -top-20 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
             />
-            <CornerSparkles color="#c084fc" />
+            <CornerSparkles color="var(--color-brand-400)" />
             <div className="relative">
               <div className="mb-4 flex items-center gap-2">
                 <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">

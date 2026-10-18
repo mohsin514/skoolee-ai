@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, Search, X } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { ArrowLeft, Search, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -100,14 +103,11 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
         {chips.map(chip => <Button key={chip.key} size="sm" variant="secondary" onClick={chip.clear} aria-label={ui("Remove filter {0}", [chip.text])}><bdi>{chip.text}</bdi><X className="size-3" aria-hidden="true" /></Button>)}
         <Button size="sm" variant="ghost" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })} data-search-clear>{ui("Clear filters")}</Button>
       </div> : null}
-      {data?.partial ? <p role="status" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900" data-search-partial>{ui("Results are partial: {0} could not be searched just now.", [Object.entries(data.sources).filter(([, state]) => state === "failed").map(([type]) => typeLabel(ui, type)).join(", ")])} <Button size="sm" variant="ghost" onClick={() => router.refresh()}>{ui("Retry")}</Button></p> : null}
-      {error ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => update({ page: String(state.page) })}>{ui("Retry")}</Button></div> : null}
+      {data?.partial ? <div data-search-partial><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="ghost" onClick={() => router.refresh()}>{ui("Retry")}</Button>}>{ui("Results are partial: {0} could not be searched just now.", [Object.entries(data.sources).filter(([, state]) => state === "failed").map(([type]) => typeLabel(ui, type)).join(", ")])}</Alert></div> : null}
+      {error ? <Alert tone="danger" compact actions={<Button size="sm" variant="secondary" onClick={() => update({ page: String(state.page) })}>{ui("Retry")}</Button>}>{error}</Alert> : null}
       <p className="sr-only" role="status" aria-live="polite">{loading ? ui("Searching…") : data ? ui("{0} results", [total]) : ""}</p>
-      {loading && !data ? <p className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" aria-hidden="true" />{ui("Searching…")}</p> : null}
-      {data && !total && !error ? <div className="space-y-2 rounded-2xl bg-muted p-4 text-sm" data-search-empty>
-        <p className="font-bold">{state.q ? ui("No matches for “{0}”.", [state.q]) : ui("No records in this scope.")}</p>
-        {chips.length ? <p>{ui("Filters in use: {0}. Remove one to widen the search.", [chips.map(chip => chip.text).join(", ")])}</p> : <p>{ui("Try part of the name, or the exact roll number, admission number or application reference.")}</p>}
-      </div> : null}
+      {loading && !data ? <SkeletonList rows={4} label={ui("Searching…")} /> : null}
+      {data && !total && !error ? <div data-search-empty><EmptyState size="sm" icon={Search} title={state.q ? ui("No matches for “{0}”.", [state.q]) : ui("No records in this scope.")} description={chips.length ? ui("Filters in use: {0}. Remove one to widen the search.", [chips.map(chip => chip.text).join(", ")]) : ui("Try part of the name, or the exact roll number, admission number or application reference.")} action={chips.length ? <Button size="sm" variant="secondary" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })}>{ui("Clear filters")}</Button> : undefined} /></div> : null}
       <div ref={listRef} className={`space-y-5 ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
         {data?.groups.filter(group => group.total > 0).map(group => <section key={group.type} aria-label={typeLabel(ui, group.type)} data-search-group={group.type}>
           <h2 className="mb-2 flex items-center justify-between text-sm font-bold"><span>{typeLabel(ui, group.type)} <span className="text-ink-muted">({group.total})</span></span>{!single && group.total > group.rows.length ? <Button size="sm" variant="ghost" onClick={() => update({ types: group.type })}>{ui("See all {0}", [group.total])}</Button> : null}</h2>

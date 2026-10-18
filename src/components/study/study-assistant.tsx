@@ -1,4 +1,6 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "@/components/ui/toast";
@@ -44,19 +46,19 @@ export function StudyAssistant() {
   };
   const flag = async (turnId: string, action: "report" | "help") => { try { await call("POST", { action, turnId }); toast.success(action === "help" ? ui("Your teacher has been asked to help.") : ui("Thank you. Your teacher will check this answer.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
 
-  if (error) return <section className="sk-panel p-5" data-study><p className="text-sm text-rose-700">{error}</p><Link className="text-sm underline" href="/student/resources">{ui("Open class resources")}</Link></section>;
-  if (!data) return <section className="sk-panel p-5" data-study aria-busy="true"><p className="text-sm text-ink-muted">{ui("Loading your class material…")}</p></section>;
-  if (data.blocked) return <section className="sk-panel space-y-2 p-5" data-study data-study-blocked><p className="text-sm font-bold">{ui("Help for this assessment is restricted until it ends.")}</p><Link className="text-sm underline" href={data.blocked.href}>{data.blocked.title ? <><bdi>{data.blocked.title}</bdi> — </> : null}{ui("Return to your exam")}</Link></section>;
+  if (error) return <section className="sk-panel p-5" data-study><ErrorState title={ui("Could not load study help.")} description={error} onRetry={() => void load()} action={<Link className="sk-link text-sm font-semibold text-primary" href="/student/resources">{ui("Open class resources")}</Link>} /></section>;
+  if (!data) return <section className="sk-panel p-5" data-study aria-busy="true"><p className="sr-only">{ui("Loading your class material…")}</p><SkeletonList /></section>;
+  if (data.blocked) return <section className="sk-panel space-y-2 p-5" data-study data-study-blocked><p className="text-sm font-semibold text-ink-strong">{ui("Help for this assessment is restricted until it ends.")}</p><Link className="text-sm underline" href={data.blocked.href}>{data.blocked.title ? <><bdi>{data.blocked.title}</bdi> — </> : null}{ui("Return to your exam")}</Link></section>;
 
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-study>
-    <header><h3 className="text-base font-bold">{ui("Study with class resources")}</h3><p className="text-xs text-ink-muted">{ui("Answers use only your class's approved materials, with their sources. Do not enter private personal information.")}</p></header>
+    <header><h3 className="text-base font-bold text-ink-strong">{ui("Study with class resources")}</h3><p className="text-xs text-ink-muted">{ui("Answers use only your class's approved materials, with their sources. Do not enter private personal information.")}</p></header>
     {!data.resources.length ? <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted" data-study-empty>{ui("Your teachers have not added study material yet.")} <Link className="underline" href="/student/resources">{ui("Open class resources")}</Link></p> : <>
       <FormField name="study-resource" label={ui("Material")}><Select className="w-full min-w-0" value={resourceId} onChange={e => setResourceId(e.target.value)}><option value="">{ui("All my approved class material")}</option>{data.resources.map(r => <option key={r.id} value={r.id}>{r.title} · v{r.version}</option>)}</Select></FormField>
       <FormField name="study-question" label={ui("Your question")}><Textarea rows={2} value={question} onChange={e => setQuestion(e.target.value)} maxLength={600} /></FormField>
-      <div className="flex flex-wrap justify-end gap-2"><Link className="inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-bold" href="/student/resources">{ui("Open resources")}</Link><Button disabled={busy || question.trim().length < 3} onClick={() => void submit()} data-study-ask>{busy ? ui("Finding an explanation…") : ui("Explain this topic")}</Button></div>
+      <div className="flex flex-wrap justify-end gap-2"><Link className="inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-bold" href="/student/resources">{ui("Open resources")}</Link><Button loading={busy} disabled={busy || question.trim().length < 3} onClick={() => void submit()} data-study-ask>{busy ? ui("Finding an explanation…") : ui("Explain this topic")}</Button></div>
     </>}
 
-    {latest ? <article className={cn("space-y-2 rounded-2xl border p-3", latest.outcome === "ANSWERED" ? "border-emerald-200" : "border-amber-300 bg-amber-50/40")} data-study-answer={latest.outcome} aria-live="polite">
+    {latest ? <article className={cn("space-y-2 rounded-2xl border p-3", latest.outcome === "ANSWERED" ? "border-status-success-border" : "border-status-warning-border bg-status-warning-surface")} data-study-answer={latest.outcome} aria-live="polite">
       {latest.outcome === "ANSWERED" ? <>
         <p className="text-sm" dir="auto">{latest.answer.explanation}</p>
         <div className="space-y-1" data-study-sources><p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{ui("Sources")}</p>{latest.sources.map(s => <div key={s.passageId} className="rounded-lg bg-surface-sunken p-2 text-xs" data-study-source={s.passageId}>
@@ -78,15 +80,16 @@ type Desk = { resources: { id: string; title: string; kind: string; publishedVer
 /** Teacher: add approved study text to published resources; see reports and help requests. */
 export function TeacherStudyDesk() {
   const ui = useUiText();
-  const [desk, setDesk] = useState<Desk | null>(null), [busy, setBusy] = useState(false);
+  const [desk, setDesk] = useState<Desk | null>(null), [deskFailed, setDeskFailed] = useState(false), [busy, setBusy] = useState(false);
   const [resourceId, setResourceId] = useState(""), [section, setSection] = useState(""), [text, setText] = useState("");
-  const load = useCallback(async () => { const r = await fetch("/api/study/teacher", { cache: "no-store" }); const j = await r.json().catch(() => ({})); if (j.success) { setDesk(j.data); setResourceId(id => id || j.data.resources.find((x: { eligible: boolean }) => x.eligible)?.id || ""); } }, []);
+  const load = useCallback(async () => { let r: Response; try { r = await fetch("/api/study/teacher", { cache: "no-store" }); } catch { setDeskFailed(true); return; } setDeskFailed(r.status >= 500); const j = await r.json().catch(() => ({})); if (j.success) { setDesk(j.data); setResourceId(id => id || j.data.resources.find((x: { eligible: boolean }) => x.eligible)?.id || ""); } }, []);
   useEffect(() => { void load(); }, [load]);
   const post = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { const r = await fetch("/api/study/teacher", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok || !j.success) throw new Error(j.error || "The change was not saved."); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
+  if (!desk && deskFailed) return <section className="sk-panel p-5" data-study-desk><ErrorState title={ui("Could not load study help.")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></section>;
   if (!desk) return null;
   const eligible = desk.resources.filter(r => r.eligible);
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-study-desk>
-    <header><h3 className="text-base font-bold">{ui("Study help")}</h3><p className="text-xs text-ink-muted">{ui("The study assistant answers only from text you approve here, for the published version of each resource. Answer keys and staff material are never used.")}</p></header>
+    <header><h3 className="text-base font-bold text-ink-strong">{ui("Study help")}</h3><p className="text-xs text-ink-muted">{ui("The study assistant answers only from text you approve here, for the published version of each resource. Answer keys and staff material are never used.")}</p></header>
     {desk.flagged.length ? <div className="space-y-2" data-study-flagged><p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{ui("Reports and help requests")}</p>{desk.flagged.map(f => <div key={f.id} className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm" data-study-flag={f.id}>
       <p className="text-xs text-ink-muted"><bdi>{f.learner}</bdi> · {f.helpRequestedAt ? ui("Asked for help") : ui("Reported an answer")}{f.reportReason ? <> · <span dir="auto">{f.reportReason}</span></> : null}</p>
       <p className="font-bold" dir="auto">{f.question}</p>{f.answer?.explanation ? <p className="text-xs" dir="auto">{f.answer.explanation}</p> : null}

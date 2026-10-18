@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode, type Ref, type RefObject } from "react";
 import Link from "next/link";
 import { AlertCircle, Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -53,15 +54,12 @@ export function DialogLiveRegion({ busy, busyLabel, message }: { busy: boolean; 
 export function DialogAlert({ message, status, alertRef, t, action }: { message: string; status?: number; alertRef: Ref<HTMLDivElement>; t: Pick<SecurityCopy, "signInAgain">; action?: ReactNode }) {
   if (!message) return null;
   return (
-    <div ref={alertRef} tabIndex={-1} role="alert" className="sk-shake mb-5 rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-status-error-text">
-      <p className="flex items-start gap-2.5 text-sm font-bold leading-snug">
-        <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        <span className="min-w-0">{message}</span>
-      </p>
-      {status === 401 ? (
-        <Link href="/login?reason=session-expired" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3")}>{t.signInAgain}</Link>
-      ) : action ? <div className="mt-3">{action}</div> : null}
-    </div>
+    <Alert ref={alertRef} tabIndex={-1} tone="danger" live="assertive" icon={AlertCircle} className="sk-shake mb-5"
+      actions={status === 401 ? (
+        <Link href="/login?reason=session-expired" className={buttonVariants({ variant: "outline", size: "sm" })}>{t.signInAgain}</Link>
+      ) : action ?? undefined}>
+      <p className="min-w-0 text-sm font-medium leading-snug text-status-error-text">{message}</p>
+    </Alert>
   );
 }
 

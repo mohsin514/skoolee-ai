@@ -2,13 +2,14 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { Camera, CheckCircle2, ExternalLink, FileText, Loader2, Plus, Upload } from "lucide-react";
+import { Camera, CheckCircle2, ExternalLink, FileText, Plus, Upload } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip } from "@/components/ui/tooltip";
 import { TaskStatus } from "@/components/ui/task-patterns";
 import { schoolAICopy, interpolateAI } from "@/lib/school-ai/copy";
 import type { Language } from "@/lib/locale/package";
@@ -48,7 +49,7 @@ export function SourceLibrary({ language, records, canCreate, canApprove, onSave
     {canImportRoster && <RosterImport key={campusId ?? "no-campus"} language={language} campusId={campusId} />}
     <section className={`sk-panel ${styles.panel}`}><h2 className={styles.sectionTitle}>{c.uploadTitle}</h2><p className={styles.description}>{c.uploadHint}</p>
       <div className="flex flex-wrap items-end gap-3"><FormField name="source-kind" label={c.documentKind} className="min-w-48 flex-1"><Select value={kind} disabled={uploading} onChange={event => setKind(event.target.value as SourceData["documentKind"])}>{SOURCE_KINDS.map(key => <option key={key} value={key}>{c[key]}</option>)}</Select></FormField>
-        <Button disabled={!canCreate || uploading} onClick={() => uploadRef.current?.click()}>{uploading ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}{uploading ? c.uploadWorking : c.attach}</Button><Button variant="outline" disabled={!canCreate || uploading} title={c.scanHint} onClick={() => cameraRef.current?.click()}><Camera aria-hidden="true" />{c.scan}</Button><Button variant="outline" disabled={!canCreate || uploading} onClick={() => guard(() => setScanning(true))}><Camera aria-hidden="true" />{scanCopy(language).open}</Button><Button variant="ghost" disabled={!canCreate || uploading} onClick={() => guard(() => { setCreating(true); setSelected(null); })}><Plus aria-hidden="true" />{c.manualSource}</Button>
+        <Button disabled={!canCreate} loading={uploading} onClick={() => uploadRef.current?.click()}>{uploading ? null : <Upload aria-hidden="true" />}{uploading ? c.uploadWorking : c.attach}</Button><Tooltip content={c.scanHint}><span tabIndex={!canCreate || uploading ? 0 : undefined} className="inline-flex"><Button variant="outline" disabled={!canCreate || uploading} onClick={() => cameraRef.current?.click()}><Camera aria-hidden="true" />{c.scan}</Button></span></Tooltip><Button variant="outline" disabled={!canCreate || uploading} onClick={() => guard(() => setScanning(true))}><Camera aria-hidden="true" />{scanCopy(language).open}</Button><Button variant="ghost" disabled={!canCreate || uploading} onClick={() => guard(() => { setCreating(true); setSelected(null); })}><Plus aria-hidden="true" />{c.manualSource}</Button>
         {campusId && <PhoneCaptureButton scope={{...scope,campusId,documentKind:kind,language}} disabled={!canCreate || uploading} />}
       </div><p className="mt-3 text-xs text-ink-muted">{c.uploadSize}</p>
       <Input ref={uploadRef} type="file" className="hidden" tabIndex={-1} aria-label={c.attach} accept="application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,.csv" onChange={event => { upload(event.target.files?.[0], "upload"); event.target.value = ""; }} />
