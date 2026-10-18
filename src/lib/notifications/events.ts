@@ -337,6 +337,14 @@ export const NOTIFICATION_EVENTS: Record<string, NotificationEventDef> = {
     link: "/admin",
     recipients: (c) => getAdminsAndPrincipal(c.schoolId, c.campusId),
   },
+  // SKO-423: no evidence in the notice; the update is read after sign-in.
+  FAMILY_DIGEST_READY: {
+    title: () => "Weekly update ready",
+    message: () => "Your child's weekly school update is ready to read.",
+    icon: "Mail",
+    link: "/parent",
+    recipients: async (c) => (Array.isArray(c.recipientIds) ? c.recipientIds.map(String) : []),
+  },
   // SKO-421: the family hears the outcome only; the reason and any note stay inside the request.
   LEARNER_LEAVE_DECIDED: {
     title: () => "Leave request answered",

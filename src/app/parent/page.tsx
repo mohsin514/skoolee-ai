@@ -20,12 +20,13 @@ import { useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { LearnerInsights, learnerSeriesFromParent } from "@/components/insights";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { FamilyInbox } from "@/components/parent/family-inbox";
+import { GuardianDigest } from "@/components/family/family-digest";
 
 export const dynamic = "force-dynamic";
 
 export default function ParentOverviewPage() {
   const { money } = useLocaleFormat();
-  const { data, loading, error, refetch, token } = useParentData();
+  const { data, loading, error, refetch, token, selectedStudentId } = useParentData();
 
   if (loading && !data) return <ParentOverviewSkeleton />;
   if (error) return <ParentErrorState error={error} onRetry={refetch} />;
@@ -63,6 +64,8 @@ export default function ParentOverviewPage() {
       <div className="space-y-3">
         {/* SKO-419: requests across every child come first; the panels below are the selected child's. */}
         <FamilyInbox />
+        {/* SKO-423: the selected child's reviewed weekly update. */}
+        {selectedStudentId ? <GuardianDigest key={selectedStudentId} studentId={selectedStudentId} /> : null}
         <div className="sk-rise grid grid-cols-1 gap-3 md:grid-cols-3" style={{ animationDelay: "40ms" }}>
           {stats.map((s) => (
             <ParentStat key={s.label} icon={s.icon} label={s.label} value={s.value} sub={s.sub} tone={s.tone} />

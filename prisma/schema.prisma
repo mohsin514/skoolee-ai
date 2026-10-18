@@ -231,6 +231,9 @@ model School {
   tripVersions            TripVersion[]
   tripInvitees            TripInvitee[]
   tripConsents            TripConsent[]
+  familyDigests           FamilyDigest[]
+  familyDigestEntries     FamilyDigestEntry[]
+  familyDigestDeliveries  FamilyDigestDelivery[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3192,6 +3195,79 @@ model TripConsent {
   @@index([tripId, studentId])
   @@index([schoolId])
   @@map("trip_consents")
+}
+
+/// SKO-423: a class's weekly family update. Built only from released evidence, reviewed and approved by a
+/// teacher for an exact content version, then delivered once per child, guardian and channel.
+model FamilyDigest {
+  id              String    @id @default(uuid())
+  schoolId        String    @default("") @map("school_id")
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId        String    @map("campus_id")
+  classId         String    @map("class_id")
+  weekStart       DateTime  @db.Date @map("week_start")
+  status          String    @default("DRAFT") // DRAFT | APPROVED | SCHEDULED | SENT | CANCELLED
+  version         Int       @default(1)
+  approvedVersion Int?      @map("approved_version")
+  approvedById    String?   @map("approved_by_id")
+  approvedAt      DateTime? @map("approved_at")
+  scheduledFor    DateTime? @map("scheduled_for")
+  sentAt          DateTime? @map("sent_at")
+  createdById     String    @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  entries    FamilyDigestEntry[]
+  deliveries FamilyDigestDelivery[]
+
+  @@unique([classId, weekStart])
+  @@index([campusId, status])
+  @@index([schoolId])
+  @@map("family_digests")
+}
+
+/// One child's section of a digest: sourced statements, one home activity, and whether it is sent at all.
+model FamilyDigestEntry {
+  id        String       @id @default(uuid())
+  schoolId  String       @default("") @map("school_id")
+  school    School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  digestId  String       @map("digest_id")
+  digest    FamilyDigest @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  studentId String       @map("student_id")
+  content   Json
+  skipped   Boolean      @default(false)
+  status    String       @default("PENDING") // PENDING | SENT | BLOCKED
+  reason    String?
+
+  deliveries FamilyDigestDelivery[]
+
+  @@unique([digestId, studentId])
+  @@index([schoolId])
+  @@map("family_digest_entries")
+}
+
+/// A delivery to one guardian on one channel for one child's week; unique so a retry never sends twice.
+model FamilyDigestDelivery {
+  id             String            @id @default(uuid())
+  schoolId       String            @default("") @map("school_id")
+  school         School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  digestId       String            @map("digest_id")
+  digest         FamilyDigest      @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  entryId        String            @map("entry_id")
+  entry          FamilyDigestEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  studentId      String            @map("student_id")
+  guardianUserId String            @map("guardian_user_id")
+  channel        String            @default("IN_APP")
+  weekStart      DateTime          @db.Date @map("week_start")
+  version        Int
+  status         String            @default("SENT") // SENT | BLOCKED
+  reason         String?
+  seenAt         DateTime?         @map("seen_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  @@unique([studentId, weekStart, guardianUserId, channel])
+  @@index([schoolId, guardianUserId])
+  @@map("family_digest_deliveries")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

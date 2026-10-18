@@ -1,0 +1,133 @@
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { FormField } from "@/components/ui/form-field";
+import { ModalFrame } from "@/components/shared-admin";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+
+// SKO-423. Teacher side: a class's weekly update, one child at a time. Each statement comes from released
+// evidence and keeps its source; wording can be edited, nothing can be invented; at most one home activity
+// with a purpose, a time and an alternative; children with nothing released are left out unless the teacher
+// adds something. Approval covers the exact version; any edit reopens review. Family side: the update for
+// one child, behind sign-in, with its sources and the reviewing teacher.
+
+type Ui = ReturnType<typeof useUiText>;
+type Statement = { id: string; kind: string; text: string; sourceType: string; sourceLabel: string; sourceVersion: string | null; edited?: boolean };
+type NextStep = { objective: string; minutes: number; materials: string; alternative: string } | null;
+type Content = { statements: Statement[]; nextStep: NextStep; staffContact: string; noEvidence: boolean };
+type Entry = { id: string; studentId: string; studentName: string; content: Content; skipped: boolean; status: string; reason: string | null; deliveries: { guardianUserId: string; seenAt: string | null }[] };
+type Digest = { id: string; weekStart: string; status: string; version: number; approvedVersion: number | null; scheduledFor: string | null; sentAt: string | null; entries: Entry[] };
+
+/** Statements the teacher has not reworded are shown in the reader's language from their source. */
+export function statementText(ui: Ui, s: Statement) {
+  if (s.edited) return s.text;
+  if (s.kind === "FEEDBACK") return ui("Feedback was returned on “{0}”.", [s.sourceLabel]);
+  if (s.kind === "REPORT") return ui("The report card for {0} was published.", [s.sourceLabel]);
+  if (s.kind === "ATTENDANCE") { const [a, b] = String(s.sourceVersion ?? "0/0").split("/"); return ui("Attended {0} of {1} recorded school days.", [a, b]); }
+  return s.text;
+}
+const statusLabel = (ui: Ui, status: string) => ({ DRAFT: ui("Draft — awaiting review"), APPROVED: ui("Approved"), SCHEDULED: ui("Scheduled"), SENT: ui("Sent"), CANCELLED: ui("Cancelled") } as Record<string, string>)[status] ?? status;
+const monday = () => { const d = new Date(), iso = d.getDay() || 7; d.setDate(d.getDate() - iso + 1); return d.toISOString().slice(0, 10); };
+
+async function call(url: string, method: string, body?: Record<string, unknown>) {
+  const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  return json.data;
+}
+
+export function FamilyDigestReview({ classes }: { classes: { id: string; label: string }[] }) {
+  const ui = useUiText();
+  const { date, dateTime } = useLocaleFormat();
+  const [classId, setClassId] = useState(classes[0]?.id ?? ""), [week, setWeek] = useState(monday());
+  const [digest, setDigest] = useState<Digest | null>(null), [busy, setBusy] = useState(false), [editing, setEditing] = useState<Entry | null>(null), [preview, setPreview] = useState<Entry | null>(null);
+  const [draft, setDraft] = useState<{ texts: Record<string, string>; removed: string[]; step: { objective: string; minutes: string; materials: string; alternative: string } | null; skipped: boolean }>({ texts: {}, removed: [], step: null, skipped: false });
+  const [scheduleAt, setScheduleAt] = useState("");
+  const refresh = useCallback(async (id: string) => setDigest(await call(`/api/digests/${id}`, "GET")), []);
+  const prepare = async () => { setBusy(true); try { const d = await call("/api/digests", "POST", { classId, week }); await refresh(d.id); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
+  useEffect(() => { setDigest(null); }, [classId, week]);
+  const act = async (body: Record<string, unknown>, done: string) => {
+    if (!digest) return;
+    setBusy(true);
+    try { const result = await call(`/api/digests/${digest.id}`, "PATCH", { ...body, knownVersion: digest.version }); toast.success(body.action === "send" ? ui("Sent to {0} guardians.", [String(result.delivered)]) : ui(done)); await refresh(digest.id); }
+    catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); if (digest) await refresh(digest.id); } finally { setBusy(false); }
+  };
+  const openEdit = (entry: Entry) => { setEditing(entry); setDraft({ texts: Object.fromEntries(entry.content.statements.map(s => [s.id, s.edited ? s.text : statementText(ui, s)])), removed: [], step: entry.content.nextStep ? { ...entry.content.nextStep, minutes: String(entry.content.nextStep.minutes) } : null, skipped: entry.skipped }); };
+  const saveEdit = async () => {
+    if (!editing) return;
+    const statements = Object.fromEntries(editing.content.statements.filter(s => draft.texts[s.id] !== (s.edited ? s.text : statementText(ui, s))).map(s => [s.id, draft.texts[s.id]]));
+    await act({ action: "edit", entryId: editing.id, statements, removeStatementIds: draft.removed, nextStep: draft.step ? { ...draft.step, minutes: Number(draft.step.minutes) } : null, skipped: draft.skipped }, "Saved. Approve the new version before sending.");
+    setEditing(null);
+  };
+  const approved = digest && digest.approvedVersion === digest.version && ["APPROVED", "SCHEDULED"].includes(digest.status);
+  return <section className="sk-panel space-y-4 p-5" data-digest-review data-digest-status={digest?.status ?? ""}>
+    <header><h2 className="text-lg font-black">{ui("Weekly family updates")}</h2><p className="text-xs text-ink-muted">{ui("Only results and feedback already released to families are used. Nothing is sent until you approve this exact version.")}</p></header>
+    <div className="flex flex-wrap items-end gap-3">
+      <FormField name="digest-class" label={ui("Class")}><Select value={classId} onChange={e => setClassId(e.target.value)}>{classes.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</Select></FormField>
+      <FormField name="digest-week" label={ui("Week starting")}><Input type="date" value={week} onChange={e => setWeek(e.target.value)} /></FormField>
+      <Button disabled={busy || !classId} onClick={() => void prepare()} data-digest-prepare>{ui("Open the week's update")}</Button>
+    </div>
+    {digest ? <>
+      <p className="text-sm font-bold" data-digest-state>{statusLabel(ui, digest.status)} · {ui("Version {0}", [String(digest.version)])}{digest.scheduledFor && digest.status === "SCHEDULED" ? <> · <bdi>{dateTime(digest.scheduledFor)}</bdi></> : null}{digest.sentAt ? <> · <bdi>{dateTime(digest.sentAt)}</bdi></> : null}</p>
+      <ul className="divide-y divide-[#cfc2d6]/20">{digest.entries.map(entry => <li key={entry.id} className="space-y-1 py-2" data-digest-entry={entry.studentId} data-digest-skipped={String(entry.skipped)} data-digest-entry-status={entry.status}>
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold"><bdi>{entry.studentName}</bdi>{entry.skipped ? <span className="ms-2 text-xs font-normal text-ink-muted">{entry.content.noEvidence ? ui("Left out — nothing released this week") : ui("Left out")}</span> : null}{entry.status === "BLOCKED" ? <span className="ms-2 text-xs font-bold text-rose-700">{ui("Not sent — a source changed after approval")}</span> : null}</p>
+          <div className="flex gap-1">{digest.status !== "SENT" ? <Button size="sm" variant="outline" onClick={() => openEdit(entry)} data-digest-edit>{ui("Edit")}</Button> : null}<Button size="sm" variant="secondary" onClick={() => setPreview(entry)} data-digest-preview>{ui("Family view")}</Button></div></div>
+        {!entry.skipped ? <ul className="ms-4 list-disc text-xs text-ink-muted">{entry.content.statements.map(s => <li key={s.id}>{statementText(ui, s)}</li>)}{entry.content.nextStep ? <li>{ui("Home activity: {0}", [entry.content.nextStep.objective])}</li> : null}</ul> : null}
+      </li>)}</ul>
+      <div className="flex flex-wrap items-end justify-end gap-2">
+        {digest.status === "DRAFT" ? <Button disabled={busy} onClick={() => void act({ action: "approve" }, "Approved for sending.")} data-digest-approve>{ui("Approve version {0}", [String(digest.version)])}</Button> : null}
+        {approved ? <>
+          <FormField name="digest-at" label={ui("Send at")}><Input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} /></FormField>
+          <Button variant="outline" disabled={busy || !scheduleAt} onClick={() => void act({ action: "schedule", at: new Date(scheduleAt).toISOString() }, "Scheduled.")} data-digest-schedule>{ui("Schedule")}</Button>
+          <Button disabled={busy} onClick={() => void act({ action: "send" }, "Sent.")} data-digest-send>{ui("Send now")}</Button>
+        </> : null}
+      </div>
+    </> : null}
+    {editing ? <ModalFrame title={editing.studentName} eyebrow={ui("Weekly family update")} subtitle={ui("Each statement keeps its source. You can reword or remove it.")} onClose={() => setEditing(null)} wide>
+      <div className="space-y-3" data-digest-editor>
+        {editing.content.statements.filter(s => !draft.removed.includes(s.id)).map(s => <div key={s.id} className="flex items-end gap-2"><FormField name={`st-${s.id}`} label={ui("From: {0}", [s.sourceLabel === "attendance" ? ui("Attendance this week") : s.sourceLabel])} className="flex-1"><Input value={draft.texts[s.id] ?? ""} onChange={e => setDraft({ ...draft, texts: { ...draft.texts, [s.id]: e.target.value } })} /></FormField><Button size="sm" variant="secondary" onClick={() => setDraft({ ...draft, removed: [...draft.removed, s.id] })}>{ui("Remove")}</Button></div>)}
+        {!editing.content.statements.length ? <p className="text-sm text-ink-muted">{ui("Nothing was released for this child this week. You can add a home activity or leave the child out.")}</p> : null}
+        {draft.step ? <div className="grid gap-2 rounded-xl border border-[#cfc2d6]/30 p-3 sm:grid-cols-2" data-digest-step>
+          <FormField name="step-objective" label={ui("What it practises")} className="sm:col-span-2"><Input value={draft.step.objective} onChange={e => setDraft({ ...draft, step: { ...draft.step!, objective: e.target.value } })} /></FormField>
+          <FormField name="step-minutes" label={ui("About how many minutes")}><Input type="number" min={1} max={45} value={draft.step.minutes} onChange={e => setDraft({ ...draft, step: { ...draft.step!, minutes: e.target.value } })} /></FormField>
+          <FormField name="step-materials" label={ui("Materials (optional)")}><Input value={draft.step.materials} onChange={e => setDraft({ ...draft, step: { ...draft.step!, materials: e.target.value } })} /></FormField>
+          <FormField name="step-alternative" label={ui("If this is not possible at home")} className="sm:col-span-2"><Textarea value={draft.step.alternative} onChange={e => setDraft({ ...draft, step: { ...draft.step!, alternative: e.target.value } })} /></FormField>
+          <div className="sm:col-span-2"><Button size="sm" variant="secondary" onClick={() => setDraft({ ...draft, step: null })}>{ui("Remove the home activity")}</Button></div>
+        </div> : <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, step: { objective: "", minutes: "10", materials: "", alternative: "" } })} data-digest-add-step>{ui("Add one home activity")}</Button>}
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.skipped} onChange={e => setDraft({ ...draft, skipped: e.target.checked })} data-digest-skip /> {ui("Leave this child out this week")}</label>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Cancel")}</Button><Button disabled={busy} onClick={() => void saveEdit()} data-digest-save>{ui("Save")}</Button></div>
+      </div>
+    </ModalFrame> : null}
+    {preview ? <ModalFrame title={ui("Family view")} eyebrow={preview.studentName} onClose={() => setPreview(null)}><DigestCard ui={ui} weekStart={digest?.weekStart ?? ""} content={preview.content} reviewedBy={null} formatDate={date} /></ModalFrame> : null}
+  </section>;
+}
+
+function DigestCard({ ui, weekStart, content, reviewedBy, formatDate }: { ui: Ui; weekStart: string; content: Content; reviewedBy: string | null; formatDate: (v: string) => string }) {
+  return <div className="space-y-3" data-digest-card>
+    <p className="text-xs text-ink-muted">{ui("Week of {0}", [formatDate(weekStart.slice(0, 10))])}{reviewedBy ? <> · {ui("Reviewed by {0}", [`\u2068${reviewedBy}\u2069`])}</> : null}</p>
+    {content.statements.length ? <section><h4 className="text-sm font-black">{ui("This week")}</h4><ul className="ms-4 list-disc text-sm">{content.statements.map(s => <li key={s.id}>{statementText(ui, s)}</li>)}</ul></section> : null}
+    {content.nextStep ? <section className="rounded-xl bg-[#fbf0fe] p-3" data-digest-home-activity><h4 className="text-sm font-black">{ui("One thing to try at home")}</h4><p className="text-sm" dir="auto">{content.nextStep.objective}</p><p className="text-xs text-ink-muted">{ui("About {0} minutes", [String(content.nextStep.minutes)])}{content.nextStep.materials ? <> · <span dir="auto">{content.nextStep.materials}</span></> : null}</p><p className="mt-1 text-xs" dir="auto">{ui("If that is not possible: {0}", [content.nextStep.alternative])}</p><p className="mt-1 text-[11px] text-ink-muted">{ui("This is optional practice; it does not change any mark.")}</p></section> : null}
+    {content.staffContact ? <p className="text-xs text-ink-muted">{ui("Questions: {0}", [content.staffContact])}</p> : null}
+  </div>;
+}
+
+type GuardianDigest = { id: string; weekStart: string; version: number; content: Content; reviewedBy: string | null };
+
+/** The family's weekly update for one child; access is rechecked on every read. */
+export function GuardianDigest({ studentId }: { studentId: string }) {
+  const ui = useUiText();
+  const { date } = useLocaleFormat();
+  const [rows, setRows] = useState<GuardianDigest[] | null>(null), [index, setIndex] = useState(0);
+  useEffect(() => { let live = true; fetch(`/api/family/digests?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (live) setRows(json.success ? json.data : []); }).catch(() => live && setRows([])); return () => { live = false; }; }, [studentId]);
+  if (!rows || !rows.length) return null;
+  const current = rows[index];
+  return <section className="sk-panel space-y-3 p-5" data-guardian-digest={current.id}>
+    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-black">{ui("Weekly update")}</h3>{rows.length > 1 ? <div className="flex gap-1"><Button size="sm" variant="outline" disabled={index >= rows.length - 1} onClick={() => setIndex(index + 1)}>{ui("Earlier")}</Button><Button size="sm" variant="outline" disabled={index === 0} onClick={() => setIndex(index - 1)}>{ui("Later")}</Button></div> : null}</div>
+    <DigestCard ui={ui} weekStart={current.weekStart} content={current.content} reviewedBy={current.reviewedBy} formatDate={date} />
+  </section>;
+}
+

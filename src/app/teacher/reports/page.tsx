@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { BrainCircuit, ChevronDown, FileText, Loader2, Search, X } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
+import { FamilyDigestReview } from "@/components/family/family-digest";
 import { BrandButton } from "@/components/role-dashboard";
 import { Select } from "@/components/ui/select";
 import {
@@ -330,6 +331,8 @@ export default function ReportsPage() {
           onGenerateRemarks={(studentId, examId) => handleGenerateStudentRemarks(studentId, examId)}
         />
       ) : null}
+      {/* SKO-423: reviewed weekly family updates for the teacher's classes. */}
+      <div className="mt-4"><FamilyDigestReview classes={classHubs.map((cls: any) => ({ id: cls.id, label: classLabel(cls) }))} /></div>
     </TeacherPage>
   );
 }
