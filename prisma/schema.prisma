@@ -8526,3 +8526,153 @@ model AssetService {
   @@index([assetId, status])
   @@map("asset_services")
 }
+
+// ─── SKO-434: payroll policies, provider exports, frozen run versions and submissions
+
+/// A versioned, effective-dated payroll policy for one employing entity (campus) and currency. It is
+/// a school-configured local rule package, not a certified statutory engine.
+model PayrollPolicy {
+  id                  String   @id @default(uuid())
+  schoolId            String   @map("school_id")
+  campusId            String   @map("campus_id")
+  entityName          String   @map("entity_name")
+  version             Int
+  currency            String
+  effectiveFrom       DateTime @map("effective_from") @db.Date
+  /// e.g. "KSA-demo v2"; shown with scopeNote wherever the policy is used.
+  packageLabel        String   @map("package_label")
+  scopeNote           String   @map("scope_note")
+  /// CALENDAR_DAYS | FIXED_30
+  prorationBasis      String   @map("proration_basis")
+  /// CALENDAR_DAYS | FIXED_30 — what one unpaid leave day costs
+  leaveDivisor        String   @map("leave_divisor")
+  leaveYearStartMonth Int      @map("leave_year_start_month")
+  /// HALF_UP | DOWN, to the currency's minor unit
+  rounding            String
+  requireSeparation   Boolean  @default(true) @map("require_separation")
+  createdById         String   @map("created_by_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@unique([campusId, version])
+  @@index([schoolId])
+  @@map("payroll_policies")
+}
+
+/// A provider's export mapping. Versions are immutable; a change creates the next version.
+model PayrollProvider {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  campusId    String   @map("campus_id")
+  code        String
+  name        String
+  version     Int
+  currencies  String[]
+  /// [{ header, field }] in export order
+  columns     Json
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([campusId, code, version])
+  @@index([schoolId])
+  @@map("payroll_providers")
+}
+
+/// Per-employee payroll identity: provider employee ids and the last working day, if leaving.
+model PayrollEmployee {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  userId      String    @map("user_id")
+  /// { providerCode: employeeId }
+  providerIds Json      @default("{}") @map("provider_ids")
+  leavingDate DateTime? @map("leaving_date") @db.Date
+  updatedById String    @map("updated_by_id")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([schoolId, userId])
+  @@index([campusId])
+  @@map("payroll_employees")
+}
+
+/// An authorized one-off earning or deduction for one employee and pay period.
+model PayrollAdjustment {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  userId      String    @map("user_id")
+  year        Int
+  month       Int
+  /// EARNING | DEDUCTION
+  kind        String
+  label       String
+  amount      Int
+  reason      String
+  enteredById String    @map("entered_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  voidedAt    DateTime? @map("voided_at")
+  voidedById  String?   @map("voided_by_id")
+
+  @@index([campusId, year, month])
+  @@index([schoolId])
+  @@map("payroll_adjustments")
+}
+
+/// One version of a pay period's calculation, with its frozen inputs. Approval binds inputHash; a
+/// changed input makes an approved version STALE and a new version must be prepared.
+model PayrollCalculation {
+  id              String    @id @default(uuid())
+  schoolId        String    @map("school_id")
+  campusId        String    @map("campus_id")
+  year            Int
+  month           Int
+  version         Int
+  /// DRAFT | APPROVED | STALE | EXPORTED | SUPERSEDED
+  status          String    @default("DRAFT")
+  policyId        String    @map("policy_id")
+  policyVersion   Int       @map("policy_version")
+  currency        String
+  entityName      String    @map("entity_name")
+  providerId      String    @map("provider_id")
+  /// A correction version covers only the rows a provider rejected in this earlier version.
+  correctionOfId  String?   @map("correction_of_id")
+  scopeUserIds    String[]  @map("scope_user_ids")
+  inputs          Json
+  inputHash       String    @map("input_hash")
+  lines           Json
+  exceptions      Json      @default("[]")
+  totalNet        Int       @map("total_net")
+  preparedById    String    @map("prepared_by_id")
+  approvedById    String?   @map("approved_by_id")
+  approvedAt      DateTime? @map("approved_at")
+  staleReason     String?   @map("stale_reason")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([campusId, year, month, version])
+  @@index([schoolId])
+  @@map("payroll_calculations")
+}
+
+/// The provider submission of one approved version. A retry reuses the reference and resends only
+/// rows without an accepted outcome; exported does not mean paid.
+model PayrollSubmission {
+  id             String    @id @default(uuid())
+  schoolId       String    @map("school_id")
+  campusId       String    @map("campus_id")
+  calculationId  String    @unique @map("calculation_id")
+  reference      String
+  /// SUBMITTED | PARTIAL | ACKNOWLEDGED | REJECTED
+  status         String    @default("SUBMITTED")
+  file           String
+  /// [{ userId, providerEmployeeId, net, outcome: PENDING|ACCEPTED|REJECTED, reason? }]
+  rows           Json
+  attempts       Int       @default(1)
+  history        Json      @default("[]")
+  submittedById  String    @map("submitted_by_id")
+  submittedAt    DateTime  @default(now()) @map("submitted_at")
+  lastAttemptAt  DateTime  @default(now()) @map("last_attempt_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+
+  @@unique([schoolId, reference])
+  @@map("payroll_submissions")
+}

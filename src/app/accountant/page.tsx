@@ -38,6 +38,7 @@ import { FeeReportsTab } from "@/components/fees/FeeReportsTab";
 import { FeeLayersTab } from "@/components/fees/FeeLayersTab";
 import { AccountsTab } from "@/components/fees/AccountsTab";
 import { PayrollPanel, LeaveManagementPanel } from "@/components/shared-admin/index";
+import { PayrollRunsPanel } from "@/components/payroll/payroll-runs-panel";
 import { FinanceOverview } from "@/components/insights";
 
 type AccountantView =
@@ -186,7 +187,7 @@ export default function AccountantPage() {
           {activeView === "payments" ? <FeePaymentsTab campusId={data.campusId} /> : null}
           {activeView === "fee-reports" ? <FeeReportsTab campusId={data.campusId} /> : null}
           {activeView === "accounts" ? <AccountsTab campusId={data.campusId} /> : null}
-          {activeView === "payroll" ? <PayrollPanel campusId={data.campusId} /> : null}
+          {activeView === "payroll" ? <div className="space-y-6"><PayrollPanel campusId={data.campusId} /><PayrollRunsPanel /></div> : null}
           {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
         </ConsolePage>
       )}
