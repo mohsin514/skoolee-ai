@@ -3,6 +3,7 @@
 import { ClipboardList } from "lucide-react";
 import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
 import { TeacherPage } from "@/components/teacher/teacher-page";
+import { QuestionNetwork } from "@/components/question-network/question-network";
 
 export default function TeacherTestsPage() {
   return (
@@ -13,7 +14,10 @@ export default function TeacherTestsPage() {
       title="My Tests & Quizzes"
       summary="Plan, track and release your assessments stage by stage"
     >
-      <ExamCycleManager role="TEACHER" />
+      <div className="space-y-6">
+        <ExamCycleManager role="TEACHER" />
+        <QuestionNetwork />
+      </div>
     </TeacherPage>
   );
 }

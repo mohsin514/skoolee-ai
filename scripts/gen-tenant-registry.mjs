@@ -34,6 +34,7 @@ const GLOBAL = [
   "StripeWebhookReceipt", // Provider event receipts are globally unique and contain no tenant payload.
   "DataServiceVerification", // Platform hosting evidence for a service/region; no tenant data.
   "Pilot", "PilotObservation", "PilotMeasure", "PilotClaim", // SKO-430: platform-operator pilot evidence; schools by reference, participants pseudonymous.
+  "QuestionNetwork", "QuestionNetworkMember", "QuestionNetworkItem", "QuestionNetworkReview", "QuestionNetworkAdoption", "QuestionNetworkStat", // SKO-454: shared across schools; the service enforces school, audience, membership and embargo on every access.
 ];
 
 const schema = fs.readFileSync(path.join(root, "prisma/schema.prisma"), "utf8");

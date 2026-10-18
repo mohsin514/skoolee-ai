@@ -1,6 +1,7 @@
 "use client";
 
 import { ScenarioPlanner } from "@/components/planning/scenario-planner";
+import { QuestionNetwork } from "@/components/question-network/question-network";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { PurchasingPanel } from "@/components/purchasing/purchasing-panel";
 import { LearningActions } from "@/components/learning/learning-actions";
@@ -760,7 +761,7 @@ export default function PrincipalDashboard() {
 
         {activeView === "academic-model" ? <AcademicModelPanel campusId={data.campusId} /> : null}
 
-        {activeView === "exam-cycles" ? <ExamsWorkspace campusId={data.campusId} /> : null}
+        {activeView === "exam-cycles" ? <div className="space-y-6"><ExamsWorkspace campusId={data.campusId} /><QuestionNetwork /></div> : null}
 
         {activeView === "grading-rules" ? <GradingRulesPanel campusId={data.campusId} /> : null}
         {activeView === "fees" ? <FeeOverviewTab /> : null}

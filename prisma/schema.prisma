@@ -8743,3 +8743,131 @@ model PlanningHandoff {
   @@index([schoolId])
   @@map("planning_handoffs")
 }
+
+// ─── SKO-454: teacher question review network. Platform-global by design: items cross schools, so
+// every read and write enforces school, audience, network membership and embargo explicitly.
+
+/// An invited network of schools that review and reuse each other's shared questions.
+model QuestionNetwork {
+  id            String   @id @default(uuid())
+  name          String
+  ownerSchoolId String   @map("owner_school_id")
+  createdById   String   @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([ownerSchoolId])
+  @@map("question_networks")
+}
+
+model QuestionNetworkMember {
+  id             String    @id @default(uuid())
+  networkId      String    @map("network_id")
+  memberSchoolId String    @map("member_school_id")
+  /// INVITED | ACTIVE
+  status         String    @default("INVITED")
+  invitedById    String    @map("invited_by_id")
+  acceptedById   String?   @map("accepted_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  acceptedAt     DateTime? @map("accepted_at")
+
+  @@unique([networkId, memberSchoolId])
+  @@index([memberSchoolId])
+  @@map("question_network_members")
+}
+
+/// One version of a shared question: a de-identified copy of an approved bank question with its
+/// rights, audience and provenance. The answer key is stored apart and only served to teaching staff.
+model QuestionNetworkItem {
+  id                  String    @id @default(uuid())
+  /// stable across versions, e.g. Q-3F9A21
+  shareKey            String    @map("share_key")
+  version             Int
+  contributorSchoolId String    @map("contributor_school_id")
+  contributorCampusId String    @map("contributor_campus_id")
+  contributedById     String    @map("contributed_by_id")
+  /// { paperId, paperVersion, questionId, paperTitle, approvedAt }
+  source              Json
+  /// SCHOOL | NETWORK | PUBLIC
+  audience            String
+  networkId           String?   @map("network_id")
+  /// { basis, holder, licence, attribution, permits, confirmedById, confirmedAt }
+  rights              Json
+  /// { subject, grade, curriculum, language }
+  tags                Json
+  content             Json
+  answerKey           Json      @map("answer_key")
+  /// AWAITING_AUTHORITY | IN_REVIEW | CHANGES_REQUESTED | PUBLISHED | SUPERSEDED | WITHDRAWN
+  status              String
+  embargoUntil        DateTime? @map("embargo_until")
+  authorizedById      String?   @map("authorized_by_id")
+  correctionOfId      String?   @map("correction_of_id")
+  changeNote          String?   @map("change_note")
+  adjudication        Json?
+  publishedAt         DateTime? @map("published_at")
+  withdrawnAt         DateTime? @map("withdrawn_at")
+  withdrawReason      String?   @map("withdraw_reason")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([shareKey, version])
+  @@index([contributorSchoolId])
+  @@index([status, audience])
+  @@map("question_network_items")
+}
+
+/// A reviewer's decision on one version, with declared expertise and any conflict of interest.
+model QuestionNetworkReview {
+  id               String   @id @default(uuid())
+  itemId           String   @map("item_id")
+  version          Int
+  reviewerId       String   @map("reviewer_id")
+  reviewerSchoolId String   @map("reviewer_school_id")
+  /// { subject, language }
+  expertise        Json
+  conflict         Boolean  @default(false)
+  conflictNote     String?  @map("conflict_note")
+  /// [{ code, detail }]
+  issues           Json     @default("[]")
+  /// APPROVE | REQUEST_CHANGES | REJECT
+  decision         String
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([itemId, reviewerId])
+  @@map("question_network_reviews")
+}
+
+/// A school's adoption of a shared question. The adopted version stays fixed until the school accepts
+/// a correction; completed assessments are never touched.
+model QuestionNetworkAdoption {
+  id              String   @id @default(uuid())
+  shareKey        String   @map("share_key")
+  itemId          String   @map("item_id")
+  adopterSchoolId String   @map("adopter_school_id")
+  adoptedById     String   @map("adopted_by_id")
+  /// ACTIVE | CORRECTION_AVAILABLE | WITHDRAWN_UPSTREAM
+  status          String   @default("ACTIVE")
+  history         Json     @default("[]")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([adopterSchoolId, shareKey])
+  @@index([itemId])
+  @@map("question_network_adoptions")
+}
+
+/// Aggregated use evidence a school reports for a version: counts and a mean score only, no learners.
+model QuestionNetworkStat {
+  id               String   @id @default(uuid())
+  shareKey         String   @map("share_key")
+  version          Int
+  reporterSchoolId String   @map("reporter_school_id")
+  reportedById     String   @map("reported_by_id")
+  sampleSize       Int      @map("sample_size")
+  /// mean proportion of marks, 0..1
+  meanScore        Float    @map("mean_score")
+  context          String
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([shareKey, version, reporterSchoolId, context])
+  @@map("question_network_stats")
+}

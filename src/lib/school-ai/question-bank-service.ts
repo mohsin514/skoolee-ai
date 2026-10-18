@@ -171,3 +171,12 @@ export async function validatePaperBankProvenance(user: AuthUser, paper: PaperDa
     assertReusable(await readEligibility({ ...source, question: original }));
   }
 }
+
+/** SKO-454: one approved bank question with its recorded reuse restrictions, read for sharing beyond the school. */
+export async function approvedQuestionForSharing(user: AuthUser, raw: unknown) {
+  return context(user, async () => {
+    const permissions = await bankAccess(user);
+    const source = await approvedSource(user, bankSourceSchema.parse(raw), prisma, permissions);
+    return entry(source, await eligibilityReader(user, prisma, permissions, new Date())(source));
+  });
+}
