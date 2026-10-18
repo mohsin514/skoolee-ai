@@ -30,7 +30,7 @@ const stubs = (root: string) => ({ name: "synthetic-language-boundaries", setup(
   builder.onLoad({ filter: /.*/, namespace: "lang-stub" }, args => ({ loader: "jsx", resolveDir: root, contents:
     args.path === "next/navigation" ? 'const query=new URLSearchParams(location.search);const router={push:url=>(window.__authNavigations||=[]).push(url),replace:url=>(window.__mfaNavigation||=[]).push(url)};export const useRouter=()=>router;export const useSearchParams=()=>query;'
       : args.path === "next/link" ? 'import React from "react";export default function Link({children,...props}){return <a {...props}>{children}</a>}'
-        : args.path.includes("actions/invite") ? "export const acceptInvite=async()=>{};"
+        : args.path.includes("actions/invite") ? "export const acceptInvite=async()=>{};export const acceptInviteResult=async()=>({success:true});"
           : args.path.includes("LocaleProvider") ? 'export const useLocale=()=>({language:"en",timezone:"UTC",weekStartsOn:1});export const useUiText=()=>text=>text;export const StaticLocaleProvider=({children})=>children;'
             : "export default {}",
   }));
@@ -40,7 +40,7 @@ test.beforeAll(async () => {
   const root = process.cwd();
   const bundle = async (entry: string) => (await build({
     entryPoints: [path.join(root, entry)], bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
-    define: { "process.env.NODE_ENV": '"test"' }, tsconfig: path.join(root, "tsconfig.json"), plugins: [stubs(root)],
+    define: { "process.env.NODE_ENV": '"test"', "process.env": "{}" }, tsconfig: path.join(root, "tsconfig.json"), plugins: [stubs(root)],
   })).outputFiles[0].text;
   loginScript = await bundle("tests/design-system/auth-login-invite.fixture.tsx");
   protectScript = await bundle("tests/design-system/protect-account.fixture.tsx");
@@ -193,6 +193,8 @@ for (const language of ["ar", "ur"] as const) {
 test.describe("server render (needs the dev server on :3005)", () => {
   test("AC2: the cookie renders every auth page RTL in the server HTML", async ({ page, baseURL }) => {
     await page.goto("/login");
+    // A choice made before hydration is replayed after React resets the controlled select, so wait for React to own it.
+    await page.waitForFunction(() => { const select = document.querySelector("#login-language"); return !!select && Object.keys(select).some(key => key.startsWith("__reactProps")); });
     await page.locator("#login-language").selectOption("ar");
     const cookies = await page.context().cookies();
     expect(cookies.find(cookie => cookie.name === "skoolee-lang")?.value).toBe("ar");

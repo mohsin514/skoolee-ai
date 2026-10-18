@@ -21,7 +21,7 @@ test.beforeAll(async () => {
   const result = await build({
     entryPoints: [path.join(root, "tests/design-system/auth-login-invite.fixture.tsx")],
     bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
-    define: { "process.env.NODE_ENV": '"development"' }, tsconfig: path.join(root, "tsconfig.json"),
+    define: { "process.env.NODE_ENV": '"development"', "process.env": "{}" }, tsconfig: path.join(root, "tsconfig.json"),
     plugins: [{ name: "synthetic-auth-boundaries", setup(builder: {
       onResolve: (options: { filter: RegExp }, callback: (args: { path: string }) => unknown) => void;
       onLoad: (options: { filter: RegExp; namespace: string }, callback: (args: { path: string }) => unknown) => void;
@@ -31,7 +31,7 @@ test.beforeAll(async () => {
       builder.onLoad({ filter: /.*/, namespace: "auth-stub" }, args => ({ loader: "jsx", resolveDir: root, contents:
         args.path === "next/navigation" ? 'const query=new URLSearchParams(location.search);const router={push:(url)=>window.__authNavigations.push(url)};export const useRouter=()=>router;export const useSearchParams=()=>query;'
           : args.path === "next/link" ? 'import React from "react";export default function Link({children,...props}){return <a {...props}>{children}</a>}'
-            : args.path.includes("actions/invite") ? 'export const acceptInvite=(...args)=>window.__fixtureAcceptInvite(...args);'
+            : args.path.includes("actions/invite") ? 'export const acceptInvite=(...args)=>window.__fixtureAcceptInvite(...args);export const acceptInviteResult=(...args)=>window.__fixtureAcceptInvite(...args).then(()=>({success:true}),error=>({success:false,error:error.message}));'
               : args.path.includes("LocaleProvider") ? 'export const useLocale=()=>({language:"en",timezone:"UTC",weekStartsOn:1});export const useUiText=()=>text=>text;export const StaticLocaleProvider=({children})=>children;'
                 : 'export default {}',
       }));
@@ -184,12 +184,17 @@ for (const notice of [
   });
 }
 
-for (const message of [
-  "Invalid verification link", "This verification link is invalid or has expired", "User not found", "Verification failed",
+for (const { message, resendable } of [
+  { message: "Invalid verification link", resendable: true },
+  { message: "This verification link is invalid or has expired", resendable: true },
+  { message: "User not found", resendable: false },
+  { message: "Verification failed", resendable: false },
 ]) {
   test(`verification redirect error is persistent and focused: ${message}`, async ({ page }) => {
     await mount(page, { page: "login" }, { query: `?error=${encodeURIComponent(message)}&redirect=%2Fparent` });
-    await expect(page.locator("#login-error")).toHaveText(message);
+    // SKO-478: a link error also offers the supported resend action, so the message and the action are checked separately.
+    await expect(page.locator("#login-error p")).toHaveText(message);
+    await expect(page.locator("#login-error").getByRole("button", { name: "Send a new verification link" })).toHaveCount(resendable ? 1 : 0);
     await expect(page.locator("#login-error")).toBeFocused();
     await expect(page).toHaveURL("http://auth-fixture.test/login?redirect=%2Fparent");
     expect(await page.evaluate(() => window.__authRequests)).toEqual([]);
