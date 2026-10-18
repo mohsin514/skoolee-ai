@@ -283,6 +283,10 @@ model School {
   policyOverrides PolicyOverride[]
   policyEvents PolicyEvent[]
   policyProvenances PolicyProvenance[]
+  taxActivations TaxActivation[]
+  taxFixtureRuns TaxFixtureRun[]
+  taxDocuments TaxDocument[]
+  taxSubmissionAttempts TaxSubmissionAttempt[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -4485,6 +4489,107 @@ model PolicyProvenance {
 
   @@index([schoolId, recordType, recordId])
   @@map("policy_provenances")
+}
+
+/// SKO-444: a school's reviewed activation of a versioned country invoice package. Tax documents snapshot the exact
+/// rules, identity and currency at issue; later configuration never rewrites them.
+
+model TaxActivation {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  packageCode     String    @map("package_code")
+  packageVersion  Int       @map("package_version")
+  campusIds       String[]  @default([]) @map("campus_ids")
+  legalName       String    @map("legal_name")
+  taxId           String?   @map("tax_id")
+  exemptFeeCodes  String[]  @default([]) @map("exempt_fee_codes")
+  currency        String
+  effectiveFrom   DateTime? @map("effective_from")
+  ownerId         String?   @map("owner_id")
+  evidenceReviewer String?  @map("evidence_reviewer")
+  evidenceReference String? @map("evidence_reference")
+  evidenceReviewedAt DateTime? @map("evidence_reviewed_at")
+  configHash      String    @map("config_hash")
+  status          String    @default("DRAFT") // DRAFT | SCHEDULED | ACTIVE | SUPERSEDED | WITHDRAWN
+  preparedById    String    @map("prepared_by_id")
+  approvedById    String?   @map("approved_by_id")
+  approvedAt      DateTime? @map("approved_at")
+  numberSeq       Int       @default(0) @map("number_seq")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  fixtureRuns TaxFixtureRun[]
+  documents   TaxDocument[]
+
+  @@index([schoolId, status])
+  @@map("tax_activations")
+}
+
+model TaxFixtureRun {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  activationId String        @map("activation_id")
+  activation   TaxActivation @relation(fields: [activationId], references: [id], onDelete: Cascade)
+  configHash   String        @map("config_hash")
+  fixtures     Json
+  results      Json
+  passed       Boolean
+  runById      String        @map("run_by_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@index([schoolId, activationId])
+  @@map("tax_fixture_runs")
+}
+
+model TaxDocument {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  invoiceId        String        @unique @map("invoice_id")
+  activationId     String        @map("activation_id")
+  activation       TaxActivation @relation(fields: [activationId], references: [id], onDelete: Restrict)
+  campusId         String        @map("campus_id")
+  packageCode      String        @map("package_code")
+  packageVersion   Int           @map("package_version")
+  documentNumber   String        @map("document_number")
+  revision         Int           @default(1)
+  snapshot         Json
+  currency         String
+  taxAmount        Int           @map("tax_amount")
+  totalAmount      Int           @map("total_amount")
+  issuedAt         DateTime      @map("issued_at")
+  submissionStatus String        @default("NONE") @map("submission_status") // NONE | QUEUED | ACCEPTED | REJECTED | CORRECTED | NOT_SUPPORTED
+  externalId       String?       @map("external_id")
+  lastError        String?       @map("last_error")
+  correctedById    String?       @map("corrected_by_id")
+  correctionNote   String?       @map("correction_note")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  attempts TaxSubmissionAttempt[]
+
+  @@unique([schoolId, documentNumber])
+  @@unique([schoolId, externalId])
+  @@index([schoolId, submissionStatus])
+  @@map("tax_documents")
+}
+
+model TaxSubmissionAttempt {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  documentId String      @map("document_id")
+  document   TaxDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  attempt    Int
+  revision   Int
+  outcome    String // ACCEPTED | REJECTED | TIMEOUT | RECONCILED_ACCEPTED | RECONCILED_MISSING
+  detail     String?
+  actorId    String      @map("actor_id")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@unique([documentId, attempt])
+  @@index([schoolId, documentId])
+  @@map("tax_submission_attempts")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

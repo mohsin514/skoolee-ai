@@ -11,6 +11,7 @@ import { existingMonthlyStudentInvoices } from "@/lib/fees/invoice-generation";
 import { assertApprovalRole, assertSchoolAiAccess, assertWorkspacePermission, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SchoolAiError } from "./access";
 import { workspaceRequestHash } from "./repository";
 import { applyInvoiceCarry, calculateInvoiceAmounts, feeInvoiceProposalSchema, invoiceMonthDates, type FeeInvoiceOptions, type FeeInvoicePreview, type FeeInvoiceResult, type FeeInvoiceStudent, type InvoiceDiscount, type InvoiceFeeLine } from "./fee-invoices";
+import { activationFor } from "@/lib/tax/service";
 
 export async function assertFeeInvoiceAccess(user: AuthUser, db: TxClient = prisma) {
   assertApprovalRole(user);
@@ -108,6 +109,8 @@ export async function previewFeeInvoices(user: AuthUser, record: SchoolAiRecord 
 export async function applyFeeInvoices(user: AuthUser, preview: FeeInvoicePreview, db: TxClient): Promise<FeeInvoiceResult> {
   await assertFeeInvoiceAccess(user, db);
   if (preview.blockers.length) throw new SchoolAiError("No eligible invoices remain in this preview.", 409, "FEE_EMPTY_BATCH");
+  // SKO-444: this batch path does not apply country tax packages; refuse rather than issue untaxed invoices.
+  if (await activationFor(db, user.schoolId, preview.campusId, new Date(`${preview.invoiceDate}T00:00:00.000Z`))) throw new SchoolAiError("This campus has an approved invoice tax package. Generate these invoices from Fees so tax documents are issued.", 409, "FEE_TAX_PACKAGE");
   const invoiceIds: string[] = [], students: FeeInvoiceResult["students"] = [];
   for (const student of preview.students) {
     if (student.disposition !== "CREATE") { students.push(student); continue; }

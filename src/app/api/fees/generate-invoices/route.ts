@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
 import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
 import { minorUnits } from "@/lib/locale/package";
+import { issueDocument, taxFor } from "@/lib/tax/service";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
@@ -110,6 +111,8 @@ export async function POST(req: NextRequest) {
       let discountAmount = 0;
       let taxAmount = 0;
       let lateFeeAmount = 0;
+      // SKO-444: the fee lines this invoice charges, for an approved country package to tax.
+      let taxLines: { code: string; name: string; amount: number }[] = [];
 
       if (assignment) {
         currency = assignment.feeGroup.currency;
@@ -153,6 +156,7 @@ export async function POST(req: NextRequest) {
           oneTimeTotal = resolved.oneTimeFees;
           subtotal = resolved.subtotal;
           discountAmount = resolved.discountAmount;
+          taxLines = lines.filter(line => line.amount > 0).map(line => ({ code: line.code, name: line.name, amount: line.amount }));
         } catch { results.push({ studentId: student.id, status: "error", error: "Review fee and discount amounts." }); continue; }
       } else {
         // 2. Legacy fallback: feeStructure per class
@@ -173,6 +177,7 @@ export async function POST(req: NextRequest) {
         subtotal = monthlyFee + oneTimeTotal;
         discountAmount = Math.round(subtotal * Math.min(discountPct, 100) / 100);
 
+        taxLines = [{ code: "MONTHLY_FEE", name: "Monthly fee", amount: monthlyFee }, ...Object.entries(oneTimeFees).filter(([, v]) => v > 0).map(([name, amount]) => ({ code: name, name, amount }))];
         const taxPct = feeStructure.taxPercentage ?? 0;
         taxAmount = taxPct > 0
           ? Math.round((subtotal - discountAmount) * taxPct / 100)
@@ -199,12 +204,18 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // SKO-444: when an approved country package covers this campus on the invoice date, its rules decide the
+      // tax (the legacy per-structure percentage applies only where no package does). Late fees stay untaxed.
+      let packageTax: Awaited<ReturnType<typeof taxFor>> = null;
+      try { packageTax = await taxFor(tx, user.schoolId, campusId, new Date(`${invoiceContext.invoiceDate}T00:00:00.000Z`), currency, taxLines, discountAmount); }
+      catch (error) { results.push({ studentId: student.id, status: "error", error: error instanceof Error ? error.message : "Review the invoice package." }); continue; }
+      if (packageTax) taxAmount = packageTax.calc.tax;
       const totalAmount = subtotal - discountAmount + lateFeeAmount + taxAmount;
       try { minorUnits(currency); } catch { results.push({ studentId: student.id, status: "error", error: "Review the configured fee currency." }); continue; }
       if ([monthlyFee, oneTimeTotal, subtotal, discountAmount, lateFeeAmount, taxAmount, totalAmount].some(value => !Number.isSafeInteger(value) || value < 0 || value > MAX_INVOICE_MINOR) || discountAmount > subtotal) { results.push({ studentId: student.id, status: "error", error: "Review fee, discount and tax amounts." }); continue; }
 
       const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
-      await tx.invoice.create({
+      const created = await tx.invoice.create({
         data: {
           campusId,
           studentId: student.id,
@@ -226,6 +237,7 @@ export async function POST(req: NextRequest) {
           status: "PENDING",
         },
       });
+      if (packageTax) await issueDocument(tx, user.schoolId, { id: created.id, campusId, invoiceNumber: created.invoiceNumber, invoiceDate: created.invoiceDate, studentName: student.fullName }, packageTax);
 
       results.push({ studentId: student.id, status: "generated" });
     }

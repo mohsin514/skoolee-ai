@@ -1,6 +1,7 @@
 import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
 import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
 import { minorUnits } from "@/lib/locale/package";
+import { issueDocument, taxFor } from "@/lib/tax/service";
 import { invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { recordPayment } from "@/lib/fees/payment";
 import { getLocalePackage } from "@/lib/locale/store";
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
       const result = await invoiceGenerationTransaction(user, campusId, async tx => {
         const students = await tx.student.findMany({
           where: { schoolId: user.schoolId, campusId, archivedAt: null, status: { equals: "active", mode: "insensitive" }, class: { campusId, archivedAt: null, status: "ACTIVE", ...(parsed.data.classId ? { id: parsed.data.classId } : {}) } },
-          select: { id: true, classId: true, class: { select: { academicYear: true } } },
+          select: { id: true, fullName: true, classId: true, class: { select: { academicYear: true } } },
         });
         if (!students.length) throw new ApiError("No active students found", 404);
         const structures = await tx.feeStructure.findMany({ where: { campusId, classId: { in: [...new Set(students.map(student => student.classId))] }, activeFrom: { lte: invoiceDate }, OR: [{ activeTo: null }, { activeTo: { gte: invoiceDate } }] }, orderBy: { activeFrom: "desc" } });
@@ -157,7 +158,13 @@ export async function POST(req: NextRequest) {
           const oneTimeFees = (entries as number[]).reduce((sum, value) => sum + value, 0);
           const subtotal = structure.monthlyFee + oneTimeFees;
           if (![structure.monthlyFee, oneTimeFees, subtotal].every(value => Number.isSafeInteger(value) && value >= 0 && value <= MAX_INVOICE_MINOR)) throw new ApiError("Review configured fee amounts", 422);
-          await tx.invoice.create({ data: { schoolId: user.schoolId, campusId, studentId: student.id, enrollmentId: invoiceContext.enrollmentId, currency: structure.currency, localeSnapshot: { ...localeSnapshot, currency: structure.currency }, monthlyFee: structure.monthlyFee, oneTimeFees, subtotal, totalAmount: subtotal, totalAmountPaid: 0, balanceDue: subtotal, invoiceDate: new Date(`${invoiceContext.invoiceDate}T00:00:00.000Z`), dueDate, status: "PENDING" } });
+          // SKO-444: an approved country package covering this campus on the invoice date decides the tax.
+          const issueDate = new Date(`${invoiceContext.invoiceDate}T00:00:00.000Z`);
+          const taxLines = [{ code: "MONTHLY_FEE", name: "Monthly fee", amount: structure.monthlyFee }, ...Object.entries((structure.oneTimeFeesJson as Record<string, number>) ?? {}).filter(([, v]) => v > 0).map(([name, amount]) => ({ code: name, name, amount }))];
+          const packageTax = await taxFor(tx, user.schoolId, campusId, issueDate, structure.currency, taxLines, 0);
+          const taxAmount = packageTax?.calc.tax ?? 0, totalAmount = subtotal + taxAmount;
+          const invoice = await tx.invoice.create({ data: { schoolId: user.schoolId, campusId, studentId: student.id, enrollmentId: invoiceContext.enrollmentId, currency: structure.currency, localeSnapshot: { ...localeSnapshot, currency: structure.currency }, monthlyFee: structure.monthlyFee, oneTimeFees, subtotal, taxAmount, totalAmount, totalAmountPaid: 0, balanceDue: totalAmount, invoiceDate: issueDate, dueDate, status: "PENDING" } });
+          if (packageTax) await issueDocument(tx, user.schoolId, { id: invoice.id, campusId, invoiceNumber: invoice.invoiceNumber, invoiceDate: invoice.invoiceDate, studentName: student.fullName }, packageTax);
           created++;
         }
         await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "invoices", recordId: `batch-${parsed.data.generationMonth}`, newValue: { month: parsed.data.generationMonth, created, skipped: alreadyGenerated.size } } });
