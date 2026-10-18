@@ -104,21 +104,53 @@ test("a Pakistani school is not routed to the regional quote", async () => {
 });
 
 test("a campus beyond the package is kept as a draft with a route to compare packages", async () => {
-  const context = await signedIn(schools.get("PK")!);
+  // SKO-477: walk the current wizard (structure → identity → package → campuses) instead of jumping to a
+  // step its guards no longer open, then prove the over-limit draft, the comparison route and persistence.
+  const account = schools.get("PK")!;
+  const context = await signedIn(account);
   const page = await context.newPage();
-  await page.goto(base + "/onboarding?step=campuses");
+  const shot = (name: string) => page.screenshot({ path: `${evidence}/onboarding-${name}-1440.png`, fullPage: true });
+  await page.goto(base + "/onboarding");
+  await page.getByText("Set up school operations", { exact: true }).click({ timeout: 60_000 });
+  await page.getByText("A school group", { exact: true }).click();
+  await shot("1-structure");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.locator("#field-name").fill("Synthetic Horizon Schools");
+  await page.locator("#field-city").fill("Lahore");
+  const groupId = page.locator("#field-regId");
+  if (await groupId.count() && !(await groupId.inputValue())) await page.getByRole("button", { name: "Auto", exact: true }).first().click();
+  await shot("2-identity");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const keep = page.getByRole("button", { name: /^Continue with / });
+  await keep.waitFor({ timeout: 30_000 });
+  await shot("3-package");
+  await keep.click();
   for (const name of ["North campus", "South campus"]) {
-    await page.getByPlaceholder("e.g. Main Campus, West Branch").fill(name);
-    await page.getByPlaceholder("City", { exact: true }).fill("Lahore");
-    const campusId = page.getByPlaceholder("BR-XXXX");
-    if (!(await campusId.inputValue())) await campusId.fill(`BR-${name.slice(0, 1)}${Date.now() % 10000}`);
-    await page.getByRole("button", { name: "Add Campus", exact: true }).click();
-    await page.getByText(name, { exact: true }).first().waitFor();
+    await page.locator("#field-campusName").fill(name);
+    await page.locator("#field-campusCity").fill("Lahore");
+    const campusId = page.locator("#field-campusRegId");
+    if (await campusId.count() && !(await campusId.inputValue())) await page.getByRole("button", { name: "Auto", exact: true }).last().click();
+    await page.getByRole("button", { name: "Add campus", exact: true }).click();
+    await page.getByText(name, { exact: true }).first().waitFor({ timeout: 30_000 });
   }
-  const notice = page.getByRole("status").filter({ hasText: "Your current package covers 1 campus" });
-  await notice.waitFor();
-  assert.match(await notice.innerText(), /kept as draft/);
-  assert.equal(await notice.getByRole("link", { name: "Compare packages" }).getAttribute("href"), "/onboarding/package?returnStep=campuses&campuses=2");
-  await page.screenshot({ path: `${evidence}/onboarding-campus-draft-1440.png`, fullPage: true });
+  const notice = page.getByRole("status").filter({ hasText: "are beyond this package" });
+  await notice.waitFor({ timeout: 30_000 });
+  assert.match(await notice.innerText(), /^1 campus drafts? (is|are) beyond this package\. They stay saved as drafts/u);
+  const compare = notice.getByRole("link", { name: "Compare packages" });
+  assert.equal(await compare.getAttribute("href"), "/onboarding/package?returnStep=campuses&campuses=2");
+  await shot("4-campus-draft");
+  await compare.click();
+  await page.waitForURL(/\/onboarding\/package\?returnStep=campuses&campuses=2/u, { timeout: 30_000 });
+  await page.getByRole("button", { name: "Continue with free package" }).waitFor({ timeout: 30_000 });
+  await shot("5-compare-packages");
+  await page.goBack();
+  for (const name of ["North campus", "South campus"]) await page.getByText(name, { exact: true }).first().waitFor({ timeout: 30_000 });
+  await page.reload();
+  for (const name of ["North campus", "South campus"]) await page.getByText(name, { exact: true }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole("status").filter({ hasText: "are beyond this package" }).waitFor();
+  await shot("6-after-back-and-refresh");
+  const owner = await raw.user.findUniqueOrThrow({ where: { id: account.userId }, select: { onboardingComplete: true } });
+  assert.equal(owner.onboardingComplete, false, "nothing was activated");
+  assert.equal(await raw.campus.count({ where: { schoolId: account.schoolId } }), 1, "the drafts did not create live campuses");
   await context.close();
 });
