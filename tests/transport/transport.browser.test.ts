@@ -273,7 +273,11 @@ test("screens: coordinator planner, crew manifest, handover, offline queue and r
   await shot(a, "04-offline-pending");
   assert.equal(await status(ids.t3, "chen"), "EXPECTED", "nothing claimed before the server confirms");
   await ctx.setOffline(false);
-  await a.locator("[data-trip-flush]").click();
+  // The browser may need a moment to report the connection back; the queue stays until the server confirms.
+  for (let i = 0; i < 5 && !(await a.locator(`[data-passenger="${ids.chen}"][data-passenger-status=BOARDED]`).count()); i++) {
+    if (await a.locator("[data-trip-flush]").count()) await a.locator("[data-trip-flush]").click();
+    await a.waitForTimeout(800);
+  }
   await a.locator(`[data-passenger="${ids.chen}"][data-passenger-status=BOARDED]`).waitFor();
   assert.equal(await db.tripEvent.count({ where: { tripId: ids.t3, kind: "BOARDED", studentId: ids.chen } }), 1);
   await a.locator(`[data-passenger="${ids.chen}"] [data-handover]`).click();

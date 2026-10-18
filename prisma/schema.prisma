@@ -278,6 +278,11 @@ model School {
   tripPassengers TripPassenger[]
   tripEvents TripEvent[]
   tripExceptions TripException[]
+  policyTemplates PolicyTemplate[]
+  policyTemplateVersions PolicyTemplateVersion[]
+  policyOverrides PolicyOverride[]
+  policyEvents PolicyEvent[]
+  policyProvenances PolicyProvenance[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -4372,6 +4377,114 @@ model TripException {
 
   @@index([schoolId, tripId, status])
   @@map("trip_exceptions")
+}
+
+/// SKO-443: school-group policy templates. Published versions never change; a campus's effective value is resolved
+/// from the version in effect, then an approved, in-date override for a key the version leaves overridable.
+
+model PolicyTemplate {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  domain       String // GRADING | CALENDAR
+  title        String
+  countries    String[] @default([])
+  boards       String[] @default([])
+  campusIds    String[] @default([]) @map("campus_ids")
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  versions  PolicyTemplateVersion[]
+  overrides PolicyOverride[]
+
+  @@index([schoolId, domain])
+  @@map("policy_templates")
+}
+
+model PolicyTemplateVersion {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  templateId     String         @map("template_id")
+  template       PolicyTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version        Int
+  status         String         @default("DRAFT") // DRAFT | IN_REVIEW | SCHEDULED | ACTIVE | SUPERSEDED | WITHDRAWN
+  values         Json           @default("{}")
+  lockedKeys     String[]       @default([]) @map("locked_keys")
+  overridableKeys String[]      @default([]) @map("overridable_keys")
+  effectiveFrom  DateTime?      @map("effective_from")
+  previewHash    String?        @map("preview_hash")
+  submittedById  String?        @map("submitted_by_id")
+  reviewerId     String?        @map("reviewer_id")
+  reviewedAt     DateTime?      @map("reviewed_at")
+  activatedAt    DateTime?      @map("activated_at")
+  note           String?
+  createdById    String         @map("created_by_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  overrides PolicyOverride[]
+
+  @@unique([templateId, version])
+  @@index([schoolId, status])
+  @@map("policy_template_versions")
+}
+
+model PolicyOverride {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId      String         @map("campus_id")
+  templateId    String         @map("template_id")
+  template      PolicyTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  versionId     String         @map("version_id")
+  version       PolicyTemplateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  key           String
+  value         Json
+  reason        String
+  status        String         @default("PENDING") // PENDING | APPROVED | DECLINED | EXPIRED | REVOKED
+  requestedById String         @map("requested_by_id")
+  approverId    String?        @map("approver_id")
+  decidedAt     DateTime?      @map("decided_at")
+  decisionNote  String?        @map("decision_note")
+  validFrom     DateTime       @map("valid_from")
+  validUntil    DateTime       @map("valid_until")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, status])
+  @@map("policy_overrides")
+}
+
+model PolicyEvent {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  templateId String?  @map("template_id")
+  versionId  String?  @map("version_id")
+  campusId   String?  @map("campus_id")
+  kind       String
+  actorId    String?  @map("actor_id")
+  detail     Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, templateId, createdAt])
+  @@map("policy_events")
+}
+
+model PolicyProvenance {
+  id        String   @id @default(uuid())
+  schoolId  String   @default("") @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId   String   @map("campus_id")
+  domain     String
+  recordType String   @map("record_type")
+  recordId   String   @map("record_id")
+  versionId  String?  @map("version_id")
+  overrideIds String[] @default([]) @map("override_ids")
+  effective  Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, recordType, recordId])
+  @@map("policy_provenances")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

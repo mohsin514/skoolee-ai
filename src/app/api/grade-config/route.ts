@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { normalizeWeightMode } from "@/lib/academic/grade-calculator";
-import { assertPermission, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageOperations } from "@/lib/api/scope";
+import { assertWritable, recordProvenance } from "@/lib/group-policy/service";
 
 /**
  * Grading rules are a property of a CLASS, not of a section (§80).
@@ -315,7 +316,16 @@ export async function POST(request: NextRequest) {
       gradeD: incoming.gradeD,
     };
 
-    await prisma.$transaction(
+    // SKO-443: values a group template sets cannot differ here unless an approved override allows it — the
+    // same rule the campus policy screen shows. Every row written keeps the version that governed it.
+    let policy;
+    try {
+      policy = await assertWritable(session, session.campusId, "GRADING", values);
+    } catch (error) {
+      if (error instanceof ApiError) return NextResponse.json({ error: error.message, code: "POLICY_LOCKED" }, { status: error.status });
+      throw error;
+    }
+    const saved = await prisma.$transaction(
       sections.map((s) =>
         prisma.gradeWeightConfig.upsert({
           where: { classId_academicYear: { classId: s.id, academicYear } },
@@ -324,6 +334,7 @@ export async function POST(request: NextRequest) {
         }),
       ),
     );
+    if (policy.version) await recordProvenance(prisma, session.schoolId, session.campusId, policy, "GRADE_WEIGHT_CONFIG", saved.map((row) => row.id));
 
     return NextResponse.json({
       success: true,
