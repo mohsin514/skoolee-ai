@@ -1,6 +1,7 @@
 import { getLocalePackage } from "@/lib/locale/store";
 import { localeTag } from "@/lib/locale/package";
 import { translateUi } from "@/lib/locale/ui-messages";
+import { resultGradeLabel } from "@/lib/locale/result-grade";
 import { renderLocaleInvoice, renderLocaleReceipt } from "@/lib/locale/invoice-pdf";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { Prisma } from "@prisma/client";
@@ -229,7 +230,7 @@ export async function generateClassGradesPdf(classId: string) {
             <Text style={[styles.cell, styles.flex2]}>{t("Student")}</Text>
             <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Roll No")}</Text>
             <Text style={[styles.cell, styles.flex1, styles.center]}>%</Text>
-            <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Grade")}</Text>
+            <Text style={[styles.cell, styles.flex1, styles.center]}>{resultGradeLabel(locale.language)}</Text>
             <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Status")}</Text>
           </View>
           {results.map((r, i) => {
