@@ -23,6 +23,8 @@ const evidenceRef = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("MARK"), refId: z.string().min(1), label: z.string().trim().min(2).max(200) }).strict(),
   z.object({ kind: z.literal("ASSIGNMENT_SUBMISSION"), refId: z.string().min(1), label: z.string().trim().min(2).max(200) }).strict(),
   z.object({ kind: z.literal("OBSERVATION"), refId: z.string().min(1).max(60), label: z.string().trim().min(10).max(500) }).strict(),
+  // SKO-422: a reviewed exam attempt, cited from question-level evidence.
+  z.object({ kind: z.literal("EXAM_ATTEMPT"), refId: z.string().min(1), label: z.string().trim().min(2).max(200) }).strict(),
 ]);
 const measure = z.object({ measure: z.string().trim().min(3).max(200), value: z.number().min(0).max(100000).nullable(), denominator: z.number().int().min(1).max(100000).nullable(), takenOn: day, source: z.string().trim().min(3).max(200) }).strict();
 export const DraftInput = z.object({
@@ -81,8 +83,8 @@ async function assertEvidence(tx: TxClient, user: AuthUser, studentId: string, r
   for (const ref of refs) {
     if (ref.kind === "MARK" && !(await tx.mark.findFirst({ where: { id: ref.refId, studentId }, select: { id: true } }))) throw new ApiError("Evidence must be this learner's own mark", 400);
     if (ref.kind === "ASSIGNMENT_SUBMISSION" && !(await tx.assignmentSubmission.findFirst({ where: { id: ref.refId, studentId }, select: { id: true } }))) throw new ApiError("Evidence must be this learner's own submission", 400);
+    if (ref.kind === "EXAM_ATTEMPT" && !(await tx.schoolAiExamAttempt.findFirst({ where: { id: ref.refId, studentId, schoolId: user.schoolId, status: "REVIEWED" }, select: { id: true } }))) throw new ApiError("Evidence must be this learner's own reviewed attempt", 400);
   }
-  void user;
 }
 
 /** Create or edit a draft (or an active plan, which bumps its version and keeps the prior snapshot). */

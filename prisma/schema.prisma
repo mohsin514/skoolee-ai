@@ -6715,3 +6715,38 @@ model PilotClaim {
   @@index([pilotId, status])
   @@map("pilot_claims")
 }
+
+// ─── SKO-422: teacher interpretation of question-level evidence
+
+/// A teacher's reading of one item (paper, version, question) in one curriculum version: a
+/// misconception hypothesis citing reviewed answers, a dismissal, or a flag on the item itself.
+/// `evidenceHash` freezes the evidence it was made on; a re-review or key correction makes it stale.
+model ItemEvidenceDecision {
+  id                String    @id @default(uuid())
+  schoolId          String    @map("school_id")
+  campusId          String    @map("campus_id")
+  curriculumId      String    @map("curriculum_id")
+  curriculumVersion Int       @map("curriculum_version")
+  paperId           String    @map("paper_id")
+  paperVersion      Int       @map("paper_version")
+  questionId        String    @map("question_id")
+  kind              String
+  flagCategory      String?   @map("flag_category")
+  statement         String
+  reason            String
+  citedAttemptIds   Json      @default("[]") @map("cited_attempt_ids")
+  outcomeIds        Json      @default("[]") @map("outcome_ids")
+  evidenceHash      String    @map("evidence_hash")
+  status            String    @default("OPEN")
+  groupStudentIds   Json      @default("[]") @map("group_student_ids")
+  groupReason       String?   @map("group_reason")
+  actionPlanIds     Json      @default("[]") @map("action_plan_ids")
+  version           Int       @default(1)
+  history           Json      @default("[]")
+  createdById       String    @map("created_by_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, curriculumId, paperId, paperVersion, questionId])
+  @@map("item_evidence_decisions")
+}

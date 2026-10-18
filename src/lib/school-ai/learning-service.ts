@@ -19,7 +19,7 @@ const id=z.string().min(1).max(120);
 const base={recordId:id,version:z.number().int().positive(),idempotencyKey:z.string().uuid(),language:z.enum(["en","ar","ur"])};
 export const generateLessonSchema=z.object({...base,kind:z.enum(["LESSON","REMEDIATION"]),outcomeIds:z.array(id).min(1).max(30),durationMinutes:z.number().int().min(10).max(240)}).strict();
 export const reviewPaperSchema=z.object({...base,questionIds:z.array(id).min(1).max(20)}).strict();
-async function authorizedRecord(user:AuthUser,recordId:string,tx:TxClient){
+export async function authorizedRecord(user:AuthUser,recordId:string,tx:TxClient){
  const actor=await tx.user.findFirst({where:{id:user.userId,schoolId:user.schoolId,campusId:user.campusId,role:user.role,isActive:true},select:{id:true,accessVersion:true}});if(!actor||user.accessVersion!==undefined&&actor.accessVersion!==user.accessVersion)throw new ApiError("Your access changed. Sign in again.",403);
  const permissions=await loadWorkspacePermissionSnapshot(user,tx);await assertSchoolAiAccess(user,"view",permissions);const record=await getWorkspaceRecordInTransaction(user,recordId,tx,permissions);if(!record.campusId||!["CURRICULUM","PAPER"].includes(record.kind))throw new ApiError("Choose a curriculum or assessment record.",422);await assertWorkspaceSubject(user,record.campusId,record.data as Record<string,unknown>,tx);return{record,permissions};
 }

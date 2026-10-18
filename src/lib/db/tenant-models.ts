@@ -107,6 +107,7 @@ export const TENANT_MODELS = new Set<string>([
   "invoice",
   "item",
   "itemCategory",
+  "itemEvidenceDecision",
   "itemStock",
   "itemStore",
   "itemTransaction",
