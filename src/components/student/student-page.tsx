@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   type LucideIcon,
   ClipboardCheck,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
@@ -44,6 +45,7 @@ export const STUDENT_NAV: StudentNavItem[] = [
   { href: "/student/coursework", label: "Coursework", icon: BookOpen, tone: "classes" },
   { href: "/student/assignments", label: "Assignments", icon: ClipboardCheck, tone: "classes" },
   { href: "/student/resources", label: "Resources", icon: FolderOpen, tone: "classes" },
+  { href: "/student/portfolio", label: "Portfolio", icon: Sparkles, tone: "classes" },
   { href: "/student/access", label: "Access", icon: Accessibility, tone: "exams" },
   { href: "/student/attendance", label: "Attendance", icon: CalendarCheck, tone: "attendance" },
   { href: "/student/timetable", label: "Timetable", icon: Clock, tone: "timetable" },

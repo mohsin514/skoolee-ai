@@ -154,6 +154,8 @@ export const TENANT_MODELS = new Set<string>([
   "phoneCallLog",
   "phoneCallback",
   "phoneCallbackEvent",
+  "portfolioEntry",
+  "portfolioShare",
   "postalEvent",
   "postalRecord",
   "practiceResponse",

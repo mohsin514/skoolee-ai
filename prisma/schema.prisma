@@ -249,6 +249,8 @@ model School {
   serviceCategories ServiceCategory[]
   serviceRequests ServiceRequest[]
   serviceRequestEvents ServiceRequestEvent[]
+  portfolioEntries PortfolioEntry[]
+  portfolioShares PortfolioShare[]
   conversations           Conversation[]
   conversationMembers     ConversationMember[]
   chatMessages            ChatMessage[]
@@ -3694,6 +3696,67 @@ model ServiceRequestEvent {
 
   @@index([schoolId, requestId])
   @@map("service_request_events")
+}
+
+/// SKO-427: one piece of evidence in a learner's portfolio. It points at immutable submission versions (the
+/// earlier attempt with its returned feedback, and optionally a later revision) and snapshots the learning
+/// goal, so a later revision never rewrites the record. The learner writes the reflection; the teacher
+/// approves an exact reflection version, and only that approved text reaches families. Removing an entry
+/// never touches the assignment.
+model PortfolioEntry {
+  id                 String    @id @default(uuid())
+  schoolId           String    @default("") @map("school_id")
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId           String    @map("campus_id")
+  studentId          String    @map("student_id")
+  classId            String    @map("class_id")
+  goal               Json // { curriculumId, curriculumVersion, outcomeId, code, title } or null-ish {}
+  title              String
+  assignmentId       String    @map("assignment_id")
+  earlierVersionId   String    @map("earlier_version_id")
+  laterVersionId     String?   @map("later_version_id")
+  criterionIds       String[]  @default([]) @map("criterion_ids")
+  reflection         String    @default("")
+  reflectionVersion  Int       @default(0) @map("reflection_version")
+  status             String    @default("DRAFT") // DRAFT | PROPOSED | APPROVED | CHANGES_REQUESTED
+  approvedReflection String?   @map("approved_reflection")
+  approvedVersion    Int?      @map("approved_version")
+  teacherComment     String?   @map("teacher_comment")
+  staffNote          String?   @map("staff_note")
+  familyVisible      Boolean   @default(false) @map("family_visible")
+  reviewedById       String?   @map("reviewed_by_id")
+  reviewedAt         DateTime? @map("reviewed_at")
+  version            Int       @default(1)
+  idempotencyKey     String    @map("idempotency_key")
+  createdById        String    @map("created_by_id")
+  removedAt          DateTime? @map("removed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@unique([studentId, idempotencyKey])
+  @@index([schoolId, studentId])
+  @@map("portfolio_entries")
+}
+
+/// SKO-427: a teacher-approved collection shared with one named guardian until it expires or is revoked.
+/// Every open rechecks the guardian's current learning-record permission and each entry's approval.
+model PortfolioShare {
+  id             String    @id @default(uuid())
+  schoolId       String    @default("") @map("school_id")
+  school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentId      String    @map("student_id")
+  guardianUserId String    @map("guardian_user_id")
+  title          String
+  entryIds       String[]  @map("entry_ids")
+  expiresAt      DateTime  @map("expires_at")
+  revokedAt      DateTime? @map("revoked_at")
+  revokedById    String?   @map("revoked_by_id")
+  createdById    String    @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, guardianUserId])
+  @@index([schoolId, studentId])
+  @@map("portfolio_shares")
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────

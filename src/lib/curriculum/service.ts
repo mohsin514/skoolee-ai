@@ -20,6 +20,13 @@ async function curriculumAt(tx: TxClient, user: AuthUser, recordId: string, vers
   return parsed?.success ? parsed.data : null;
 }
 
+/** SKO-427: code and title of objectives in one curriculum version (empty when the version is gone). */
+export async function objectiveLabels(tx: TxClient, user: AuthUser, curriculumId: string, version: number, outcomeIds: string[]) {
+  const record = await tx.schoolAiRecord.findFirst({ where: { id: curriculumId, schoolId: user.schoolId, kind: "CURRICULUM" }, select: { version: true, data: true } });
+  const data = record ? await curriculumAt(tx, user, curriculumId, version, record) : null;
+  return (data?.outcomes ?? []).filter(o => outcomeIds.includes(o.id)).map(o => ({ id: o.id, code: o.code, title: o.title }));
+}
+
 async function openCurriculum(tx: TxClient, user: AuthUser, recordId: string) {
   const permissions = await loadWorkspacePermissionSnapshot(user, tx);
   await assertSchoolAiAccess(user, "view", permissions);

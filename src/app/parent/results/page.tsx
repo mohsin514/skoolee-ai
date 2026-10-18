@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Download, FileText, Loader2 } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
+import { FamilyPortfolio } from "@/components/portfolio/portfolio";
 import { toast } from "sonner";
 import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
 import { useParentData } from "../parent-data-context";
@@ -12,7 +13,7 @@ import { downloadPdfFile } from "@/lib/download";
 export const dynamic = "force-dynamic";
 
 export default function ParentResultsPage() {
-  const { data, loading, error, refetch } = useParentData();
+  const { data, loading, error, refetch, token, selectedStudentId } = useParentData();
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -151,6 +152,8 @@ export default function ParentResultsPage() {
             )}
           </>
         )}
+        {/* SKO-427: learning-progress collections the school shared with this guardian. */}
+        {!token ? <div className="mt-6"><FamilyPortfolio studentId={selectedStudentId ?? null} /></div> : null}
       </div>
     </ParentPage>
   );

@@ -26,6 +26,7 @@ import {
   Target,
   ClipboardCheck,
   Accessibility,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
@@ -56,6 +57,7 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   { href: "/teacher/resources", label: "Resources", icon: FolderOpen, group: "Teach", tone: "classes" },
   { href: "/teacher/assignments", label: "Assignments", icon: ClipboardCheck, group: "Assess", tone: "exams" },
   { href: "/teacher/students", label: "My Students", icon: Users, group: "Teach", tone: "students" },
+  { href: "/teacher/portfolio", label: "Portfolios", icon: Sparkles, group: "Teach", tone: "students" },
   { href: "/teacher/attendance", label: "Attendance", icon: CalendarCheck, group: "Assess", tone: "attendance" },
   { href: "/teacher/marks", label: "Marks", icon: Star, group: "Assess", tone: "exams" },
   { href: "/teacher/curriculum", label: "Objective map", icon: Target, group: "Assess", tone: "exams" },
