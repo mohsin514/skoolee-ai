@@ -6966,3 +6966,67 @@ model SchoolAiModerationSample {
   @@index([reviewerId, status])
   @@map("school_ai_moderation_samples")
 }
+
+// ─── SKO-426: practice sessions with hints and spaced revisits (separate from formal grades)
+
+/// One learner's sitting of an approved practice set. Pausing keeps every accepted answer.
+model PracticeSession {
+  id               String    @id @default(uuid())
+  schoolId         String    @map("school_id")
+  campusId         String    @map("campus_id")
+  studentId        String    @map("student_id")
+  practiceRecordId String    @map("practice_record_id")
+  revisionId       String    @map("revision_id")
+  revisitId        String?   @map("revisit_id")
+  status           String    @default("ACTIVE")
+  expectedMinutes  Int       @map("expected_minutes")
+  startedAt        DateTime  @default(now()) @map("started_at")
+  pausedAt         DateTime? @map("paused_at")
+  completedAt      DateTime? @map("completed_at")
+  summary          Json?
+  version          Int       @default(1)
+
+  responses PracticeResponse[]
+
+  @@index([schoolId, studentId, practiceRecordId])
+  @@map("practice_sessions")
+}
+
+/// One answer. Hints used make it assisted; correctness is only computed for keyed choice items.
+model PracticeResponse {
+  id          String          @id @default(uuid())
+  schoolId    String          @map("school_id")
+  sessionId   String          @map("session_id")
+  session     PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  itemKey     String          @map("item_key")
+  hintsUsed   Int             @default(0) @map("hints_used")
+  answer      String?
+  correct     Boolean?
+  assisted    Boolean         @default(false)
+  confidence  Int?
+  explanation String?
+  answeredAt  DateTime?       @map("answered_at")
+
+  @@unique([sessionId, itemKey])
+  @@map("practice_responses")
+}
+
+/// A scheduled return to a practice set: set by the rule, the teacher or (within policy) the learner.
+model PracticeRevisit {
+  id               String    @id @default(uuid())
+  schoolId         String    @map("school_id")
+  campusId         String    @map("campus_id")
+  studentId        String    @map("student_id")
+  practiceRecordId String    @map("practice_record_id")
+  dueOn            DateTime  @map("due_on") @db.Date
+  originalDueOn    DateTime  @map("original_due_on") @db.Date
+  reason           String
+  source           String
+  status           String    @default("SCHEDULED")
+  history          Json      @default("[]")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, studentId, status])
+  @@map("practice_revisits")
+}

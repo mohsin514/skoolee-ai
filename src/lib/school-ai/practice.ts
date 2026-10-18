@@ -13,6 +13,8 @@ export const practiceItemSchema = z.strictObject({
   options: z.array(z.strictObject({ id, text: z.string().max(2000) })).max(8),
   marks: z.number().min(0.25).max(100),
   outcomeIds: z.array(id).max(50),
+  /** SKO-426: up to three teacher-written hints, shown one at a time. Hints never contain the key. */
+  hints: z.array(z.string().trim().min(3).max(1000)).max(3).optional(),
 });
 export const practiceSetSchema = z.strictObject({
   subjectId: id,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PracticeSessionPanel } from "./practice-session-panel";
 import type { Language } from "@/lib/locale/package";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSpacesCopy, type StudioSpacesCopy } from "@/lib/school-ai/exam-studio-copy-spaces";
@@ -44,8 +45,8 @@ export function LearnerFeedback({ id, language }: { id: string; language: Langua
     <OutcomeFeedbackList feedback={feedback} language={language} />
     {practice.length > 0 && <div className="mt-4 space-y-2" data-learner-practice>
       <h3 className="font-semibold">{t.learnerPracticeTitle}</h3>
-      {practice.map(set => <div key={set.id} className="rounded-lg border p-3 text-sm"><p className="font-semibold"><bdi dir="auto">{set.title}</bdi></p>
-        <ol className="mt-1 list-decimal space-y-1 ps-5">{set.items.map((item, index) => <li key={index}><span dir="auto">{item.prompt}</span>{item.options.length > 0 && <ul className="list-disc ps-5 text-xs">{item.options.map((option, optionIndex) => <li key={optionIndex} dir="auto">{option}</li>)}</ul>}</li>)}</ol></div>)}
+      {/* SKO-426: practise the approved set in short sessions with hints and revisits. */}
+      <PracticeSessionPanel />
     </div>}
   </section>;
 }
