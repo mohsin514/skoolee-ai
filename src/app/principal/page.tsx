@@ -1,5 +1,6 @@
 "use client";
 
+import { ScenarioPlanner } from "@/components/planning/scenario-planner";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { PurchasingPanel } from "@/components/purchasing/purchasing-panel";
 import { LearningActions } from "@/components/learning/learning-actions";
@@ -741,10 +742,13 @@ export default function PrincipalDashboard() {
           </div>
         ) : null}
         {activeView === "academic-hub" ? (
-          <AcademicHub
-            campusId={data.campusId}
-            onNavigate={(v) => setActiveView(v as PrincipalView)}
-          />
+          <div className="space-y-6">
+            <AcademicHub
+              campusId={data.campusId}
+              onNavigate={(v) => setActiveView(v as PrincipalView)}
+            />
+            <ScenarioPlanner />
+          </div>
         ) : null}
 
         {activeView === "year-setup" ? (

@@ -8676,3 +8676,70 @@ model PayrollSubmission {
   @@unique([schoolId, reference])
   @@map("payroll_submissions")
 }
+
+// ─── SKO-453: capacity and staffing scenario planning (never writes live records)
+
+/// A dated, versioned snapshot of a campus's enrollment, rooms, periods, staff and subject demand.
+model PlanningBaseline {
+  id           String   @id @default(uuid())
+  schoolId     String   @map("school_id")
+  campusId     String   @map("campus_id")
+  version      Int
+  takenAt      DateTime @default(now()) @map("taken_at")
+  /// hash of the live inputs; a different live hash means the baseline is stale
+  fingerprint  String
+  data         Json
+  /// [{ code, detail }] — inputs that were missing when the snapshot was taken
+  missing      Json     @default("[]")
+  createdById  String   @map("created_by_id")
+
+  @@unique([campusId, version])
+  @@index([schoolId])
+  @@map("planning_baselines")
+}
+
+/// Assumptions evaluated against one baseline. Changing assumptions recomputes the result only.
+model PlanningScenario {
+  id           String   @id @default(uuid())
+  schoolId     String   @map("school_id")
+  campusId     String   @map("campus_id")
+  baselineId   String   @map("baseline_id")
+  name         String
+  assumptions  Json
+  result       Json
+  version      Int      @default(1)
+  /// set when this scenario was copied onto a newer baseline
+  copiedFromId String?  @map("copied_from_id")
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([campusId, baselineId])
+  @@index([schoolId])
+  @@map("planning_scenarios")
+}
+
+/// A reviewed implementation plan from a scenario. Approval re-checks live resources; it never
+/// changes enrollment, staffing or timetables itself.
+model PlanningHandoff {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  campusId      String    @map("campus_id")
+  scenarioId    String    @map("scenario_id")
+  scenarioVersion Int     @map("scenario_version")
+  ownerId       String    @map("owner_id")
+  /// [{ kind, detail, estimate? }]
+  items         Json
+  note          String
+  /// PROPOSED | APPROVED | REJECTED
+  status        String    @default("PROPOSED")
+  proposedById  String    @map("proposed_by_id")
+  decidedById   String?   @map("decided_by_id")
+  decidedAt     DateTime? @map("decided_at")
+  decisionNote  String?   @map("decision_note")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([scenarioId])
+  @@index([schoolId])
+  @@map("planning_handoffs")
+}
