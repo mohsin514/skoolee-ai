@@ -1,5 +1,6 @@
 "use client";
 
+import { useCountLabel } from "@/components/locale/use-count-label";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -26,6 +27,7 @@ import { clashingSlotIds } from "@/lib/timetable/clashes";
 export default function TeacherDashboardHub() {
   const router = useRouter();
   const { data, loading, error, refetch } = useTeacherData();
+  const count = useCountLabel();
 
   const [todaySlots, setTodaySlots] = useState<TimetableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
@@ -117,9 +119,9 @@ export default function TeacherDashboardHub() {
       summary={
         <span suppressHydrationWarning>
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-          {` · ${teacherSubjects.length} subject${teacherSubjects.length === 1 ? "" : "s"}`}
-          {` · ${classHubs.length} class${classHubs.length === 1 ? "" : "es"}`}
-          {` · ${data.totalStudents} students`}
+          {` · ${count(teacherSubjects.length, "subject")}`}
+          {` · ${count(classHubs.length, "class")}`}
+          {` · ${count(data.totalStudents, "student")}`}
         </span>
       }
       actions={

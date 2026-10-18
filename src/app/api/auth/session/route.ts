@@ -26,6 +26,11 @@ export async function GET() {
 
     if (!profile?.isActive || profile.schoolId !== user.schoolId || profile.role !== user.role || profile.campusId !== user.campusId) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
 
+    // SKO-479: the signed-in scope by name, so every workspace can show which school and campus an action affects.
+    const [school, campus] = await Promise.all([
+      prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true } }),
+      user.campusId ? prisma.campus.findFirst({ where: { id: user.campusId, schoolId: user.schoolId }, select: { name: true } }) : null,
+    ]);
     const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
     const draftAuthorization = draftAuthorizationFingerprint(user, await loadPermissionMap(user.schoolId, user.role));
     const activeExam = user.role === "STUDENT" ? await candidateExamBoundary(user) : null;
@@ -43,6 +48,8 @@ export async function GET() {
         role: user.role,
         roleLabel: roleLabel(user.role),
         dashboardPath: dashboardPathForRole(user.role),
+        schoolName: school?.name ?? null,
+        campusName: campus?.name ?? null,
       },
     }, { headers: noStore });
   } catch (error) {

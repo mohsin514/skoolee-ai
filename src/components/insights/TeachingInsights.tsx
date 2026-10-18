@@ -10,6 +10,8 @@
  */
 
 import { useMemo } from "react";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { useCountLabel } from "@/components/locale/use-count-label";
 import { CalendarCheck, ClipboardList, GraduationCap, Users } from "lucide-react";
 import {
   Bar,
@@ -53,6 +55,8 @@ export function TeachingInsights({
   reportCards,
   onNavigate,
 }: TeachingInsightsProps) {
+  const ui = useUiText();
+  const count = useCountLabel();
   const derived = useMemo(() => {
     // Only papers that actually expect marks — a test with nothing to enter
     // is not "0% complete", it is not yet a task.
@@ -179,7 +183,7 @@ export function TeachingInsights({
         <InsightCard
           icon={CalendarCheck}
           title="Today's register"
-          subtitle={`${attendance.total} students in your classes`}
+          subtitle={ui("{0} in your classes", [count(attendance.total, "student")])}
           delay={140}
           actions={
             <Button variant="link" size="sm"

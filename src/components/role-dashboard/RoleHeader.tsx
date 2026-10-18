@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
+import { ScopeBadge } from "./ScopeBadge";
 import { useNotifications } from "@/hooks/use-notifications";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
@@ -222,7 +223,7 @@ export function RoleHeader({
         </div>
 
         <div className="ms-auto flex w-full min-w-0 flex-wrap items-center justify-end gap-[6px] sm:w-auto sm:gap-2.5">
-          <div className="me-auto max-w-full [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px] [&_svg]:shrink-0"><CycleBadge /></div>
+          <div className="me-auto flex min-w-0 max-w-full flex-wrap items-center gap-[6px] [&_svg]:shrink-0"><ScopeBadge /><div className="[&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div></div>
         {actions}
         <div ref={notifRef} className="sm:relative">
           <Button variant="outline" size="icon"
