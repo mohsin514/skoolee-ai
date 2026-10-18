@@ -47,7 +47,9 @@ test("real direct login query announces the existing status after toaster mounts
 test("real verification-error redirect shows persistent focused feedback and keeps unrelated query", async ({ page }) => {
   await page.route("**/api/auth/**", route => route.abort());
   await page.goto("/login?error=Invalid%20verification%20link&redirect=%2Fparent");
-  await expect(page.locator("#login-error")).toHaveText("Invalid verification link");
+  // SKO-478: the alert also offers the supported recovery action, so the message and the action are checked separately.
+  await expect(page.locator("#login-error p")).toHaveText("Invalid verification link");
+  await expect(page.locator("#login-error").getByRole("button", { name: "Send a new verification link" })).toBeVisible();
   await expect(page.locator("#login-error")).toBeFocused();
   await expect(page).toHaveURL(/\/login\?redirect=%2Fparent$/);
   await page.screenshot({ path: test.info().outputPath("verification-error-focused.png"), fullPage: true });
