@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/components/locale/LocaleProvider";
 
 
 type Invitation = { id: string; relationship: string; guardianName: string; childName: string; campusName: string; permissions: unknown };
@@ -15,20 +16,20 @@ const text = {
 
 export function ParentInvitations() {
   const router = useRouter();
-  const [locale, setLocale] = useState<keyof typeof text>("en");
+  // SKO-490: the signed-in account's effective language from the server-seeded provider.
+  const { language } = useLocale();
+  const locale: keyof typeof text = language === "ar" || language === "ur" ? language : "en";
   const [items, setItems] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const language = navigator.language.toLowerCase();
-    setLocale(language.startsWith("ar") ? "ar" : language.startsWith("ur") ? "ur" : "en");
     void fetch("/api/parent/invitations", { cache: "no-store" }).then(async (response) => {
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error || "Failed");
       setItems(body.invitations);
-    }).catch(() => setError(text.en.error)).finally(() => setLoading(false));
+    }).catch(() => setError("load")).finally(() => setLoading(false));
   }, []);
 
   const t = text[locale];
@@ -40,18 +41,18 @@ export function ParentInvitations() {
       if (!response.ok || !body.success) throw new Error(body.error || "Failed");
       router.push("/parent");
       router.refresh();
-    } catch { setError(t.error); }
+    } catch { setError("accept"); }
     finally { setBusy(null); }
   };
 
-  return <main dir={locale === "en" ? "ltr" : "rtl"} className="mx-auto min-h-screen w-full max-w-3xl space-y-5 p-4 sm:p-6">
+  return <main lang={locale} dir={locale === "en" ? "ltr" : "rtl"} className="mx-auto min-h-screen w-full max-w-3xl space-y-5 p-4 sm:p-6">
     <header><h1 className="text-2xl font-bold text-[#1d1b20]">{t.title}</h1><p className="mt-2 text-sm leading-6 text-ink-muted">{t.intro}</p><p className="mt-1 text-xs text-ink-muted">{t.signIn}</p></header>
     {loading ? <p role="status" className="rounded-xl border bg-white p-4">{t.loading}</p> : null}
     {!loading && items.length === 0 ? <p className="rounded-xl border bg-white p-4">{t.none}</p> : null}
     <ul className="space-y-3">{items.map((item) => <li key={item.id} className="sk-panel flex flex-wrap items-center justify-between gap-4 p-4">
-      <div><h2 className="font-semibold text-[#1d1b20]">{item.childName}</h2><p className="mt-1 text-sm text-ink-muted">{item.campusName} · {item.relationship} · {item.guardianName}</p></div>
+      <div><h2 className="font-semibold text-[#1d1b20]"><bdi>{item.childName}</bdi></h2><p className="mt-1 text-sm text-ink-muted"><bdi>{item.campusName}</bdi> · <bdi>{item.relationship}</bdi> · <bdi>{item.guardianName}</bdi></p></div>
       <Button variant="default" type="button" disabled={busy !== null} onClick={() => void accept(item.id)} className="min-h-11">{busy === item.id ? t.loading : t.accept}</Button>
     </li>)}</ul>
-    {error ? <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800">{error}</p> : null}
+    {error ? <p role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800">{t.error}</p> : null}
   </main>;
 }
