@@ -192,6 +192,15 @@ test("morning peak: measured before and after a scoped limit; the noisy school s
   assert.equal(w["quiet-roster-export"].rejected, 0, "the other school's export was never refused");
   assert.ok(w["exam-answer-save"].count >= 50 && w["attendance-register"].count >= 20, "real volume ran");
   assert.equal(w["exam-answer-save"].rejected, 0); assert.equal(w["attendance-register"].rejected, 0);
+  // SKO-492: the teacher's known marks carry across warm-up, quiet and noisy phases, so no write is stale.
+  for (const run of [before, out]) {
+    assert.equal(((run.report.results as Record<string, any>)["attendance-register"].statusCounts["409"] ?? 0), 0, "no artificial conflicts in the noisy phase");
+    assert.equal(((run.report.baseline as Record<string, any>)["attendance-register"].statusCounts["409"] ?? 0), 0, "no artificial conflicts in the quiet phase");
+  }
+  // A genuinely stale write is still a conflict.
+  const now = (await db.attendance.findFirstOrThrow({ where: { studentId: fx.quiet.pupils[0].studentId } })).status;
+  const stale = await req(fx.quiet.teacher, "/api/attendance/register", { method: "POST", body: { classId: fx.quiet.classId, date: fx.today, entries: [{ studentId: fx.quiet.pupils[0].studentId, status: now === "PRESENT" ? "ABSENT" : "PRESENT", knownStatus: now === "PRESENT" ? "ABSENT" : "PRESENT" }] } });
+  assert.equal(stale.status, 409, "a write against a status the teacher never saw is refused");
   const noisyPeak = out.report.backgroundPeaks.find(b => b.schoolId === fx.noisy.schoolId)!;
   assert.ok(noisyPeak.peak <= 1 && noisyPeak.limit === 1, `server-measured peak ${noisyPeak.peak} within the incident limit`);
   // Gated: what the fairness controls decide, compared within the same run so the shared machine's own load
@@ -235,9 +244,16 @@ test("screens: release report with objectives, live measurements, policy change 
   await page.goto(`${base}/owner`);
   await page.getByRole("button", { name: "Capacity" }).first().click();
   await page.locator("[data-capacity]").waitFor({ timeout: 60_000 });
-  // The second newest is the run after the scoped limit (the newest is the tested flood limit).
-  await page.locator("[data-run]").nth(1).locator("[data-run-toggle]").click();
-  await page.locator('[data-objective="critical_fairness_ratio"][data-pass="true"]').waitFor();
+  // SKO-492: passing and failing reports both stay inspectable, whatever their outcome. The newest run is the
+  // tested flood limit, the second the run after the scoped limit.
+  for (const n of [0, 1]) {
+    const run = page.locator("[data-run]").nth(n);
+    await run.locator("[data-run-toggle]").click();
+    const row = page.locator('[data-run-detail] [data-objective="critical_fairness_ratio"]');
+    await row.waitFor();
+    assert.match(String(await row.getAttribute("data-pass")), /^(true|false|null)$/);
+    assert.equal(await run.getAttribute("data-run-passed"), String((await page.locator("[data-run-detail] [data-objective]").evaluateAll(rows => rows.every(r => r.getAttribute("data-pass") === "true")))));
+  }
   assert.match(await page.locator("[data-telemetry-state]").innerText(), /Measured/);
   await page.locator("[data-run-evidence]").click();
   await shot(page, "01-release-report");
