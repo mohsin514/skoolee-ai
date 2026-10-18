@@ -41,7 +41,7 @@ export const HEX_TOKENS: Record<string, string> = {
   "f59e0b": "amber-500", "d97706": "amber-600", "b45309": "amber-700", "fef3c7": "amber-100",
   "be123c": "rose-700", "f43f5e": "rose-500", "fff1f2": "rose-50",
   "10b981": "emerald-500", "047857": "emerald-700",
-  "fdf2f8": "pink-50", "f0abfc": "fuchsia-300",
+  "f0abfc": "fuchsia-300",
 };
 
 const SIZE_TOKENS: Record<string, string> = {

@@ -26,7 +26,7 @@ export function CollapsiblePanel({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className={cn("rounded-[32px] border border-edge/10 bg-white shadow-lg", className)} {...props}>
+    <div className={cn("sk-panel overflow-hidden", className)} {...props}>
       {/* A native <button> can't legally contain `headerRight`, which is
           sometimes itself a button (e.g. BrandButton) — nested interactive
           controls are invalid HTML and trigger a hydration mismatch. This
@@ -43,16 +43,16 @@ export function CollapsiblePanel({
             setOpen((current) => !current);
           }
         }}
-        className="flex w-full cursor-pointer flex-col gap-4 p-6 text-left sm:flex-row sm:items-center sm:justify-between"
+        className="group flex w-full cursor-pointer flex-col gap-4 p-5 text-start transition-colors hover:bg-surface-subtle sm:flex-row sm:items-center sm:justify-between sm:p-6"
         aria-expanded={open}
       >
         <div className="flex items-start gap-3 sm:items-center sm:justify-start">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
+          <div className="sk-icon-tile flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary ring-1 ring-brand-200/60">
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
             <p className="text-lg font-bold text-ink-strong">{title}</p>
-            {subtitle ? <p className="text-2xs text-ink-muted">{subtitle}</p> : null}
+            {subtitle ? <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p> : null}
           </div>
         </div>
 
@@ -60,13 +60,13 @@ export function CollapsiblePanel({
           {headerRight ? <div onClick={(e) => e.stopPropagation()}>{headerRight}</div> : null}
           <ChevronDown
             className={cn(
-              "h-4 w-4 text-primary transition-transform duration-200",
+              "h-4 w-4 text-ink-subtle transition-transform duration-200 group-hover:text-primary",
               open && "rotate-180"
             )}
           />
         </div>
       </div>
-      {open ? <div className="border-t border-edge/10 p-6">{children}</div> : null}
+      {open ? <div className="sk-fade-in border-t border-border-subtle p-5 sm:p-6">{children}</div> : null}
     </div>
   );
 }

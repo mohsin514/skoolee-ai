@@ -22,9 +22,11 @@ test("real root toaster renders readable success/error palettes and keyboard dis
   const success = page.locator('[data-sonner-toast][data-type="success"]');
   await expect(success).toBeVisible();
   await expect(page.locator("[data-sonner-toaster]")).toHaveCount(1);
-  await expect(success).toHaveCSS("background-color", "rgb(236, 253, 245)");
-  await expect(success).toHaveCSS("border-top-color", "rgb(16, 185, 129)");
-  await expect(success).toHaveCSS("color", "rgb(6, 95, 70)");
+  // One white card family; the tone lives in the icon chip and leading rail.
+  await expect(success).toHaveCSS("background-color", "rgba(255, 255, 255, 0.97)");
+  await expect(success).toHaveCSS("color", "rgb(31, 26, 35)");
+  await expect(success.locator("[data-icon]")).toHaveCSS("color", "rgb(5, 150, 105)");
+  await expect(success.locator("[data-icon]")).toHaveCSS("background-color", "rgb(236, 253, 245)");
   const successColors = await success.evaluate((toast) => {
     const style = getComputedStyle(toast);
     return { color: style.color, background: style.backgroundColor };
@@ -36,9 +38,10 @@ test("real root toaster renders readable success/error palettes and keyboard dis
 
   await page.getByRole("button", { name: "Show example error", exact: true }).click();
   const error = page.locator('[data-sonner-toast][data-type="error"]');
-  await expect(error).toHaveCSS("background-color", "rgb(254, 242, 242)");
-  await expect(error).toHaveCSS("border-top-color", "rgb(239, 68, 68)");
-  await expect(error).toHaveCSS("color", "rgb(153, 27, 27)");
+  await expect(error).toHaveCSS("background-color", "rgba(255, 255, 255, 0.97)");
+  await expect(error).toHaveCSS("color", "rgb(31, 26, 35)");
+  await expect(error.locator("[data-icon]")).toHaveCSS("color", "rgb(220, 38, 38)");
+  await expect(error.locator("[data-icon]")).toHaveCSS("background-color", "rgb(254, 242, 242)");
   const errorColors = await error.evaluate((toast) => {
     const style = getComputedStyle(toast);
     return { color: style.color, background: style.backgroundColor };

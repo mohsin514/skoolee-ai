@@ -681,7 +681,6 @@ button:disabled,
   --sk-toast-chip: var(--brand-50);
 
   position: relative;
-  overflow: hidden;
   font-family: var(--font-sans);
   font-size: 0.875rem;
   font-weight: 600;

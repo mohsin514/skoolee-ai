@@ -103,7 +103,7 @@ export function ConfirmAction({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="h-12 cursor-pointer rounded-2xl border border-edge/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-12 cursor-pointer rounded-2xl border border-edge/25 bg-white px-5 text-sm font-semibold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {cancelLabel ?? copy.cancel}
           </button>
@@ -113,7 +113,7 @@ export function ConfirmAction({
             aria-busy={busy}
             disabled={busy}
             className={cn(
-              "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
+              "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
               t.button,
             )}
           >
@@ -123,9 +123,9 @@ export function ConfirmAction({
         </div>
       }
     >
-      <p id={descriptionId} className="text-sm font-semibold leading-relaxed text-ink">{description}</p>
+      <p id={descriptionId} className="text-sm leading-relaxed text-ink">{description}</p>
       {detail ? (
-        <div className="mt-4 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3 text-xs font-semibold text-ink">
+        <div className="mt-4 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3 text-xs font-medium text-ink">
           {detail}
         </div>
       ) : null}

@@ -693,12 +693,12 @@ function DiscardChangesPrompt({ message, onKeepEditing, onDiscard }: {
         <h3 className="text-base font-bold leading-tight text-ink-strong">{copy.discardHeading}</h3>
       </div>
     </div>
-    <p id={descriptionId} className="overflow-y-auto px-5 py-4 text-sm font-semibold leading-relaxed text-ink">{message}</p>
+    <p id={descriptionId} className="overflow-y-auto px-5 py-4 text-sm leading-relaxed text-ink">{message}</p>
     <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-edge/15 bg-surface-subtle px-5 py-3.5 pb-[max(.875rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
       <button ref={keepEditingRef} type="button" onClick={onKeepEditing}
-        className="min-h-11 rounded-2xl border border-edge/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98]">{copy.keepEditing}</button>
+        className="min-h-11 rounded-2xl border border-edge/25 bg-white px-5 text-sm font-semibold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98]">{copy.keepEditing}</button>
       <button type="button" onClick={onDiscard}
-        className={cn("min-h-11 rounded-2xl px-5 text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98]", dialogActionTones.rose)}>{copy.discard}</button>
+        className={cn("min-h-11 rounded-2xl px-5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98]", dialogActionTones.rose)}>{copy.discard}</button>
     </div>
   </ModalSurface>;
 }
@@ -828,7 +828,7 @@ function ModalChrome({
             )}
           >
             <div
-              className={cn("pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl to-transparent blur-3xl", t.orb)}
+              className={cn("pointer-events-none absolute -end-10 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl to-transparent blur-3xl", t.orb)}
               aria-hidden
             />
 
@@ -868,7 +868,7 @@ function ModalChrome({
                     {title}
                   </h2>
                   {subtitle ? (
-                    <p id={descId} className="mt-1 text-xs font-semibold leading-snug text-ink-muted">
+                    <p id={descId} className="mt-1 text-sm leading-snug text-ink-muted">
                       {subtitle}
                     </p>
                   ) : null}
@@ -982,7 +982,7 @@ export function ModalActions({
   return (
     <div className="space-y-2.5">
       {blocked ? (
-        <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-700">
+        <p className="flex items-center gap-2 rounded-2xl border border-status-warning-border bg-status-warning-surface px-3.5 py-2.5 text-xs font-semibold text-status-warning-text">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           {blockedReason}
         </p>
@@ -993,7 +993,7 @@ export function ModalActions({
           type="button"
           onClick={surface?.requestClose ?? onCancel}
           disabled={busy}
-          className="h-12 cursor-pointer rounded-2xl border border-edge/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-12 cursor-pointer rounded-2xl border border-edge/25 bg-white px-5 text-sm font-semibold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {cancelLabel ?? copy.cancel}
         </button>
@@ -1003,7 +1003,7 @@ export function ModalActions({
           aria-busy={busy}
           disabled={busy || blocked}
           className={cn(
-            "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
+            "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
             toneClass,
           )}
         >
