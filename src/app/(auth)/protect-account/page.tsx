@@ -48,6 +48,8 @@ const en = {
   progress: "Setup progress",
   steps: ["Scan or enter key", "Verify code", "Save recovery codes", "Done"],
   setup: "Set up authenticator",
+  later: "Do it later",
+  laterHint: "You can turn on two-step verification any time from your account security settings.",
   retry: "Start setup again",
   startOverHint: "Starting again replaces your authenticator entry and any recovery codes you saved.",
   finish: "Enter workspace",
@@ -81,6 +83,8 @@ const copy: Record<Language, Copy> = {
     progress: "تقدم الإعداد",
     steps: ["امسح الرمز أو أدخل المفتاح", "تحقق من الرمز", "احفظ رموز الاسترداد", "تم"],
     setup: "إعداد تطبيق المصادقة",
+    later: "لاحقاً",
+    laterHint: "يمكنك تفعيل التحقق بخطوتين في أي وقت من إعدادات أمان حسابك.",
     retry: "بدء الإعداد مجدداً",
     startOverHint: "البدء من جديد يستبدل حساب تطبيق المصادقة وأي رموز استرداد حفظتها.",
     finish: "الدخول إلى مساحة العمل",
@@ -110,6 +114,8 @@ const copy: Record<Language, Copy> = {
     progress: "ترتیب کی پیش رفت",
     steps: ["اسکین کریں یا کلید درج کریں", "کوڈ کی تصدیق", "بحالی کوڈ محفوظ کریں", "مکمل"],
     setup: "تصدیقی ایپ ترتیب دیں",
+    later: "بعد میں کریں",
+    laterHint: "آپ اپنے اکاؤنٹ کی سیکیورٹی سیٹنگز سے کسی بھی وقت دو مرحلہ تصدیق آن کر سکتے ہیں۔",
     retry: "ترتیب دوبارہ شروع کریں",
     startOverHint: "دوبارہ شروع کرنے سے تصدیقی ایپ کا اندراج اور آپ کے محفوظ کیے گئے بحالی کوڈ بدل جائیں گے۔",
     finish: "ورک اسپیس میں داخل ہوں",
@@ -210,7 +216,7 @@ export default function ProtectAccount() {
     }
   }
 
-  async function send(action: "setup" | "verify-setup" | "acknowledge" | "challenge") {
+  async function send(action: "setup" | "verify-setup" | "acknowledge" | "challenge" | "defer") {
     if (busy) return;
     setBusy(true);
     setError(null);
@@ -219,9 +225,9 @@ export default function ProtectAccount() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Only the session-issuing actions carry the sign-in language (design §B.1.2).
-        body: JSON.stringify({ action, code, recovery, acknowledged: ack, ...(action === "challenge" || action === "acknowledge" ? signInLanguage() : {}) }),
+        body: JSON.stringify({ action, code, recovery, acknowledged: ack, ...(action === "challenge" || action === "acknowledge" || action === "defer" ? signInLanguage() : {}) }),
       });
-      if ((action === "challenge" || action === "acknowledge") && data.success === true && !data.mfaRequired) clearExplicit();
+      if ((action === "challenge" || action === "acknowledge" || action === "defer") && data.success === true && !data.mfaRequired) clearExplicit();
       if (data.secret) { setSecret(data.secret); setUri(typeof data.uri === "string" ? data.uri : ""); setCodes([]); setAck(false); setCode(""); setRecovery(false); }
       if (data.recoveryCodes) { setCodes(data.recoveryCodes); setSecret(""); setUri(""); setCode(""); }
       if (data.user) {
@@ -295,6 +301,8 @@ export default function ProtectAccount() {
   return (
     <AuthShell
       language={language}
+      // The QR step is the tall one: give it the wide desk so QR and code entry sit side by side.
+      layout={view === "scan" ? "split-wide" : "split"}
       cover={(
         <AuthCover
           eyebrow={t.brandEyebrow}
@@ -367,19 +375,29 @@ export default function ProtectAccount() {
             {busy ? null : <ShieldCheck aria-hidden="true" />}
             {status?.awaitingAcknowledgement ? t.retry : t.setup}
           </Button>
+          {/* Two-step is recommended, not forced: setup can wait until later. */}
+          <Button type="button" variant="ghost" className="mt-2 w-full" disabled={busy} aria-describedby="mfa-later-hint" onClick={() => send("defer")}>
+            {t.later}
+          </Button>
+          <p id="mfa-later-hint" className="mt-1 text-center text-xs text-ink-subtle">{t.laterHint}</p>
         </>}
 
         {view === "scan" && <>
           {stepper(step)}
-          <AuthenticatorSetup secret={secret} uri={uri} t={t} onCopy={() => void copyKey()} copied={feedback === "key"} />
-          <div aria-hidden="true" className="my-6 h-px bg-border-subtle" />
-          <form onSubmit={submit} aria-busy={busy} className="space-y-5" noValidate>
-            {codeField}
-            {submitButton}
-          </form>
-          {error?.reason === "setup_expired" && (
-            <Button type="button" variant="outline" className="mt-3 w-full" disabled={busy} onClick={() => send("setup")}><RotateCcw aria-hidden="true" />{t.retry}</Button>
-          )}
+          <div className="@container">
+            <div className="grid gap-6 @3xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] @3xl:items-center @3xl:gap-10">
+              <div className="min-w-0"><AuthenticatorSetup secret={secret} uri={uri} t={t} onCopy={() => void copyKey()} copied={feedback === "key"} /></div>
+              <div className="border-t border-border-subtle pt-6 @3xl:border-s @3xl:border-t-0 @3xl:ps-10 @3xl:pt-0">
+                <form onSubmit={submit} aria-busy={busy} className="space-y-5" noValidate>
+                  {codeField}
+                  {submitButton}
+                </form>
+                {error?.reason === "setup_expired" && (
+                  <Button type="button" variant="outline" className="mt-3 w-full" disabled={busy} onClick={() => send("setup")}><RotateCcw aria-hidden="true" />{t.retry}</Button>
+                )}
+              </div>
+            </div>
+          </div>
         </>}
 
         {view === "challenge" && <>

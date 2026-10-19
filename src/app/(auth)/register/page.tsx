@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { flushSync } from 'react-dom';
 import {
   Building, Building2, Mail, MailCheck, Lock,
   User as UserIcon, Users,
-  CheckCircle, ShieldCheck,
+  CheckCircle, ShieldCheck, Sparkles,
   ArrowRight, Hash,
   LucideIcon, ChevronLeft,
   Eye, EyeOff, AlertCircle, Phone, Check, RefreshCw,
@@ -138,6 +139,8 @@ const en = {
   startFailed: "We couldn't start your registration. Please try again.",
   registrationFailed: "We couldn't create your account. Check your details and try again.",
   setupTitle: "How is your school set up?",
+  whoTitle: "Only a Super Admin, Admin or Principal signs up here",
+  whoBody: "Teachers, students, parents and staff are added later from the campus portal.",
   setupIntro: "Choose the option that best describes your institution.",
   institutionType: "Institution type",
   groupTitle: "Multi-Campus School Group",
@@ -252,6 +255,8 @@ const copy: Record<Language, RegisterCopy> = {
     startFailed: "تعذّر بدء التسجيل. حاول مرة أخرى.",
     registrationFailed: "تعذّر إنشاء حسابك. تحقّق من بياناتك وحاول مرة أخرى.",
     setupTitle: "كيف تُنظَّم مدرستك؟",
+    whoTitle: "يسجّل هنا المشرف العام أو المسؤول أو المدير فقط",
+    whoBody: "يُضاف المعلمون والطلاب وأولياء الأمور والموظفون لاحقاً من بوابة الفرع.",
     setupIntro: "اختر الخيار الذي يصف مؤسستك بشكل أفضل.",
     institutionType: "نوع المؤسسة",
     groupTitle: "مجموعة مدارس متعددة الفروع",
@@ -362,6 +367,8 @@ const copy: Record<Language, RegisterCopy> = {
     startFailed: "رجسٹریشن شروع نہیں ہو سکی۔ براہ کرم دوبارہ کوشش کریں۔",
     registrationFailed: "آپ کا اکاؤنٹ نہیں بن سکا۔ اپنی تفصیلات دیکھ کر دوبارہ کوشش کریں۔",
     setupTitle: "آپ کا اسکول کیسے منظم ہے؟",
+    whoTitle: "یہاں صرف سپر ایڈمن، ایڈمن یا پرنسپل سائن اپ کرتے ہیں",
+    whoBody: "اساتذہ، طلبہ، والدین اور عملہ بعد میں کیمپس پورٹل سے شامل کیے جاتے ہیں۔",
     setupIntro: "وہ آپشن منتخب کریں جو آپ کے ادارے کو بہتر طور پر بیان کرے۔",
     institutionType: "ادارے کی قسم",
     groupTitle: "کثیر کیمپس اسکول گروپ",
@@ -468,7 +475,26 @@ export default function RegisterPage() {
   const { language, setLanguage } = useAuthLanguage();
   const t = copy[language];
   const ac = authCopy[language];
-  const [step, setStep] = useState(1);
+  const [step, setStepState] = useState(1);
+  /**
+   * Moving between steps changes the layout (narrow ↔ wide desk), the cover and
+   * the header at once. Done in one browser View Transition the whole page
+   * crossfades and slides as one; without support (or with reduced motion) it
+   * simply switches.
+   */
+  const setStep = useCallback((next: number) => {
+    const doc = typeof document === "undefined" ? null : (document as Document & { startViewTransition?: (update: () => void) => unknown });
+    const reduced = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!doc?.startViewTransition || reduced) { setStepState(next); return; }
+    const root = document.documentElement;
+    root.dataset.stepDirection = next > step ? "forward" : "back";
+    // While the morph runs, the column's own arrival animations stay off:
+    // replaying them inside the transition is what made it stutter.
+    root.dataset.stepMorph = "";
+    const transition = doc.startViewTransition(() => { flushSync(() => setStepState(next)); }) as { finished?: Promise<unknown> } | undefined;
+    const done = () => { delete root.dataset.stepMorph; };
+    if (transition?.finished) transition.finished.then(done, done); else done();
+  }, [step]);
   const [type, setType] = useState<RegistrationType>('school_group');
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -780,7 +806,8 @@ export default function RegisterPage() {
       layout={step === 2 ? "split-wide" : "split"}
       srHeading={t.srHeading}
       cover={cover}
-      topBar={<AuthTopBar languageId="register-language" label={ac.language} value={language} onChange={setLanguage} />}
+      topBar={<AuthTopBar languageId="register-language" label={ac.language} value={language} onChange={setLanguage}
+ />}
       footer={<AuthColophon language={language} claims={["campuses", "encrypted", "human"]} />}
     >
       {step === 2 ? (
@@ -800,24 +827,22 @@ export default function RegisterPage() {
       ) : (
         <>
           <AuthMascot
-            className="sk-enter mt-6"
+            className={step === 1 ? "sk-enter mt-2" : "sk-enter mt-6"}
             signals={{ glance: step === 3 ? (sentShown ? "[data-mascot-anchor=envelope]" : null) : typeGlance }}
           />
-          <StepRail step={step} labels={t.steps} label={t.progress} stepOf={t.stepOf} className="mb-6 mt-7" />
+          <StepRail step={step} labels={t.steps} label={t.progress} stepOf={t.stepOf} className={step === 1 ? "mb-4 mt-4" : "mb-5 mt-5"} />
         </>
       )}
 
-      <AnimatePresence mode="wait">
+      <>
         {/* ─── Step 1: Choose Type ─── */}
         {step === 1 && (
           <motion.div
             key="s1"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="sk-panel sk-gradient-border p-6 shadow-xl sm:p-9"
+            data-compact-desk=""
+            data-step-card="" className="sk-panel sk-gradient-border p-6 shadow-xl sm:p-7"
           >
-            <div className="mb-7 text-center">
+            <div className="mb-5 text-center">
               <h2 className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">
                 {t.setupTitle}
               </h2>
@@ -826,7 +851,13 @@ export default function RegisterPage() {
               </p>
             </div>
 
-            <div className="space-y-3 mb-6" role="radiogroup" aria-label={t.institutionType} onKeyDown={(event) => {
+            {/* Who this page is for: only leadership registers a school here; everyone
+                else is added from inside the campus portal. */}
+            <Alert tone="info" icon={ShieldCheck} live="off" className="mb-5">
+              <strong className="font-semibold">{t.whoTitle}.</strong> {t.whoBody}
+            </Alert>
+
+            <div className="mb-4 grid gap-2.5" role="radiogroup" aria-label={t.institutionType} onKeyDown={(event) => {
               const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1
                 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
               if (!delta) return;
@@ -843,9 +874,10 @@ export default function RegisterPage() {
 
             {/* What the chosen type means for the first sign-in; announced
                 politely when the choice changes. */}
-            <Alert tone="brand" live="polite" className="mb-5">
-              {type === 'school_group' ? t.groupNote : t.singleNote}
-            </Alert>
+            <p role="status" aria-live="polite" className="mb-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-ink-muted">
+              <Sparkles aria-hidden className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <span>{type === 'school_group' ? t.groupNote : t.singleNote}</span>
+            </p>
 
             <Button
               type="button"
@@ -858,14 +890,11 @@ export default function RegisterPage() {
               </span>
             </Button>
 
-            <div className="mt-6 border-t border-border-subtle pt-5 text-center">
-              <p className="text-sm text-ink-muted">
-                {t.haveAccount}{" "}
-                <Link href="/login" className="sk-link">
-                  {t.logIn}
-                </Link>
-              </p>
-            </div>
+            <p className="mt-3 text-center text-sm text-ink-muted">
+              {t.haveAccount}{" "}
+              <Link href="/login" className="sk-link">{t.logIn}</Link>
+            </p>
+
           </motion.div>
         )}
 
@@ -873,10 +902,7 @@ export default function RegisterPage() {
         {step === 2 && (
           <motion.div
             key="s2"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="sk-panel sk-gradient-border p-5 shadow-xl sm:p-7 lg:py-6"
+            data-step-card="" className="sk-panel sk-gradient-border p-5 shadow-xl sm:p-7 lg:py-6"
           >
             <div className="mb-5 flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -1185,7 +1211,7 @@ export default function RegisterPage() {
             key="s3"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="sk-panel sk-gradient-border p-6 text-center shadow-xl sm:p-9"
+            data-step-card="" className="sk-panel sk-gradient-border p-6 text-center shadow-xl sm:p-9"
           >
             <SealedEnvelope size="md" className="mx-auto" />
             <h2
@@ -1244,7 +1270,7 @@ export default function RegisterPage() {
             </Link>
           </motion.div>
         )}
-      </AnimatePresence>
+      </>
     </AuthShell>
   );
 }
@@ -1252,7 +1278,7 @@ export default function RegisterPage() {
 /** Three-stop progress rail above the card, so the flow's length is visible. */
 function StepRail({ step, labels, label: railLabel, stepOf, className = "mb-6" }: { step: number; labels: string[]; label: string; stepOf: string; className?: string }) {
   return (
-    <div role="list" aria-label={railLabel} className={`flex items-center gap-2 px-1 ${className}`}>
+    <div role="list" aria-label={railLabel} data-step-rail="" className={`flex items-center gap-2 px-1 ${className}`}>
       {labels.map((label, i) => {
         const num = i + 1;
         const done = step > num;
@@ -1341,11 +1367,11 @@ function TypeOption({ value, active, onClick, title, desc }: TypeOptionProps) {
       tabIndex={active ? 0 : -1}
       onClick={onClick}
       data-option={value}
-      className="relative group flex w-full items-center justify-start gap-4 overflow-hidden p-4 text-start sm:gap-5 sm:p-5"
+      className="relative group flex w-full items-center justify-start gap-4 overflow-hidden p-4 text-start sm:gap-4 sm:px-4 sm:py-3"
     >
       {/* Spans, not div/h3/p: a button may only hold phrasing content. */}
       <span aria-hidden className={`grid shrink-0 place-items-center rounded-2xl p-1.5 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-primary to-brand-400 text-white shadow-lg shadow-primary/20' : 'bg-white text-ink-subtle shadow-xs group-hover:bg-primary/5 group-hover:text-primary'}`}>
-        <CampusDiorama type={value} size="glyph" className="size-11" />
+        <CampusDiorama type={value} size="glyph" className="size-11 sm:size-9" />
       </span>
       {/* Only the title keeps clear of the check badge; the description runs
           the full width under it, so it does not break with a one-word orphan. */}

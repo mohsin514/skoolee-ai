@@ -11,16 +11,16 @@ export const VerifyEmail = ({ actionUrl, logoUrl }: VerifyEmailProps) => {
   return (
     <SkooleeEmail
       preview="Verify your SkooleeAI account"
-      eyebrow="Account Setup"
+      eyebrow="Account setup"
       title="Welcome to SkooleeAI"
-      action={{ label: "Verify Email Address", href: actionUrl }}
+      action={{ label: "Verify email address", href: actionUrl }}
       logoUrl={logoUrl}
       footerText="SkooleeAI - The next-gen school operating system"
     >
       <Text style={paragraph}>
         Please verify your email address to complete registration and access your school dashboard.
       </Text>
-      <Text style={mutedParagraph}>If you did not request this email, you can safely ignore it.</Text>
+      <Text style={mutedParagraph}>This link works for 24 hours. If you did not create a SkooleeAI account, you can safely ignore this email.</Text>
     </SkooleeEmail>
   );
 };

@@ -56,6 +56,15 @@ export async function POST(req: NextRequest) {
         await prisma.user.updateMany({ where: { id: user.id, accessVersion: user.accessVersion, mfaEnabled: false }, data: { mfaPendingSecret: protectSecret(secret), mfaPendingTicket: claims.ticketId, mfaPendingExpiresAt: new Date(Date.now() + 600_000), mfaPendingVerified: false, recoveryCodeHashes: [] } });
         return NextResponse.json({ secret, uri: `otpauth://totp/${encodeURIComponent(`Skoolee:${user.email}`)}?secret=${secret}&issuer=Skoolee&algorithm=SHA1&digits=6&period=30` }, { headers: NO_STORE });
       }
+      // "Do it later": a privileged account that has not enrolled yet may sign in now
+      // and set up from Account security. Never available once a factor exists.
+      if (action === "defer" && !user.mfaEnabled && !resumable(user)) {
+        await audit(user, "mfa.setup.deferred");
+        const response = await issueSession(user, claims.days, "deferred", req);
+        await applySignInLanguage(user, body, response);
+        response.cookies.set(MFA_COOKIE, "", { path: "/", maxAge: 0 });
+        return response;
+      }
       const pending = !user.mfaEnabled && user.mfaPendingTicket === claims.ticketId && user.mfaPendingExpiresAt && user.mfaPendingExpiresAt > new Date();
       if ((action === "verify-setup" || action === "acknowledge") && !user.mfaEnabled && !pending) throw new MfaFailure("setup_expired");
       if (action === "verify-setup" && pending && user.mfaPendingSecret && !user.mfaPendingVerified) {

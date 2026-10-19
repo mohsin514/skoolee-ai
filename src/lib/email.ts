@@ -1,3 +1,4 @@
+import { appUrl } from "@/lib/app-url";
 import type { ReactElement } from "react";
 import { render } from "@react-email/render";
 import { InviteEmail } from "./email/templates/InviteEmail";
@@ -11,11 +12,7 @@ export { emailProviderReadiness } from "./email/readiness";
 
 const DEFAULT_FROM_EMAIL = "mohsin@skooleeai.com";
 
-const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-};
+const getBaseUrl = () => appUrl();
 
 function normalizeBaseUrl(baseUrl?: string) {
   return (baseUrl || getBaseUrl()).replace(/\/$/, "");

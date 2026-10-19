@@ -1,3 +1,4 @@
+import { appUrl } from "@/lib/app-url";
 import { familyVersion, getPublishedVersion, versionTransaction } from "@/lib/academic/report-versions";
 import { appendEvent } from "@/lib/queue/outbox";
 import { getLocalePackage } from "@/lib/locale/store";
@@ -68,11 +69,6 @@ function jsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
 }
 
-function appUrl() {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
 
 function absoluteUrl(url: string | null | undefined) {
   if (!url) return undefined;

@@ -13,7 +13,7 @@ import type { User } from "@prisma/client";
  * a reissue is not a sign-in (the manage audit row records the change).
  */
 export type IssueSessionExtra = { reason: "mfa-change"; body?: Record<string, unknown> };
-export async function issueSession(user: User, days: number, mfaVerified: boolean, req: Request, extra?: IssueSessionExtra) {
+export async function issueSession(user: User, days: number, mfaVerified: boolean | "deferred", req: Request, extra?: IssueSessionExtra) {
   const school = await prisma.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { name: true, slug: true, status: true } });
   const expiresAt = new Date(Date.now() + days * 86400_000);
   const token = await new SignJWT({ userId: user.id, accessVersion: user.accessVersion, email: user.email, fullName: user.fullName, role: user.role, schoolId: user.schoolId, campusId: user.campusId, schoolSlug: school.slug, schoolStatus: school.status, onboardingComplete: user.onboardingComplete, mustChangePassword: user.mustChangePassword, mfaVerified })

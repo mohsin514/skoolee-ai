@@ -1608,7 +1608,7 @@ body::after {
   .sk-auth-column { width: 100%; min-width: 0; max-width: 30rem; }
   .sk-auth-column[data-width="wide"] { max-width: 1180px; }
   /* Register step 2 is the one long form: a tighter desk so it fits a laptop screen. */
-  @media (min-width: 1024px) { .sk-auth[data-layout="split-wide"] .sk-auth-desk { padding-block: 1rem .5rem; } }
+  @media (min-width: 1024px) { .sk-auth[data-layout="split-wide"] .sk-auth-desk, .sk-auth:has([data-compact-desk]) .sk-auth-desk { padding-block: 1rem .5rem; } }
 
   .sk-auth-topbar { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; }
   .sk-auth-topbar:has(> [data-topbar-start]) { justify-content: space-between; }
@@ -2029,3 +2029,69 @@ body::after {
 /* Auth forms: pickers read at the same weight and size as the text fields
    beside them (the shared select is semibold, which looks oversized here). */
 .sk-auth .sk-select:not(.sk-auth-topbar *) { font-weight: 400; font-size: 0.9375rem; }
+
+/* Signup step changes: a shared-element morph (see register page).
+   Instead of fading the page, each piece travels to where it lives on the next
+   step on one spring curve: the card stretches into its new size with its
+   corners intact while its content dissolves and the new form rises in, the
+   Oolee face glides into the header row, the step rail slides along, the
+   cover narrows, and the language picker holds perfectly still. */
+.sk-auth-cover { view-transition-name: sk-step-cover; }
+.sk-auth-topbar { view-transition-name: sk-step-topbar; }
+.sk-auth-column .sk-auth-mascot { view-transition-name: sk-step-face; }
+[data-step-rail] { view-transition-name: sk-step-rail; }
+[data-step-card] { view-transition-name: sk-step-card; }
+:root {
+  --sk-morph: cubic-bezier(.32, .72, 0, 1);
+  --sk-morph-time: 820ms;
+}
+/* A gentle spring (about 1.5% overshoot, then settle) where the browser
+   supports linear(); the cubic curve above otherwise. */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root { --sk-morph: linear(0, .006, .025 2.8%, .101 6.1%, .539 18.9%, .721 25.3%, .849 31.5%, .937 38.1%, .968 41.8%, .991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001); }
+}
+html[data-step-morph] .sk-auth :is(.sk-enter, .sk-rise, .sk-fade-in, .sk-enter-scale) { animation: none !important; }
+
+::view-transition-group(*) { animation-duration: var(--sk-morph-time); animation-timing-function: var(--sk-morph); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 500ms; animation-timing-function: ease; }
+
+/* Staggered start: cover leads, the card follows, face and rail land last. */
+::view-transition-group(sk-step-cover) { animation-delay: 0ms; }
+::view-transition-group(sk-step-card) { animation-delay: 40ms; }
+::view-transition-group(sk-step-face) { animation-delay: 90ms; }
+::view-transition-group(sk-step-rail) { animation-delay: 110ms; }
+
+/* Card: the box morphs; old and new contents OVERLAP (a true crossfade, so the
+   card is never empty), the new form rising a few pixels into focus. */
+::view-transition-group(sk-step-card) { overflow: clip; border-radius: var(--radius-panel); }
+::view-transition-image-pair(sk-step-card) { overflow: clip; border-radius: var(--radius-panel); isolation: isolate; }
+::view-transition-old(sk-step-card), ::view-transition-new(sk-step-card) {
+  width: 100%; height: 100%; object-fit: none; object-position: 0 0; mix-blend-mode: normal;
+}
+/* RTL: the card grows from its inline start, so anchor there. */
+html:has(main.sk-auth[dir="rtl"])::view-transition-old(sk-step-card),
+html:has(main.sk-auth[dir="rtl"])::view-transition-new(sk-step-card) { object-position: 100% 0; }
+::view-transition-old(sk-step-card) { animation: sk-morph-out 260ms cubic-bezier(.4, 0, 1, 1) both; }
+::view-transition-new(sk-step-card) { animation: sk-morph-in 640ms cubic-bezier(.16, 1, .3, 1) 180ms both; }
+html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-name: sk-morph-in-back; }
+
+/* Cover: one panel resizing while its words swap. */
+::view-transition-group(sk-step-cover) { overflow: clip; border-radius: var(--radius-workspace); }
+::view-transition-image-pair(sk-step-cover) { overflow: clip; border-radius: var(--radius-workspace); }
+::view-transition-old(sk-step-cover), ::view-transition-new(sk-step-cover) { width: 100%; height: 100%; object-fit: none; object-position: 0 50%; }
+::view-transition-old(sk-step-cover) { animation: sk-morph-fade-out 280ms ease-in both; }
+::view-transition-new(sk-step-cover) { animation: sk-morph-fade-in 560ms cubic-bezier(.16, 1, .3, 1) 200ms both; }
+
+/* Face and rail travel as objects, crossfading only what changed. */
+::view-transition-old(sk-step-face), ::view-transition-old(sk-step-rail) { animation: sk-morph-fade-out 240ms ease-in both; }
+::view-transition-new(sk-step-face), ::view-transition-new(sk-step-rail) { animation: sk-morph-fade-in 460ms ease-out 140ms both; }
+::view-transition-group(sk-step-topbar) { animation-duration: 1ms; }
+
+@keyframes sk-morph-out { to { opacity: 0; filter: blur(2px); transform: translateY(-4px); } }
+@keyframes sk-morph-in { from { opacity: 0; filter: blur(3px); transform: translateY(14px) scale(.992); } }
+@keyframes sk-morph-in-back { from { opacity: 0; filter: blur(3px); transform: translateY(-10px) scale(.992); } }
+@keyframes sk-morph-fade-out { to { opacity: 0; } }
+@keyframes sk-morph-fade-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
