@@ -130,7 +130,8 @@ export async function createCheckoutIntent(
 export async function settleVerifiedCheckoutIntent(input: {
   id: string;
   schoolId: string;
-  provider: "STRIPE" | "SAFEPAY";
+  /** TEST: the development-only test checkout (src/lib/payments/test-checkout.ts). */
+  provider: "STRIPE" | "SAFEPAY" | "TEST";
   providerReference: string;
   plan: PlanType;
   billingPeriod: BillingPeriod;

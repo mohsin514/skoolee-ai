@@ -9,7 +9,7 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Mail, Package, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, FlaskConical, Mail, Package, ShieldCheck, Users } from "lucide-react";
 import { AuthColophon } from "@/components/auth/AuthColophon";
 import { AuthMascot } from "@/components/auth/AuthMascot";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -44,6 +44,8 @@ type Catalogue = {
   regionalPriceDisclosure: string;
   paymentMethods: string[];
   salesAssisted: boolean;
+  /** Development-only test checkout is standing in for a payment provider (src/lib/payments/test-checkout.ts). */
+  testCheckout?: boolean;
   bank: { bankName: string; accountTitle: string; accountNumber: string; iban: string | null } | null;
   language: string;
 };
@@ -275,7 +277,11 @@ function PackageChoice() {
                   <bdi dir="ltr">{catalogue.regionalCurrency}</bdi>
                 </p>
               </div>
-              {paidNote && <Alert tone="info" live="off" role="note">{paidNote}</Alert>}
+              {catalogue.testCheckout ? (
+                <Alert tone="warning" icon={FlaskConical} live="off" role="note" title="Test checkout (development only)">
+                  No payment keys are set on this local server, so paid packages open a test payment page. No money moves.
+                </Alert>
+              ) : paidNote ? <Alert tone="info" live="off" role="note">{paidNote}</Alert> : null}
               <div className="sk-package-grid sk-stagger">
                 {order.map((type) => {
                   const plan = catalogue.plans[type];

@@ -19,6 +19,7 @@ import { getPaymentConfig } from "@/lib/payments/gateway";
 import { getPriceId, stripe, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
 import { automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
+import { TEST_CHECKOUT_PROVIDER, testCheckoutEnabled, testCheckoutUrl } from "@/lib/payments/test-checkout";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,18 +53,21 @@ export async function GET() {
       paymentConfig.availableMethods.includes("safepay") ? "safepay" : null,
       paymentConfig.bank?.bankName ? "bank_transfer" : null,
     ].filter((method): method is OnboardingPaymentMethod => Boolean(method)));
+    // Local `next dev` without any usable rail: offer the development-only test checkout instead of a quote.
+    const testCheckout = methods.length === 0 && testCheckoutEnabled();
 
     return Response.json({
       plans: details,
       currentPlan: billing.school.plan,
       country: billing.country,
-      salesAssisted: !automatedCheckoutAvailable(billing.country),
+      salesAssisted: !testCheckout && !automatedCheckoutAvailable(billing.country),
+      testCheckout,
       regionalCurrency: billing.regionalCurrency,
       priceCurrency: "PKR",
       catalogueVersion: COMMERCIAL_CATALOG_VERSION,
       commercialTermsVersion: COMMERCIAL_CONTRACT.version,
       regionalPriceDisclosure: COMMERCIAL_CONTRACT.regionalPriceDisclosure,
-      paymentMethods: methods,
+      paymentMethods: testCheckout ? ["test"] : methods,
       bank: methods.includes("bank_transfer") ? paymentConfig.bank : null,
       language: ownerSettings?.preferredLanguage || "en",
     });
@@ -130,6 +134,19 @@ export async function POST(req: NextRequest) {
     );
     const canUseSafePay = paymentConfig.availableMethods.includes("safepay");
     const canUseBank = Boolean(paymentConfig.bank?.bankName);
+    const realRail = automatedCheckoutAvailable(billing.country) && (canUseStripe || canUseSafePay || canUseBank);
+    if (intent.provider === "NONE" && !realRail && testCheckoutEnabled()) {
+      // Development-only: no money moves; the test page settles or declines this intent.
+      const claim = await prisma.onboardingCheckoutIntent.updateMany({
+        where: { id: intent.id, status: "PENDING", provider: "NONE" },
+        data: { provider: TEST_CHECKOUT_PROVIDER, providerReference: intent.id, status: "CHECKOUT_PENDING", checkoutUrl: testCheckoutUrl(intent.id), failureReason: null },
+      });
+      if (!claim.count) {
+        const latest = await prisma.onboardingCheckoutIntent.findUnique({ where: { id: intent.id } });
+        return Response.json({ success: true, intentId: intent.id, status: latest?.status ?? "PENDING", url: latest?.checkoutUrl ?? undefined });
+      }
+      return Response.json({ success: true, intentId: intent.id, status: "CHECKOUT_PENDING", url: testCheckoutUrl(intent.id) });
+    }
     if (intent.provider === "NONE" && !automatedCheckoutAvailable(billing.country)) {
       await prisma.onboardingCheckoutIntent.update({
         where: { id: intent.id },
