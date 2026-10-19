@@ -34,7 +34,7 @@ import {
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { EXAM_BOARDS } from "@/config/boards";
+import { BoardSelect } from "@/components/ui/board-select";
 import {
   getInstitutionHistory,
   getInstitutionSettings,
@@ -264,7 +264,7 @@ export function InstitutionSettingsPanel({
         <SchoolDialog school={data.school} onClose={() => setEditingSchool(false)} onSaved={afterSave} />
       ) : null}
       {editingCampus ? (
-        <CampusDialog campus={editingCampus} onClose={() => setEditingCampus(null)} onSaved={afterSave} />
+        <CampusDialog campus={editingCampus} country={data.school.country} onClose={() => setEditingCampus(null)} onSaved={afterSave} />
       ) : null}
       {history ? <HistoryDialog {...history} onClose={() => setHistory(null)} /> : null}
     </div>
@@ -405,8 +405,8 @@ function SchoolDialog({
 }
 
 function CampusDialog({
-  campus, onClose, onSaved,
-}: { campus: CampusForm; onClose: () => void; onSaved: () => Promise<void> }) {
+  campus, country, onClose, onSaved,
+}: { campus: CampusForm; country: string; onClose: () => void; onSaved: () => Promise<void> }) {
   const tr = useUiText();
   const [form, setForm] = useState<CampusForm>(campus);
   const draft = useFormDraft({ record: `settings:campus:${campus.id}`, schema: 1, values: form, baseline: campus,
@@ -502,17 +502,15 @@ function CampusDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="c-board" className="sk-field-label"><UiText>{"Board"}</UiText></Label>
-          <InputGroup surfaceClassName="bg-brand-50" className="min-w-0">
-            <GraduationCap data-field-affix="start" className="pointer-events-none absolute start-3.5 h-4 w-4 text-ink-subtle" />
-            <SystemSelect
-              id="c-board"
-              value={form.board}
-              onChange={(e) => set("board", e.target.value)}
-              className="w-full ps-10 pe-4"
-            >
-              {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
-            </SystemSelect>
-          </InputGroup>
+          <BoardSelect
+            id="c-board"
+            country={country}
+            value={form.board}
+            onChange={(board) => set("board", board)}
+            nameLabel={tr("Board name")}
+            namePlaceholder={tr("Type your board or curriculum")}
+            surfaceClassName="bg-brand-50"
+          />
         </div>
 
         <LockedRows

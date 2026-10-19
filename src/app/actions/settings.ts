@@ -10,7 +10,8 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
-import { DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { defaultBoardFor } from "@/config/boards";
+import { schoolCountry } from "@/lib/school/country";
 import {
   assertEmail,
   assertPhone,
@@ -135,6 +136,8 @@ export interface InstitutionSettings {
     logoUrl: string;
     establishedYear: string;
     timezone: string;
+    /** ISO alpha-2 ("" when unknown): picks the exam boards campus forms offer. */
+    country: string;
   };
   campuses: {
     revision: string;
@@ -179,6 +182,8 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
         ? campuses.filter((c) => c.id === session.campusId).map((c) => c.id)
         : [];
 
+  const country = await schoolCountry(school.id);
+
   return {
     canEditSchool,
     canArchiveCampuses: session.role === "SUPER_ADMIN",
@@ -197,6 +202,8 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
       logoUrl: school.logoUrl || "",
       establishedYear: school.establishedYear ? String(school.establishedYear) : "",
       timezone: school.timezone,
+      /** ISO alpha-2 ("" when unknown): picks the exam boards campus forms offer. */
+      country,
     },
     campuses: campuses.map((c) => ({
       revision: recordRevision(c),
@@ -209,7 +216,7 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
       email: c.email || "",
       website: c.website || "",
       principalName: c.principalName || "",
-      board: c.board || DEFAULT_EXAM_BOARD,
+      board: c.board || defaultBoardFor(country),
       logoUrl: c.logoUrl || "",
       archivedAt: c.archivedAt?.toISOString() ?? null,
       archiveReason: c.archiveReason || "",
@@ -319,6 +326,8 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
   const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
 
   const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
+  // A board is never left blank: clearing it falls back to the first board for the school's country.
+  const board = input.board === undefined ? undefined : optionalText(input.board) || defaultBoardFor(await schoolCountry(session.schoolId));
   const result = await prisma.$transaction(async (tx) => {
     const current = await tx.campus.findUnique({ where: { id: campusId } });
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
@@ -330,9 +339,7 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
       name, city, phone, email, website,
       address: patchText(input.address),
       principalName: patchText(input.principalName),
-      // A board is never left blank: clearing it falls back to the default
-      // rather than leaving report cards with no affiliation printed.
-      board: input.board === undefined ? undefined : optionalText(input.board) || DEFAULT_EXAM_BOARD,
+      board,
       logoUrl: newLogoUrl,
     };
     const diff = diffOf(current as unknown as Record<string, unknown>, data);

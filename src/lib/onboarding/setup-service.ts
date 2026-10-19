@@ -17,6 +17,7 @@ import type { AuthUser } from "@/lib/auth";
 import { normalizePlan } from "@/config/plans";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { defaultBoardFor } from "@/config/boards";
+import { registeredSchoolCountry } from "@/lib/school/country";
 import { parseDateOnly, parseLogo, safeTimezone } from "@/lib/school/details";
 import {
   ADOPTION_MODES,
@@ -82,18 +83,6 @@ export interface SetupActor {
 
 const schoolSelect = { id: true, name: true, city: true, contactEmail: true, phone: true, regId: true, plan: true, registrationKind: true, commercialContract: true } as const;
 
-/** The exact country captured at registration (ISO alpha-2), or "" when only a billing market was stored. */
-async function registeredCountry(schoolId: string): Promise<string> {
-  const policy = await prisma.localePolicy.findFirst({
-    where: { schoolId, campusId: null, scopeKey: "school" },
-    orderBy: [{ effectiveAt: "desc" }, { createdAt: "desc" }],
-    select: { settings: true },
-  });
-  const settings = (policy?.settings && typeof policy.settings === "object" && !Array.isArray(policy.settings) ? policy.settings : {}) as Record<string, unknown>;
-  const iso = typeof settings.countryIso === "string" ? settings.countryIso : typeof settings.country === "string" ? settings.country : "";
-  return /^[A-Z]{2}$/.test(iso) ? iso : "";
-}
-
 function initialDraft(school: SchoolRow, ownerPhone: string | null, country: string): SetupDraft {
   const year = new Date().getFullYear();
   return parseSetupDraft({
@@ -120,7 +109,7 @@ async function ensureSetup(school: SchoolRow, user: AuthUser): Promise<SetupRow>
   if (existing) return existing;
   const [owner, country] = await Promise.all([
     prisma.user.findFirst({ where: { schoolId: school.id, isInstitutionOwner: true }, select: { role: true, phone: true } }),
-    registeredCountry(school.id),
+    registeredSchoolCountry(school.id),
   ]);
   try {
     return await prisma.institutionSetup.create({
@@ -180,7 +169,7 @@ export async function setupView(actor: SetupActor) {
       : Promise.resolve(null),
     prisma.campus.count({ where: { schoolId: school.id, archivedAt: null } }),
     prisma.user.findFirst({ where: { id: user.userId, schoolId: school.id }, select: { preferredLanguage: true, fullName: true } }),
-    registeredCountry(school.id),
+    registeredSchoolCountry(school.id),
   ]);
   const type = setup.institutionType as InstitutionType;
   const draft = parseSetupDraft(setup.draft);

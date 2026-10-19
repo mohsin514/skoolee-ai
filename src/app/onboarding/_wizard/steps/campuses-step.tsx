@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Building, CheckCircle2, GraduationCap, Mail, MapPin, Pencil, Plus, Trash2, UserRound, Users,
+  Building, CheckCircle2, Mail, MapPin, Pencil, Plus, Trash2, UserRound, Users,
 } from "lucide-react";
-import { OTHER_BOARD, boardsForCountry } from "@/config/boards";
+import { BoardSelect } from "@/components/ui/board-select";
 import { CapacityMeter } from "@/components/onboarding/CapacityMeter";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { MoreDetails } from "@/components/onboarding/MoreDetails";
@@ -17,9 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
-import { InputGroup } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
-import { Select as SystemSelect } from "@/components/ui/select";
 import { fill } from "../../copy";
 import { FieldError, InputField, PhoneField } from "../fields";
 import { generateId } from "../helpers";
@@ -54,11 +52,6 @@ export function CampusesStep({
     if (campuses.length > prevCount.current && !editingKey) document.getElementById("field-campusName")?.focus();
     prevCount.current = campuses.length;
   }, [campuses.length, editingKey]);
-
-  /* Boards follow the school's country; a board not on the list (or "Other") is typed in. */
-  const boards = boardsForCountry(country);
-  const board = form.board || boards[0];
-  const customBoard = board === OTHER_BOARD || !boards.includes(board);
 
   const cityHint = form.city && form.city === institutionCity && !editingKey ? t.charter.cityPrefilled : undefined;
   const firstDraft = limit >= 0 && campuses.length > limit ? limit : -1;
@@ -111,23 +104,14 @@ export function CampusesStep({
             <div className="grid grid-cols-1 @min-[24rem]:grid-cols-2 gap-3 items-start">
               <div className="space-y-1.5 min-w-0">
                 <div className="flex min-h-11 items-center"><Label htmlFor="field-campusBoard" className="sk-field-label">{t.board}</Label></div>
-                <InputGroup className="min-w-0">
-                  <GraduationCap data-field-affix="start" className="h-4 w-4" />
-                  <SystemSelect id="field-campusBoard" value={customBoard ? OTHER_BOARD : board} onChange={(e) => set({ board: e.target.value })} className="w-full">
-                    {boards.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </SystemSelect>
-                </InputGroup>
-                {customBoard && (
-                  <Input
-                    id="field-campusBoardName"
-                    aria-label={local.boardName}
-                    value={board === OTHER_BOARD ? "" : board}
-                    onChange={(e) => set({ board: e.target.value.trim() ? e.target.value : OTHER_BOARD })}
-                    placeholder={local.boardNamePlaceholder}
-                    maxLength={80}
-                    className="sk-enter"
-                  />
-                )}
+                <BoardSelect
+                  id="field-campusBoard"
+                  country={country}
+                  value={form.board}
+                  onChange={(board) => set({ board })}
+                  nameLabel={local.boardName}
+                  namePlaceholder={local.boardNamePlaceholder}
+                />
               </div>
               <div className="space-y-1.5 min-w-0">
                 <div className="flex min-h-11 flex-wrap justify-between items-center gap-2">

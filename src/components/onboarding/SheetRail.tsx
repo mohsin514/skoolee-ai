@@ -1,6 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 /**
  * The numbered sheet rail: the one step navigation at every width. Each step
@@ -32,19 +33,20 @@ export function SheetRail({ label, steps, itemName, stateLabels, disabled, onSel
           const name = `${itemName(index + 1, total, step.title)}${stateLabel ? ` (${stateLabel})` : ""}`;
           return (
             <li key={step.id} data-state={step.state}>
-              <button
+              <Button
+                variant="link"
                 type="button"
                 aria-current={step.state === "current" ? "step" : undefined}
                 aria-label={name}
                 disabled={disabled || step.state === "locked"}
                 onClick={() => onSelect(step.id)}
-                className="sk-rail-step"
+                className="sk-rail-step min-w-0 justify-start gap-1.5 rounded-xl px-0.5 py-1 text-xs @min-[44rem]:px-1.5 disabled:border-transparent disabled:bg-transparent disabled:text-ink-subtle"
               >
                 <span aria-hidden="true" className="sk-rail-dot" data-numeric>
                   {step.state === "done" ? <Check className="size-3.5" strokeWidth={3} /> : step.state === "attention" ? "!" : index + 1}
                 </span>
                 <span aria-hidden="true" className="sk-rail-label">{step.title}</span>
-              </button>
+              </Button>
               {index < total - 1 ? <span aria-hidden="true" className="sk-rail-ink" /> : null}
             </li>
           );

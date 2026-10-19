@@ -8,7 +8,8 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { inviteStaff } from "./invite";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
-import { DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { defaultBoardFor } from "@/config/boards";
+import { schoolCountry } from "@/lib/school/country";
 import { assertEmail, assertPhone, assertWebsite, optionalText, requiredText } from "@/lib/school/details";
 
 
@@ -77,7 +78,7 @@ export async function addCampus(input: AddCampusInput) {
         email,
         website,
         principalName: optional(input.principalName),
-        board: optional(input.board) || DEFAULT_EXAM_BOARD,
+        board: optional(input.board) || defaultBoardFor(await schoolCountry(schoolId)),
       }
     });
   } catch (error) {

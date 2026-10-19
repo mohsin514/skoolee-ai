@@ -52,7 +52,8 @@ import { FeeManagementPanel } from "@/components/billing/FeeManagementPanel";
 import { PlansPanel } from "@/components/billing/PlansPanel";
 import { SubscriptionLifecyclePanel } from "@/components/billing/SubscriptionLifecyclePanel";
 import { addCampus } from "@/app/actions/addCampus";
-import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { getSchoolCountry } from "@/app/actions/school-boards";
+import { BoardSelect } from "@/components/ui/board-select";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
@@ -77,7 +78,6 @@ import { useSuperAdminData } from "./super-data-context";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Modal, ModalActions as DialogActions } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
-import { Select as SystemSelect } from "@/components/ui/select";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { formatSupportInstant } from "@/lib/owner/support-ui";
 
@@ -132,15 +132,19 @@ export default function SuperAdminDashboard() {
     email: "",
     website: "",
     principalName: "",
-    board: DEFAULT_EXAM_BOARD as string,
+    // "" = the first board for the school's country (resolved by BoardSelect and by addCampus).
+    board: "",
     regId: generateRegId(),
     autoId: true,
     adminEmail: "",
   });
   const emptyCampusForm = {
     name: "", city: "", address: "", phone: "", email: "", website: "",
-    principalName: "", board: DEFAULT_EXAM_BOARD as string, regId: generateRegId(), autoId: true, adminEmail: "",
+    principalName: "", board: "", regId: generateRegId(), autoId: true, adminEmail: "",
   };
+  // The school's country picks the boards a new campus is offered.
+  const [schoolCountry, setSchoolCountry] = useState("");
+  useEffect(() => { void getSchoolCountry().then(setSchoolCountry).catch(() => undefined); }, []);
   const [addingCampus, setAddingCampus] = useState(false);
   const [inviteRole, setInviteRole] = useState<"CAMPUS_ADMIN" | "PRINCIPAL">("CAMPUS_ADMIN");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -855,17 +859,15 @@ const bottomItems: RoleNavItem[] = [];
               onChange={(value) => setNewCampusData({ ...newCampusData, principalName: value })}
             />
             <FormField name="campus-board" id="campus-board" label={t("Board")}>
-              <InputGroup surfaceClassName="bg-muted" className="min-w-0">
-                <GraduationCap aria-hidden="true" data-field-affix="start" className="w-5 h-5 text-ink-subtle shrink-0" />
-                <SystemSelect
-                  id="campus-board"
-                  value={newCampusData.board}
-                  onChange={(event) => setNewCampusData({ ...newCampusData, board: event.target.value })}
-                  className={"w-full"}
-                >
-                  {EXAM_BOARDS.map((board) => <option key={board} value={board}>{board}</option>)}
-                </SystemSelect>
-              </InputGroup>
+              <BoardSelect
+                id="campus-board"
+                country={schoolCountry}
+                value={newCampusData.board}
+                onChange={(board) => setNewCampusData({ ...newCampusData, board })}
+                nameLabel={t("Board name")}
+                namePlaceholder={t("Type your board or curriculum")}
+                surfaceClassName="bg-muted"
+              />
             </FormField>
             <CampusInput
               name="campus-admin-email"
