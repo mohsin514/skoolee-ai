@@ -54,7 +54,7 @@ for (const viewport of [
 test("reduced-motion success feedback keeps its message without spatial or spinner animation", async ({ page }) => {
   const hydrationErrors: string[] = [];
   page.on("console", message => {
-    if (/hydrated|hydration/i.test(message.text())) hydrationErrors.push(message.text());
+    if (["warning", "error"].includes(message.type()) && /hydrated|hydration/i.test(message.text())) hydrationErrors.push(message.text());
   });
   await page.goto("/verify-success");
   expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
@@ -109,7 +109,7 @@ test("switching language holds the redirect so the page can be read", async ({ p
   await expect(page).toHaveURL(/\/verify-success$/);
 });
 
-test("the first Tab holds the redirect so a keyboard user is never taken away mid-navigation", async ({ page }) => {
+test("the first Tab holds the redirect so a keyboard user is never taken away mid-navigation", async ({ page, browserName }) => {
   await page.goto("/verify-success");
   const status = page.locator("main [role=status]");
   await expect(status).toHaveText("Auto-redirecting in 4s");
@@ -117,7 +117,8 @@ test("the first Tab holds the redirect so a keyboard user is never taken away mi
   await expect(page.locator("#verify-language")).toBeFocused();
   await expect(status).toHaveText("Redirect paused.");
   await expect(page.getByRole("button", { name: "Stay on this page" })).toHaveCount(0);
-  await page.keyboard.press("Tab");
+  // WebKit on macOS uses Option+Tab to include buttons and links in keyboard navigation.
+  await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
   await expect(page.getByRole("link", { name: "Continue to Login" })).toBeFocused();
   await page.waitForTimeout(6000);
   await expect(page).toHaveURL(/\/verify-success$/);

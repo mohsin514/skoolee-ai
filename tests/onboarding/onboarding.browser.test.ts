@@ -49,13 +49,14 @@ async function newPage(width: number, email?: string) {
   const context = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 1000 } });
   if (email) await signIn(context, email);
   const page = await context.newPage();
+  page.setDefaultTimeout(30_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   return { context, page, errors };
 }
 
 // Let the 0.6 s panel rise animation settle so evidence shows the final state.
-const shot = async (page: Page, name: string) => { await page.waitForTimeout(800); await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true }); };
+const shot = async (page: Page, name: string) => { await page.locator('[aria-hidden="true"].pointer-events-none.fixed.inset-0').waitFor({ state: "hidden", timeout: 10_000 }); await page.waitForTimeout(800); await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true }); };
 const noOverflow = async (page: Page) => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, "no horizontal overflow");
 const button = (page: Page, name: string | RegExp) => page.getByRole("button", { name, exact: typeof name === "string" });
 const heading = (page: Page) => page.locator("#step-heading");
@@ -171,7 +172,7 @@ test("group owner: three campus drafts survive a failed checkout and sign-out, r
   await shot(page, "06-group-campus-drafts-en-1440");
 
   // Change package: the isolated app has no payment provider, so paid checkout is shown as unavailable.
-  await notice.getByRole("link", { name: "Compare packages" }).click();
+  await page.getByRole("link", { name: "Compare packages", exact: true }).click();
   await page.waitForURL(/\/onboarding\/package\?returnStep=campuses&campuses=3/);
   await page.getByText("Paid checkout is not currently available.").first().waitFor({ timeout: 20_000 });
   await shot(page, "07a-package-compare-checkout-unavailable-en-1440");
@@ -333,3 +334,78 @@ for (const [language, kind, title, reviewTitle] of [["ar", "GROUP", "لنُعد�
     }
   });
 }
+
+for (const kind of ["STANDALONE", "GROUP"] as const) {
+  test(`${kind}: deferred MFA survives activation and rotation without granting verified-MFA access`, async () => {
+    const account = await owner(kind, "FREE");
+    await seedSetup(account.schoolId, {
+      type: kind, mode: "EXAM_STUDIO", current: "review", name: "Synthetic deferred owner",
+      completed: kind === "GROUP" ? ["structure", "identity", "package", "campuses", "academic"] : ["structure", "identity", "package", "academic"],
+      campuses: kind === "GROUP" ? [{ key: randomUUID(), name: "Synthetic primary campus", city: "Riyadh", regId: randomUUID() }] : [],
+    });
+    const { context, page } = await newPage(1440);
+    assert.equal((await context.request.post(base + "/api/auth/login", { data: { email: account.email, password } })).status(), 200);
+    assert.equal((await context.request.post(base + "/api/auth/mfa", { data: { action: "defer" } })).status(), 200);
+    const oldCookies = await context.cookies();
+    assert.equal((await context.request.get(base + "/api/auth/session")).status(), 200);
+    await page.goto(base + "/onboarding");
+    await button(page, "Activate setup").click();
+    await page.waitForURL(/\/setup\/readiness/, { timeout: 30_000 });
+    await page.waitForLoadState("networkidle");
+    assert.equal(new URL(page.url()).pathname, "/setup/readiness");
+    assert.equal((await context.request.get(base + "/api/auth/session")).status(), 200, "fresh session remains usable");
+    assert.equal((await raw.user.findUniqueOrThrow({ where: { id: account.userId } })).onboardingComplete, true);
+    if (kind === "GROUP") assert.equal((await context.request.patch(base + "/api/super/support-grants", { data: {} })).status(), 403, "deferred does not authorize privileged support access");
+    const oldContext = await browser.newContext();
+    await oldContext.addCookies(oldCookies);
+    assert.equal((await oldContext.request.get(base + "/api/auth/session")).status(), 401, "rotation revokes the previous bearer credential");
+    await oldContext.close();
+    await shot(page, `fixed-deferred-mfa-${kind.toLowerCase()}`);
+    // Once a factor is enrolled, a deferred session must immediately stop working.
+    await raw.user.update({ where: { id: account.userId }, data: { mfaEnabled: true } });
+    assert.equal((await context.request.get(base + "/api/auth/session")).status(), 401, "enrolled MFA cannot be bypassed by a deferred session");
+    await context.close();
+  });
+}
+
+test("campus deletion failure stays open, reports failure, and retries successfully", async () => {
+  const account = await owner("GROUP", "FREE");
+  await seedSetup(account.schoolId, { type: "GROUP", mode: "EXAM_STUDIO", current: "campuses", completed: ["structure", "identity", "package"], name: "Synthetic retry school", campuses: [{ key: randomUUID(), name: "Synthetic retry campus", city: "Riyadh", regId: randomUUID() }] });
+  const { context, page } = await newPage(390, account.email);
+  await page.goto(base + "/onboarding");
+  await button(page, "Delete campus: Synthetic retry campus").click();
+  const dialog = page.getByRole("dialog");
+  await page.route("**/onboarding", async (route) => route.request().method() === "POST" ? route.abort("failed") : route.continue());
+  await dialog.getByRole("button", { name: "Delete campus", exact: true }).click();
+  await dialog.getByRole("alert").filter({ hasText: "The campus could not be deleted" }).waitFor();
+  assert.equal(await dialog.isVisible(), true);
+  assert.equal(await page.locator(".sk-save-state").getAttribute("data-state"), "failed");
+  assert.equal(await page.locator("ul[aria-label='Your campuses'] > li").count(), 1);
+  await noOverflow(page);
+  await shot(page, "fixed-campus-delete-error-390");
+  await page.unroute("**/onboarding");
+  await dialog.getByRole("button", { name: "Delete campus", exact: true }).click();
+  await dialog.waitFor({ state: "hidden" });
+  assert.equal(await page.locator("ul[aria-label='Your campuses'] > li").count(), 0);
+  const saved = await raw.institutionSetup.findUniqueOrThrow({ where: { schoolId: account.schoolId } });
+  assert.deepEqual((saved.draft as { campuses: unknown[] }).campuses, []);
+  await context.close();
+});
+
+test("invalid website is rejected visibly and correction allows the owner to continue", async () => {
+  const account = await owner("GROUP", "FREE");
+  await seedSetup(account.schoolId, { type: "GROUP", mode: "EXAM_STUDIO", current: "identity", completed: ["structure"], name: "Synthetic website school" });
+  const { context, page } = await newPage(1440, account.email);
+  await page.goto(base + "/onboarding");
+  await page.locator("#field-website").fill("not a valid website");
+  await button(page, "Continue").click();
+  await page.locator("#field-website-error").waitFor();
+  assert.equal(await page.locator("#field-website").getAttribute("aria-invalid"), "true");
+  await shot(page, "fixed-website-validation-1440");
+  await page.locator("#field-website").fill("www.school.edu.pk");
+  await button(page, "Continue").click();
+  await page.getByRole("link", { name: "Compare packages" }).waitFor();
+  const saved = await raw.institutionSetup.findUniqueOrThrow({ where: { schoolId: account.schoolId } });
+  assert.equal((saved.draft as { school: { website: string } }).school.website, "www.school.edu.pk");
+  await context.close();
+});

@@ -266,10 +266,10 @@ test("mirrored backend constants still match their sources of truth", () => {
   assert.match(readFileSync("src/app/actions/auth/reset.ts", "utf8"), /3600_000|RESET_LINK_TTL_MS/);
   assert.match(readFileSync("src/lib/auth/verification.ts", "utf8"), /TTL\s*=\s*(?:"24h"|VERIFICATION_TTL)/);
   const email = readFileSync("src/lib/email.ts", "utf8");
-  for (const subject of Object.values(AUTH_EMAIL_SUBJECTS)) {
-    const key = subject === AUTH_EMAIL_SUBJECTS.reset ? "AUTH_EMAIL_SUBJECTS.reset" : "AUTH_EMAIL_SUBJECTS.verify";
-    assert.ok(email.includes(`"${subject}"`) || email.includes(key), subject);
-  }
+  assert.match(email, /authEmailCopy\[language\]\.verify/);
+  assert.match(email, /authEmailCopy\[language\]\.reset/);
+  const copy = readFileSync("src/lib/auth/email-copy.ts", "utf8");
+  for (const subject of Object.values(AUTH_EMAIL_SUBJECTS)) assert.ok(copy.includes(subject), subject);
 });
 
 function files(dir: string, out: string[] = []): string[] {

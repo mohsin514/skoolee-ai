@@ -3,8 +3,8 @@ import path from "node:path";
 
 // Real /protect-account page from the running app (TEST_BASE_URL or :3005).
 // /api/auth/mfa is always answered by page.route, so no MFA state is read or written.
-const FOCUS = "rgb(155, 122, 184)";
-const HALO = "rgb(155, 122, 184) 0px 0px 0px 1px inset, rgba(155, 122, 184, 0.22) 0px 0px 0px 3px, rgba(155, 122, 184, 0.24) 0px 0px 16px 2px";
+const FOCUS = "rgb(185, 160, 220)";
+const HALO = "rgb(185, 160, 220) 0px 0px 0px 2px inset, rgba(129, 39, 207, 0.18) 0px 4px 14px -4px";
 const SHOTS = path.join(process.cwd(), ".agents/tasks/protect-account-mfa/screenshots");
 const enrolled = { enrolled: true, school: "Synthetic School", awaitingAcknowledgement: false, resumeChallenge: false };
 const unenrolled = { ...enrolled, enrolled: false };

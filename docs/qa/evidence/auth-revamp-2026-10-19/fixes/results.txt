@@ -1,0 +1,73 @@
+AUTH REVAMP QA — FIX VERIFICATION, 2026-10-19
+This supersedes the unresolved findings in ../report.txt. That file and its images preserve the original observations.
+
+Resolved product findings:
+1. SKO-499 / SKO-380 / SKO-391: preserve the three-state MFA claim through auth and session reissue. ADMIN and SUPER_ADMIN can defer initial enrollment, activate onboarding, and reach /setup/readiness with /api/auth/session returning 200. The old cookie returns 401 after rotation. Deferred MFA still returns 403 for support approval and is refused after factor enrollment.
+2. SKO-391: campus deletion waits for acknowledgement. Network failure retains the campus and confirmation dialog, presents a translated error and retry, and shows Not saved. Retry removes the campus and saves the resulting draft.
+3. SKO-391: optional websites accept valid HTTP(S) URLs and bare domains. Malformed addresses, whitespace, unsupported schemes and embedded credentials are rejected by shared identity/campus/final-review validation. The identity field displays a translated error and reveals itself on compact layouts.
+4. SKO-457: signup saves the selected language. Initial verification, resend and password reset select English, Arabic or Urdu copy for HTML, subject and plain text. RTL templates use RTL layout and an LTR fallback URL. Inbox guidance lists supported translated subjects without disclosing account locale.
+5. SKO-457: remove the decorative email CTA arrow that wrapped to a separate line at 320px. All six EN/AR/UR verification/reset renders fit at 320px.
+
+Harness corrections:
+- Update focus tokens and friendly reset error expectations to the current shared UI.
+- Locate Compare packages where it actually lives.
+- Wait for initial locale/status requests before cancelling an already-open invitation.
+- Ignore informational Hydrated console messages; still capture warning/error hydration diagnostics.
+- Use WebKit/macOS Option+Tab to include links/buttons in native keyboard navigation.
+- Capture onboarding screenshots after the launch overlay unmounts.
+
+Validation (331 passing test cases across final suite runs):
+- Unit/domain/MFA/auth foundation/onboarding/email: 119/119.
+- Chromium auth routing/login/language/MFA/recovery: 71/71.
+- Chromium signup: 13/13.
+- Chromium verification: 15/15.
+- Real auth lifecycle and EN/AR/UR/keyboard matrix: 14/14.
+- Real Arabic/Urdu signup locale persistence: 2/2.
+- Onboarding browser: seven existing scenarios passed; four new regression scenarios passed (11/11 across runs).
+- Onboarding database transactions/idempotency: 9/9.
+- UI policy: 5/5.
+- Firefox/WebKit signup/verification/live MFA: 72/72.
+- Source/test TypeScript check: passed with generated historical .next directories excluded.
+- ESLint on changed application sources: passed.
+- git diff --check: passed.
+
+The initial combined onboarding run had a test using POST for the PATCH-only support API. It was corrected to PATCH, and all four new scenarios were rerun and passed.
+Standard repository-wide tsc still sees pre-existing generated validators for the removed /api/auth/register in historical .next directories; no production build or clean-build claim is made.
+Outbound email was disabled in the isolated QA applications. Rendering, subjects, stored language and actual account/token flows were tested; delivery into real Gmail/Outlook clients remains unverified. No production users were mutated.
+
+Reproducible suites:
+node --import tsx --test tests/email/auth-email.test.ts tests/onboarding/setup-state.test.ts
+DATABASE_URL=<isolated 55470/sko391> ONBOARDING_TEST_APP=http://localhost:3470 node --import tsx --test tests/onboarding/onboarding.browser.test.ts
+DATABASE_URL=<isolated 55438/postgres> AUTH_TEST_APP=http://localhost:3107 AUTH_SECRET=<isolated synthetic key> node --import tsx --test --test-concurrency=1 tests/auth-journeys/journeys.browser.test.ts tests/auth-journeys/matrix.browser.test.ts
+TEST_BASE_URL=http://localhost:3107 npx playwright test --config tests/design-system/auth-crossbrowser.config.ts
+
+Corrected images attached in Linear and embedded inline in ticket comments:
+SKO-391: Campus deletion: retained failure and retry
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/3f8a14a8-b73a-4004-8aea-61fbd4870df3/956e956f-219f-41c5-85fd-5ccb9d9ba689
+
+SKO-391: Fixed: invalid website gets inline error and correction works
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/a691f06b-4f73-4775-a3a7-c24281cbc337/934faa4f-8d12-415f-ab0b-1182a22a1ae6
+
+SKO-499: Fixed: group owner reaches readiness with deferred MFA
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/ab3b1247-fef9-455a-ab52-1166dbff3f05/387ae47b-8ea1-440b-be0d-4110777e0a82
+
+SKO-499: Fixed: standalone owner reaches readiness with deferred MFA
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/b37d33d1-7ac9-40d9-a938-49d130d8e983/ac97b98b-1a09-4bb4-ad22-fdc643fa05f5
+
+SKO-457: Fixed email at 320px: verify-en
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/626a1e59-c177-455e-b4cd-2dc150e5b337/e4b5d72e-08b0-41b3-aa22-2b8d2ff1b2ef
+
+SKO-457: Fixed email at 320px: reset-en
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/df922b9c-d329-4f80-af07-c0f5176b2fd2/22b5ee75-77fb-4dea-8bd7-25023a80d8aa
+
+SKO-457: Fixed email at 320px: verify-ar
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/44c4c9bc-1f02-4e31-86d2-43c8bb7ad37f/5faf2047-6a90-4009-88b1-65efbc97b09f
+
+SKO-457: Fixed email at 320px: reset-ar
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/3981a1a4-6246-4a92-b227-e0b649aaa10f/dd86db8a-e345-4e0a-97dd-a80eed6643d5
+
+SKO-457: Fixed email at 320px: verify-ur
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/b0c68367-daed-4eaf-9179-169d099089ee/3450face-6f7b-4c91-9212-212dd3848b14
+
+SKO-457: Fixed email at 320px: reset-ur
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/a43b1429-5d28-4b9e-8b21-cc3e6ecb164f/74e7b47e-6d64-48b7-a018-d7ea8d5972a4

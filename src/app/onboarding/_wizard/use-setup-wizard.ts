@@ -108,6 +108,8 @@ export type SetupWizard = {
   edited: boolean;
   errors: StepErrors;
   banner: string | null;
+  saveFailed: boolean;
+  deleteError: string | null;
   success: { activated: number; drafts: number } | null;
   logoUploading: boolean;
   handleLogoFile: (file?: File) => Promise<void>;
@@ -145,6 +147,8 @@ export function useSetupWizard(): SetupWizard {
   const [mode, setMode] = useState<AdoptionMode | null>(null);
   const [step, setStep] = useState<SetupStepId>("structure");
   const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
   const [errors, setErrors] = useState<StepErrors>({});
   const [banner, setBanner] = useState<string | null>(null);
@@ -266,6 +270,7 @@ export function useSetupWizard(): SetupWizard {
   const persist = async (opts: { step: SetupStepId; complete: boolean; nextStep?: SetupStepId; draft?: SetupDraft; type?: InstitutionType; mode?: AdoptionMode | null }) => {
     if (!view || !draft) return null;
     setSaving(true);
+    setSaveFailed(false);
     setBanner(null);
     try {
       const res = await saveOnboardingStep({
@@ -293,12 +298,14 @@ export function useSetupWizard(): SetupWizard {
         }
         return res.view;
       }
+      setSaveFailed(true);
       if (res.errors) setErrors(res.errors);
       if (res.view) { applyView(res.view); setBanner(t.conflict); }
       else setBanner(res.denied ? t.denied : res.message);
       return null;
     } catch {
-      setBanner(t.loadFailed);
+      setSaveFailed(true);
+      setBanner(local.saveFailed);
       return null;
     } finally {
       setSaving(false);
@@ -410,11 +417,12 @@ export function useSetupWizard(): SetupWizard {
   }
 
   const confirmDeleteCampus = async () => {
-    if (!draft || !campusToDelete) return;
+    if (!draft || !campusToDelete || saving) return;
     const removed = campusToDelete;
-    setCampusToDelete(null);
+    setDeleteError(null);
     const saved = await persist({ step: "campuses", complete: false, draft: { ...draft, campuses: draft.campuses.filter((c) => c.key !== removed.key) } });
-    if (!saved) return;
+    if (!saved) { setDeleteError(local.deleteFailed); return; }
+    setCampusToDelete(null);
     toast.success(fill(t.campusDeleted, removed.name));
     // The dialog restored focus to the row's delete button, which is now gone; keep focus in the composer.
     requestAnimationFrame(() => {
@@ -552,7 +560,8 @@ export function useSetupWizard(): SetupWizard {
     step, flow, completed, reachable, stepIndex,
     saving, activating, dirty, edited, errors, banner, success,
     logoUploading, handleLogoFile,
-    newCampus, setNewCampus, campusErrors, editingKey, savingCampus, campusToDelete, setCampusToDelete,
+    newCampus, setNewCampus, campusErrors, editingKey, savingCampus, campusToDelete,
+    saveFailed, deleteError, setCampusToDelete: (campus) => { if (!saving) { setDeleteError(null); setCampusToDelete(campus); } },
     headingRef, summaryRef,
     setSchool, continueFrom, goTo, goBack, saveAndExit, handleLogout,
     saveCampus, editCampus, cancelCampusEdit, confirmDeleteCampus, handleActivate,

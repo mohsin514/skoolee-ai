@@ -1,26 +1,21 @@
 import * as React from "react";
 import { Text } from "@react-email/components";
+import { authEmailCopy, type AuthEmailLanguage } from "@/lib/auth/email-copy";
 import { mutedParagraph, paragraph, SkooleeEmail } from "./SkooleeEmail";
 
-interface PasswordResetEmailProps {
+interface Props {
   actionUrl: string;
   logoUrl?: string;
+  language?: AuthEmailLanguage;
 }
 
-export function PasswordResetEmail({ actionUrl, logoUrl }: PasswordResetEmailProps) {
+export function PasswordResetEmail({ actionUrl, logoUrl, language = "en" }: Props) {
+  const copy = authEmailCopy[language].reset;
   return (
-    <SkooleeEmail
-      preview="Reset your SkooleeAI password"
-      eyebrow="Account security"
-      title="Reset your password"
-      action={{ label: "Choose a new password", href: actionUrl }}
-      logoUrl={logoUrl}
-      footerText="If you did not request this, you can safely ignore this email."
-    >
-      <Text style={paragraph}>
-        We received a request to reset your SkooleeAI password. Use the button below to choose a new password.
-      </Text>
-      <Text style={mutedParagraph}>This single-use link expires in 1 hour. If you did not ask to reset your password, your account is still safe and you can ignore this email.</Text>
+    <SkooleeEmail language={language} preview={copy.subject} eyebrow={copy.eyebrow}
+      title={copy.title} action={{ label: copy.action, href: actionUrl }} logoUrl={logoUrl}>
+      <Text style={paragraph}>{copy.body}</Text>
+      <Text style={mutedParagraph}>{copy.note}</Text>
     </SkooleeEmail>
   );
 }

@@ -47,7 +47,7 @@ export const toLanguage = (raw: string | null | undefined): Language => {
 /** The step that owns each validated field: drives the rail's attention dots and the cover ledger's flags. */
 export const FIELD_STEP: Record<string, SetupStepId> = {
   adoptionMode: "structure",
-  name: "identity", city: "identity", phone: "identity", email: "identity", establishedYear: "identity", regId: "identity",
+  website: "identity", name: "identity", city: "identity", phone: "identity", email: "identity", establishedYear: "identity", regId: "identity",
   campuses: "campuses",
   academicYear: "academic", sessionLabel: "academic", sessionStart: "academic", sessionEnd: "academic", weekends: "academic",
 };

@@ -32,7 +32,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 export function CampusesStep({
   t, local, headingRef, folio, notices, busy, back, campuses, limit, draftsBeyond, canPurchase, compareHref,
   form, setForm, formErrors, rowErrors, editingKey, savingCampus, institutionCity, onSaveCampus, onEditCampus, onCancelEdit,
-  deleting, onAskDelete, onCancelDelete, onConfirmDelete, onContinue,
+  deleting, deleteError, onAskDelete, onCancelDelete, onConfirmDelete, onContinue,
 }: CampusesStepProps) {
   const compact = useCompactForm();
   const empty = campuses.length === 0;
@@ -196,15 +196,16 @@ export function CampusesStep({
         </div>
       </div>
 
-      <Dialog open={!!deleting} onOpenChange={(open) => !open && onCancelDelete()}>
+      <Dialog open={!!deleting} onOpenChange={(open) => !open && !busy && onCancelDelete()}>
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t.deleteCampusTitle}</DialogTitle>
             <DialogDescription>{fill(t.deleteCampusBody, deleting?.name ?? "")}</DialogDescription>
           </DialogHeader>
+          {deleteError && <Alert tone="danger">{deleteError}</Alert>}
           <DialogFooter>
-            <Button variant="outline" onClick={() => onCancelDelete()}>{t.cancel}</Button>
-            <Button variant="destructive" onClick={() => onConfirmDelete()}>{t.deleteCampus}</Button>
+            <Button variant="outline" disabled={busy} onClick={() => onCancelDelete()}>{t.cancel}</Button>
+            <Button variant="destructive" disabled={busy} loading={busy} onClick={() => onConfirmDelete()}>{t.deleteCampus}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

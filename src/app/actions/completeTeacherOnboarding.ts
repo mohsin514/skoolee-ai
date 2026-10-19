@@ -182,7 +182,7 @@ export async function completeTeacherOnboarding(data: TeacherOnboardingInput): P
     // Re-mint either way, so a replay from a tab holding the pre-completion
     // cookie stops being sent back to onboarding by the proxy.
     const newToken = await new SignJWT({
-      mfaVerified: payload.mfaVerified === true,
+      mfaVerified: payload.mfaVerified ?? false,
       userId: updatedUser.id,
       accessVersion: updatedUser.accessVersion,
       email: updatedUser.email,

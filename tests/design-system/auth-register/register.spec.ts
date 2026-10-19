@@ -40,7 +40,7 @@ async function fillValid(page: Page) {
   await page.keyboard.press("Space");
 }
 
-test("institution radio keyboard selection and Back preserve the chosen type and values", async ({ page }) => {
+test("institution radio keyboard selection and Back preserve the chosen type and values", async ({ page, browserName }) => {
   const requests = await mount(page);
   const radios = page.getByRole("radiogroup", { name: "Institution type" }).getByRole("radio");
   await radios.first().focus();
@@ -52,7 +52,8 @@ test("institution radio keyboard selection and Back preserve the chosen type and
   await expect(radios.first()).toBeChecked();
   await page.keyboard.press("ArrowUp");
   await expect(radios.nth(1)).toBeChecked();
-  await page.keyboard.press("Tab");
+  // WebKit on macOS uses Option+Tab to include buttons and links in keyboard navigation.
+  await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
   await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#regId")).toHaveValue(/^SC-/);
@@ -188,9 +189,9 @@ for (const institution of ["school_group", "single_campus"] as const) {
     await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
     expect(requests).toHaveLength(2);
     expect(requests[0].data).toEqual({ email: "registration-fixture@example.test", registrationType: institution });
-    expect(requests[1].data).toEqual({ email: "registration-fixture@example.test", fullName: "Synthetic Administrator", phone: "+92 300 0000000", schoolName: "Synthetic Fixture School", country: "AE", regId });
+    expect(requests[1].data).toEqual({ email: "registration-fixture@example.test", fullName: "Synthetic Administrator", phone: "+92 300 0000000", schoolName: "Synthetic Fixture School", country: "AE", language: "en", regId });
     expect(requests[1].passwordMatches).toBe(true);
-    expect(requests[1].fields).toEqual(["country", "email", "fullName", "password", "phone", "regId", "schoolName"]);
+    expect(requests[1].fields).toEqual(["country", "email", "fullName", "language", "password", "phone", "regId", "schoolName"]);
     await expect(page.getByRole("link", { name: "Go to Login" })).toHaveAttribute("href", "/login");
     await expect(page.getByText("registration-fixture@example.test", { exact: true })).toBeVisible();
   });

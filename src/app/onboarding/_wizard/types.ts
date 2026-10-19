@@ -94,6 +94,7 @@ export type CampusesStepProps = StepBase & {
   onCancelEdit(): void;
   /** The campus whose delete confirmation is open (the step renders the dialog). */
   deleting: CampusDraft | null;
+  deleteError?: string | null;
   onAskDelete(campus: CampusDraft): void;
   onCancelDelete(): void;
   onConfirmDelete(): void;

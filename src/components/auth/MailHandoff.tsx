@@ -1,11 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { ArrowUpRight, Check, Inbox, Mail, PenLine } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
 import { authCopy } from "@/lib/auth/auth-copy";
-import { AUTH_EMAIL_SUBJECTS } from "@/lib/auth/email-subjects";
+import { authEmailCopy } from "@/lib/auth/email-copy";
 import { fillNodes, fillText } from "@/lib/auth/fill-nodes";
 import { inboxProvidersFor, inboxUrl } from "@/lib/auth/inbox-provider";
 import { RETRY_SUGGESTION_MS } from "@/lib/auth/link-expiry";
@@ -108,7 +108,7 @@ export function MailHandoff({ language, email, kind, intro, sentAt, onUseDiffere
       {kind === "reset" ? (
         // What to look for and when to retry read as one note, not two loose lines.
         <div className="space-y-1.5 text-xs leading-relaxed text-ink-muted">
-          <p>{fillNodes(copy.lookFor, <bdi lang="en" className="font-semibold text-ink-strong">{AUTH_EMAIL_SUBJECTS.reset}</bdi>)}</p>
+          <p>{fillNodes(copy.lookFor, <span className="font-semibold text-ink-strong">{([language, ...(["en", "ar", "ur"] as const).filter((code) => code !== language)]).map((code, index) => <Fragment key={code}>{index > 0 && " / "}<bdi lang={code}>{authEmailCopy[code].reset.subject}</bdi></Fragment>)}</span>)}</p>
           {sentAt ? <p data-numeric>{fillText(copy.retryBy, retryTime(language, sentAt))}</p> : null}
         </div>
       ) : null}

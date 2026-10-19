@@ -73,11 +73,11 @@ export function SkooleeEmail({
             {action && (
               <Section style={buttonWrap}>
                 <Button href={action.href} style={button}>
-                  {action.label} &rarr;
+                  {action.label}
                 </Button>
                 <Text style={fallbackLink}>
                   {language === "ur" ? "بٹن کام نہ کرے تو یہ لنک کھولیں:" : language === "ar" ? "إذا لم يعمل الزر، افتح هذا الرابط:" : "Button not working? Open this link:"}{" "}
-                  <a href={action.href} style={fallbackAnchor}>{action.href}</a>
+                  <a href={action.href} dir="ltr" style={{ ...fallbackAnchor, display: "block" }}>{action.href}</a>
                 </Text>
               </Section>
             )}

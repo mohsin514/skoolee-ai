@@ -26,6 +26,7 @@ export const SignupStep2Schema = z.object({
   // school's first contact number until onboarding overrides it.
   phone: z.string().trim().min(7, "Enter a valid phone number").optional().or(z.literal("")),
   country: countrySchema.default("PK"),
+  language: z.enum(["en", "ar", "ur"]).optional(),
 });
 
 // One wording for a new and an existing address when the email cannot be sent (SKO-457).
@@ -146,6 +147,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
         email: valid.email,
         password: hashedPassword,
         fullName: valid.fullName,
+        preferredLanguage: valid.language ?? "en",
         phone,
         role,
         isInstitutionOwner: true,
@@ -182,7 +184,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
   // /api/auth/verify will accept.
   const token = await createVerificationToken(user.id);
   try {
-    const delivery = await sendVerificationEmail(user.email, user.id, token);
+    const delivery = await sendVerificationEmail(user.email, user.id, token, valid.language);
     if ("bypass" in delivery && delivery.bypass && process.env.NODE_ENV !== "production") {
       return {
         success: true,

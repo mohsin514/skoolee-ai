@@ -22,11 +22,11 @@ export async function requestPasswordReset(email: string) {
   // Same response for unknown, inactive, throttled and delivery-failure cases.
   if (!await limit("reset", normalized) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) return { success: true };
   after(() => runUnscoped("password reset request before sign-in", async () => {
-    const users = await prisma.user.findMany({ where: { email: normalized, isActive: true }, select: { id: true, schoolId: true } });
+    const users = await prisma.user.findMany({ where: { email: normalized, isActive: true }, select: { id: true, schoolId: true, preferredLanguage: true } });
     for (const user of users) {
       const token = randomBytes(32).toString("base64url");
       await prisma.passwordReset.create({ data: { email: normalized, userId: user.id, token: digest(token), expiresAt: new Date(Date.now() + 3600_000) } });
-      try { await sendPasswordResetEmail(normalized, token); }
+      try { await sendPasswordResetEmail(normalized, token, user.preferredLanguage); }
       catch {
         await prisma.passwordReset.deleteMany({ where: { token: digest(token) } });
         await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.delivery_failed" } } });

@@ -21,7 +21,7 @@ export function IdentityStep({ t, local, language, headingRef, folio, notices, b
   const s = school;
   const compact = useCompactForm();
   const [userOpen, setUserOpen] = useState(() => Boolean(s.phone || s.establishedYear || s.website));
-  const forced = Boolean(errors.phone || errors.establishedYear);
+  const forced = Boolean(errors.phone || errors.establishedYear || errors.website);
   const idLabel = isGroup ? t.schoolId : t.campusId;
   const auto = isGroup ? s.autoId : s.primaryCampusAutoId;
 
@@ -31,7 +31,7 @@ export function IdentityStep({ t, local, language, headingRef, folio, notices, b
         <InputField field="phone" error={errors.phone && t.errors[errors.phone]} label={t.phone} value={s.phone} onChange={(val) => setSchool({ phone: val.replace(/[^\d\s+\-()]/g, '') })} placeholder="+92 300 0000000" icon={Phone} type="tel" />
         <InputField field="establishedYear" error={errors.establishedYear && t.errors[errors.establishedYear]} label={t.established} value={s.establishedYear} onChange={(val) => setSchool({ establishedYear: val.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="1998" icon={CalendarDays} inputMode="numeric" />
       </div>
-      <InputField field="website" label={t.website} value={s.website} onChange={(val) => setSchool({ website: val })} placeholder="www.school.edu.pk" icon={Globe} type="url" />
+      <InputField field="website" error={errors.website && t.errors[errors.website]} label={t.website} value={s.website} onChange={(val) => setSchool({ website: val })} placeholder="www.school.edu.pk" icon={Globe} type="url" />
       <div className="space-y-1.5">
         <p className="sk-field-label">{t.contactEmail}</p>
         <p className="sk-address-plate">

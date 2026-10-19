@@ -59,8 +59,8 @@ export function WizardFrame({ wizard, ready, children }: { wizard: SetupWizard; 
           </p>
         )}
         save={{
-          state: saving ? "saving" : edited ? "dirty" : "saved",
-          labels: { saving: t.saving, saved: t.savedAt, dirty: t.charter.saveDirty },
+          state: saving ? "saving" : wizard.saveFailed ? "failed" : edited ? "dirty" : "saved",
+          labels: { saving: t.saving, saved: t.savedAt, dirty: t.charter.saveDirty, failed: wizard.local.saveFailedLabel },
         }}
         actions={(
           <>

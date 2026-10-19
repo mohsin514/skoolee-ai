@@ -102,6 +102,19 @@ const badPhone = (value: string) => {
   return digits < 7 || digits > 15;
 };
 
+/** Accept a public HTTP(S) address, including the scheme-free domain shown in the form. */
+export function validWebsite(value: string): boolean {
+  const input = value.trim();
+  if (!input) return true;
+  if (/\s/.test(input)) return false;
+  try {
+    const url = new URL(input.includes("://") ? input : `https://${input}`);
+    return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password
+      && url.hostname.split(".").length >= 2
+      && url.hostname.split(".").every((part) => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(part));
+  } catch { return false; }
+}
+
 export function validateCampusDraft(campus: CampusDraft, others: CampusDraft[] = []): StepErrors {
   const errors: StepErrors = {};
   if (blank(campus.name)) errors.campusName = "campusName.required";
@@ -110,6 +123,7 @@ export function validateCampusDraft(campus: CampusDraft, others: CampusDraft[] =
   else if (others.some((o) => o.key !== campus.key && o.regId.trim().toUpperCase() === campus.regId.trim().toUpperCase())) errors.campusRegId = "campusRegId.duplicate";
   if (badEmail(campus.email)) errors.campusEmail = "email.invalid";
   if (badPhone(campus.phone)) errors.campusPhone = "phone.invalid";
+  if (!validWebsite(campus.website)) errors.campusWebsite = "website.invalid";
   return errors;
 }
 
@@ -133,6 +147,7 @@ export function validateStep(
       if (blank(school.name)) errors.name = "name.required";
       if (blank(school.city)) errors.city = "city.required";
       if (badPhone(school.phone)) errors.phone = "phone.invalid";
+      if (!validWebsite(school.website)) errors.website = "website.invalid";
       if (school.establishedYear) {
         const year = Number(school.establishedYear);
         if (!Number.isInteger(year) || year < 1800 || year > now.getFullYear() + 1) errors.establishedYear = "establishedYear.invalid";
@@ -246,6 +261,7 @@ export function describeStepErrors(errors: StepErrors): string {
     "city.required": "City is required.",
     "phone.invalid": "Enter a valid phone number.",
     "email.invalid": "Enter a valid email address.",
+    "website.invalid": "Enter a valid website, such as www.school.edu.pk.",
     "establishedYear.invalid": "Enter a valid established year.",
     "regId.required": "An ID is required.",
     "campuses.required": "Add at least one campus.",

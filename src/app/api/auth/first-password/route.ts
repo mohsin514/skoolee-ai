@@ -88,7 +88,7 @@ export async function PUT(req: NextRequest) {
     // Re-issue the token so mustChangePassword is false in the cookie —
     // otherwise the proxy would keep redirecting back to /first-login.
     const token = await new SignJWT({
-      mfaVerified: auth.mfaVerified === true,
+      mfaVerified: auth.mfaVerified ?? false,
       userId: user.id,
       accessVersion: user.accessVersion + 1,
       email: user.email,

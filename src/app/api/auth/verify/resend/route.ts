@@ -22,10 +22,10 @@ export async function POST(req: NextRequest) {
     && (await authRateLimit(`verify-resend:target:${email}`, { limit: 3, windowMs: 900_000 })).ok;
   if (allowed) {
     after(() => runUnscoped("verification resend before sign-in", async () => {
-      const users = await prisma.user.findMany({ where: { email, ...pendingVerificationWhere }, select: { id: true, email: true, schoolId: true } });
+      const users = await prisma.user.findMany({ where: { email, ...pendingVerificationWhere }, select: { id: true, email: true, schoolId: true, preferredLanguage: true } });
       for (const user of users) {
         try {
-          await sendVerificationEmail(user.email, user.id, await createVerificationToken(user.id));
+          await sendVerificationEmail(user.email, user.id, await createVerificationToken(user.id), user.preferredLanguage);
           await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "email_verification.resent" } } });
         } catch {
           console.warn("[verify-resend] delivery failed");

@@ -1,0 +1,79 @@
+HISTORICAL PRE-FIX REPORT: see fixes/results.txt for resolutions and final regression results.
+
+Skoolee authentication and super-admin onboarding revamp QA
+Date: 19 October 2026 (Asia/Karachi)
+Baseline: ab27d63dfb80d71abdbcb3573e4856e57ca6e4dc
+Scope: login, signup, password recovery/reset, activation, email templates, MFA, and institution-owner onboarding.
+Linear: SKO-457, SKO-380, SKO-391; new high-priority regression SKO-499.
+Production source changes: none. Test data: isolated local synthetic accounts; outbound messages disabled.
+
+PLAN (posted on all three tickets before execution)
+Inventory controls; valid/invalid/expired/reused inputs and links; failure/retry and duplicate submission; MFA enrollment/defer/challenge/recovery; group and standalone setup, campus operations, capacity, save/resume and activation; responsive EN/AR/UR/RTL/keyboard/reduced-motion/enlarged-text checks; email rendering; regression suites; screenshots and reproducible findings.
+
+CONFIRMED FINDINGS
+CRITICAL / P1 / SKO-499 (related SKO-391, SKO-380, SKO-457): Deferring MFA signs a new SUPER_ADMIN out after successful onboarding activation. Reproduced twice in joined signup runs and independently from a seeded review step. Before activation: mfaVerified="deferred", session HTTP 200. After: mfaVerified=false, session HTTP 401, login redirect. OnboardingComplete stays true and campus creation succeeds. Root cause: src/lib/auth.ts:18,56 coerces state to boolean and completeOnboarding.ts:118 reissues only payload.mfaVerified===true. Expected: preserve the authorized deferred state while maintaining enrolled-factor guards. This is a confirmed integration regression requiring a fix before treating the new-owner flow as passed.
+F1 / P2 / SKO-391: Failed campus deletion closes confirmation before server acknowledgement. A failed POST leaves the campus present, shows "Your setup could not be loaded..." and retains "Saved to your account". Reproduce with a group campus, trash icon, block onboarding POST, confirm. Expected: deletion-specific failure and retry in retained dialog; accurate saved/pending state. Source: use-setup-wizard.ts confirmDeleteCampus, generic persist catch. No data loss observed.
+F2 / P2 / SKO-391: Website accepts and durably saves "not a valid website". Enter in group identity, Continue, Back; database draft and charter preview contain malformed value. Expected validated/normalized supported URLs, linked inline error and retained input. Source: setup-state.ts identity validation lacks website rule.
+F3 / P2 / SKO-457: Verification/reset templates have English-only copy and no language prop; email sending helpers pass no recipient locale. Expected AR/UR localized subject/body/CTA/expiry and matching lang/dir. Source/render finding, not an observed delivered email.
+F4 / P3 / SKO-457: At 320px verification-email CTA arrow wraps below its label. No horizontal overflow; cosmetic issue.
+These findings are current-baseline defects/polish gaps. Their introduction by a particular revamp commit was not independently established.
+
+RESULTS BY SUITE
+111/111 combined MFA/security/auth utility/onboarding state/charter guard tests.
+13/13 signup UI.
+15/15 activation UI.
+65/71 original auth/MFA/recovery UI batch: five obsolete focus-token assertions and one obsolete reset-error assertion. All six affected scenarios pass with current expectations in temporary test copies.
+13/14 real lifecycle + EN/AR/UR/keyboard matrix initially. Invitation-cancellation test passes 1/1 after waiting for initial translated status to settle.
+63/63 additional login/invitation/auth-shell checks.
+9/9 isolated onboarding database acceptance.
+7/7 onboarding browser acceptance with a page-level Compare packages locator. Original group test stalled because its locator scoped the link inside role=status; Alert actions moved outside that node.
+3/3 supplemental reproduction/interaction probes: campus edit/delete-failure, working-day guard/session reset/layouts; real MFA defer/refusal; logo validation/failure and malformed website persistence. Passing reproduction probes demonstrate F1/F2 rather than clearing them.
+Joined new SUPER_ADMIN journey: initial immediate-URL assertions passed, but final settled-route verification FAILED: signup -> verification-token activation -> login -> defer MFA -> group identity/package/campus/academic/review -> activation -> /setup/readiness. onboardingComplete=true, exactly one campus, followed by session HTTP 401 and redirect to login. An independent claim/status reproduction confirmed the state loss. Fixture obtained token directly, not through inbox delivery. The earlier URL-only assertion and its PASS log are superseded by this finding.
+5/5 shared UI adoption gate.
+69/72 Firefox/WebKit signup/activation/live-MFA checks. Remaining failures: Firefox informational "Hydrated" log classified as error; WebKit default Tab skips buttons/links in two tests. Plain native HTML reproduces skipped button (input a -> input c). Explicit focus + Enter advances signup; first Tab still pauses activation redirect. No app-specific regression established by these three failures.
+Standard tsc: fails on eight stale generated validator imports of deleted /api/auth/register in historical .next directories.
+Source/test-only tsc: PASS with 8 GB heap and old generated directories excluded. Initial 4 GB attempt exhausted heap. Full production build was not run.
+
+CONTROL / FLOW COVERAGE
+Login: email/password validation, reveal, submit/Enter, language retention, remember/session paths in existing suites, pending-account resend, forgotten-password handoff, create-account and safe footer links, unknown/wrong credentials, translated errors, safe return paths and role routing.
+Signup: group/single selection with arrows/Tab, Continue/Back and retained values; field errors/focus; country/currency; automatic/manual/regenerate ID; reveal both passwords; strength/match/consent; submit busy/duplicate protection; API failure/retry; new and duplicate-address responses; verification/inbox links.
+Activation/reset: valid/expired/reused links, resend generic responses/throttling, invalid recovery token, password rules/mismatch, reveal controls, busy state, friendly failure/retry, return to login, countdown/Stay/language/keyboard pause.
+MFA: setup, QR/key display, copy key, code normalization, invalid-code focus, challenge/recovery toggle and paste, copy-all/download/print invocation, saved-code acknowledgement, expired status/setup and retry, deferred fresh owner, enrolled-owner defer refusal, real enrollment plus crypto/replay/recovery domain suites.
+Onboarding: standalone/group and adoption mode; validation summary; identity/ID; logo invalid type/size/upload failure; package comparison and unavailable checkout; cancellation and exact-step resume; campus add/edit/delete/cancel and delete failure; capacity/draft preservation; academic defaults/session reset/working-day guard; review/edit and activation; failed completion/retry/atomicity/idempotency; save-exit/other-browser resume; handover/revocation/non-owner denial; AR/UR review and responsive controls.
+Visual checks: 320/360/390/768/1024/1440 widths as applicable; EN/AR/UR/RTL; reduced motion; 200% root-text enlargement (not equivalent to every browser zoom/device combination). Selected screenshots visually inspected.
+Email: verification/reset HTML at 320/600, matching primary/fallback action URLs, expiry wording and narrow rendering. Synthetic URLs used.
+
+NOT VERIFIED / LIMITS
+Actual SMTP delivery and mailbox action clicks; Gmail/Outlook/Apple Mail client rendering; real phone QR scan; physical iOS/Android devices; screen-reader speech; physical printing; successful external object-storage upload; live paid checkout/provider webhooks; production-scale performance/load/penetration testing; full production build.
+There is no universal "all testing passed" or complete every-device certification. All scoped local suites and supplemental probes above were executed; external gaps are explicit.
+
+EVIDENCE
+Attached to Linear: 16 sanitized screenshots plus this report. QR/key/recovery images use explicit nonfunctional synthetic fixtures. No real credentials, tokens, handover links or production data attached.
+Local screenshots and concise evidence logs accompany this file. Original unmodified suites remain unchanged. Temporary test copies/configs were removed after preserving their adjustment summary.
+
+Linear attachment references:
+SKO-391: Revamp QA — malformed website persisted without validation
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/9b4b20e9-d58f-44e7-860d-36cdcf134b21/ab773934-310d-49c4-a2ce-67c752898d28
+SKO-391: Revamp QA — group review and eligible activation, mobile
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/07f2dccc-482e-429b-b3eb-53a1ffd550da/d3736995-56ef-4e3d-aa90-775aa79f10cc
+SKO-391: Revamp QA — Arabic group review, desktop
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/f756ef86-0e74-4e1e-bccb-c720b0c70611/0c72902f-0833-4a46-a18f-7a499ca2119c
+SKO-457: Revamp QA — verification email at 320px, synthetic link
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/1db0d8ef-63c5-43c4-8022-9aba484d1929/df7c428e-0564-4006-858f-de2514b7ece9
+SKO-457: Revamp QA — password reset email, synthetic link
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/6f5b5447-af8d-4005-98bb-6560b80fbeed/ef216d72-c082-409a-a2db-f34653310a76
+SKO-380: Revamp QA — MFA setup mobile (synthetic nonfunctional key)
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/c6064a8c-5de5-4fc6-b60d-0bd0cfede77d/c35b4533-c935-4b9b-bd4d-994fc6481a2a
+SKO-380: Revamp QA — recovery code tools (synthetic nonfunctional codes)
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/42867f58-a8fe-4790-a7c7-1c27453d21d6/e7a68d94-55fb-4c71-9c1f-140dd52c5ee0
+SKO-380: Revamp QA — new owner reaches onboarding after MFA defer
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/b0060333-d4b5-46ec-927e-b29da3b771fe/ce472139-2a8d-4cfe-af22-425fda56c590
+SKO-457: Revamp QA — Arabic pending-account resend recovery
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/3d062dcb-0def-4f7a-9d13-918f9c5c760f/30061600-4397-4717-bbaa-e2b4cdb26280
+SKO-457: Revamp QA — reused password reset link recovery
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/91124234-6b4b-4a6b-ba96-1df511419063/65bb4fb4-c987-48a9-8b8a-0cc9ba615b69
+SKO-391: campus-delete-network-failure-390.png
+https://uploads.linear.app/3dfbfdd3-1265-4456-9d51-55bee2591d57/62522def-41a3-4eda-8bbc-c79fce7603bc/48987e3e-077f-417c-a5e3-2df9775d0efa
+
+
+P1 tracking: https://linear.app/skoolee-ai-app/issue/SKO-499/qa-p1-deferring-mfa-signs-new-owner-out-after-onboarding-activation

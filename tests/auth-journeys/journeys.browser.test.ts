@@ -175,6 +175,8 @@ test("an invitation cancelled while the page is open is refused with translated 
   await page.locator("#fullName").fill("Synthetic Invitee");
   await page.locator("#password").fill(password);
   await page.locator("#confirmPassword").fill(password);
+  // Finish the initial status/locale requests before cancelling an already-open invitation.
+  await page.waitForLoadState("networkidle");
   await db.staffInvitation.update({ where: { token }, data: { status: "cancelled" } });
   await page.locator('button[type="submit"]').click();
   await page.getByText("اسکول نے یہ دعوت منسوخ کر دی ہے۔").first().waitFor();
@@ -224,3 +226,26 @@ test("signing up with an address that already owns a school reads exactly like a
     for (const school of schools) { await db.user.deleteMany({ where: { schoolId: school.id } }); await db.school.delete({ where: { id: school.id } }).catch(() => undefined); }
   }
 });
+
+for (const language of ["ar", "ur"] as const) {
+  test(`signup saves ${language} for initial verification and later security emails`, async () => {
+    const email = `${randomUUID()}@example.invalid`;
+    const headers = { "Content-Type": "application/json", "x-forwarded-for": `198.18.77.${language === "ar" ? 11 : 12}` };
+    try {
+      const first = await fetch(base + "/api/auth/signup-step1", { method: "POST", headers, body: JSON.stringify({ email, registrationType: "school_group" }) });
+      assert.equal(first.status, 200);
+      const second = await fetch(base + "/api/auth/signup-step2", { method: "POST", headers, body: JSON.stringify({ email, fullName: "Synthetic localized owner", password, schoolName: "Synthetic localized school", regId: randomUUID(), country: "PK", language }) });
+      assert.equal(second.status, 200);
+      assert.equal((await second.json()).success, true);
+      const account = await db.user.findFirstOrThrow({ where: { email } });
+      assert.equal(account.preferredLanguage, language);
+      assert.equal(account.isActive, false, "verification is still required");
+    } finally {
+      const institutions = await db.school.findMany({ where: { contactEmail: email }, select: { id: true } });
+      for (const institution of institutions) {
+        await db.user.deleteMany({ where: { schoolId: institution.id } });
+        await db.school.delete({ where: { id: institution.id } });
+      }
+    }
+  });
+}

@@ -15,7 +15,7 @@ export interface AuthUser {
   canPurchaseSubscription?: boolean;
   canManageMemberships?: boolean;
   accessVersion?: number;
-  mfaVerified?: boolean;
+  mfaVerified?: boolean | "deferred";
   userId: string;
   email: string;
   fullName?: string;
@@ -53,7 +53,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     if (await isSessionRevoked(hashSessionToken(token))) return null;
 
     const principal = await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
-    return principal ? { ...principal, mfaVerified: payload.mfaVerified === true } : null;
+    return principal ? { ...principal, mfaVerified: payload.mfaVerified === "deferred" ? "deferred" : payload.mfaVerified === true } : null;
   } catch {
     return null;
   }

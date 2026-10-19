@@ -22,7 +22,7 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const actor = await requireAuthUser();
-    if (actor.role !== "SUPER_ADMIN" || !actor.mfaVerified) throw new ApiError("A school group administrator with verified MFA must approve support access", 403);
+    if (actor.role !== "SUPER_ADMIN" || actor.mfaVerified !== true) throw new ApiError("A school group administrator with verified MFA must approve support access", 403);
     const { grantId, decision, evidence } = await req.json();
     if (typeof grantId !== "string" || !["approve", "reject", "review", "revoke"].includes(decision)) throw new ApiError("Invalid support review", 400);
     const grant = await prisma.supportGrant.findFirst({ where: { id: grantId, schoolId: actor.schoolId } });

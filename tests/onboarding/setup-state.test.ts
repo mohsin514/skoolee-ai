@@ -114,3 +114,18 @@ test("every error code has English, Arabic and Urdu text", () => {
   assert.notEqual(onboardingCopy("ur").modes.EXAM_STUDIO.label, onboardingCopy("en").modes.EXAM_STUDIO.label);
   assert.equal(describeStepErrors({ name: "name.required", city: "city.required" }), "School name is required. City is required.");
 });
+
+test("website validation covers institution, campus and final review without requiring a scheme", () => {
+  for (const website of ["", "www.school.edu.pk", "https://school.edu.pk/path?q=one", "http://school.example", "https://مدرسة.example"]) {
+    const data = draft({ website });
+    assert.equal(validateStep("identity", { institutionType: "GROUP", adoptionMode: "EXAM_STUDIO", draft: data }, now).website, undefined, website);
+  }
+  for (const website of ["not a valid website", "https://", "javascript:alert(1)", "ftp://school.example", "https://user:secret@school.example", "https://-invalid.example", "https://school..example"]) {
+    const data = draft({ website }, [campus("one", "BR-1", { website })]);
+    const state = { institutionType: "GROUP" as const, adoptionMode: "EXAM_STUDIO" as const, draft: data };
+    assert.equal(validateStep("identity", state, now).website, "website.invalid", website);
+    assert.equal(validateStep("review", state, now).website, "website.invalid", website);
+    assert.equal(validateCampusDraft(data.campuses[0]).campusWebsite, "website.invalid", website);
+    for (const lang of ["en", "ar", "ur"] as const) assert.ok(onboardingCopy(lang).errors["website.invalid"]);
+  }
+});

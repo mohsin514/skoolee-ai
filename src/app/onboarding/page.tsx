@@ -113,6 +113,7 @@ export default function OnboardingWizard() {
           onEditCampus={w.editCampus}
           onCancelEdit={w.cancelCampusEdit}
           deleting={w.campusToDelete}
+          deleteError={w.deleteError}
           onAskDelete={w.setCampusToDelete}
           onCancelDelete={() => w.setCampusToDelete(null)}
           onConfirmDelete={() => void w.confirmDeleteCampus()}

@@ -1,3 +1,4 @@
+import { authEmailCopy, authEmailLanguage } from "@/lib/auth/email-copy";
 import { appUrl } from "@/lib/app-url";
 import type { ReactElement } from "react";
 import { render } from "@react-email/render";
@@ -148,17 +149,23 @@ export async function sendEmailMessage({
   }
 }
 
-export async function sendVerificationEmail(email: string, userId: string, token: string) {
+export async function sendVerificationEmail(email: string, userId: string, token: string, preferredLanguage?: string | null) {
+  const language = authEmailLanguage(preferredLanguage);
+  const copy = authEmailCopy[language].verify;
   try {
     // The signed token is the whole credential; the user id is not in the URL.
     void userId;
     const actionUrl = `${getBaseUrl()}/api/auth/verify?token=${token}`;
-    const html = await renderTemplate(VerifyEmail({ actionUrl, logoUrl: getLogoUrl() }));
+    const html = await renderTemplate(VerifyEmail({ actionUrl, logoUrl: getLogoUrl(), language }));
     const result = await deliverEmail({
       to: email,
-      subject: "Verify your SkooleeAI Account",
+      subject: copy.subject,
       html,
-      text: `Verify your SkooleeAI account: ${actionUrl}`,
+      text: `${copy.body}
+
+${copy.action}: ${actionUrl}
+
+${copy.note}`,
       fromName: "SkooleeAI Setup",
     });
 
@@ -241,15 +248,21 @@ export async function sendExistingAccountNotice(email: string) {
   return result;
 }
 
-export async function sendPasswordResetEmail(email: string, token: string) {
+export async function sendPasswordResetEmail(email: string, token: string, preferredLanguage?: string | null) {
+  const language = authEmailLanguage(preferredLanguage);
+  const copy = authEmailCopy[language].reset;
   try {
     const actionUrl = `${getBaseUrl()}/forgot-password?token=${token}`;
-    const html = await renderTemplate(PasswordResetEmail({ actionUrl, logoUrl: getLogoUrl() }));
+    const html = await renderTemplate(PasswordResetEmail({ actionUrl, logoUrl: getLogoUrl(), language }));
     const result = await deliverEmail({
       to: email,
-      subject: "Reset your SkooleeAI Password",
+      subject: copy.subject,
       html,
-      text: `Reset your SkooleeAI password: ${actionUrl}`,
+      text: `${copy.body}
+
+${copy.action}: ${actionUrl}
+
+${copy.note}`,
       fromName: "SkooleeAI Support",
     });
 

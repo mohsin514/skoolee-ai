@@ -12,12 +12,12 @@ import { CheckCircle2, Loader2 } from "lucide-react";
  * The save state is the bar's polite live region ("Saving…", "Saved to your
  * account", "Changes save when you continue").
  */
-export type SetupSaveState = "saving" | "saved" | "dirty";
+export type SetupSaveState = "saving" | "saved" | "dirty" | "failed";
 
 export type SetupBarProps = {
   face: ReactNode;
   summary: ReactNode;
-  save: { state: SetupSaveState; labels: { saving: string; saved: string; dirty: string } };
+  save: { state: SetupSaveState; labels: { saving: string; saved: string; dirty: string; failed?: string } };
   actions: ReactNode;
 };
 

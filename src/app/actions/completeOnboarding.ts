@@ -115,7 +115,7 @@ async function reissueSession(payload: AuthUser) {
   });
 
   const newToken = await new SignJWT({
-    mfaVerified: payload.mfaVerified === true,
+    mfaVerified: payload.mfaVerified ?? false,
     userId: updatedUser.id,
     accessVersion: updatedUser.accessVersion,
     email: updatedUser.email,

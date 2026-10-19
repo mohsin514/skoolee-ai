@@ -726,6 +726,7 @@ export default function RegisterPage() {
           password: formData.password,
           schoolName: formData.schoolName.trim(),
           country: formData.country,
+          language,
           regId: formData.regId.trim(),
         }),
       });

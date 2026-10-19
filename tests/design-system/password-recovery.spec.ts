@@ -197,8 +197,8 @@ test("reset constraints, linked errors, busy protection, failure and success nav
   await expect(password).toHaveAttribute("readonly", "");
   await expect(page.getByRole("button", { name: "Show new password" })).toBeDisabled();
   await finish(page, "reset", "error");
-  await expect(page.getByRole("alert")).toHaveText("Synthetic service failure. Try again.");
-  await expect(page.getByRole("group", {name:"Synthetic service failure. Try again."})).toBeFocused();
+  await expect(page.getByRole("alert")).toHaveText("Unable to save your password. Please try again.");
+  await expect(page.getByRole("group", {name:"Unable to save your password. Please try again."})).toBeFocused();
   await expect(password).toHaveValue("Synthetic9!");
   await page.screenshot({path:"test-results/design-system/evidence/auth-password-recovery/reset-error-390.png",fullPage:true});
   await save.click(); await finish(page, "reset", "success");

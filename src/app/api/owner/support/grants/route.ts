@@ -20,7 +20,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
-    if (!actor.mfaVerified) throw new ApiError("Privileged MFA is required", 403);
+    if (actor.mfaVerified !== true) throw new ApiError("Privileged MFA is required", 403);
     const body = await req.json();
     const schoolId = typeof body.schoolId === "string" ? body.schoolId.trim() : "";
     const purpose = typeof body.purpose === "string" ? body.purpose.trim() : "";
