@@ -51,6 +51,10 @@ export function useStepMorph(): (direction: "forward" | "back", update: () => vo
     root.dataset.stepMorph = "";
     inFlight.current = true;
     const done = () => {
+      // The new step already arrived through the morph: settle its entrance animations before lifting the
+      // pause, or they replay from frame 0 and the screen flashes a second time. Elements mounted later
+      // (a new alert, a new row) still animate.
+      root.querySelectorAll(".sk-auth :is(.sk-enter, .sk-rise, .sk-fade-in, .sk-enter-scale)").forEach((el) => el.setAttribute("data-morph-settled", ""));
       delete root.dataset.stepMorph;
       inFlight.current = false;
     };

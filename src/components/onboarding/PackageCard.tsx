@@ -7,8 +7,8 @@ import { Check, TriangleAlert } from "lucide-react";
  * One package in the setup chooser: name (+ "Current" tag), price, an optional
  * one-line description, whether it fits the expected size, four limit tiles,
  * the feature list, then the card's action and its note. The current package
- * carries the gradient border; every card keeps the same row rhythm so prices,
- * fit lines and actions align across the grid.
+ * carries the gradient border. Cards sit on a row subgrid (`.sk-package-grid`),
+ * so names, prices, fit lines, tiles and actions line up across the row.
  */
 export type PackageCardProps = {
   name: string;
@@ -33,7 +33,8 @@ export function PackageCard({ name, tag, current, price, description, fit, limit
         {tag ? <span className="sk-choice-tag shrink-0">{tag}</span> : null}
       </header>
       <p className="sk-package-price" dir="ltr"><bdi>{price}</bdi></p>
-      {description ? <p className="text-xs leading-relaxed text-ink-muted">{description}</p> : null}
+      {/* Always rendered (even empty) so every card keeps the same seven rows on the shared subgrid. */}
+      <p className="text-xs leading-relaxed text-ink-muted">{description}</p>
       <p className="sk-package-fit" data-fits={fit.fits}>
         {fit.fits ? <Check aria-hidden="true" className="size-3.5 shrink-0" /> : <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />}
         <span>{fit.label}</span>

@@ -17,7 +17,6 @@ import { FieldGroup } from "@/components/auth/FieldGroup";
 import { PackageCard } from "@/components/onboarding/PackageCard";
 import { SetupBar } from "@/components/onboarding/SetupBar";
 import { StepCard } from "@/components/onboarding/StepCard";
-import { StepDock } from "@/components/onboarding/StepDock";
 import type { Language } from "@/lib/locale/package";
 import { ANNUAL_DISCOUNT } from "@/config/plans";
 import { getPackageCopy } from "./copy";
@@ -50,6 +49,9 @@ type Catalogue = {
 };
 
 const order: Plan["type"][] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
+
+/** Catalogue features that only restate a limit tile (students, teachers, campuses, AI credits). */
+const LIMIT_FEATURE = /^(up to [\d,]+|unlimited|[\d,]+)\s+(students?|teachers?|teacher accounts?|campus(es)?|ai credits)/i;
 
 /** Strings this page owns that the shared package copy does not carry. */
 const pageCopy = {
@@ -195,8 +197,12 @@ function PackageChoice() {
   };
 
   const shellLanguage: Language = language === "ar" ? "ar" : language === "ur" ? "ur" : "en";
-  const backToSetup = () => router.push(`/onboarding?step=${encodeURIComponent(resume)}`);
   const limitValue = (value: number) => (value < 0 ? copy.unlimited : value.toLocaleString());
+  // Why paid packages offer a quote, said once above the grid rather than in every card.
+  const paidNote = !catalogue ? null
+    : catalogue.salesAssisted ? copy.regionalQuote
+    : catalogue.paymentMethods.length === 0 ? copy.checkoutNotConfigured
+    : null;
 
   return (
     <AuthShell
@@ -227,7 +233,7 @@ function PackageChoice() {
         title={copy.title}
         intro={copy.intro}
         notices={message && catalogue ? <Alert tone="danger">{message}</Alert> : null}
-        dock={<StepDock back={{ label: copy.back, onClick: backToSetup, disabled: !!busy }} />}
+        dock={null}
       >
         <div className="space-y-6">
           <FieldGroup level={2} id="grp-sizing" icon={Users} title={copy.sizingTitle}>
@@ -269,6 +275,7 @@ function PackageChoice() {
                   <bdi dir="ltr">{catalogue.regionalCurrency}</bdi>
                 </p>
               </div>
+              {paidNote && <Alert tone="info" live="off" role="note">{paidNote}</Alert>}
               <div className="sk-package-grid sk-stagger">
                 {order.map((type) => {
                   const plan = catalogue.plans[type];
@@ -295,10 +302,9 @@ function PackageChoice() {
                         { label: copy.branches, value: limitValue(plan.maxCampuses) },
                         { label: copy.aiCredits, value: plan.aiCredits.toLocaleString() },
                       ]}
-                      features={plan.features.map((feature) => (
+                      features={plan.features.filter((feature) => !LIMIT_FEATURE.test(feature)).map((feature) => (
                         <span key={feature} lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span>
                       ))}
-                      note={regionalQuote ? copy.regionalQuote : notConfigured ? copy.checkoutNotConfigured : undefined}
                       action={type === "FREE" ? (
                         <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type}>
                           {busy !== type && <ShieldCheck aria-hidden="true" className="h-4 w-4" />}{copy.continueFree}
