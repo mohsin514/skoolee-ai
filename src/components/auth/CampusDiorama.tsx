@@ -194,3 +194,7 @@ export function CampusDiorama({ type, size = "cover", className }: CampusDiorama
     </svg>
   );
 }
+
+/* Drawing primitives, shared with the setup cover's CampusPlan (one hand for
+   every campus drawing). Exports only: the diorama's own render is unchanged. */
+export { School as DioramaSchool, Office as DioramaOffice, Lock as DioramaLock, STROKE as DIORAMA_STROKE };

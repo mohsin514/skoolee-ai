@@ -10,6 +10,9 @@ interface CollapsiblePanelProps extends HTMLAttributes<HTMLDivElement> {
   subtitle?: string;
   headerRight?: ReactNode;
   defaultOpen?: boolean;
+  /** Controlled when defined (e.g. a disclosure that must stay open while it holds an error); uncontrolled otherwise. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }
 
@@ -19,11 +22,19 @@ export function CollapsiblePanel({
   subtitle,
   headerRight,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
   className,
   children,
   ...props
 }: CollapsiblePanelProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [innerOpen, setInnerOpen] = useState(defaultOpen);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : innerOpen;
+  const toggle = () => {
+    if (!controlled) setInnerOpen((current) => !current);
+    onOpenChange?.(!open);
+  };
 
   return (
     <div className={cn("sk-panel overflow-hidden", className)} {...props}>
@@ -36,11 +47,11 @@ export function CollapsiblePanel({
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setOpen((current) => !current);
+            toggle();
           }
         }}
         className="group flex w-full cursor-pointer flex-col gap-4 p-5 text-start transition-colors hover:bg-surface-subtle sm:flex-row sm:items-center sm:justify-between sm:p-6"

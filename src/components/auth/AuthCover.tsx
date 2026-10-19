@@ -9,6 +9,11 @@ import { WaxSeal } from "./WaxSeal";
  * section): masthead, eyebrow chip, a 200/800 editorial headline with a
  * berry ink swash, optional art, a dot-leader index of provable claims, a
  * footnote and the embossed seal. Never a logo, a live region or a focusable.
+ *
+ * `headingKey` keys only the heading, so its arrival (.sk-enter) and the
+ * berry swash (.sk-ink-draw) replay once when the line changes (the setup
+ * cover changes it per step). `foot` takes the footnote's place (and wins
+ * over it) inside `div.sk-cover-foot` — the setup ledger and its seal slot.
  */
 export type AuthCoverProps = {
   eyebrow: string;
@@ -17,25 +22,34 @@ export type AuthCoverProps = {
   index?: { label: string; items: { icon: LucideIcon; title: string; body?: string }[] };  // 2–4 items
   art?: ReactNode;         // CampusDiorama | InstitutionPreview | WaxSeal
   footnote?: string;
+  headingKey?: string;     // keys ONLY the heading element
+  foot?: ReactNode;        // rendered where `footnote` sits (wins over footnote), in div.sk-cover-foot
 };
 
 const delay = (ms: number) => ({ ["--sk-delay" as string]: `${ms}ms` }) as CSSProperties;
 
-export function AuthCover({ eyebrow, heading, body, index, art, footnote }: AuthCoverProps) {
+/** The cover masthead: foil seal · "Skoolee AI" folio · double hairline. Also the loading skeleton's cover head. */
+export function CoverMasthead() {
+  return (
+    <div className="sk-cover-masthead sk-fade-in">
+      <WaxSeal size={36} finish="foil" />
+      <p className="sk-folio">Skoolee AI</p>
+      <span aria-hidden="true" className="sk-cover-rule" />
+    </div>
+  );
+}
+
+export function AuthCover({ eyebrow, heading, body, index, art, footnote, headingKey, foot }: AuthCoverProps) {
   const Heading = heading.as ?? "h1";
   return (
     <>
-      <div className="sk-cover-masthead sk-fade-in">
-        <WaxSeal size={36} finish="foil" />
-        <p className="sk-folio">Skoolee AI</p>
-        <span aria-hidden="true" className="sk-cover-rule" />
-      </div>
+      <CoverMasthead />
 
       <div className="max-w-[34rem]">
         <p className="sk-cover-chip sk-enter" style={delay(60)}>
           <span className="sk-eyebrow">{eyebrow}</span>
         </p>
-        <Heading className="sk-display sk-enter mt-6" style={delay(120)}>
+        <Heading key={headingKey} className="sk-display sk-enter mt-6" style={delay(120)}>
           {heading.light}{" "}
           <strong className="relative inline-block">
             {heading.strong}
@@ -71,7 +85,9 @@ export function AuthCover({ eyebrow, heading, body, index, art, footnote }: Auth
         ) : null}
       </div>
 
-      {footnote ? <p className="max-w-[34rem] text-xs leading-relaxed text-brand-200">{footnote}</p> : <span aria-hidden="true" />}
+      {foot ? (
+        <div className="sk-cover-foot">{foot}</div>
+      ) : footnote ? <p className="max-w-[34rem] text-xs leading-relaxed text-brand-200">{footnote}</p> : <span aria-hidden="true" />}
 
       <WaxSeal finish="emboss" className="sk-cover-emboss" size={416} />
     </>

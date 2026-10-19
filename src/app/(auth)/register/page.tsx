@@ -32,6 +32,7 @@ import { AuthMascot } from "@/components/auth/AuthMascot";
 import { CampusDiorama } from "@/components/auth/CampusDiorama";
 import { InstitutionPreview } from "@/components/auth/InstitutionPreview";
 import { EmailTypoHint } from "@/components/auth/EmailTypoHint";
+import { FieldGroup } from "@/components/auth/FieldGroup";
 import { RequirementChecklist } from "@/components/auth/RequirementChecklist";
 import { SealedEnvelope } from "@/components/auth/SealedEnvelope";
 import { MailHandoff } from "@/components/auth/MailHandoff";
@@ -1328,35 +1329,6 @@ function StepRail({ step, labels, label: railLabel, stepOf, className = "mb-6" }
  * name/email pair splits when the group is full-width and stacks when it is a
  * column.
  */
-function FieldGroup({
-  id: headingId,
-  icon: Icon,
-  title,
-  className,
-  children,
-}: {
-  className?: string;
-  /** Explicit, language-independent heading id (a title-derived id collapses for Arabic/Urdu). */
-  id: string;
-  icon: LucideIcon;
-  title: string;
-  children: React.ReactNode;
-}) {
-  // The heading is only a visual cue unless it names the group, and side-by-side
-  // columns are exactly where a screen reader loses the thread.
-  return (
-    <section role="group" aria-labelledby={headingId} className={`@container space-y-4 ${className ?? ""}`}>
-      <div className="flex items-center gap-2 px-1">
-        <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-lg bg-brand-50 text-primary ring-1 ring-brand-100">
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        <h3 id={headingId} className="min-w-0 text-sm font-bold text-ink-strong">{title}</h3>
-      </div>
-      {children}
-    </section>
-  );
-}
-
 /** One institution-type radio. Its tile draws the structure itself: three sealed campuses, or one. */
 function TypeOption({ value, active, onClick, title, desc }: TypeOptionProps) {
   return (

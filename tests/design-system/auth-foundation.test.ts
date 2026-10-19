@@ -285,7 +285,24 @@ const FRONT_DESK = [
   "AuthShell.tsx", "AuthTopBar.tsx", "AuthCover.tsx", "AuthColophon.tsx", "AuthMascot.tsx", "use-mascot-watch.ts", "AuthGreeting.tsx",
   "InkRule.tsx", "WaxSeal.tsx", "SealedEnvelope.tsx", "MailHandoff.tsx", "VerificationResend.tsx", "CountdownRing.tsx",
   "RequirementChecklist.tsx", "CampusDiorama.tsx", "InstitutionPreview.tsx", "EmailTypoHint.tsx", "use-countdown.ts", "use-verification-resend.ts",
+  "FieldGroup.tsx", "use-step-morph.ts",
 ].map((name) => `src/components/auth/${name}`);
+
+/** Every `@media …` block opened by `opener` in `css`, each cut at its own matching closing brace. */
+function mediaBlocks(css: string, opener: string): string[] {
+  const blocks: string[] = [];
+  for (let start = css.indexOf(opener); start >= 0; start = css.indexOf(opener, start + opener.length)) {
+    const open = css.indexOf("{", start);
+    let depth = 0;
+    let end = open;
+    for (; end < css.length; end++) {
+      if (css[end] === "{") depth++;
+      else if (css[end] === "}" && --depth === 0) break;
+    }
+    blocks.push(css.slice(start, end + 1));
+  }
+  return blocks;
+}
 
 test("grep guard: no infinite framer loops on the auth front door", () => {
   const targets = [
@@ -342,7 +359,12 @@ test("globals.css: mascot block unlayered, every Front Desk motion has an off-sw
     assert.match(css, new RegExp(`${token}\\s*:`), token);
   }
   const front = css.slice(css.indexOf("Auth · Front Desk"));
-  const reduce = front.slice(front.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+  // The union of every reduced-motion block after the Front Desk header (the
+  // off-switches live in more than one: the Front Desk block, the signup
+  // View Transition block, the setup Charter Desk block…). Reading only the
+  // last one broke as soon as a later section added its own.
+  const reduce = mediaBlocks(front, "@media (prefers-reduced-motion: reduce)").join("\n");
+  assert.ok(reduce.length > 0, "at least one reduced-motion block after the Front Desk header");
   for (const selector of [".sk-mascot [data-part]", ".sk-ink-draw", ".sk-seal-press", ".sk-attention", '.sk-tick [data-part="check"]', '.sk-countdown-ring [data-part="value"]', ".sk-diorama [data-node]"]) {
     assert.ok(reduce.includes(selector), `reduced-motion block covers ${selector}`);
   }
@@ -351,6 +373,8 @@ test("globals.css: mascot block unlayered, every Front Desk motion has an off-sw
   const ring = front.match(/\.sk-countdown-ring[^{]*\{[^}]*\}/g) ?? [];
   assert.ok(ring.length > 0);
   for (const rule of ring) assert.doesNotMatch(rule, /animation/, rule);
-  // No new rule targets the pinned login field group.
-  assert.doesNotMatch(front, /\.sk-input-group/);
+  // No new rule targets the pinned login field group. The one exception is
+  // register's phone country-code picker, scoped to `select.sk-dial-code`,
+  // which the login page never renders.
+  assert.doesNotMatch(front.replaceAll(".sk-input-group > select.sk-dial-code", ""), /\.sk-input-group/);
 });
