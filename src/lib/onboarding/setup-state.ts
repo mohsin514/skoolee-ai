@@ -55,6 +55,8 @@ export const campusDraftSchema = z.object({
 
 export const schoolDraftSchema = z.object({
   name: text(200),
+  /** ISO 3166-1 alpha-2, seeded from registration: drives exam boards, dial codes and time zones. */
+  country: z.string().regex(/^[A-Z]{2}$/).catch("").default(""),
   city: text(120),
   address: text(500),
   email: text(200),

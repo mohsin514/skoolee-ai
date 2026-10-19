@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Building, CheckCircle2, GraduationCap, Mail, MapPin, Pencil, Phone, Plus, Trash2, UserRound, Users,
+  Building, CheckCircle2, GraduationCap, Mail, MapPin, Pencil, Plus, Trash2, UserRound, Users,
 } from "lucide-react";
-import { EXAM_BOARDS, DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { OTHER_BOARD, boardsForCountry } from "@/config/boards";
 import { CapacityMeter } from "@/components/onboarding/CapacityMeter";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { MoreDetails } from "@/components/onboarding/MoreDetails";
@@ -21,7 +21,7 @@ import { InputGroup } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { fill } from "../../copy";
-import { FieldError, InputField } from "../fields";
+import { FieldError, InputField, PhoneField } from "../fields";
 import { generateId } from "../helpers";
 import type { CampusForm } from "../helpers";
 import type { CampusesStepProps } from "../types";
@@ -30,7 +30,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /* ═══ STEP: Campuses (group only) ═══ */
 export function CampusesStep({
-  t, local, headingRef, folio, notices, busy, back, campuses, limit, draftsBeyond, canPurchase, compareHref,
+  t, local, language, headingRef, folio, notices, busy, back, campuses, limit, draftsBeyond, canPurchase, compareHref, country,
   form, setForm, formErrors, rowErrors, editingKey, savingCampus, institutionCity, onSaveCampus, onEditCampus, onCancelEdit,
   deleting, deleteError, onAskDelete, onCancelDelete, onConfirmDelete, onContinue,
 }: CampusesStepProps) {
@@ -55,12 +55,17 @@ export function CampusesStep({
     prevCount.current = campuses.length;
   }, [campuses.length, editingKey]);
 
+  /* Boards follow the school's country; a board not on the list (or "Other") is typed in. */
+  const boards = boardsForCountry(country);
+  const board = form.board || boards[0];
+  const customBoard = board === OTHER_BOARD || !boards.includes(board);
+
   const cityHint = form.city && form.city === institutionCity && !editingKey ? t.charter.cityPrefilled : undefined;
   const firstDraft = limit >= 0 && campuses.length > limit ? limit : -1;
 
   const optional = (
     <div className="grid grid-cols-1 @min-[24rem]:grid-cols-2 gap-3">
-      <InputField field="campusPhone" error={err("campusPhone")} label={t.phone} value={form.phone} onChange={(v) => set({ phone: v })} placeholder="+92 42 0000000" icon={Phone} type="tel" />
+      <PhoneField field="campusPhone" error={err("campusPhone")} label={t.phone} value={form.phone} onChange={(v) => set({ phone: v })} country={country} language={language} />
       <InputField field="campusEmail" error={err("campusEmail")} label={t.campusEmail} value={form.email} onChange={(v) => set({ email: v })} placeholder="campus@school.edu.pk" icon={Mail} type="email" />
       <InputField field="campusPrincipal" label={t.headOfCampus} value={form.principalName} onChange={(v) => set({ principalName: v })} placeholder={t.optional} icon={UserRound} />
       <InputField field="campusAddress" label={t.address} value={form.address} onChange={(v) => set({ address: v })} placeholder={t.optional} icon={MapPin} />
@@ -108,10 +113,21 @@ export function CampusesStep({
                 <div className="flex min-h-11 items-center"><Label htmlFor="field-campusBoard" className="sk-field-label">{t.board}</Label></div>
                 <InputGroup className="min-w-0">
                   <GraduationCap data-field-affix="start" className="h-4 w-4" />
-                  <SystemSelect id="field-campusBoard" value={form.board || DEFAULT_EXAM_BOARD} onChange={(e) => set({ board: e.target.value })} className="w-full">
-                    {EXAM_BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
+                  <SystemSelect id="field-campusBoard" value={customBoard ? OTHER_BOARD : board} onChange={(e) => set({ board: e.target.value })} className="w-full">
+                    {boards.map((b) => <option key={b} value={b}>{b}</option>)}
                   </SystemSelect>
                 </InputGroup>
+                {customBoard && (
+                  <Input
+                    id="field-campusBoardName"
+                    aria-label={local.boardName}
+                    value={board === OTHER_BOARD ? "" : board}
+                    onChange={(e) => set({ board: e.target.value.trim() ? e.target.value : OTHER_BOARD })}
+                    placeholder={local.boardNamePlaceholder}
+                    maxLength={80}
+                    className="sk-enter"
+                  />
+                )}
               </div>
               <div className="space-y-1.5 min-w-0">
                 <div className="flex min-h-11 flex-wrap justify-between items-center gap-2">

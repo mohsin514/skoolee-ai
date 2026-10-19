@@ -38,6 +38,8 @@ export type StructureStepProps = StepBase & {
   type: InstitutionType;
   /** The type the server last acknowledged; a difference shows the shape preview. */
   savedType: InstitutionType;
+  /** The type chosen at registration (null for accounts that predate the choice): shown as settled, with Change. */
+  registeredType: InstitutionType | null;
   campusDraftCount: number;
   limit: number;
   /** `t.errors[errors.adoptionMode]`; render with `FieldError live={false}` (the summary is the live region). */
@@ -89,6 +91,8 @@ export type CampusesStepProps = StepBase & {
   savingCampus: boolean;
   /** The institution's own city (for the composer's prefill hint). */
   institutionCity: string;
+  /** The school's country (ISO alpha-2): picks the boards offered and the phone code a new number starts on. */
+  country: string;
   onSaveCampus(): void;
   onEditCampus(campus: CampusDraft): void;
   onCancelEdit(): void;

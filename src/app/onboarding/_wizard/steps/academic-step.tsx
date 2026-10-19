@@ -12,7 +12,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Tooltip } from "@/components/ui/tooltip";
 import { fill } from "../../copy";
 import { FieldError, InputField } from "../fields";
-import { TIMEZONES, sessionLabelFor, weekdayName } from "../helpers";
+import { sessionLabelFor, timezoneOptions, weekdayName } from "../helpers";
 import type { AcademicStepProps } from "../types";
 
 /* ═══ STEP: Academic defaults ═══ */
@@ -70,7 +70,7 @@ export function AcademicStep({
             <InputGroup className="min-w-0">
               <Clock data-field-affix="start" className="h-4 w-4" />
               <SystemSelect id="field-timezone" dir="ltr" value={s.timezone} onChange={(e) => setSchool({ timezone: e.target.value })} className="w-full" aria-describedby="timezone-hint">
-                {TIMEZONES.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
+                {timezoneOptions().map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
               </SystemSelect>
             </InputGroup>
             <p id="timezone-hint" className="text-xs leading-relaxed text-ink-subtle">{t.timezoneHint}</p>

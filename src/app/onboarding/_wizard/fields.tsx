@@ -3,6 +3,7 @@ import { AlertCircle, type LucideIcon } from "lucide-react";
 import { InputGroup } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 /** A field's validation message: an icon and the text, linked to its control by id. */
@@ -40,6 +41,24 @@ export function InputField({ field, error, label, value, onChange, placeholder, 
             type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} readOnly={readonly} inputMode={inputMode} className="w-full" />
         )}
       </InputGroup>
+      {error && <FieldError id={`${id}-error`} live={false}>{error}</FieldError>}
+      {hint && <p id={`${id}-hint`} className="text-xs leading-relaxed text-ink-subtle">{hint}</p>}
+    </div>
+  );
+}
+
+/** The shared phone field (country code + number) in the wizard's label/error/hint layout. Stores one string. */
+export function PhoneField({ field, error, label, value, onChange, country, language, hint }: {
+  field: string; error?: string; label: string; value: string; onChange: (val: string) => void;
+  /** The school's country: the code the picker starts on for an empty number. */
+  country: string; language: string; hint?: string;
+}) {
+  const id = `field-${field}`;
+  const describedBy = [error ? `${id}-error` : null, hint ? `${id}-hint` : null].filter(Boolean).join(" ") || undefined;
+  return (
+    <div className="space-y-1.5" data-form-field={field}>
+      <Label htmlFor={id} className="sk-field-label">{label}</Label>
+      <PhoneInput id={id} language={language} defaultCountry={country || "PK"} value={value} onChange={onChange} invalid={!!error} describedBy={describedBy} />
       {error && <FieldError id={`${id}-error`} live={false}>{error}</FieldError>}
       {hint && <p id={`${id}-hint`} className="text-xs leading-relaxed text-ink-subtle">{hint}</p>}
     </div>

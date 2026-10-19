@@ -10,9 +10,11 @@ import { StepDock } from "@/components/onboarding/StepDock";
 import { useCompactForm } from "@/components/onboarding/use-compact-form";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { CountrySelect } from "@/components/ui/country-select";
 import { Input } from "@/components/ui/input";
+import { InputGroup } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
-import { FieldError, InputField } from "../fields";
+import { FieldError, InputField, PhoneField } from "../fields";
 import { generateId } from "../helpers";
 import type { IdentityStepProps } from "../types";
 
@@ -27,8 +29,8 @@ export function IdentityStep({ t, local, language, headingRef, folio, notices, b
 
   const contactFields = (
     <div className="space-y-5">
-      <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
-        <InputField field="phone" error={errors.phone && t.errors[errors.phone]} label={t.phone} value={s.phone} onChange={(val) => setSchool({ phone: val.replace(/[^\d\s+\-()]/g, '') })} placeholder="+92 300 0000000" icon={Phone} type="tel" />
+      <div className="grid grid-cols-1 gap-3 @min-[26rem]:grid-cols-[minmax(0,1fr)_6.5rem]">
+        <PhoneField field="phone" error={errors.phone && t.errors[errors.phone]} label={t.phone} value={s.phone} onChange={(phone) => setSchool({ phone })} country={s.country} language={language} />
         <InputField field="establishedYear" error={errors.establishedYear && t.errors[errors.establishedYear]} label={t.established} value={s.establishedYear} onChange={(val) => setSchool({ establishedYear: val.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="1998" icon={CalendarDays} inputMode="numeric" />
       </div>
       <InputField field="website" error={errors.website && t.errors[errors.website]} label={t.website} value={s.website} onChange={(val) => setSchool({ website: val })} placeholder="www.school.edu.pk" icon={Globe} type="url" />
@@ -80,6 +82,14 @@ export function IdentityStep({ t, local, language, headingRef, folio, notices, b
           </FieldGroup>
           <FieldGroup level={2} id="grp-location" icon={MapPin} title={t.charter.groups.location}>
             <div className="space-y-5">
+              <div className="space-y-1.5" data-form-field="country">
+                <Label htmlFor="field-country" className="sk-field-label">{local.country}</Label>
+                <InputGroup>
+                  <Globe data-field-affix="start" className="h-4 w-4" />
+                  <CountrySelect id="field-country" language={language} value={s.country || "PK"} onChange={(country) => setSchool({ country })} aria-describedby="field-country-hint" className="w-full" />
+                </InputGroup>
+                <p id="field-country-hint" className="text-xs leading-relaxed text-ink-subtle">{local.countryHint}</p>
+              </div>
               <InputField field="city" error={errors.city && t.errors[errors.city]} label={t.city} value={s.city} onChange={(val) => setSchool({ city: val })} placeholder="Lahore" icon={MapPin} required />
               <InputField field="address" label={t.address} value={s.address} onChange={(val) => setSchool({ address: val })} placeholder={t.optional} icon={MapPin} isArea />
             </div>

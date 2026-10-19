@@ -9,7 +9,7 @@ import {
   CheckCircle, ShieldCheck, Sparkles,
   ArrowRight, Hash,
   LucideIcon, ChevronLeft,
-  Eye, EyeOff, AlertCircle, Phone, Check, RefreshCw,
+  Eye, EyeOff, AlertCircle, Check, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
@@ -17,12 +17,13 @@ import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormField } from "@/components/ui/form-field";
-import { Select } from "@/components/ui/select";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip, InfoTip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CountrySelect } from "@/components/ui/country-select";
+import { PhoneInput, joinPhone } from "@/components/ui/phone-input";
 import { Progress, type ProgressTone } from "@/components/ui/progress";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthTopBar } from "@/components/auth/AuthTopBar";
@@ -42,7 +43,7 @@ import { authCopy } from "@/lib/auth/auth-copy";
 import { clearRegisterDraft, saveRegisterDraft, stashAuthEmail, takeRegisterDraft } from "@/lib/auth/auth-handoff";
 import { fillNodes, fillText } from "@/lib/auth/fill-nodes";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
-import { WORLD_COUNTRIES, billingCountry, countryName, dialCodeFor, sortedCountries } from "@/lib/locale/world-countries";
+import { WORLD_COUNTRIES, billingCountry, countryName, dialCodeFor } from "@/lib/locale/world-countries";
 import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
 import type { Language } from "@/lib/locale/package";
 
@@ -166,9 +167,6 @@ const en = {
   email: "Work Email",
   phone: "Phone Number",
   phoneHint: "Used for account recovery and parent-facing contact.",
-  dialCode: "Country code",
-  popularCountries: "Popular",
-  allCountries: "All countries",
   groupName: "School Group Name",
   schoolName: "School Name",
   groupNamePlaceholder: "e.g. Beaconhouse School System",
@@ -282,9 +280,6 @@ const copy: Record<Language, RegisterCopy> = {
     email: "البريد الإلكتروني للعمل",
     phone: "رقم الهاتف",
     phoneHint: "يُستخدم لاستعادة الحساب والتواصل مع أولياء الأمور.",
-    dialCode: "رمز الدولة",
-    popularCountries: "الأكثر استخداماً",
-    allCountries: "جميع الدول",
     groupName: "اسم مجموعة المدارس",
     schoolName: "اسم المدرسة",
     groupNamePlaceholder: "مثال: Beaconhouse School System",
@@ -394,9 +389,6 @@ const copy: Record<Language, RegisterCopy> = {
     email: "دفتری ای میل",
     phone: "فون نمبر",
     phoneHint: "اکاؤنٹ کی بحالی اور والدین سے رابطے کے لیے استعمال ہوتا ہے۔",
-    dialCode: "ملک کا کوڈ",
-    popularCountries: "مقبول",
-    allCountries: "تمام ممالک",
     groupName: "اسکول گروپ کا نام",
     schoolName: "اسکول کا نام",
     groupNamePlaceholder: "مثلاً Beaconhouse School System",
@@ -441,22 +433,6 @@ const copy: Record<Language, RegisterCopy> = {
     goToLogin: "سائن اِن پر جائیں",
   },
 };
-
-/** A local example per country, so the format is obvious. Placeholder only: the payload is unchanged. */
-/** National-number placeholder for the selected dial code (the code itself is in the picker). */
-const PHONE_PLACEHOLDER: Record<string, string> = {
-  "+92": "300 1234567",
-  "+966": "5X XXX XXXX",
-  "+971": "5X XXX XXXX",
-  "+965": "XXXX XXXX",
-};
-
-/** The payload keeps one string: a number typed with its own "+" wins, otherwise the picked code is prefixed. */
-function fullPhone(dial: string, phone: string) {
-  const number = phone.trim();
-  if (!number) return "";
-  return number.startsWith("+") ? number : `${dial} ${number.replace(/^0+/, "")}`;
-}
 
 const isCountry = (value: unknown): value is Country =>
   typeof value === "string" && (COUNTRIES as readonly string[]).includes(value);
@@ -518,7 +494,6 @@ export default function RegisterPage() {
   const [countryIso, setCountryIso] = useState("PK");
   // Follows the institution country until the person picks a code themselves.
   const [dialPick, setDialPick] = useState<string | null>(null);
-  const worldList = useMemo(() => sortedCountries(language), [language]);
   const [formData, setFormData] = useState<FormState>({
     name: '',
     email: '',
@@ -722,10 +697,11 @@ export default function RegisterPage() {
         body: JSON.stringify({
           email: formData.email.trim(),
           fullName: formData.name.trim(),
-          phone: fullPhone(dialCode, formData.phone),
+          phone: joinPhone(dialCode, formData.phone),
           password: formData.password,
           schoolName: formData.schoolName.trim(),
           country: formData.country,
+          countryIso,
           language,
           regId: formData.regId.trim(),
         }),
@@ -971,28 +947,14 @@ export default function RegisterPage() {
                   </div>
 
                   <FormField name="phone" id="phone" label={t.phone} hint={t.phoneHint}>
-                    <InputGroup>
-                      <Phone aria-hidden data-field-affix="start" className="h-4 w-4 text-ink-subtle" />
-                      <Select
-                        aria-label={t.dialCode}
-                        data-field-companion=""
-                        value={dialIso}
-                        onChange={(event) => setDialPick(event.target.value)}
-                        className="sk-dial-code"
-                      >
-                        <optgroup label={t.popularCountries}>
-                          {worldList.featured.map((c) => <option key={c.iso} value={c.iso}>{c.iso === dialIso ? `${c.iso} ${c.dial}` : `${c.iso} ${c.dial} · ${c.name}`}</option>)}
-                        </optgroup>
-                        <optgroup label={t.allCountries}>
-                          {worldList.rest.map((c) => <option key={c.iso} value={c.iso}>{c.iso === dialIso ? `${c.iso} ${c.dial}` : `${c.iso} ${c.dial} · ${c.name}`}</option>)}
-                        </optgroup>
-                      </Select>
-                      <Input
-                        id="phone" type="tel" dir="ltr" autoComplete="tel-national" inputMode="tel" enterKeyHint="next"
-                        placeholder={PHONE_PLACEHOLDER[dialCode] ?? "Phone number"}
-                        value={formData.phone} onChange={(e) => set('phone', e.target.value)}
-                      />
-                    </InputGroup>
+                    <PhoneInput
+                      id="phone"
+                      language={language}
+                      country={dialIso}
+                      number={formData.phone}
+                      onCountryChange={setDialPick}
+                      onNumberChange={(value) => set('phone', value)}
+                    />
                   </FormField>
                 </FieldGroup>
 
@@ -1012,18 +974,12 @@ export default function RegisterPage() {
                     icon={Building}
                   />
                   <FormField name="country" id="country" label={t.country} hint={fillText(t.countryHint, currencyForCountry(formData.country))}>
-                    <Select
+                    <CountrySelect
                       id="country"
+                      language={language}
                       value={countryIso}
-                      onChange={(event) => { setCountryIso(event.target.value); set("country", billingCountry(event.target.value)); }}
-                    >
-                      <optgroup label={t.popularCountries}>
-                        {worldList.featured.map((c) => <option key={c.iso} value={c.iso}>{c.name}</option>)}
-                      </optgroup>
-                      <optgroup label={t.allCountries}>
-                        {worldList.rest.map((c) => <option key={c.iso} value={c.iso}>{c.name}</option>)}
-                      </optgroup>
-                    </Select>
+                      onChange={(iso) => { setCountryIso(iso); set("country", billingCountry(iso)); }}
+                    />
                   </FormField>
                   <div className="space-y-1.5 rounded-2xl border border-border-subtle bg-surface-subtle p-3.5">
                     <div className="flex flex-wrap items-center justify-between gap-2 px-1">

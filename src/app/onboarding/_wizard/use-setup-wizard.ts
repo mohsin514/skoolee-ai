@@ -32,7 +32,7 @@ import { dashboardPathForRole } from "@/lib/roles";
 import { resolveMediaUrl } from "@/lib/storage/s3";
 import type { Language } from "@/lib/locale/package";
 import { fill, isRtlLanguage, onboardingCopy, type OnboardingCopy } from "../copy";
-import { TIMEZONES, WEEK_DAYS, emptyCampus, fieldStep, generateId, sessionLabelFor, toLanguage, type CampusForm } from "./helpers";
+import { WEEK_DAYS, emptyCampus, timezoneOptions, fieldStep, generateId, sessionLabelFor, toLanguage, type CampusForm } from "./helpers";
 import { localCopy, type LocalCopy } from "./local-copy";
 import type { CoverData, LoadState, WizardSealState } from "./types";
 
@@ -186,7 +186,7 @@ export function useSetupWizard(): SetupWizard {
     // The browser's zone is only an opening guess for a brand-new setup.
     if (!nextDraft.school.timezone) {
       const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      nextDraft.school.timezone = TIMEZONES.some((z) => z.value === detected) ? detected : "Asia/Karachi";
+      nextDraft.school.timezone = timezoneOptions().some((z) => z.value === detected) ? detected : "Asia/Karachi";
     }
     setDraft(nextDraft);
     setType(next.institutionType);

@@ -3,7 +3,6 @@ import {
 } from "lucide-react";
 import type { CampusDraft, SetupStepId } from "@/lib/onboarding/setup-state";
 import type { Language } from "@/lib/locale/package";
-import { DEFAULT_EXAM_BOARD } from "@/config/boards";
 
 export const STEP_ICONS: Record<SetupStepId, LucideIcon> = {
   structure: Layers, identity: Building, package: Package, campuses: Users, academic: CalendarRange, review: ClipboardCheck,
@@ -33,8 +32,17 @@ export const sessionLabelFor = (year: number) => `${year}-${String((year + 1) % 
 export type CampusForm = Omit<CampusDraft, "key">;
 export const emptyCampus = (): CampusForm => ({
   name: '', city: '', address: '', phone: '', email: '', website: '', principalName: '',
-  regId: generateId('BR'), autoId: true, board: DEFAULT_EXAM_BOARD,
+  // "" = the first board for the school's country (shown by the composer, resolved at activation).
+  regId: generateId('BR'), autoId: true, board: '',
 });
+
+/** Featured zones first, then every IANA zone the browser knows, so a school anywhere can pick its own. */
+export function timezoneOptions(): { value: string; label: string }[] {
+  let all: string[] = [];
+  try { all = (Intl as unknown as { supportedValuesOf?(key: string): string[] }).supportedValuesOf?.("timeZone") ?? []; } catch { all = []; }
+  const featured = new Set(TIMEZONES.map((z) => z.value));
+  return [...TIMEZONES, ...all.filter((zone) => !featured.has(zone)).map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }))];
+}
 
 export { weekdayName } from "@/components/onboarding/weekday";
 

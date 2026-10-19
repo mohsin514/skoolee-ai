@@ -3,14 +3,22 @@
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Building2, Check, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Mail, Package, ShieldCheck, Users } from "lucide-react";
+import { AuthColophon } from "@/components/auth/AuthColophon";
+import { AuthMascot } from "@/components/auth/AuthMascot";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { FieldGroup } from "@/components/auth/FieldGroup";
+import { PackageCard } from "@/components/onboarding/PackageCard";
+import { SetupBar } from "@/components/onboarding/SetupBar";
+import { StepCard } from "@/components/onboarding/StepCard";
+import { StepDock } from "@/components/onboarding/StepDock";
+import type { Language } from "@/lib/locale/package";
 import { ANNUAL_DISCOUNT } from "@/config/plans";
 import { getPackageCopy } from "./copy";
 
@@ -68,9 +76,9 @@ const pageCopy = {
 /** Four package-shaped placeholders, so the grid does not jump when the catalogue lands. */
 function PackagesSkeleton({ label }: { label: string }) {
   return (
-    <SkeletonRegion label={label} className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <SkeletonRegion label={label} className="@container"><div className="sk-package-grid">
       {order.map((type, index) => (
-        <div key={type} className="sk-panel animate-skeleton-in flex min-h-[28rem] flex-col gap-3 p-5" style={{ animationDelay: `${index * 80}ms` }}>
+        <div key={type} className="sk-package-card animate-skeleton-in min-h-[28rem]" style={{ animationDelay: `${index * 80}ms` }}>
           <Skeleton className="h-5 w-24" />
           <Skeleton className="mt-2 h-7 w-40" />
           <Skeleton className="mt-3 h-10 w-full rounded-xl" />
@@ -83,7 +91,7 @@ function PackagesSkeleton({ label }: { label: string }) {
           <Skeleton className="h-11 w-full rounded-2xl" />
         </div>
       ))}
-    </SkeletonRegion>
+    </div></SkeletonRegion>
   );
 }
 
@@ -100,9 +108,9 @@ function PackageChoice() {
   const [busy, setBusy] = useState<Plan["type"] | null>(null);
   const [message, setMessage] = useState("");
   const retryKey = useRef<string | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   const language = catalogue?.language.slice(0, 2).toLowerCase() || "en";
-  const isRtl = language === "ar" || language === "ur";
   const copy = getPackageCopy(language);
   const local = pageCopy[language === "ar" ? "ar" : language === "ur" ? "ur" : "en"];
   const resume = useMemo(() => {
@@ -186,121 +194,150 @@ function PackageChoice() {
     return period === "annual" ? `PKR ${money}/${copy.perMonth} · PKR ${cycleTotal}/${copy.perYear}` : `PKR ${money}/${copy.perMonth}`;
   };
 
+  const shellLanguage: Language = language === "ar" ? "ar" : language === "ur" ? "ur" : "en";
+  const backToSetup = () => router.push(`/onboarding?step=${encodeURIComponent(resume)}`);
+  const limitValue = (value: number) => (value < 0 ? copy.unlimited : value.toLocaleString());
+
   return (
-    <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen px-4 py-6 text-ink-strong sm:px-8 sm:py-10">
-      <div className="mx-auto max-w-7xl">
-        <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className={buttonVariants({ variant: "link", className: "-ms-2 gap-2 px-2" })}>
-          <ArrowLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
-          {copy.back}
-        </Link>
-
-        <header className="sk-enter mt-5 max-w-3xl">
-          <p className="sk-eyebrow text-primary">{copy.setup}</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{copy.title}</h1>
-          <p className="mt-3 text-sm leading-relaxed text-ink-muted">{copy.intro}</p>
-        </header>
-
-        <section aria-label={copy.sizing} className="sk-panel sk-enter mt-7 p-4 sm:p-6" style={{ "--sk-delay": "60ms" } as CSSProperties}>
-          <h2 className="text-base font-bold text-ink-strong">{copy.sizing}</h2>
-          <p id="sizing-hint" className="mt-1 text-sm leading-relaxed text-ink-muted">{local.sizingHint}</p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <FormField name="expectedCampuses" label={copy.campuses}>
-              <Input id="expected-campuses" type="number" inputMode="numeric" min={1} max={1000} value={campuses} onChange={(event) => setCampuses(Math.max(1, Number(event.target.value) || 1))} aria-describedby="sizing-hint" className="min-h-11 tabular-nums" />
-            </FormField>
-            <FormField name="expectedEnrollment" label={copy.enrollment}>
-              <Input id="expected-enrollment" type="number" inputMode="numeric" min={0} max={10000000} value={enrollment} onChange={(event) => setEnrollment(Math.max(0, Number(event.target.value) || 0))} aria-describedby="sizing-hint" className="min-h-11 tabular-nums" />
-            </FormField>
-          </div>
-        </section>
-
-        {catalogue && (
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            <p className="min-w-0 text-xs leading-relaxed text-ink-subtle">
-              <span>{copy.catalogue}: </span>
-              <bdi dir="ltr">{catalogue.commercialTermsVersion}</bdi>
-              <span aria-hidden="true" className="mx-2">·</span>
-              <span>{copy.regionalCurrency}: </span>
-              <bdi dir="ltr">{catalogue.regionalCurrency}</bdi>
-            </p>
-            <div role="group" aria-label={copy.billingPeriod} className="inline-flex max-w-full flex-wrap gap-1 rounded-2xl border border-edge bg-white p-1 shadow-xs">
-              {(["monthly", "annual"] as const).map((choice) => (
-                <Button variant="choice" key={choice} type="button" aria-pressed={period === choice} onClick={() => setPeriod(choice)} className="border-transparent bg-transparent">
-                  {choice === "monthly" ? copy.monthly : copy.annual}
-                  {choice === "annual" && <span className="ms-1 text-xs font-medium text-primary">{copy.annualDiscount} (<span className="tabular-nums">{Math.round(ANNUAL_DISCOUNT * 100)}%</span>)</span>}
-                </Button>
-              ))}
-            </div>
-          </div>
+    <AuthShell
+      language={shellLanguage}
+      layout="center"
+      width="studio"
+      footer={<AuthColophon language={shellLanguage} claims={["campuses", "encrypted"]} />}
+    >
+      <SetupBar
+        face={<AuthMascot size="min(1.5rem, 7vw)" rule={false} />}
+        summary={(
+          <p className="sk-chip min-w-0">
+            <Package aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+            <span className="min-w-0 truncate">{copy.setup}</span>
+          </p>
         )}
-
-        {message && catalogue && <Alert tone="danger" className="mt-4">{message}</Alert>}
-        {message && !catalogue && (
-          <ErrorState className="sk-panel mt-6" title={local.loadFailed} description={message} onRetry={retryLoad} retryLabel={local.retry} />
+        actions={(
+          <Link href={`/onboarding?step=${encodeURIComponent(resume)}`} className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5" })}>
+            <ArrowLeft aria-hidden="true" className="size-4 rtl:rotate-180" />
+            <span className="max-sm:sr-only">{copy.back}</span>
+          </Link>
         )}
-        {!catalogue && !message && <PackagesSkeleton label={local.loading} />}
+      />
 
-        {catalogue && <section aria-label={copy.availablePackages} className="sk-stagger mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {order.map((type) => {
-            const plan = catalogue.plans[type];
-            const fits = (plan.maxCampuses < 0 || campuses <= plan.maxCampuses) && (plan.maxStudents < 0 || enrollment <= plan.maxStudents);
-            const recommendedCurrent = plan.type === catalogue.currentPlan;
-            const paidType = type !== "FREE" && type !== "ENTERPRISE";
-            const regionalQuote = paidType && catalogue.salesAssisted;
-            const unavailablePaid = paidType && !regionalQuote && catalogue.paymentMethods.length === 0;
-            return <article key={plan.type} className={`sk-panel flex min-h-[28rem] min-w-0 flex-col p-5 ${recommendedCurrent ? "sk-gradient-border shadow-md" : ""}`}>
-              <div className="flex items-start justify-between gap-2">
-                <h2 className="min-w-0 text-base font-bold text-ink-strong">{copy.planNames[plan.type] ?? plan.name}</h2>
-                {recommendedCurrent && <Badge variant="secondary" size="sm" dot className="shrink-0">{copy.current}</Badge>}
-              </div>
-              <p className="mt-3 min-h-14 text-lg font-bold tabular-nums text-ink-strong" dir="ltr"><bdi>{priceText(plan)}</bdi></p>
-              {type === "FREE" && <p className="text-xs leading-relaxed text-ink-muted">{copy.freeDescription}</p>}
-              {type === "ENTERPRISE" && <p className="text-xs leading-relaxed text-ink-muted">{copy.customDescription}</p>}
-              <Alert compact live="off" tone={fits ? "success" : "warning"} icon={fits ? Check : Building2} className="mt-4">{fits ? copy.fits : copy.exceeds}</Alert>
-              <dl className="mt-4 space-y-2 rounded-xl border border-border-subtle bg-surface-subtle p-3 text-xs">
-                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.students}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxStudents < 0 ? copy.unlimited : plan.maxStudents.toLocaleString()}</dd></div>
-                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxTeachers < 0 ? copy.unlimited : plan.maxTeachers.toLocaleString()}</dd></div>
-                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.branches}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.maxCampuses < 0 ? copy.unlimited : plan.maxCampuses.toLocaleString()}</dd></div>
-                <div className="flex justify-between gap-2"><dt className="text-ink-muted">{copy.aiCredits}</dt><dd className="font-semibold tabular-nums text-ink-strong" dir="ltr">{plan.aiCredits.toLocaleString()}</dd></div>
-              </dl>
-              <ul className="mt-4 flex-1 space-y-1.5 text-xs leading-5 text-ink-muted">
-                {plan.features.map((feature) => <li key={feature} className="flex gap-2"><Check aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /><span lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span></li>)}
-              </ul>
-              {type === "FREE" ? (
-                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type} className="mt-5">
-                  {busy !== type && <ShieldCheck aria-hidden="true" className="h-4 w-4" />}{copy.continueFree}
-                </Button>
-              ) : type === "ENTERPRISE" ? (
-                <Button variant="outline" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type} className="mt-5">
-                  {busy !== type && <Mail aria-hidden="true" className="h-4 w-4" />}{copy.quote}
-                </Button>
-              ) : regionalQuote ? (
-                <Button variant="outline" type="button" onClick={() => requestRegionalQuote(plan)} disabled={!!busy} className="mt-5">
-                  <Mail aria-hidden="true" className="h-4 w-4" />{copy.quote}
-                </Button>
-              ) : (
-                <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy || unavailablePaid} loading={busy === type} className="mt-5">
-                  {unavailablePaid ? copy.checkoutUnavailable : copy.choose}
-                </Button>
+      <StepCard
+        headingRef={headingRef}
+        folio={copy.folio}
+        title={copy.title}
+        intro={copy.intro}
+        notices={message && catalogue ? <Alert tone="danger">{message}</Alert> : null}
+        dock={<StepDock back={{ label: copy.back, onClick: backToSetup, disabled: !!busy }} />}
+      >
+        <div className="space-y-6">
+          <FieldGroup level={2} id="grp-sizing" icon={Users} title={copy.sizingTitle}>
+            <p id="sizing-hint" className="-mt-2 px-1 text-sm leading-relaxed text-ink-muted">{local.sizingHint}</p>
+            <div className="grid gap-4 @min-[36rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] @min-[36rem]:items-end">
+              <FormField name="expectedCampuses" label={copy.campuses}>
+                <Input id="expected-campuses" type="number" inputMode="numeric" min={1} max={1000} value={campuses} onChange={(event) => setCampuses(Math.max(1, Number(event.target.value) || 1))} aria-describedby="sizing-hint" className="min-h-11 tabular-nums" />
+              </FormField>
+              <FormField name="expectedEnrollment" label={copy.enrollment}>
+                <Input id="expected-enrollment" type="number" inputMode="numeric" min={0} max={10000000} value={enrollment} onChange={(event) => setEnrollment(Math.max(0, Number(event.target.value) || 0))} aria-describedby="sizing-hint" className="min-h-11 tabular-nums" />
+              </FormField>
+              {catalogue && (
+                <div className="space-y-1.5">
+                  <p id="billing-period-label" className="sk-field-label">{copy.billingPeriod}</p>
+                  <div role="group" aria-labelledby="billing-period-label" className="sk-period-toggle">
+                    {(["monthly", "annual"] as const).map((choice) => (
+                      <Button variant="choice" key={choice} type="button" size="sm" aria-pressed={period === choice} onClick={() => setPeriod(choice)} className="border-transparent bg-transparent">
+                        {choice === "monthly" ? copy.monthly : copy.annual}
+                        {choice === "annual" && <span className="text-xs font-medium text-primary">−<span className="tabular-nums">{Math.round(ANNUAL_DISCOUNT * 100)}%</span></span>}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               )}
-              {unavailablePaid && <p className="mt-2 text-xs leading-relaxed text-ink-subtle">{copy.paidUnavailable}</p>}
-              {regionalQuote && <p className="mt-2 text-xs leading-relaxed text-ink-subtle">{copy.regionalQuote}</p>}
-            </article>;
-          })}
-        </section>}
+            </div>
+          </FieldGroup>
 
-        {catalogue && <Alert tone="neutral" live="off" className="mt-5 text-xs">
-          {language === "en" ? catalogue.regionalPriceDisclosure : copy.priceDisclosure}
-          <span aria-hidden="true" className="mx-2">·</span>
-          {copy.approvedTerms}: <bdi dir="ltr">{catalogue.catalogueVersion}</bdi>
-        </Alert>}
-      </div>
-    </main>
+          {message && !catalogue && (
+            <ErrorState className="sk-panel" title={local.loadFailed} description={message} onRetry={retryLoad} retryLabel={local.retry} />
+          )}
+          {!catalogue && !message && <PackagesSkeleton label={local.loading} />}
+
+          {catalogue && (
+            <section aria-labelledby="packages-heading" className="@container space-y-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
+                <h2 id="packages-heading" className="text-md font-bold text-ink-strong">{copy.availablePackages}</h2>
+                <p className="min-w-0 text-xs leading-relaxed text-ink-subtle">
+                  <span>{copy.regionalCurrency}: </span>
+                  <bdi dir="ltr">{catalogue.regionalCurrency}</bdi>
+                </p>
+              </div>
+              <div className="sk-package-grid sk-stagger">
+                {order.map((type) => {
+                  const plan = catalogue.plans[type];
+                  const fits = (plan.maxCampuses < 0 || campuses <= plan.maxCampuses) && (plan.maxStudents < 0 || enrollment <= plan.maxStudents);
+                  const current = plan.type === catalogue.currentPlan;
+                  const paidType = type !== "FREE" && type !== "ENTERPRISE";
+                  const regionalQuote = paidType && catalogue.salesAssisted;
+                  // No payment rail is configured (no SafePay/Stripe keys, no bank account in payment settings):
+                  // offer the sales-assisted quote rather than a dead "Checkout unavailable" button.
+                  const notConfigured = paidType && !regionalQuote && catalogue.paymentMethods.length === 0;
+                  const quoteOnly = regionalQuote || notConfigured;
+                  return (
+                    <PackageCard
+                      key={plan.type}
+                      name={copy.planNames[plan.type] ?? plan.name}
+                      tag={current ? copy.current : undefined}
+                      current={current}
+                      price={priceText(plan)}
+                      description={type === "FREE" ? copy.freeDescription : type === "ENTERPRISE" ? copy.customDescription : undefined}
+                      fit={{ fits, label: fits ? copy.fits : copy.exceeds }}
+                      limits={[
+                        { label: copy.students, value: limitValue(plan.maxStudents) },
+                        { label: copy.teachers, value: limitValue(plan.maxTeachers) },
+                        { label: copy.branches, value: limitValue(plan.maxCampuses) },
+                        { label: copy.aiCredits, value: plan.aiCredits.toLocaleString() },
+                      ]}
+                      features={plan.features.map((feature) => (
+                        <span key={feature} lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span>
+                      ))}
+                      note={regionalQuote ? copy.regionalQuote : notConfigured ? copy.checkoutNotConfigured : undefined}
+                      action={type === "FREE" ? (
+                        <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type}>
+                          {busy !== type && <ShieldCheck aria-hidden="true" className="h-4 w-4" />}{copy.continueFree}
+                        </Button>
+                      ) : type === "ENTERPRISE" ? (
+                        <Button variant="outline" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type}>
+                          {busy !== type && <Mail aria-hidden="true" className="h-4 w-4" />}{copy.quote}
+                        </Button>
+                      ) : quoteOnly ? (
+                        <Button variant="outline" type="button" onClick={() => requestRegionalQuote(plan)} disabled={!!busy}>
+                          <Mail aria-hidden="true" className="h-4 w-4" />{copy.quote}
+                        </Button>
+                      ) : (
+                        <Button variant="default" type="button" onClick={() => startChoice(plan)} disabled={!!busy} loading={busy === type}>
+                          {copy.choose}
+                        </Button>
+                      )}
+                    />
+                  );
+                })}
+              </div>
+              <p className="px-1 text-xs leading-relaxed text-ink-subtle">
+                {language === "en" ? catalogue.regionalPriceDisclosure : copy.priceDisclosure}
+                <span aria-hidden="true" className="mx-2">·</span>
+                {copy.approvedTerms}: <bdi dir="ltr">{catalogue.catalogueVersion}</bdi>
+                <span aria-hidden="true" className="mx-2">·</span>
+                {copy.catalogue}: <bdi dir="ltr">{catalogue.commercialTermsVersion}</bdi>
+              </p>
+            </section>
+          )}
+        </div>
+      </StepCard>
+    </AuthShell>
   );
 }
 
 export default function OnboardingPackagePage() {
   return (
-    <Suspense fallback={<main className="min-h-screen px-4 py-6 sm:px-8 sm:py-10"><div className="mx-auto max-w-7xl"><PackagesSkeleton label="Loading packages" /></div></main>}>
+    <Suspense fallback={<AuthShell language="en" layout="center" width="studio"><PackagesSkeleton label="Loading packages" /></AuthShell>}>
       <PackageChoice />
     </Suspense>
   );

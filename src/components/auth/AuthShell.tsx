@@ -25,10 +25,12 @@ export type AuthShellProps = {
   srHeading?: string;                            // sr-only <h1>, visible to AT only below lg (split layouts; not studio)
   topBar?: ReactNode;                            // <AuthTopBar …/>; omitted only where the language is not chosen here (teacher onboarding follows the signed-in user's)
   footer?: ReactNode;                            // <AuthColophon …/> or a page footer
+  /** Column width override; `center` + "studio" is the setup desk without its cover (the package chooser). */
+  width?: "narrow" | "wide" | "studio";
   children: ReactNode;
 };
 
-export function AuthShell({ language, layout = "split", cover, srHeading, topBar, footer, children }: AuthShellProps) {
+export function AuthShell({ language, layout = "split", cover, srHeading, topBar, footer, width, children }: AuthShellProps) {
   const split = layout !== "center";
   const studio = layout === "studio";
   return (
@@ -43,7 +45,7 @@ export function AuthShell({ language, layout = "split", cover, srHeading, topBar
           >{cover}</section>
         ) : null}
         <section className="sk-auth-desk print:min-h-0 print:p-0">
-          <div className="sk-auth-column sk-shell" data-width={studio ? "studio" : layout === "split-wide" ? "wide" : "narrow"}>
+          <div className="sk-auth-column sk-shell" data-width={width ?? (studio ? "studio" : layout === "split-wide" ? "wide" : "narrow")}>
             {srHeading && !studio ? <h1 className="sr-only lg:hidden">{srHeading}</h1> : null}
             {topBar}
             {children}

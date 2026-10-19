@@ -1,8 +1,7 @@
 import { Fragment, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import { BookOpenCheck, CalendarRange, ImageIcon, Phone, ShieldCheck, UserRound, Users, Wallet } from "lucide-react";
 import { InstitutionPreview } from "@/components/auth/InstitutionPreview";
-import { RequirementChecklist } from "@/components/auth/RequirementChecklist";
 import { WaxSeal } from "@/components/auth/WaxSeal";
 import { CapacityMeter } from "@/components/onboarding/CapacityMeter";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
@@ -13,11 +12,23 @@ import { StepDock } from "@/components/onboarding/StepDock";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { FollowUpList, type FollowUpItem } from "@/components/ui/follow-up-list";
 import { authCopy } from "@/lib/auth/auth-copy";
-import type { SetupStepId } from "@/lib/onboarding/setup-state";
+import type { OptionalWorkKey, SetupStepId } from "@/lib/onboarding/setup-state";
 import { fill } from "../../copy";
 import { weekdayName } from "../helpers";
 import type { ReviewStepProps } from "../types";
+
+/** Each kind of later work gets its own icon and tone, so the list reads at a glance. */
+const OPTIONAL_WORK_LOOK: Record<OptionalWorkKey, Pick<FollowUpItem, "icon" | "tone">> = {
+  logo: { icon: ImageIcon, tone: "brand" },
+  contact: { icon: Phone, tone: "berry" },
+  sessionDates: { icon: CalendarRange, tone: "info" },
+  principals: { icon: UserRound, tone: "warning" },
+  roster: { icon: Users, tone: "success" },
+  curriculum: { icon: BookOpenCheck, tone: "brand" },
+  feesPayroll: { icon: Wallet, tone: "warning" },
+};
 
 /* ═══ STEP: Review & activate: the charter as one letterhead of numbered articles ═══ */
 export function ReviewStep({
@@ -172,13 +183,10 @@ export function ReviewStep({
         <div>
           <h2 className="mb-2.5 text-base font-bold text-ink-strong">{t.unresolved}</h2>
           <div data-testid="optional-work">
-            <RequirementChecklist
+            <FollowUpList
               id="optional-work-list"
-              items={optionalWork.map((key) => ({ label: t.optionalWork[key], met: false }))}
-              metPrefix=""
-              unmetPrefix=""
-              size="sm"
-              columns="sm"
+              label={t.unresolved}
+              items={optionalWork.map((key) => ({ key, label: t.optionalWork[key], ...OPTIONAL_WORK_LOOK[key] }))}
             />
           </div>
         </div>
@@ -187,7 +195,7 @@ export function ReviewStep({
             {fill(t.activateNote, activateCount, draftCount)}
           </Alert>
         )}
-        <p className="text-xs text-ink-subtle">{c.sealNote}</p>
+        <Alert tone="info" live="off" role="note">{c.sealNote}</Alert>
       </div>
     </StepCard>
   );

@@ -26,6 +26,8 @@ export const SignupStep2Schema = z.object({
   // school's first contact number until onboarding overrides it.
   phone: z.string().trim().min(7, "Enter a valid phone number").optional().or(z.literal("")),
   country: countrySchema.default("PK"),
+  /** The exact country (ISO 3166-1 alpha-2); `country` is only its billing market. Drives boards, dial codes and time zones. */
+  countryIso: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).optional(),
   language: z.enum(["en", "ar", "ur"]).optional(),
 });
 
@@ -163,7 +165,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
         data: {
           schoolId: school.id,
           scopeKey: "school",
-          settings: { country: valid.country, currency: currencyForCountry(valid.country) },
+          settings: { country: valid.country, countryIso: valid.countryIso ?? (valid.country === "OTHER" ? undefined : valid.country), currency: currencyForCountry(valid.country) },
           effectiveAt: new Date(),
           createdBy: createdUser.id,
         },

@@ -17,7 +17,8 @@ export type SetupSaveState = "saving" | "saved" | "dirty" | "failed";
 export type SetupBarProps = {
   face: ReactNode;
   summary: ReactNode;
-  save: { state: SetupSaveState; labels: { saving: string; saved: string; dirty: string; failed?: string } };
+  /** Omitted on desk pages that save nothing themselves (the package chooser). */
+  save?: { state: SetupSaveState; labels: { saving: string; saved: string; dirty: string; failed?: string } };
   actions: ReactNode;
 };
 
@@ -27,7 +28,7 @@ export function SetupBar({ face, summary, save, actions }: SetupBarProps) {
       <div data-part="face">{face}</div>
       <div data-part="summary">
         {summary}
-        <span role="status" aria-live="polite" className="sk-save-state" data-state={save.state}>
+        {save ? <span role="status" aria-live="polite" className="sk-save-state" data-state={save.state}>
           {save.state === "saving" ? (
             <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
           ) : save.state === "saved" ? (
@@ -36,7 +37,7 @@ export function SetupBar({ face, summary, save, actions }: SetupBarProps) {
             <span aria-hidden="true" className="sk-save-dot" />
           )}
           <span className="min-w-0 truncate">{save.labels[save.state]}</span>
-        </span>
+        </span> : null}
       </div>
       <div data-part="actions">{actions}</div>
     </header>

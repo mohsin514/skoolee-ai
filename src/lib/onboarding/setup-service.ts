@@ -16,7 +16,7 @@ import { AccessDenied } from "@/lib/auth/policy";
 import type { AuthUser } from "@/lib/auth";
 import { normalizePlan } from "@/config/plans";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
-import { DEFAULT_EXAM_BOARD } from "@/config/boards";
+import { defaultBoardFor } from "@/config/boards";
 import { parseDateOnly, parseLogo, safeTimezone } from "@/lib/school/details";
 import {
   ADOPTION_MODES,
@@ -82,11 +82,24 @@ export interface SetupActor {
 
 const schoolSelect = { id: true, name: true, city: true, contactEmail: true, phone: true, regId: true, plan: true, registrationKind: true, commercialContract: true } as const;
 
-function initialDraft(school: SchoolRow, ownerPhone: string | null): SetupDraft {
+/** The exact country captured at registration (ISO alpha-2), or "" when only a billing market was stored. */
+async function registeredCountry(schoolId: string): Promise<string> {
+  const policy = await prisma.localePolicy.findFirst({
+    where: { schoolId, campusId: null, scopeKey: "school" },
+    orderBy: [{ effectiveAt: "desc" }, { createdAt: "desc" }],
+    select: { settings: true },
+  });
+  const settings = (policy?.settings && typeof policy.settings === "object" && !Array.isArray(policy.settings) ? policy.settings : {}) as Record<string, unknown>;
+  const iso = typeof settings.countryIso === "string" ? settings.countryIso : typeof settings.country === "string" ? settings.country : "";
+  return /^[A-Z]{2}$/.test(iso) ? iso : "";
+}
+
+function initialDraft(school: SchoolRow, ownerPhone: string | null, country: string): SetupDraft {
   const year = new Date().getFullYear();
   return parseSetupDraft({
     school: {
       name: school.name,
+      country,
       city: school.city,
       email: school.contactEmail,
       phone: school.phone || ownerPhone || "",
@@ -105,13 +118,16 @@ function initialDraft(school: SchoolRow, ownerPhone: string | null): SetupDraft 
 async function ensureSetup(school: SchoolRow, user: AuthUser): Promise<SetupRow> {
   const existing = await prisma.institutionSetup.findUnique({ where: { schoolId: school.id } });
   if (existing) return existing;
-  const owner = await prisma.user.findFirst({ where: { schoolId: school.id, isInstitutionOwner: true }, select: { role: true, phone: true } });
+  const [owner, country] = await Promise.all([
+    prisma.user.findFirst({ where: { schoolId: school.id, isInstitutionOwner: true }, select: { role: true, phone: true } }),
+    registeredCountry(school.id),
+  ]);
   try {
     return await prisma.institutionSetup.create({
       data: {
         schoolId: school.id,
         institutionType: initialInstitutionType(school.registrationKind, owner?.role ?? user.role),
-        draft: initialDraft(school, owner?.phone ?? null) as Prisma.InputJsonValue,
+        draft: initialDraft(school, owner?.phone ?? null, country) as Prisma.InputJsonValue,
         updatedById: user.userId,
       },
     });
@@ -158,14 +174,18 @@ function planFor(school: SchoolRow) {
 
 export async function setupView(actor: SetupActor) {
   const { setup, school, user } = actor;
-  const [delegate, activeCampuses, me] = await Promise.all([
+  const [delegate, activeCampuses, me, country] = await Promise.all([
     setup.delegateUserId
       ? prisma.user.findFirst({ where: { id: setup.delegateUserId, schoolId: school.id }, select: { id: true, fullName: true, email: true, canPurchaseSubscription: true, mustChangePassword: true } })
       : Promise.resolve(null),
     prisma.campus.count({ where: { schoolId: school.id, archivedAt: null } }),
     prisma.user.findFirst({ where: { id: user.userId, schoolId: school.id }, select: { preferredLanguage: true, fullName: true } }),
+    registeredCountry(school.id),
   ]);
   const type = setup.institutionType as InstitutionType;
+  const draft = parseSetupDraft(setup.draft);
+  // Setups started before the country was captured pick it up from registration.
+  if (!draft.school.country && country) draft.school.country = country;
   return {
     id: setup.id,
     version: setup.version,
@@ -174,7 +194,9 @@ export async function setupView(actor: SetupActor) {
     flow: setupFlow(type),
     currentStep: resumeStep(setupFlow(type), setup.completedSteps, setup.currentStep),
     completedSteps: setup.completedSteps.filter(isSetupStep),
-    draft: parseSetupDraft(setup.draft),
+    draft,
+    /** The shape chosen when the account was created (null for accounts that predate the choice). */
+    registeredType: school.registrationKind === "GROUP" || school.registrationKind === "STANDALONE" ? school.registrationKind as InstitutionType : null,
     status: setup.status,
     failedStep: setup.failedStep,
     lastError: setup.lastError,
@@ -377,7 +399,7 @@ export async function completeSetup(user: AuthUser, expectedVersion: number, fau
                 website: c.website.trim() || null,
                 principalName: c.principalName.trim() || null,
                 regId,
-                board: c.board || DEFAULT_EXAM_BOARD,
+                board: c.board || defaultBoardFor(draft.school.country),
               },
             });
         activatedCampusIds.push(campus.id);

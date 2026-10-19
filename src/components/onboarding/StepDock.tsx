@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 export type StepDockProps = {
   back?: { label: string; onClick(): void; disabled?: boolean };
   extra?: ReactNode;
-  primary: ReactNode;                       // the step's one plum Button (the caller owns its exact name)
+  primary?: ReactNode;                      // the step's one plum Button (the caller owns its exact name); omitted when the body owns the actions
   reason?: { id: string; text: string };    // disabled reason, linked by the caller via aria-describedby
 };
 
@@ -49,10 +49,10 @@ export function StepDock({ back, extra, primary, reason }: StepDockProps) {
         </div>
         <div data-dock="end">
           {extra ? <div data-dock="extra">{extra}</div> : null}
-          <div data-dock="primary">
+          {primary || reason ? <div data-dock="primary">
             {primary}
             {reason ? <p id={reason.id} className="text-xs leading-snug text-ink-subtle">{reason.text}</p> : null}
-          </div>
+          </div> : null}
         </div>
       </div>
       <div ref={sentinel} aria-hidden="true" className="sk-step-dock-sentinel" />

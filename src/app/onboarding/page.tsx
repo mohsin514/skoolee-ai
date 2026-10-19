@@ -58,6 +58,7 @@ export default function OnboardingWizard() {
           mode={w.mode}
           type={w.type}
           savedType={v.institutionType}
+          registeredType={v.registeredType}
           campusDraftCount={d.campuses.length}
           limit={limit}
           modeError={errors.adoptionMode ? t.errors[errors.adoptionMode] : undefined}
@@ -109,6 +110,7 @@ export default function OnboardingWizard() {
           editingKey={w.editingKey}
           savingCampus={w.savingCampus}
           institutionCity={s.city}
+          country={s.country}
           onSaveCampus={() => void w.saveCampus()}
           onEditCampus={w.editCampus}
           onCancelEdit={w.cancelCampusEdit}
