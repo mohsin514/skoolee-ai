@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
-  Circle,
   CircleMinus,
   Eye,
   EyeOff,
@@ -31,10 +30,14 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { SkeletonBar } from "@/components/ui/skeleton";
 import { InfoTip, Tooltip } from "@/components/ui/tooltip";
-import SkooleeLogo from "@/components/SkooleeLogo";
 import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
-import { LanguageSelect } from "@/components/locale/LanguageSelect";
-import { directionFor } from "@/lib/locale/language-cookie";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { AuthTopBar } from "@/components/auth/AuthTopBar";
+import { AuthCover } from "@/components/auth/AuthCover";
+import { AuthColophon, authClaimItem } from "@/components/auth/AuthColophon";
+import { AuthMascot } from "@/components/auth/AuthMascot";
+import { RequirementChecklist } from "@/components/auth/RequirementChecklist";
+import { authCopy } from "@/lib/auth/auth-copy";
 import { cn } from "@/lib/utils";
 
 // SKO-457: the server's expected refusals, translated; unknown text falls back to the generic failure.
@@ -54,7 +57,7 @@ const inviteErrorText = (message: string, language: "en" | "ar" | "ur") => INVIT
 
 const copy = {
   en: {
-    secureInvitation: "Secure invitation", title: "Accept invitation", brandImage: "Skoolee invitation", brandTitle: "Create your profile and step into your Skoolee workspace.", brandBody: "Your campus role is already prepared. Complete this setup to activate your protected account.", intro: "Set your password to activate your campus account.", language: "Language",
+    secureInvitation: "Secure invitation", title: "Accept invitation", brandTitle: { light: "Create your profile and step into", strong: "your Skoolee workspace." }, brandBody: "Your campus role is already prepared. Complete this setup to activate your protected account.", intro: "Set your password to activate your campus account.", language: "Language",
     missingToken: "This invitation link is missing its secure token.", invalid: "This invitation link is invalid or no longer available.",
     expired: "This invitation has expired. Please request a new invite.", cancelled: "This invitation has been cancelled. Please ask your administrator to resend it.",
     alreadyAccepted: "This invitation has already been accepted. Please sign in.", unavailable: "Could not check this invitation right now. Check your connection and try again.",
@@ -71,7 +74,7 @@ const copy = {
     expiresInfo: "After this time the link stops working. You can then request a new link from this page.",
   },
   ar: {
-    secureInvitation: "دعوة آمنة", title: "قبول الدعوة", brandImage: "دعوة Skoolee", brandTitle: "أنشئ ملفك الشخصي وادخل إلى مساحة عملك في Skoolee.", brandBody: "دورك في الفرع جاهز بالفعل. أكمل هذا الإعداد لتفعيل حسابك المحمي.", intro: "أنشئ كلمة مرور لتفعيل حسابك في الفرع.", language: "اللغة",
+    secureInvitation: "دعوة آمنة", title: "قبول الدعوة", brandTitle: { light: "أنشئ ملفك الشخصي وادخل إلى", strong: "مساحة عملك في Skoolee." }, brandBody: "دورك في الفرع جاهز بالفعل. أكمل هذا الإعداد لتفعيل حسابك المحمي.", intro: "أنشئ كلمة مرور لتفعيل حسابك في الفرع.", language: "اللغة",
     missingToken: "رابط الدعوة لا يحتوي على رمز الأمان.", invalid: "رابط الدعوة غير صالح أو لم يعد متاحاً.",
     expired: "انتهت صلاحية هذه الدعوة. اطلب دعوة جديدة.", cancelled: "أُلغيت هذه الدعوة. اطلب من المسؤول إعادة إرسالها.",
     alreadyAccepted: "قُبلت هذه الدعوة من قبل. سجّل الدخول.", unavailable: "تعذر التحقق من هذه الدعوة الآن. تحقق من اتصالك ثم حاول مجدداً.",
@@ -88,7 +91,7 @@ const copy = {
     expiresInfo: "بعد هذا الوقت يتوقف الرابط عن العمل، ويمكنك عندها طلب رابط جديد من هذه الصفحة.",
   },
   ur: {
-    secureInvitation: "محفوظ دعوت نامہ", title: "دعوت قبول کریں", brandImage: "Skoolee دعوت نامہ", brandTitle: "اپنی پروفائل بنائیں اور اپنے Skoolee ورک اسپیس میں قدم رکھیں۔", brandBody: "آپ کا کیمپس کردار پہلے سے تیار ہے۔ اپنا محفوظ اکاؤنٹ فعال کرنے کے لیے یہ سیٹ اپ مکمل کریں۔", intro: "اپنے کیمپس اکاؤنٹ کو فعال کرنے کے لیے پاس ورڈ بنائیں۔", language: "زبان",
+    secureInvitation: "محفوظ دعوت نامہ", title: "دعوت قبول کریں", brandTitle: { light: "اپنی پروفائل بنائیں اور", strong: "اپنے Skoolee ورک اسپیس میں قدم رکھیں۔" }, brandBody: "آپ کا کیمپس کردار پہلے سے تیار ہے۔ اپنا محفوظ اکاؤنٹ فعال کرنے کے لیے یہ سیٹ اپ مکمل کریں۔", intro: "اپنے کیمپس اکاؤنٹ کو فعال کرنے کے لیے پاس ورڈ بنائیں۔", language: "زبان",
     missingToken: "دعوت کے لنک میں محفوظ ٹوکن موجود نہیں۔", invalid: "دعوت کا لنک درست نہیں یا اب دستیاب نہیں۔",
     expired: "اس دعوت کی مدت ختم ہو گئی ہے۔ نئی دعوت طلب کریں۔", cancelled: "یہ دعوت منسوخ ہو گئی ہے۔ منتظم سے دوبارہ بھیجنے کو کہیں۔",
     alreadyAccepted: "یہ دعوت پہلے ہی قبول ہو چکی ہے۔ سائن اِن کریں۔", unavailable: "ابھی اس دعوت کی جانچ نہیں ہو سکی۔ اپنا کنکشن چیک کر کے دوبارہ کوشش کریں۔",
@@ -106,9 +109,12 @@ const copy = {
   },
 } as const;
 
+const delay = (ms: number) => ({ "--sk-delay": `${ms}ms` }) as CSSProperties;
+
 export default function AcceptInvitePage() {
   const { language, setLanguage } = useAuthLanguage();
   const t = copy[language];
+  const ac = authCopy[language];
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -129,6 +135,9 @@ export default function AcceptInvitePage() {
   const [statusFailed, setStatusFailed] = useState(false);
   const [statusAttempt, setStatusAttempt] = useState(0);
   const [validationError, setValidationError] = useState("");
+  // Mascot signals: a bump per refusal (concerned glance), and the happy hop once the account is active.
+  const [errorSeq, setErrorSeq] = useState(0);
+  const [activated, setActivated] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   // The status alert's action ("Try again" / "Request a new link"). It is
@@ -140,6 +149,11 @@ export default function AcceptInvitePage() {
   useEffect(() => {
     if (validationError) errorRef.current?.focus();
   }, [validationError]);
+
+  const fail = (message: string) => {
+    setValidationError(message);
+    setErrorSeq((n) => n + 1);
+  };
 
   useEffect(() => {
     if (!restoreStatusFocus.current || inviteLoading || reissuing) return;
@@ -249,18 +263,18 @@ export default function AcceptInvitePage() {
     setValidationError("");
 
     if (!token) {
-      setValidationError(t.missingToken);
+      fail(t.missingToken);
       return;
     }
     if (inviteStatus !== "pending") {
-      setValidationError(t.noActiveInvite);
+      fail(t.noActiveInvite);
       return;
     }
 
     // Check individual password requirements
     const unmetRequirements = passwordChecks.filter(check => !check.met);
     if (unmetRequirements.length > 0) {
-      setValidationError(t.completeRequirements);
+      fail(t.completeRequirements);
       return;
     }
 
@@ -268,9 +282,10 @@ export default function AcceptInvitePage() {
     try {
       const result = await acceptInviteResult(token, password, fullName, details?.contextKey);
       if (!result.success) {
-        setValidationError(inviteErrorText(result.error, language) || t.acceptFailed);
+        fail(inviteErrorText(result.error, language) || t.acceptFailed);
         return;
       }
+      setActivated(true);
       toast.success(t.accepted
         .replace("{role}", details ? roleLabel(details.role, language) : language === "ar" ? "المعيّنة" : language === "ur" ? "مقررہ" : "assigned")
         .replace("{institution}", details?.institutionName || "")
@@ -280,279 +295,259 @@ export default function AcceptInvitePage() {
     } catch (error) {
       // acceptInviteResult already turns every server refusal into a result, so
       // a throw here is a transport failure; its raw text is not for people.
-      setValidationError(t.acceptUnreachable);
+      fail(t.acceptUnreachable);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main dir={directionFor(language)} lang={language} className="grid min-h-screen grid-cols-1 overflow-hidden font-sans text-foreground md:grid-cols-2">
-      <section className="relative hidden min-h-screen overflow-hidden md:block">
-        <div className="absolute inset-0 z-10 bg-primary/10 mix-blend-multiply" />
-        <img
-          src="/login.svg"
-          alt={t.brandImage}
-          className="sk-fade-in absolute inset-0 h-full w-full object-cover"
+    <AuthShell
+      language={language}
+      cover={(
+        <AuthCover
+          eyebrow={t.secureInvitation}
+          // The page's one h1 is the form title; the cover line is its tagline.
+          heading={{ light: t.brandTitle.light, strong: t.brandTitle.strong, as: "p" }}
+          body={t.brandBody}
+          index={{
+            label: ac.trustLabel,
+            items: [
+              authClaimItem(language, "campuses"),
+              authClaimItem(language, "encrypted", { body: false }),
+              authClaimItem(language, "languages"),
+            ],
+          }}
         />
-        <div className="absolute inset-0 z-20 bg-gradient-to-t from-primary/45 via-primary/10 to-transparent" />
-        <div
-          className="sk-glass sk-enter absolute inset-x-8 bottom-8 z-30 max-w-md rounded-3xl p-6 shadow-2xl lg:inset-x-12 lg:bottom-12 lg:p-8"
-          style={{ "--sk-delay": "120ms" } as CSSProperties}
-        >
-          <span className="sk-eyebrow mb-2 flex items-center gap-1.5 text-primary">
-            <ShieldCheck aria-hidden="true" className="size-3.5 shrink-0" />
-            {t.secureInvitation}
-          </span>
-          {/* The page's one h1 is the form title; this is the aside's tagline. */}
-          <p className="mb-3 text-balance text-2xl font-bold leading-tight tracking-tight text-ink-strong lg:text-3xl">
-            {t.brandTitle}
-          </p>
-          <p className="text-sm font-medium leading-relaxed text-ink">
-            {t.brandBody}
-          </p>
-        </div>
-      </section>
+      )}
+      topBar={<AuthTopBar languageId="invite-language" label={t.language} value={language} onChange={setLanguage} />}
+      footer={<AuthColophon language={language} claims={["campuses", "encrypted", "languages"]} />}
+    >
+      {/* The one live face: watches the fields, closes its eyes on the passwords. */}
+      <AuthMascot
+        className="sk-enter mt-6"
+        signals={{
+          error: validationError ? `${errorSeq}:${validationError}` : null,
+          thinking: inviteLoading || reissuing,
+          success: activated,
+        }}
+      />
 
-      <section className="relative isolate flex min-h-screen items-center justify-center overflow-y-auto px-4 py-8 sm:p-6 md:p-8">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="sk-grid-pattern absolute inset-0" />
-          <div className="absolute inset-x-0 -top-40 mx-auto h-80 w-80 max-w-full rounded-full bg-brand-200/50 blur-3xl" />
-        </div>
-        <div className="w-full max-w-md">
-          <div className="sk-enter mb-8 flex flex-col items-center sm:mb-10">
-            <div className="mb-4">
-              <SkooleeLogo size="1.6rem" />
-            </div>
-            <div className="h-1 w-12 rounded-full bg-gradient-to-r from-primary to-brand-400" />
-          </div>
+      <div className="sk-enter mt-7 flex flex-col items-center text-center" style={delay(70)}>
+        {/* Below lg the cover (and its eyebrow) is hidden, so the card says what this is. */}
+        <Badge variant="secondary" className="mb-3 lg:hidden">
+          <MailCheck aria-hidden="true" />
+          {t.secureInvitation}
+        </Badge>
+        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">{t.title}</h1>
+        <p className="mt-2 text-md leading-relaxed text-ink-muted">
+          {t.intro}
+        </p>
+      </div>
 
-          <div className="sk-panel sk-enter rounded-[28px] p-5 shadow-xl sm:p-8" style={{ "--sk-delay": "60ms" } as CSSProperties}>
-            <div className="mb-6 sm:mb-8">
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                <Badge variant="secondary" className="mb-3">
-                  <MailCheck aria-hidden="true" />
-                  {t.secureInvitation}
-                </Badge>
-                <LanguageSelect id="invite-language" label={t.language} value={language} onChange={value => { if (value) setLanguage(value); }} />
-              </div>
-              <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{t.title}</h1>
-              <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                {t.intro}
-              </p>
-            </div>
-
-            {!token ? (
-              <Alert tone="danger">{t.invalidToken}</Alert>
-            ) : (
-              <>
-                {inviteStatus && inviteStatus !== "pending" ? (
-                  <Alert
-                    tone={statusTone}
-                    // Always announced as an alert: it is why activation is blocked.
-                    live="assertive"
-                    className="mb-5"
-                    actions={statusFailed ? (
-                      <Button ref={statusActionRef} type="button" variant="outline" size="sm" loading={inviteLoading} onClick={retryStatus}>
-                        {inviteLoading ? null : <RefreshCw aria-hidden="true" />}
-                        {t.retry}
-                      </Button>
-                    ) : inviteStatus === "expired" && !reissueSent ? (
-                      // Hidden once sent: the reissue rotates the token, so this link cannot ask again.
-                      <Button ref={statusActionRef} type="button" variant="outline" size="sm" loading={reissuing} disabled={loading} onClick={requestNewLink}>
-                        {t.requestLink}
-                      </Button>
-                    ) : inviteStatus === "accepted" ? (
-                      <Link href="/login" className={buttonVariants({ size: "sm" })}>
-                        {t.signIn}
-                      </Link>
-                    ) : undefined}
-                  >
-                    {inviteMessage || t.noLongerValid}
-                  </Alert>
-                ) : null}
-                {inviteLoading ? (
-                  <div role="status" aria-live="polite" className="mb-5 rounded-2xl border border-border-subtle bg-surface-subtle p-4 sm:p-5">
-                    <p className="text-sm font-medium text-ink-muted">{t.validating}</p>
-                    <div className="mt-4 flex items-start gap-3">
-                      <SkeletonBar className="size-10 shrink-0 rounded-xl" />
-                      <div className="min-w-0 flex-1 space-y-2.5">
-                        <SkeletonBar className="h-3 w-1/3" />
-                        <SkeletonBar className="h-5 w-2/3" delay={60} />
-                        <SkeletonBar className="h-4 w-1/2" delay={120} />
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-                {details && preview && <section aria-labelledby="invite-scope-title" className="sk-enter mb-6 rounded-2xl border border-border-subtle bg-surface-subtle/70 p-4 sm:p-5">
-                  <div className="flex items-start gap-3">
-                    <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary shadow-xs ring-1 ring-border-subtle">
-                      <Building2 className="size-5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p id="invite-scope-title" className="sk-eyebrow">{t.scope}</p>
-                      <h2 className="mt-1 break-words text-lg font-bold leading-snug text-ink-strong">{details.institutionName}</h2>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                        <Badge variant="secondary" size="sm">{roleLabel(details.role, language)}</Badge>
-                        <span className="inline-flex min-w-0 items-center gap-1 text-sm text-ink-muted">
-                          <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
-                          <span className="min-w-0 break-words">{details.campusName}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-border-subtle pt-4 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
-                    <div className="min-w-0">
-                      <dt className="text-xs text-ink-subtle">{t.invitedBy}</dt>
-                      <dd className="mt-0.5 break-words text-sm font-medium text-ink-strong"><bdi>{details.invitedBy || t.administrator}</bdi></dd>
-                    </div>
-                    <div className="min-w-0">
-                      <dt className="flex items-center gap-1 text-xs text-ink-subtle">
-                        {t.expires}
-                        <InfoTip content={t.expiresInfo} className="-my-1" />
-                      </dt>
-                      <dd className="mt-0.5 text-sm font-medium text-ink-strong"><time dateTime={details.expiresAt} className="tabular-nums">{new Date(details.expiresAt).toLocaleString(language)}</time></dd>
-                    </div>
-                  </dl>
-                  <div className="mt-4 border-t border-border-subtle pt-4">
-                    <h3 className="text-sm font-semibold text-ink-strong">{t.tasksHeading}</h3>
-                    <ul className="mt-2 space-y-1.5">
-                      {preview.tasks.map(task => (
-                        <li key={task} className="flex items-start gap-2 text-sm leading-relaxed text-ink">
-                          <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-status-success-text" />
-                          <span className="min-w-0">{task}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <dl className="mt-4 space-y-3 border-t border-border-subtle pt-4">
-                    {[
-                      { label: t.purchasing, text: preview.purchasing, granted: details.canPurchaseSubscription },
-                      { label: t.management, text: preview.management, granted: details.canManageMemberships },
-                    ].map(({ label, text, granted }) => (
-                      <div key={label} className="min-w-0">
-                        <dt className="flex items-center gap-2 text-sm font-semibold text-ink-strong">
-                          {granted
-                            ? <CheckCircle2 aria-hidden="true" className="size-4 shrink-0 text-status-success-text" />
-                            : <CircleMinus aria-hidden="true" className="size-4 shrink-0 text-ink-faint" />}
-                          {label}
-                        </dt>
-                        <dd className="mt-0.5 ps-6 text-sm leading-relaxed text-ink-muted">{text}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <p className="mt-4 flex items-start gap-2 border-t border-border-subtle pt-4 text-xs leading-relaxed text-ink-subtle">
-                    <ShieldCheck aria-hidden="true" className="mt-px size-4 shrink-0" />
-                    <span>{preview.ownership} {preview.rank}</span>
-                  </p>
-                </section>}
-                <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-5">
-                  <fieldset disabled={formLocked} className="min-w-0 space-y-5">
-                    <FormField name="fullName" id="fullName" label={t.fullName} hint={t.fullNameHint}>
-                      <Input id="fullName" autoComplete="name" required minLength={2} value={fullName} onChange={event => setFullName(event.target.value)} />
-                    </FormField>
-
-                    <FormField name="password" id="password" label={t.password}>
-                      <InputGroup className="flex items-center">
-                        <Lock aria-hidden="true" data-field-affix="start" className="h-5 w-5" />
-                        <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
-                          autoComplete="new-password"
-                          aria-describedby="invite-password-requirements"
-                          value={password}
-                          onChange={(event) => {
-                            setPassword(event.target.value);
-                            setValidationError("");
-                          }}
-                          placeholder={t.createPassword}
-                        />
-                        <Tooltip content={revealLabel} describe={false}>
-                          <FieldAction data-field-affix="end"
-                            type="button"
-                            onClick={() => setShowPassword((visible) => !visible)}
-                            className="cursor-pointer"
-                            aria-pressed={showPassword}
-                            aria-controls="password confirmPassword"
-                            aria-label={revealLabel}
-                          >
-                            {showPassword ? <EyeOff aria-hidden="true" className="h-5 w-5" /> : <Eye aria-hidden="true" className="h-5 w-5" />}
-                          </FieldAction>
-                        </Tooltip>
-                      </InputGroup>
-                    </FormField>
-
-                    <FormField name="confirmPassword" id="confirmPassword" label={t.confirmPassword}>
-                      <InputGroup className="flex items-center">
-                        <ShieldCheck aria-hidden="true" data-field-affix="start" className="h-5 w-5" />
-                        <Input
-                          id="confirmPassword"
-                          type={showPassword ? "text" : "password"}
-                          autoComplete="new-password"
-                          aria-describedby="invite-password-requirements"
-                          value={confirmPassword}
-                          onChange={(event) => {
-                            setConfirmPassword(event.target.value);
-                            setValidationError("");
-                          }}
-                          placeholder={t.repeatPassword}
-                        />
-                      </InputGroup>
-                    </FormField>
-                  </fieldset>
-
-                  <ul id="invite-password-requirements" aria-label={t.checks} aria-live="polite" className="grid grid-cols-1 gap-1 rounded-2xl border border-border-subtle bg-surface-subtle p-2 sm:grid-cols-2 sm:p-2.5 md:grid-cols-1 lg:grid-cols-2">
-                    {passwordChecks.map((item) => (
-                      <li
-                        key={item.label}
-                        aria-label={`${item.label}: ${item.met ? t.met : t.pending}`}
-                        className={cn(
-                          "flex min-h-10 items-center gap-2 rounded-xl px-2.5 text-sm font-medium transition-colors duration-200",
-                          item.met ? "bg-status-success-surface text-ink-strong" : "text-ink-muted",
-                        )}
-                      >
-                        {item.met
-                          ? <CheckCircle2 aria-hidden="true" className="size-4 shrink-0 text-status-success-text" />
-                          : <Circle aria-hidden="true" className="size-4 shrink-0 text-ink-faint" />}
-                        <span className="min-w-0 flex-1 break-words">{item.label}</span>
-                        <span className={cn("shrink-0 text-xs font-semibold", item.met ? "text-status-success-text" : "text-ink-subtle")}>{item.met ? t.met : t.pending}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {validationError && (
-                    <Alert id="invite-error" ref={errorRef} tabIndex={-1} tone="danger" className="sk-fade-in">
-                      {validationError}
-                    </Alert>
-                  )}
-
-                  <Button
-                    type="submit"
-                    loading={loading}
-                    disabled={!canSubmit || inviteStatus !== "pending" || inviteLoading}
-                    size="lg"
-                    className={cn("w-full", canSubmit && !loading && "sk-nudge-trigger")}
-                  >
-                    <span>{loading ? t.activating : t.activate}</span>
-                    {!loading ? (
-                      <span aria-hidden="true" className="sk-nudge inline-flex">
-                        <ArrowRight className="h-5 w-5 rtl:-scale-x-100" />
-                      </span>
-                    ) : null}
+      <div className="sk-enter sk-panel sk-gradient-border mt-7 p-5 shadow-xl sm:p-8" style={delay(140)}>
+        {!token ? (
+          <Alert tone="danger">{t.invalidToken}</Alert>
+        ) : (
+          <>
+            {inviteStatus && inviteStatus !== "pending" ? (
+              <Alert
+                tone={statusTone}
+                // Always announced as an alert: it is why activation is blocked.
+                live="assertive"
+                className="mb-5"
+                actions={statusFailed ? (
+                  <Button ref={statusActionRef} type="button" variant="outline" size="sm" loading={inviteLoading} onClick={retryStatus}>
+                    {inviteLoading ? null : <RefreshCw aria-hidden="true" />}
+                    {t.retry}
                   </Button>
-                </form>
-              </>
-            )}
+                ) : inviteStatus === "expired" && !reissueSent ? (
+                  // Hidden once sent: the reissue rotates the token, so this link cannot ask again.
+                  <Button ref={statusActionRef} type="button" variant="outline" size="sm" loading={reissuing} disabled={loading} onClick={requestNewLink}>
+                    {t.requestLink}
+                  </Button>
+                ) : inviteStatus === "accepted" ? (
+                  <Link href="/login" className={buttonVariants({ size: "sm" })}>
+                    {t.signIn}
+                  </Link>
+                ) : undefined}
+              >
+                {inviteMessage || t.noLongerValid}
+              </Alert>
+            ) : null}
+            {inviteLoading ? (
+              <div role="status" aria-live="polite" className="mb-5 rounded-2xl border border-border-subtle bg-surface-subtle p-4 sm:p-5">
+                <p className="text-sm font-medium text-ink-muted">{t.validating}</p>
+                <div className="mt-4 flex items-start gap-3">
+                  <SkeletonBar className="size-10 shrink-0 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-2.5">
+                    <SkeletonBar className="h-3 w-1/3" />
+                    <SkeletonBar className="h-5 w-2/3" delay={60} />
+                    <SkeletonBar className="h-4 w-1/2" delay={120} />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {details && preview && <section aria-labelledby="invite-scope-title" className="sk-enter mb-6 rounded-2xl border border-border-subtle bg-surface-subtle/70 p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary shadow-xs ring-1 ring-border-subtle">
+                  <Building2 className="size-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p id="invite-scope-title" className="sk-eyebrow">{t.scope}</p>
+                  <h2 className="mt-1 break-words text-lg font-bold leading-snug text-ink-strong">{details.institutionName}</h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <Badge variant="secondary" size="sm">{roleLabel(details.role, language)}</Badge>
+                    <span className="inline-flex min-w-0 items-center gap-1 text-sm text-ink-muted">
+                      <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
+                      <span className="min-w-0 break-words">{details.campusName}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-border-subtle pt-4 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <dt className="text-xs text-ink-subtle">{t.invitedBy}</dt>
+                  <dd className="mt-0.5 break-words text-sm font-medium text-ink-strong"><bdi>{details.invitedBy || t.administrator}</bdi></dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="flex items-center gap-1 text-xs text-ink-subtle">
+                    {t.expires}
+                    <InfoTip content={t.expiresInfo} className="-my-1" />
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium text-ink-strong"><time dateTime={details.expiresAt} className="tabular-nums">{new Date(details.expiresAt).toLocaleString(language)}</time></dd>
+                </div>
+              </dl>
+              <div className="mt-4 border-t border-border-subtle pt-4">
+                <h3 className="text-sm font-semibold text-ink-strong">{t.tasksHeading}</h3>
+                <ul className="mt-2 space-y-1.5">
+                  {preview.tasks.map(task => (
+                    <li key={task} className="flex items-start gap-2 text-sm leading-relaxed text-ink">
+                      <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-status-success-text" />
+                      <span className="min-w-0">{task}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <dl className="mt-4 space-y-3 border-t border-border-subtle pt-4">
+                {[
+                  { label: t.purchasing, text: preview.purchasing, granted: details.canPurchaseSubscription },
+                  { label: t.management, text: preview.management, granted: details.canManageMemberships },
+                ].map(({ label, text, granted }) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="flex items-center gap-2 text-sm font-semibold text-ink-strong">
+                      {granted
+                        ? <CheckCircle2 aria-hidden="true" className="size-4 shrink-0 text-status-success-text" />
+                        : <CircleMinus aria-hidden="true" className="size-4 shrink-0 text-ink-faint" />}
+                      {label}
+                    </dt>
+                    <dd className="mt-0.5 ps-6 text-sm leading-relaxed text-ink-muted">{text}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-4 flex items-start gap-2 border-t border-border-subtle pt-4 text-xs leading-relaxed text-ink-subtle">
+                <ShieldCheck aria-hidden="true" className="mt-px size-4 shrink-0" />
+                <span>{preview.ownership} {preview.rank}</span>
+              </p>
+            </section>}
+            <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-5">
+              <fieldset disabled={formLocked} className="min-w-0 space-y-5">
+                <FormField name="fullName" id="fullName" label={t.fullName} hint={t.fullNameHint}>
+                  <Input id="fullName" autoComplete="name" required minLength={2} value={fullName} onChange={event => setFullName(event.target.value)} />
+                </FormField>
 
-            <div className="mt-6 flex justify-center border-t border-border-subtle pt-6">
-              <Link href="/login" className={cn(buttonVariants({ variant: "ghost" }), "text-primary")}>
-                <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />
-                {t.returnLogin}
-              </Link>
-            </div>
-          </div>
+                <FormField name="password" id="password" label={t.password}>
+                  <InputGroup className="flex items-center">
+                    <Lock aria-hidden="true" data-field-affix="start" className="h-5 w-5" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      aria-describedby="invite-password-requirements"
+                      value={password}
+                      onChange={(event) => {
+                        setPassword(event.target.value);
+                        setValidationError("");
+                      }}
+                      placeholder={t.createPassword}
+                    />
+                    <Tooltip content={revealLabel} describe={false}>
+                      <FieldAction data-field-affix="end"
+                        type="button"
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        className="cursor-pointer"
+                        aria-pressed={showPassword}
+                        aria-controls="password confirmPassword"
+                        aria-label={revealLabel}
+                      >
+                        {showPassword ? <EyeOff aria-hidden="true" className="h-5 w-5" /> : <Eye aria-hidden="true" className="h-5 w-5" />}
+                      </FieldAction>
+                    </Tooltip>
+                  </InputGroup>
+                </FormField>
+
+                <FormField name="confirmPassword" id="confirmPassword" label={t.confirmPassword}>
+                  <InputGroup className="flex items-center">
+                    <ShieldCheck aria-hidden="true" data-field-affix="start" className="h-5 w-5" />
+                    <Input
+                      id="confirmPassword"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      aria-describedby="invite-password-requirements"
+                      value={confirmPassword}
+                      onChange={(event) => {
+                        setConfirmPassword(event.target.value);
+                        setValidationError("");
+                      }}
+                      placeholder={t.repeatPassword}
+                    />
+                  </InputGroup>
+                </FormField>
+              </fieldset>
+
+              {/* The page owns the live region (shared Front Desk parts never announce on their own). */}
+              <div aria-live="polite" className="rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+                <RequirementChecklist
+                  id="invite-password-requirements"
+                  label={t.checks}
+                  items={passwordChecks}
+                  stateLabels={{ met: t.met, unmet: t.pending }}
+                  columns="single"
+                  size="sm"
+                />
+              </div>
+
+              {validationError && (
+                <Alert id="invite-error" ref={errorRef} tabIndex={-1} tone="danger" className="sk-fade-in">
+                  {validationError}
+                </Alert>
+              )}
+
+              <Button
+                type="submit"
+                loading={loading}
+                disabled={!canSubmit || inviteStatus !== "pending" || inviteLoading}
+                size="lg"
+                className={cn("w-full", canSubmit && !loading && "sk-nudge-trigger")}
+              >
+                <span>{loading ? t.activating : t.activate}</span>
+                {!loading ? (
+                  <span aria-hidden="true" className="sk-nudge inline-flex">
+                    <ArrowRight className="h-5 w-5 rtl:-scale-x-100" />
+                  </span>
+                ) : null}
+              </Button>
+            </form>
+          </>
+        )}
+
+        <div className="mt-6 flex justify-center border-t border-border-subtle pt-6">
+          <Link href="/login" className={cn(buttonVariants({ variant: "ghost" }), "text-primary")}>
+            <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />
+            {t.returnLogin}
+          </Link>
         </div>
-      </section>
-    </main>
+      </div>
+    </AuthShell>
   );
 }

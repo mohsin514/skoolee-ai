@@ -52,7 +52,9 @@ interface FormFieldProps {
   children: React.ReactNode;
 }
 
-const controlSelector = "input:not([type=hidden]),textarea,select,[role=combobox]";
+// A companion control (e.g. a phone country-code picker beside the number) is
+// skipped, so the label, hint and errors land on the field's main control.
+const controlSelector = ":is(input:not([type=hidden]),textarea,select,[role=combobox]):not([data-field-companion])";
 type ControlProps = React.InputHTMLAttributes<HTMLInputElement> & { "data-form-field-control"?: string };
 
 /**

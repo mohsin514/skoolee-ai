@@ -78,3 +78,49 @@ for (const [from, to] of [
     await expect.poll(() => new URL(page.url()).pathname + new URL(page.url()).search).toBe(to);
   });
 }
+
+test("Stay on this page pauses the redirect and hands focus to Continue to Login", async ({ page }) => {
+  await page.goto("/verify-success");
+  const status = page.getByRole("status").filter({ hasText: /Auto-redirecting|Redirect paused/ });
+  // A tick proves the countdown is live (hydrated) and leaves ~4s to pause it.
+  await expect(status).toHaveText("Auto-redirecting in 4s");
+  await page.getByRole("button", { name: "Stay on this page", exact: true }).click();
+  await expect(status).toHaveText("Redirect paused.");
+  await expect(status).toHaveAttribute("aria-atomic", "true");
+  await expect(page.getByRole("link", { name: "Continue to Login" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Stay on this page" })).toHaveCount(0);
+  await expect(page.getByText(/Continue whenever you’re ready\./)).toBeVisible();
+  await page.waitForTimeout(6000);
+  await expect(page).toHaveURL(/\/verify-success$/);
+  await expect(status).toHaveText("Redirect paused.");
+});
+
+test("switching language holds the redirect so the page can be read", async ({ page }) => {
+  await page.goto("/verify-success");
+  const status = page.locator("main [role=status]");
+  await expect(status).toHaveText("Auto-redirecting in 4s");
+  const picker = page.locator("#verify-language");
+  await picker.focus();
+  await picker.selectOption("ar");
+  await expect(page.locator("main")).toHaveAttribute("dir", "rtl");
+  await expect(status).toHaveText("تم إيقاف إعادة التوجيه.");
+  await expect(picker).toBeFocused();
+  await page.waitForTimeout(6000);
+  await expect(page).toHaveURL(/\/verify-success$/);
+});
+
+test("the first Tab holds the redirect so a keyboard user is never taken away mid-navigation", async ({ page }) => {
+  await page.goto("/verify-success");
+  const status = page.locator("main [role=status]");
+  await expect(status).toHaveText("Auto-redirecting in 4s");
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#verify-language")).toBeFocused();
+  await expect(status).toHaveText("Redirect paused.");
+  await expect(page.getByRole("button", { name: "Stay on this page" })).toHaveCount(0);
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Continue to Login" })).toBeFocused();
+  await page.waitForTimeout(6000);
+  await expect(page).toHaveURL(/\/verify-success$/);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/login$/);
+});

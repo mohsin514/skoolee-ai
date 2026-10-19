@@ -254,3 +254,30 @@ for (const language of ["en", "ar", "ur"]) {
     });
   }
 }
+
+test("login typo rescue offers a one-tap fix after the field, never joins its description, and sends nothing", async ({ page }) => {
+  await mount(page, { page: "login" });
+  const email = page.getByLabel("Work Email", { exact: true });
+  const hint = page.getByRole("button", { name: "Did you mean example@gmail.com?", exact: true });
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(email).toHaveAccessibleDescription("Valid email required");
+  await expect(hint).toHaveCount(0);
+
+  await email.fill("example@gmial.com");
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveAttribute("type", "button");
+  // After #email in DOM order (Shift+Tab from the field still reaches the language select) and outside its description.
+  expect(await hint.evaluate(node => Boolean(document.getElementById("email")!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  await expect(email).not.toHaveAccessibleDescription(/Did you mean/);
+
+  await hint.click();
+  await expect(email).toHaveValue("example@gmail.com");
+  await expect(email).toBeFocused();
+  await expect(hint).toHaveCount(0);
+
+  // An empty submit still describes the field with the exact validation text, and only that.
+  await email.fill("");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(email).toHaveAccessibleDescription("Valid email required");
+  expect(await page.evaluate(() => window.__authRequests)).toEqual([]);
+});

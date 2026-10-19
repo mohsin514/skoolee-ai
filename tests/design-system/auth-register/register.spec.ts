@@ -213,3 +213,38 @@ for (const width of [320, 390, 768, 1440]) {
     await page.screenshot({ path: test.info().outputPath(`register-errors-${width}.png`), fullPage: true });
   });
 }
+
+test("verification step focuses its heading, prints the address once and links webmail without leaking it", async ({ page }) => {
+  const requests = await mount(page);
+  await details(page);
+  await fillValid(page);
+  await page.getByRole("button", { name: "Create Account", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Check your email" })).toBeFocused();
+  await expect(page.getByText("registration-fixture@example.test", { exact: true })).toHaveCount(1);
+  const inbox = page.getByRole("link", { name: /^Open (Gmail|Outlook)/ });
+  await expect(inbox.first()).toBeVisible();
+  for (const link of await inbox.all()) {
+    expect((await link.getAttribute("rel"))?.split(/\s+/)).toContain("noopener");
+    const href = (await link.getAttribute("href")) ?? "";
+    for (const leak of ["registration-fixture", "example.test", "@"]) expect(href).not.toContain(leak);
+  }
+  // Login can prefill the address in this tab; the sign-up draft is gone.
+  expect(await page.evaluate(() => [sessionStorage.getItem("skoolee-auth-email"), sessionStorage.getItem("skoolee-register-draft")])).toEqual(["registration-fixture@example.test", null]);
+  expect(requests.map(request => request.path)).toEqual(["/api/auth/signup-step1", "/api/auth/signup-step2"]);
+});
+
+test("step 2 progress rail stays inside the column beside the cover at 1024px", async ({ page }) => {
+  // overflow-x: clip on the shell hides a clipped rail from scrollWidth checks, so measure the steps.
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const requests = await mount(page);
+  await details(page);
+  const column = (await page.locator(".sk-auth-column").boundingBox())!;
+  const steps = page.getByRole("list", { name: "Registration progress" }).getByRole("listitem");
+  await expect(steps).toHaveCount(3);
+  for (const step of await steps.all()) {
+    const box = (await step.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(column.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(column.x + column.width + 1);
+  }
+  expect(requests).toHaveLength(0);
+});

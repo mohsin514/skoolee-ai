@@ -234,3 +234,97 @@ for (const language of ["en", "ar", "ur"] as const) {
     }
   });
 }
+
+// ── Front Desk (Task 4): the sent-state handoff, typo rescue and the email handoff ──
+const SENT_EMAIL = "amina.khan@horizon.edu.pk";
+
+async function reachSentState(page: Page, language: "en" | "ar" | "ur" = "en", email = SENT_EMAIL) {
+  await mount(page, { language });
+  const input = page.locator("#recover-email");
+  await input.fill(email);
+  await input.press("Enter");
+  await expect(page.locator("h1")).toBeFocused();
+  return input;
+}
+
+for (const language of ["en", "ar", "ur"] as const) {
+  test(`sent state offers no send or resend button: ${language}`, async ({ page }) => {
+    await reachSentState(page, language);
+    // The only buttons are the "Didn't arrive?" toggle and "Use a different email"; inbox shortcuts are links.
+    await expect(page.getByRole("button")).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /Send|Resend|أرسل|إرسال|بھیج/ })).toHaveCount(0);
+    expect(await calls(page)).toEqual(["request"]);
+  });
+}
+
+test("sent state shows the requested address once, in the address plate", async ({ page }) => {
+  await reachSentState(page);
+  const address = page.getByText(SENT_EMAIL, { exact: true });
+  await expect(address).toHaveCount(1);
+  await expect(address).toBeVisible();
+  await expect(page.locator(".sk-address-plate")).toContainText("Requested for");
+  await expect(page.locator(".sk-address-plate")).toContainText(SENT_EMAIL);
+  await expect(page.getByText(/If an eligible account exists/)).toHaveCount(1);
+});
+
+test("inbox shortcuts open safely and never carry the address", async ({ page }) => {
+  await reachSentState(page);
+  const links = page.locator("a[target=_blank]");
+  expect(await links.count()).toBeGreaterThan(0);
+  const localPart = SENT_EMAIL.split("@")[0];
+  for (const link of await links.all()) {
+    expect((await link.getAttribute("rel"))?.split(/\s+/)).toContain("noopener");
+    const href = decodeURIComponent((await link.getAttribute("href")) ?? "");
+    expect(href).not.toContain(SENT_EMAIL);
+    expect(href).not.toContain(localPart);
+  }
+  await expect(page.getByRole("link", { name: /Open Gmail/ })).toHaveAttribute("href", /^https:\/\/mail\.google\.com\//);
+});
+
+test("use a different email returns to the request form with the address kept and focused", async ({ page }) => {
+  await reachSentState(page);
+  await page.getByRole("button", { name: "Use a different email", exact: true }).click();
+  const email = page.getByRole("textbox", { name: "Email Identity", exact: true });
+  await expect(email).toHaveValue(SENT_EMAIL);
+  await expect(email).toBeFocused();
+  await expect(page.getByText("Recover account", { exact: true })).toBeVisible();
+  expect(await calls(page)).toEqual(["request"]);
+});
+
+test("typo hint rescues a mistyped domain without touching the field description", async ({ page }) => {
+  await mount(page);
+  const email = page.getByRole("textbox", { name: "Email Identity", exact: true });
+  await page.getByRole("button", { name: "Send reset link" }).click();
+  await expect(email).toHaveAccessibleDescription("Invalid email address");
+  // Still invalid, so the error stays; the hint appears after the field and is never part of its description.
+  await email.fill("name.@gmial.com");
+  const hint = page.getByRole("button", { name: "Did you mean name.@gmail.com?" });
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveAttribute("type", "button");
+  await expect(email).toHaveAccessibleDescription("Invalid email address");
+  expect(await email.evaluate((input, button) => Boolean(input.compareDocumentPosition(button!) & Node.DOCUMENT_POSITION_FOLLOWING), await hint.elementHandle())).toBe(true);
+  await email.fill("name@gmial.com");
+  const realisticHint = page.getByRole("button", { name: "Did you mean name@gmail.com?" });
+  await expect(realisticHint).toHaveAttribute("type", "button");
+  await expect(email).not.toHaveAccessibleDescription(/Did you mean/);
+  await realisticHint.click();
+  await expect(email).toHaveValue("name@gmail.com");
+  await expect(email).toBeFocused();
+  await expect(page.getByRole("button", { name: /Did you mean/ })).toHaveCount(0);
+  expect(await calls(page)).toEqual([]);
+});
+
+test("email handoff: prefilled from login once, stashed for login after sending", async ({ page }) => {
+  // Login stashes the address in this tab's sessionStorage; seed it only where the fixture mounts.
+  await page.addInitScript(() => {
+    if (location.pathname === "/__password_recovery_fixture__") sessionStorage.setItem("skoolee-auth-email", "head@horizon.edu.pk");
+  });
+  await mount(page);
+  const email = page.getByRole("textbox", { name: "Email Identity", exact: true });
+  await expect(email).toHaveValue("head@horizon.edu.pk");
+  expect(await page.evaluate(() => sessionStorage.getItem("skoolee-auth-email"))).toBeNull();
+  await email.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: "Check your inbox" })).toBeFocused();
+  expect(await page.evaluate(() => sessionStorage.getItem("skoolee-auth-email"))).toBe("head@horizon.edu.pk");
+  expect(await calls(page)).toEqual(["request"]);
+});

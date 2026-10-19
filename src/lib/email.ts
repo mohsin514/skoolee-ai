@@ -9,7 +9,7 @@ import { roleLabel } from "@/lib/roles";
 import { emailProviderReadiness } from "./email/readiness";
 export { emailProviderReadiness } from "./email/readiness";
 
-const DEFAULT_FROM_EMAIL = "mohsin.ali14993@gmail.com";
+const DEFAULT_FROM_EMAIL = "mohsin@skooleeai.com";
 
 const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;

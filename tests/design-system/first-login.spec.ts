@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 type FixtureWindow = Window & { __firstLoginLanguage: string; __firstLoginNavigation: string[]; __firstLoginRefreshes: number };
 type FixtureBuilder = {
   onResolve: (options: { filter: RegExp }, callback: (args: { path: string }) => { path: string; namespace: string }) => void;
-  onLoad: (options: { filter: RegExp; namespace: string }, callback: (args: { path: string }) => { contents: string; loader: "js" }) => void;
+  onLoad: (options: { filter: RegExp; namespace: string }, callback: (args: { path: string }) => { contents: string; loader: "jsx"; resolveDir: string }) => void;
 };
 const requireFromTsx = createRequire(require.resolve("tsx"));
 const { build } = requireFromTsx("esbuild");
@@ -13,6 +13,7 @@ let fixtureScript: string;
 let fixtureCss: string;
 const modules: Record<string, string> = {
   "next/navigation": `window.__firstLoginNavigation = []; window.__firstLoginRefreshes = 0; export function useRouter() { return { push: path => window.__firstLoginNavigation.push(path), refresh: () => window.__firstLoginRefreshes++ }; }`,
+  "next/link": `import React from "react"; export default function Link(props) { return <a {...props} />; }`,
   "sonner": `export const toast = { error() {}, success() {} };`,
   "@/components/locale/LocaleProvider": `export function useLocale() { return { language: window.__firstLoginLanguage || "en" }; } export function useUiText() { return source => source; } export const StaticLocaleProvider = ({ children }) => children;`,
 };
@@ -22,8 +23,8 @@ test.beforeAll(async () => {
     entryPoints: [resolve("tests/design-system/fixtures/first-login.tsx")], bundle: true, write: false, outdir: "/private/tmp/first-login-fixture",
     platform: "browser", format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": '"test"' }, loader: { ".module.css": "local-css" },
     plugins: [{ name: "synthetic-first-login-boundaries", setup(builder: FixtureBuilder) {
-      builder.onResolve({ filter: /^(next\/navigation|sonner|@\/components\/locale\/LocaleProvider)$/ }, args => ({ path: args.path, namespace: "fixture" }));
-      builder.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: modules[args.path], loader: "js" }));
+      builder.onResolve({ filter: /^(next\/navigation|next\/link|sonner|@\/components\/locale\/LocaleProvider)$/ }, args => ({ path: args.path, namespace: "fixture" }));
+      builder.onLoad({ filter: /.*/, namespace: "fixture" }, args => ({ contents: modules[args.path], loader: "jsx", resolveDir: process.cwd() }));
     } }],
   });
   fixtureScript = output.outputFiles.find((file: { path: string }) => file.path.endsWith(".js")).text;

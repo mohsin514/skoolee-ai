@@ -3,6 +3,7 @@ import { Noto_Sans_Arabic, Plus_Jakarta_Sans } from "next/font/google";
 import { AppToaster } from "@/components/ui/app-toaster";
 import { Suspense } from "react";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
+import BootSplash from "@/components/BootSplash";
 import { NetworkProvider } from "@/components/providers/network-provider";
 import { CandidateExamGuard } from "@/components/providers/candidate-exam-guard";
 import "./globals.css";
@@ -85,6 +86,8 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">
+        {/* Brand splash on every hard load (not "/", which has its own); then the route's skeleton. */}
+        <BootSplash />
         <Suspense fallback={null}>
           <AppLoaderProvider>
             <NetworkProvider><CandidateExamGuard>{children}</CandidateExamGuard></NetworkProvider>

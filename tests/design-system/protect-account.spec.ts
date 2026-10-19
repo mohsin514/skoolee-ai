@@ -42,6 +42,7 @@ test.beforeAll(async () => {
   const compiler = await compile(await readFile(path.join(root, "src/app/globals.css"), "utf8"), { base: path.join(root, "src/app"), onDependency() {} });
   const scanner = new Scanner({ sources: [
     { base: root, pattern: "src/components/ui/*.tsx", negated: false },
+    { base: root, pattern: "src/components/auth/*.tsx", negated: false },
     { base: root, pattern: "src/components/auth/mfa/*.tsx", negated: false },
     { base: root, pattern: "src/components/locale/*.tsx", negated: false },
     { base: root, pattern: "src/app/(auth)/protect-account/page.tsx", negated: false },

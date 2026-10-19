@@ -16,19 +16,19 @@ npm run dev
 
 Email now uses SMTP instead of Resend, so Gmail plus-addresses like `mohsin.ali14993+test@gmail.com` are sent as normal recipients.
 
-For Gmail SMTP, add these values to `.env`:
+For Hostinger mailbox SMTP (`mohsin@skooleeai.com`), add these values to `.env`:
 
 ```bash
-SMTP_HOST=smtp.gmail.com
+SMTP_HOST=smtp.hostinger.com
 SMTP_PORT=465
 SMTP_SECURE=true
-SMTP_USER=mohsin.ali14993@gmail.com
-SMTP_PASS=your_google_app_password
-SMTP_FROM_EMAIL=mohsin.ali14993@gmail.com
+SMTP_USER=mohsin@skooleeai.com
+SMTP_PASS=your_mailbox_password
+SMTP_FROM_EMAIL=mohsin@skooleeai.com
 SMTP_FROM_NAME="Skoolee AI"
 ```
 
-Use a Google app password for `SMTP_PASS`; the normal Gmail password will not work.
+`SMTP_PASS` is the password of the `mohsin@skooleeai.com` mailbox in hPanel. Confirm the host and port in hPanel → Emails → the mailbox's settings before relying on them.
 
 ## AI Provider
 

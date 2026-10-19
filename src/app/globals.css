@@ -1476,3 +1476,556 @@ body::after {
   .sk-press:active, .group:hover .sk-icon-tile,
   .sk-nudge-trigger:hover .sk-nudge, .sk-nudge-trigger:focus-visible .sk-nudge { transform: none; }
 }
+
+/* ═══ Auth · Front Desk ═══════════════════════════════════════════════════
+   The shared look of the product's front door: splash, login, register,
+   forgot password and email verified. A clothbound ink "cover" (lg+) lies on
+   the lilac desk beside white paper, and the wordmark itself is the one live
+   face. Pages compose these classes; they never add their own.
+   Block A: tokens · Block B: layout, cover and paper (@layer components)
+   Block C: mascot (UNLAYERED, so it beats SkooleeLogo.module.css even when
+   CSS modules are stubbed) · then the reduced-motion and forced-colors
+   off-switches. Every keyframe animates FROM a start state TO the element's
+   base style, so `animation: none` always shows the finished frame. */
+
+/* ── Block A: tokens ─────────────────────────────────────────────────── */
+:root {
+  --mascot-ring: var(--brand-600);
+  --mascot-sclera: #fff;
+  --mascot-pupil: var(--ink-strong);
+  --mascot-lid: var(--brand-100);
+  --mascot-lash: var(--brand-700);
+  --duration-gaze: 160ms;
+  --duration-blink: 70ms;      /* close; open is another 70ms */
+  --duration-mood: 220ms;
+  --duration-ceremony: 900ms;
+  --ease-spring-soft: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+@keyframes sk-ink-draw { from { stroke-dashoffset: 1; } }
+@keyframes sk-seal-press {
+  0% { opacity: 0; transform: scale(1.3); }
+  70% { opacity: 1; transform: scale(.94); }
+  100% { transform: none; }
+}
+@keyframes sk-attention { from { background-size: 0% 1.5px; } }
+
+/* ── Block B: layout, cover and paper ────────────────────────────────── */
+@layer components {
+  /* The one auth layout. The grid follows DOM order and direction, so the
+     cover sits on the right in Arabic and Urdu. */
+  .sk-auth {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 100dvh;
+    width: 100%;
+    overflow-x: clip;
+  }
+  .sk-auth[data-layout="center"] { grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 1024px) {
+    .sk-auth[data-layout="split"] { grid-template-columns: minmax(0, .92fr) minmax(0, 1fr); }
+    .sk-auth[data-layout="split-wide"] { grid-template-columns: minmax(0, .72fr) minmax(0, 1fr); }
+  }
+  @media (min-width: 1280px) {
+    .sk-auth[data-layout="split-wide"] { grid-template-columns: minmax(0, .3fr) minmax(0, 1fr); }
+  }
+
+  /* The cover: a static clothbound prospectus lying on the desk. No blur,
+     no backdrop-filter, no animation; white / brand-100 / brand-200 text only. */
+  .sk-auth-cover { display: none; }
+  @media (min-width: 1024px) {
+    .sk-auth-cover {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 2.5rem;
+      /* Fills the viewport; grows (instead of clipping its index) on short screens. */
+      min-height: calc(100dvh - 2rem);
+      margin: 1rem;
+      margin-inline-end: 0;
+      border-radius: var(--radius-workspace);
+      padding: 3rem;
+      overflow: hidden;
+      isolation: isolate;
+      color: #fff;
+      box-shadow: var(--shadow-2xl);
+      background:
+        radial-gradient(80% 58% at 0% 0%, color-mix(in srgb, var(--brand-500) 38%, transparent), transparent 70%),
+        radial-gradient(72% 56% at 100% 100%, color-mix(in srgb, var(--berry) 20%, transparent), transparent 72%),
+        linear-gradient(165deg, var(--brand-800), var(--brand-900) 48%, var(--brand-950));
+    }
+    .sk-auth-cover:dir(rtl) {
+      background:
+        radial-gradient(80% 58% at 100% 0%, color-mix(in srgb, var(--brand-500) 38%, transparent), transparent 70%),
+        radial-gradient(72% 56% at 0% 100%, color-mix(in srgb, var(--berry) 20%, transparent), transparent 72%),
+        linear-gradient(195deg, var(--brand-800), var(--brand-900) 48%, var(--brand-950));
+    }
+    .sk-auth-cover[data-size="compact"] { padding: 2.5rem; }
+    .sk-auth-cover::before,
+    .sk-auth-cover::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      pointer-events: none;
+    }
+    /* Linen weave: two 3px hairline grids of white at 2–2.5%. */
+    .sk-auth-cover::before {
+      background-image:
+        repeating-linear-gradient(0deg, rgb(255 255 255 / .025) 0 1px, transparent 1px 3px),
+        repeating-linear-gradient(90deg, rgb(255 255 255 / .02) 0 1px, transparent 1px 3px);
+    }
+    /* Vignette, plus the blind-stamped frame line of a bound cover. */
+    .sk-auth-cover::after {
+      box-shadow: inset 0 0 120px rgb(38 7 63 / .55), inset 0 1px 0 rgb(255 255 255 / .08);
+      outline: 1px solid rgb(255 255 255 / .07);
+      outline-offset: -0.875rem;
+    }
+  }
+  @media (min-width: 1280px) {
+    .sk-auth-cover { padding: 3.5rem; }
+    .sk-auth-cover[data-size="compact"] { padding: 2.5rem; }
+  }
+
+  /* The desk: the form column, vertically safe-centred on the shared canvas. */
+  .sk-auth-desk {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: safe center;
+    min-width: 0;
+    min-height: 100dvh;
+    padding: 2rem 1rem;
+    background: transparent;
+  }
+  @media (min-width: 640px) { .sk-auth-desk { padding: 2.5rem; } }
+  @media (min-width: 1024px) { .sk-auth-desk { padding: 3rem 3.5rem; } }
+  /* No inline padding: the RTL pin measures the language select against this box. */
+  .sk-auth-column { width: 100%; min-width: 0; max-width: 30rem; }
+  .sk-auth-column[data-width="wide"] { max-width: 1180px; }
+  /* Register step 2 is the one long form: a tighter desk so it fits a laptop screen. */
+  @media (min-width: 1024px) { .sk-auth[data-layout="split-wide"] .sk-auth-desk { padding-block: 1rem .5rem; } }
+
+  .sk-auth-topbar { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; }
+  .sk-auth-topbar:has(> [data-topbar-start]) { justify-content: space-between; }
+  .sk-auth-mascot { display: flex; flex-direction: column; align-items: center; }
+
+  /* Cover masthead: foil seal · folio · double hairline. */
+  .sk-cover-masthead { display: flex; align-items: center; gap: .75rem; color: var(--brand-200); }
+  .sk-cover-rule { flex: 1; height: 4px; border-block: 1px solid rgb(255 255 255 / .16); }
+  .sk-cover-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    max-width: 100%;
+    border-radius: var(--radius-pill);
+    border: 1px solid rgb(255 255 255 / .16);
+    background: rgb(255 255 255 / .08);
+    padding: .375rem .875rem;
+    color: var(--brand-200);
+  }
+  .sk-cover-chip .sk-eyebrow { color: inherit; }
+
+  /* Editorial display: 200 light / 800 strong. Weight 200 never below 28px. */
+  .sk-display {
+    font-size: clamp(2.5rem, 1.4rem + 2.2vw, 4rem);
+    font-weight: 200;
+    line-height: 1.04;
+    letter-spacing: -.035em;
+    text-wrap: balance;
+    color: #fff;
+  }
+  .sk-display strong { font-weight: 800; letter-spacing: -.04em; }
+  .sk-auth-cover[data-size="compact"] .sk-display,
+  .sk-display[data-size="compact"] { font-size: clamp(2rem, 1.2rem + 1.6vw, 2.75rem); }
+  :lang(ar) .sk-display, :lang(ur) .sk-display { font-weight: 300; line-height: 1.35; letter-spacing: normal; }
+  :lang(ar) .sk-display strong, :lang(ur) .sk-display strong { font-weight: 800; letter-spacing: normal; }
+
+  /* The berry ink swash under the strong phrase; drawn once at arrival. */
+  .sk-ink-underline {
+    position: absolute;
+    inset-inline: -.04em;
+    bottom: -.15em;
+    z-index: -1;            /* behind the letters, so descenders cross the ink cleanly */
+    width: calc(100% + .08em);
+    height: .32em;
+    color: var(--berry);
+    overflow: visible;
+    pointer-events: none;
+  }
+  .sk-ink-underline path { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+
+  .sk-folio {
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  :lang(ar) .sk-folio, :lang(ur) .sk-folio { letter-spacing: normal; text-transform: none; }
+
+  /* Dot-leader index of provable claims (01, 02, …). */
+  .sk-cover-index { display: grid; gap: 1.25rem; max-width: 32rem; margin-top: 2.5rem; }
+  .sk-cover-index > li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .875rem; align-items: start; }
+  .sk-cover-index-title { display: flex; align-items: baseline; gap: .5rem; min-width: 0; }
+  .sk-cover-index-icon {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-control-small);
+    background: rgb(255 255 255 / .08);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12);
+    color: var(--brand-200);
+  }
+  .sk-leader { flex: 1; min-width: 1.5rem; border-block-end: 1px dotted rgb(255 255 255 / .28); translate: 0 -.28em; }
+  .sk-cover-emboss {
+    position: absolute;
+    inset-block-end: -4rem;
+    inset-inline-end: -4rem;
+    width: 26rem;
+    height: 26rem;
+    color: rgb(255 255 255 / .06);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* White letterhead paper on the cover (institution preview). */
+  .sk-letterhead {
+    border-radius: var(--radius-table);
+    background: #fff;
+    color: var(--ink-strong);
+    box-shadow: 0 2px 0 rgb(255 255 255 / .5) inset, 0 28px 56px -24px rgb(20 4 36 / .7), var(--shadow-2xl);
+    padding: 1.5rem;
+  }
+  .sk-letterhead-rule { height: 4px; border-block: 1px solid var(--brand-200); }
+
+  /* Paper chips and the address plate. */
+  .sk-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .375rem;
+    min-height: 2rem;
+    padding: .375rem .75rem;
+    border-radius: var(--radius-pill);
+    background: rgb(255 255 255 / .72);
+    border: 1px solid var(--border-subtle);
+    color: var(--ink-muted);
+    font-size: var(--text-xs);
+    line-height: 1.3;
+    max-width: 100%;
+  }
+  .sk-address-plate {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .75rem;
+    padding: .75rem 1rem;
+    border-radius: var(--radius-control);
+    background: var(--surface-subtle);
+    border: 1px dashed var(--field-border);
+  }
+  .sk-address-plate bdi { min-width: 0; overflow-wrap: anywhere; }
+
+  /* Ink strokes draw in once (pathLength=1). The base style is the drawn state. */
+  .sk-ink-draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+    animation: sk-ink-draw var(--duration-ceremony) var(--ease-enter) var(--sk-delay, 0ms) both;
+  }
+  .sk-ink-mirror:dir(rtl) { scale: -1 1; }
+
+  /* Requirement tick: a ring that fills and a check that draws when met. */
+  .sk-tick { flex: none; width: 1rem; height: 1rem; overflow: visible; }
+  .sk-tick [data-part="ring"] {
+    fill: none;
+    stroke: var(--ink-faint);
+    stroke-width: 1.5;
+    transition: fill 220ms var(--ease-enter), stroke 220ms var(--ease-enter);
+  }
+  .sk-tick [data-part="check"] {
+    fill: none;
+    stroke: var(--status-success-text);
+    stroke-width: 1.85;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition: stroke-dashoffset 220ms var(--ease-enter);
+  }
+  li[data-met="true"] .sk-tick [data-part="check"] { stroke-dashoffset: 0; }
+  li[data-met="true"] .sk-tick [data-part="ring"] { fill: var(--status-success-surface); stroke: var(--status-success-text); }
+
+  /* Countdown ring: transition-only. No `animation` property anywhere, so
+     animation-name computes to none in every motion mode. Starts at 12 o'clock
+     and runs clockwise (counter-clockwise in RTL). */
+  .sk-countdown-ring { flex: none; rotate: -90deg; overflow: visible; }
+  .sk-countdown-ring:dir(rtl) { rotate: 90deg; scale: -1 1; }
+  .sk-countdown-ring [data-part="track"] { fill: none; stroke: currentColor; opacity: .2; }
+  .sk-countdown-ring [data-part="value"] {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-dasharray: 1;
+    transition: stroke-dashoffset 1000ms linear;
+  }
+
+  /* Wax seal: one press, on a state change only. */
+  .sk-seal { flex: none; overflow: visible; }
+  .sk-seal[data-finish="wax"] { filter: drop-shadow(0 6px 9px rgb(79 20 135 / .32)) drop-shadow(0 1px 1px rgb(38 7 63 / .28)); }
+  .sk-seal-press {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: sk-seal-press 420ms var(--ease-spring-soft) var(--sk-delay, 200ms) both;
+  }
+
+  /* Sealed envelope (the one paper prop besides the seal). */
+  .sk-envelope { flex: none; overflow: visible; }
+  .sk-envelope [data-part="shadow"] { fill: var(--brand-600); opacity: .12; }
+  .sk-envelope [data-part="letter"] { fill: #fff; stroke: var(--brand-200); stroke-width: 1.25; }
+  .sk-envelope [data-part="line"] { fill: none; stroke: var(--brand-200); stroke-width: 3; stroke-linecap: round; }
+  .sk-envelope [data-part="body"] { fill: var(--brand-50); stroke: var(--brand-300); stroke-width: 1.75; }
+  .sk-envelope [data-part="fold"] { fill: none; stroke: var(--brand-200); stroke-width: 1.5; stroke-linecap: round; }
+  .sk-envelope [data-part="flap"] { fill: var(--brand-100); stroke: var(--brand-300); stroke-width: 1.75; stroke-linejoin: round; }
+  .sk-envelope [data-part="flap-shadow"] { fill: var(--brand-300); opacity: .16; }
+  .sk-envelope [data-part="flap-shade"] { fill: none; stroke: rgb(255 255 255 / .9); stroke-width: 1.25; stroke-linecap: round; }
+  .sk-envelope [data-part="seal-slot"] { fill: var(--brand-50); stroke: var(--brand-300); stroke-width: 1.75; stroke-dasharray: 3 4; stroke-linecap: round; }
+  .sk-envelope [data-part="seal-ghost"] { color: var(--brand-300); }
+  .sk-envelope[data-variant="expired"] [data-part="body"],
+  .sk-envelope[data-variant="expired"] [data-part="flap"],
+  .sk-envelope[data-variant="expired"] [data-part="letter"] { fill: var(--surface-sunken); stroke: var(--ink-faint); }
+  .sk-envelope[data-variant="expired"] [data-part="line"],
+  .sk-envelope[data-variant="expired"] [data-part="fold"] { stroke: var(--border-subtle); }
+  .sk-envelope[data-variant="expired"] [data-part="shadow"],
+  .sk-envelope[data-variant="expired"] [data-part="flap-shadow"] { fill: var(--ink-faint); }
+  .sk-envelope[data-variant="error"] [data-part="seal-slot"] { stroke: var(--status-warning-text); }
+  .sk-envelope[data-variant="checking"] [data-part="flap"] { fill: var(--brand-50); }
+
+  /* Campus diorama: sealed dotted rings, lines only up to the group office. */
+  .sk-diorama { color: inherit; overflow: visible; }
+  .sk-diorama [data-node] {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 360ms var(--ease-enter), opacity 360ms var(--ease-enter);
+  }
+  .sk-diorama [data-node][data-hidden] { opacity: 0; transform: scale(.6); }
+  .sk-diorama[data-type="single_campus"] [data-node="focus"] { transform: var(--sk-diorama-focus, none); }
+
+  /* Short laptop screens (1366×768, 1280×800, 1024×768): the cover keeps its
+     rounded foot on screen instead of running past the fold, and the desk
+     gives its vertical padding to the form. */
+  @media (min-width: 1024px) and (max-height: 860px) {
+    .sk-auth-desk { padding-block: 2rem; }
+    .sk-auth-cover, .sk-auth-cover[data-size="compact"] { padding-block: 2.5rem; gap: 1.5rem; }
+    .sk-display { font-size: clamp(2.25rem, 1.1rem + 1.9vw, 3.25rem); }
+    .sk-auth-cover[data-size="compact"] .sk-display { font-size: clamp(1.875rem, 1.1rem + 1.4vw, 2.5rem); }
+    .sk-cover-index { gap: 1rem; margin-top: 1.75rem; }
+  }
+
+  /* Auth cards are paper, not controls: hover keeps the gradient hairline
+     instead of swapping it for the flat panel hover border. */
+  .sk-panel.sk-gradient-border:hover { border-color: transparent; }
+
+  /* Second-failure nudge on the forgot link: the underline draws twice, once. */
+  .sk-attention,
+  .sk-link[data-attention] {
+    background-size: 100% 1.5px;
+    color: var(--brand-700);
+    animation: sk-attention 600ms var(--ease-enter) 2 both;
+  }
+}
+
+/* "Didn't arrive?" (MailHandoff › DeliveryHelp): the shared CollapsiblePanel
+   as a compact disclosure row at every width. Unlayered and scoped, so it
+   adapts the panel's own utilities without forking the component. The panel
+   clips its overflow, so the shared focus ring is drawn inset. */
+.sk-mail-help { border-radius: var(--radius-control); }
+.sk-mail-help > [role="button"] { flex-direction: row; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 1rem; }
+.sk-mail-help > [role="button"]:hover { background: var(--surface-hover); }
+.sk-mail-help > [role="button"]:focus-visible { outline-offset: calc(var(--focus-width) * -1); }
+.sk-mail-help > [role="button"] > div:first-child { align-items: center; }
+.sk-mail-help > [role="button"] .sk-icon-tile { width: 2rem; height: 2rem; border-radius: var(--radius-control-small); }
+.sk-mail-help > [role="button"] .sk-icon-tile svg { width: 1rem; height: 1rem; }
+.sk-mail-help > [role="button"] p { font-size: var(--text-sm); line-height: 1.25rem; font-weight: 600; }
+.sk-mail-help > [role="button"] + div { padding: .875rem 1rem 1rem; }
+
+/* The auth top bar is a utility row, not a form: LanguageSelect's visible
+   label sits beside the select (one 48px row instead of a stacked field), and
+   wraps back to stacked when the column is too narrow (360px at 200% text).
+   Unlayered and scoped, so it adapts the shared field without forking it. */
+.sk-auth-topbar [data-form-field] {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  column-gap: .75rem;
+  row-gap: .375rem;
+  width: auto;
+  max-width: 100%;
+}
+.sk-auth-topbar [data-form-field] > div:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: 0; }
+.sk-auth-lang { position: relative; display: inline-flex; max-width: 100%; }
+.sk-auth-lang > svg { position: absolute; inset-inline-start: .875rem; top: 50%; translate: 0 -50%; width: 1.125rem; height: 1.125rem; color: var(--brand-600); pointer-events: none; z-index: 1; }
+.sk-auth-lang .sk-select { padding-inline-start: 2.5rem; }
+.sk-auth-topbar [data-form-field] > select { flex: 0 1 auto; width: 10.5rem; max-width: 100%; }
+
+/* Beside the cover (lg+), the shared bottom-centre toaster would straddle the
+   seam between cover and desk; on the auth split layouts it centres over the
+   desk instead (the desk's centre = (cover fr + desk fr / 2) / total fr,
+   mirrored in RTL). Phones and the centred layout keep the shared placement. */
+@media (min-width: 1024px) {
+  html:has(main.sk-auth[data-layout="split"]) [data-sonner-toaster][data-x-position="center"] { left: calc(100% * 1.42 / 1.92); }
+  html:has(main.sk-auth[data-layout="split"][dir="rtl"]) [data-sonner-toaster][data-x-position="center"] { left: calc(100% * .5 / 1.92); }
+  html:has(main.sk-auth[data-layout="split-wide"]) [data-sonner-toaster][data-x-position="center"] { left: calc(100% * 1.22 / 1.72); }
+  html:has(main.sk-auth[data-layout="split-wide"][dir="rtl"]) [data-sonner-toaster][data-x-position="center"] { left: calc(100% * .5 / 1.72); }
+}
+@media (min-width: 1280px) {
+  html:has(main.sk-auth[data-layout="split-wide"]) [data-sonner-toaster][data-x-position="center"] { left: calc(100% * .8 / 1.3); }
+  html:has(main.sk-auth[data-layout="split-wide"][dir="rtl"]) [data-sonner-toaster][data-x-position="center"] { left: calc(100% * .5 / 1.3); }
+}
+
+/* Headings that take focus from script (tabindex="-1": a state change, the
+   school picker, "Check your email") are reading targets, not controls, so
+   they do not wear the control ring; the next Tab continues from them. */
+.sk-auth :where(h1, h2, h3)[tabindex="-1"]:focus-visible { outline: none; }
+
+/* ── Block C: mascot (UNLAYERED) ─────────────────────────────────────────
+   Must stay unlayered so it beats SkooleeLogo.module.css. JS chooses
+   data-mood; CSS owns the shapes. Lids slide down (translate, not scale) so
+   the lash line keeps one weight at every opening. */
+/* Containment, so the anatomy never escapes its eye even when CSS modules are stubbed (login fixture). */
+.sk-mascot [data-part="eye"] { position: relative; overflow: hidden; isolation: isolate; border-radius: 50%; }
+.sk-mascot [data-part="pupil"] {
+  translate: calc(var(--sk-gaze-x, 0) * .17em) calc(var(--sk-gaze-y, 0) * .17em);
+  scale: var(--sk-pupil, 1);
+  transition: translate var(--duration-gaze) var(--ease-standard), scale var(--duration-mood) var(--ease-enter), opacity 120ms linear;
+}
+.sk-mascot:not([data-mood="idle"]) [data-part="pupil"] { animation: none; }  /* stop the look-around while reacting */
+.sk-mascot [data-part="lid"], .sk-mascot [data-part="smile"] { position: absolute; z-index: 1; pointer-events: none; background: var(--mascot-lid); }
+.sk-mascot [data-part="lid"] {
+  --sk-lid-amount: var(--sk-lid, 0);
+  inset: -2px -2px auto;
+  height: calc(100% + 4px);
+  transform-origin: 50% 0;
+  transform: translateY(calc((var(--sk-lid-amount) - 1) * 100%));
+  border-radius: 0 0 50% 50% / 0 0 24% 24%;
+  box-shadow: inset 0 -.055em 0 var(--mascot-lash);
+  /* Worried brows: the inner ends of the lids lift (concerned only). */
+  rotate: calc(var(--sk-lid-tilt, 0deg) * -1);
+  transition: transform var(--duration-mood) var(--ease-enter), rotate var(--duration-mood) var(--ease-enter);
+}
+.sk-mascot [data-eye="2"] [data-part="lid"] { --sk-lid-amount: var(--sk-lid-2, var(--sk-lid, 0)); rotate: var(--sk-lid-tilt, 0deg); }
+/* A fully closed lid shows a relaxed "‿" lash, so shut eyes read as shut, not blank. */
+.sk-mascot [data-part="lid"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 22%;
+  top: 52%;
+  height: 18%;
+  border-bottom: .06em solid var(--mascot-lash);
+  border-radius: 0 0 50% 50%;
+  opacity: clamp(0, calc((var(--sk-lid-amount) - .9) * 10), 1);
+  transition: opacity var(--duration-blink) linear;
+}
+.sk-mascot [data-part="smile"] {
+  inset-inline: -15%;
+  top: 100%;
+  height: 115%;
+  border-radius: 50%;
+  transform: translateY(calc(var(--sk-smile, 0) * -100%));
+  box-shadow: inset 0 .055em 0 var(--mascot-lash);
+  transition: transform 180ms var(--ease-enter);
+}
+.sk-mascot [data-part="cap"] {
+  transform: translateX(-50%) translateY(var(--sk-cap-y, 0em)) rotate(var(--sk-cap-r, -15deg));
+  transform-origin: 50% 80%;
+  transition: transform var(--duration-mood) var(--ease-spring-soft), opacity var(--duration-mood) var(--ease-enter);
+}
+/* Poses: the visual POSES table. */
+.sk-mascot[data-mood="shy"]       { --sk-lid: 1; --sk-cap-y: .14em; --sk-cap-r: -4deg; }
+.sk-mascot[data-mood="peek"]      { --sk-lid: 1; --sk-lid-2: .45; --sk-cap-y: -.04em; --sk-cap-r: -30deg; }
+.sk-mascot[data-mood="wide"]      { --sk-pupil: 1.25; --sk-cap-y: -.08em; }
+.sk-mascot[data-mood="concerned"] { --sk-lid: .3; --sk-lid-tilt: 14deg; --sk-pupil: .9; --sk-cap-r: -24deg; }
+.sk-mascot[data-mood="waiting"]   { --sk-lid: .38; }
+.sk-mascot[data-mood="thinking"]  { --sk-lid: .15; }
+.sk-mascot[data-mood="happy"],
+.sk-mascot[data-mood="celebrate"] { --sk-smile: .58; --sk-pupil: .85; }
+/* A happy squint shows no pupil: just the white crescent over the risen cheek. */
+.sk-mascot:is([data-mood="happy"], [data-mood="celebrate"]) [data-part="pupil"] { opacity: 0; transition-property: translate, scale, opacity; transition-duration: var(--duration-gaze), var(--duration-mood), 120ms; }
+.sk-mascot[data-blink]            { --sk-lid: 1; --sk-lid-2: 1; }
+.sk-mascot:is([data-blink], [data-blink-settle]) [data-part="lid"] { transition-duration: var(--duration-blink); }
+/* One-shots (attributes toggled imperatively by AuthMascot) */
+.sk-mascot[data-hop] [data-part="cap"]       { animation: sk-cap-hop 340ms var(--ease-enter) both; }
+.sk-mascot[data-celebrate] [data-part="cap"] { animation: sk-cap-toss var(--duration-ceremony) var(--ease-enter) both; }
+.sk-mascot[data-entrance="wake"] [data-part="lid"]   { animation: sk-wake-lid 1100ms linear 200ms both; }
+.sk-mascot[data-entrance="wake"] [data-part="cap"]   { animation: sk-cap-drop 420ms var(--ease-spring-soft) 300ms both; }
+.sk-mascot[data-entrance="wake"] [data-part="pupil"] { animation: sk-wake-scan 700ms var(--ease-standard) 1150ms both; }
+/* The wake drives the lids by keyframes while --sk-lid stays 0, so the shut
+   "‿" lash follows the same stops: shown while shut, hidden while drowsy and open. */
+.sk-mascot[data-entrance="wake"] [data-part="lid"]::after { animation: sk-wake-lash 1100ms linear 200ms both; }
+
+/* Asleep (splash server frame and hydration, motion allowed): shut eyes with
+   the lash, no cap yet. The wake then continues from exactly this frame —
+   its fill keeps the lids shut and the cap drop starts from opacity 0. */
+@media (prefers-reduced-motion: no-preference) {
+  .sk-auth-mascot[data-asleep] .sk-mascot { --sk-lid: 1; }
+  .sk-auth-mascot[data-asleep] .sk-mascot [data-part="cap"] { opacity: 0; }
+  .sk-auth-mascot[data-asleep] .sk-mascot [data-part="pupil"] { animation: none; }
+}
+
+/* Lids: closed → drowsy (0.4 open) → closed → open. */
+@keyframes sk-wake-lid  { 0%, 28% { transform: translateY(0); } 40% { transform: translateY(-60%); } 58% { transform: translateY(0); } 76%, 100% { transform: translateY(-100%); } }
+@keyframes sk-wake-lash { 0%, 30% { opacity: 1; } 36%, 54% { opacity: 0; } 58% { opacity: 1; } 64%, 100% { opacity: 0; } }
+@keyframes sk-cap-drop  { from { opacity: 0; transform: translateX(-50%) translateY(-.5em) rotate(-40deg); } }
+@keyframes sk-wake-scan { 35% { translate: -.15em 0; } 70% { translate: .15em 0; } }
+@keyframes sk-cap-hop   { 45% { transform: translateX(-50%) translateY(-.16em) rotate(-8deg); } }
+/* The toss ends at 345°, visually the same as the seated −15°. */
+@keyframes sk-cap-toss  {
+  45% { transform: translateX(-50%) translateY(-1.1em) rotate(230deg); }
+  82% { transform: translateX(-50%) translateY(.05em) rotate(345deg) scale(1.06, .9); }
+  100% { transform: translateX(-50%) translateY(0) rotate(345deg); }
+}
+
+/* ── Auth · Front Desk: reduced motion and forced colors ─────────────────
+   The global reduce rule above (iteration count 1, 0.01ms) stays; these are
+   the explicit per-class off-switches. */
+@media (prefers-reduced-motion: reduce) {
+  .sk-mascot, .sk-mascot *, .sk-mascot [data-part]::after { transition-duration: 0ms !important; }
+  .sk-mascot [data-part], .sk-mascot [data-part]::after { animation: none !important; }
+  .sk-ink-draw, .sk-seal-press, .sk-attention, .sk-link[data-attention] { animation: none !important; }
+  .sk-tick [data-part="check"], .sk-tick [data-part="ring"], .sk-countdown-ring [data-part="value"], .sk-diorama [data-node] { transition: none !important; }
+}
+@media (forced-colors: active) {
+  .sk-auth-cover { background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none; }
+  .sk-auth-cover::before, .sk-auth-cover::after, .sk-cover-emboss, .sk-ink-underline { display: none; }
+  .sk-mascot [data-part="lid"] { background: Canvas; box-shadow: inset 0 -2px 0 CanvasText; }
+  .sk-mascot [data-part="smile"] { background: Canvas; box-shadow: inset 0 2px 0 CanvasText; }
+  .sk-mascot [data-part="lid"]::after { border-color: CanvasText; }
+  /* The pupils are painted backgrounds, which forced colours would turn into Canvas (empty eyes). */
+  .sk-mascot [data-part="pupil"] { forced-color-adjust: none; background: CanvasText; }
+  .sk-letterhead, .sk-address-plate, .sk-chip { border: 1px solid CanvasText; }
+  .sk-seal[data-finish="wax"] { filter: none; }
+}
+
+/* Phone country-code picker sharing an input group with the number:
+   sized to its content and split from the number by a hairline. */
+.sk-input-group > select.sk-dial-code {
+  flex: 0 0 auto;
+  width: 6.5rem;
+  padding-inline-start: .5rem;
+  border-inline-end: 1px solid var(--field-border);
+  border-radius: 0;
+  font-variant-numeric: tabular-nums;
+  /* The selected option reads just "PK +92"; the open list adds country names. */
+  white-space: nowrap;
+  width: 7rem;
+}
+
+/* Auth forms: pickers read at the same weight and size as the text fields
+   beside them (the shared select is semibold, which looks oversized here). */
+.sk-auth .sk-select:not(.sk-auth-topbar *) { font-weight: 400; font-size: 0.9375rem; }
