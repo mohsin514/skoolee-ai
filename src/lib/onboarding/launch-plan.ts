@@ -2,7 +2,7 @@ import { dashboardPathForRole, type UserRole } from "@/lib/roles";
 
 export const START_CAMPUS_SETUP_EVENT = "skoolee:start-campus-setup";
 export type LaunchJourney = "institution" | "campus" | "teacher" | "student" | "family" | "finance" | "library" | "frontDesk" | "platform";
-export type LaunchTask = "institution" | "campus" | "profile" | "aiSetup" | "studio" | "academics" | "timetable" | "learning" | "children" | "fees" | "library" | "frontDesk" | "workspace";
+export type LaunchTask = "institution" | "campus" | "profile" | "aiSetup" | "aiWorkspace" | "studio" | "academics" | "timetable" | "learning" | "children" | "fees" | "library" | "frontDesk" | "workspace";
 export interface LaunchAction { task: LaunchTask; href: string }
 export interface LaunchPlan {
   journey: LaunchJourney;
@@ -26,8 +26,9 @@ export function launchPlan(input: {
     const actions: LaunchAction[] = [];
     const needsCampus = role !== "SUPER_ADMIN" && !campusId;
     if (!needsCampus && can("ai", true)) actions.push({ task: "aiSetup", href: "/ai?setup=1" });
+    if (!needsCampus && can("ai")) actions.push({ task: "aiWorkspace", href: "/ai?workflow=overview" });
     if (!needsCampus && ["ADMIN", "CAMPUS_ADMIN"].includes(role)) actions.push({ task: "campus", href: "/admin?view=institution" });
-    if (!needsCampus && role !== "SUPER_ADMIN" && can("exams")) actions.push({ task: "academics", href: `${home}?view=academic-hub` });
+    if (!needsCampus && role !== "SUPER_ADMIN" && can("timetable")) actions.push({ task: "academics", href: `${home}?view=academic-hub` });
     actions.push({ task: "workspace", href: home });
     return { journey: role === "SUPER_ADMIN" ? "institution" : "campus", actions, needsCampus };
   }
@@ -35,6 +36,7 @@ export function launchPlan(input: {
     if (!input.onboardingComplete) return { journey: "teacher", needsCampus: !campusId, actions: [{ task: "profile", href: "/teacher-onboarding" }] };
     const actions: LaunchAction[] = [];
     if (campusId && can("ai") && can("exams")) actions.push({ task: "studio", href: "/ai/studio" });
+    if (campusId && can("ai")) actions.push({ task: "aiWorkspace", href: "/ai?workflow=overview" });
     if (campusId && can("timetable")) actions.push({ task: "timetable", href: "/teacher/timetable" });
     actions.push({ task: "workspace", href: home });
     return { journey: "teacher", actions, needsCampus: !campusId };
@@ -44,7 +46,10 @@ export function launchPlan(input: {
     LIBRARIAN: ["library", "library"], RECEPTIONIST: ["frontDesk", "frontDesk"], APP_OWNER: ["platform", "workspace"],
   };
   const [journey, task] = journeys[role] ?? ["platform", "workspace"];
-  return { journey, needsCampus: false, actions: [{ task, href: home }] };
+  const actions: LaunchAction[] = [{ task, href: home }];
+  const operationalStaff = ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(role);
+  if (operationalStaff && campusId && can("ai")) actions.push({ task: "aiWorkspace", href: "/ai?workflow=overview" });
+  return { journey, needsCampus: operationalStaff && !campusId, actions };
 }
 
 // Only entry screens: never interrupt an exam, payment, password change or a deep-linked task.

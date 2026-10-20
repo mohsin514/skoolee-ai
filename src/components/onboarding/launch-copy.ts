@@ -46,8 +46,20 @@ const words = {
   showcase: ["Showcase", "العرض التعريفي", "پروڈکٹ شوکیس"],
   getStarted: ["Get started", "ابدأ الآن", "شروع کریں"],
   showcaseMode: ["PRODUCT SHOWCASE", "عرض المنتج", "پروڈکٹ کی جھلک"],
-  showcaseHint: ["A looping product introduction. No account details are shown and no setup changes are made.", "عرض تعريفي متكرر. لا تظهر بيانات الحساب ولا يتم تغيير الإعدادات.", "پروڈکٹ کا تعارف بار بار چلتا ہے۔ اکاؤنٹ کی تفصیلات ظاہر نہیں ہوتیں اور ترتیب تبدیل نہیں ہوتی۔"],
-  showcaseReturn: ["Return to my setup", "العودة إلى إعدادي", "میری ترتیب پر واپس"],
+  showcaseHint: ["Three scenes, then your next step. Turn on Exhibition loop for a stand or a display.", "ثلاثة مشاهد، ثم خطوتك التالية. فعّل التكرار للعرض على شاشة المعرض.", "تین مناظر، پھر آپ کا اگلا قدم۔ نمائش کی اسکرین کے لیے مسلسل شوکیس چلائیں۔"],
+  showcaseReturn: ["Return to my guide", "العودة إلى إعدادي", "میری ترتیب پر واپس"],
+  exhibitionLoop: ["Exhibition loop", "تكرار عرض المعرض", "نمائش میں مسلسل چلائیں"],
+  watchAgain: ["Watch again", "شاهد مجددًا", "دوبارہ دیکھیں"],
+  chooseWorkflow: ["Choose my workflow", "اختيار سير عملي", "میرا ورک فلو چنیں"],
+  finishTour: ["See my next step", "عرض خطوتي التالية", "میرا اگلا قدم دیکھیں"],
+  showcaseComplete: ["Now, make it yours.", "الآن، اجعلها مساحتك.", "اب، اسے اپنا بنائیں۔"],
+  showcaseCompleteBody: ["Your introduction is complete. Continue to choose your first workflow, or replay the presentation whenever you like.", "اكتمل التعريف. تابع لاختيار أول سير عمل، أو أعد العرض وقتما تريد.", "تعارف مکمل ہوا۔ اپنا پہلا ورک فلو چنیں یا جب چاہیں تعارف دوبارہ دیکھیں۔"],
+  publicCompleteBody: ["Create your account to begin. Owners set up their institution and first campus; invited staff, students and families follow their assigned role.", "أنشئ حسابك للبدء. يُعدّ المالكون المؤسسة والفرع الأول؛ ويتبع الموظفون والطلاب والأسر المدعوون أدوارهم المعيّنة.", "شروع کرنے کے لیے اکاؤنٹ بنائیں۔ مالکان ادارہ اور پہلا کیمپس تیار کرتے ہیں؛ مدعو عملہ، طلبہ اور خاندان اپنے مقررہ کردار سے آغاز کرتے ہیں۔"],
+  nextStep: ["WHAT OPENS NEXT", "ما سيُفتح بعد ذلك", "اس کے بعد کیا کھلے گا"],
+  setupPath: ["Your path to a working campus", "طريقك إلى فرع جاهز", "آپ کے کیمپس کی تیاری کا راستہ"],
+  setupFoundation: ["Confirm your institution and campus", "أكد مؤسستك وفرعك", "ادارے اور کیمپس کی تصدیق کریں"],
+  setupInterview: ["Answer the campus interview and save progress", "أجب عن حوار الفرع واحفظ التقدم", "کیمپس کے سوالوں کے جواب دیں اور پیش رفت محفوظ کریں"],
+  setupDrafts: ["Generate plans, review drafts, then apply approved changes", "أنشئ الخطط وراجع المسودات ثم طبّق التغييرات المعتمدة", "منصوبے بنائیں، مسودے دیکھیں، پھر منظور شدہ تبدیلیاں لاگو کریں"],
   showcaseNext: ["Next scene", "المشهد التالي", "اگلا منظر"],
   fullscreen: ["Full screen", "ملء الشاشة", "مکمل اسکرین"],
   fullscreenExit: ["Exit full screen", "إنهاء ملء الشاشة", "مکمل اسکرین بند کریں"],
@@ -95,6 +107,7 @@ const tasks: Record<LaunchTask, readonly [string, string, string]> = {
   campus: ["Review campus details", "مراجعة تفاصيل الفرع", "کیمپس کی تفصیلات دیکھیں"],
   profile: ["Set up my teacher profile", "إعداد ملف المعلم", "استاد کا پروفائل تیار کریں"],
   aiSetup: ["Guide my campus setup with AI", "إعداد فرعي بالذكاء الاصطناعي", "اے آئی سے کیمپس ترتیب دیں"],
+  aiWorkspace: ["Explore AI workflows", "استعراض مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز دیکھیں"],
   studio: ["Open AI Exam Studio", "فتح استوديو الاختبارات", "اے آئی ایگزام اسٹوڈیو کھولیں"],
   academics: ["Review academic setup", "مراجعة الإعداد الأكاديمي", "تعلیمی ترتیب دیکھیں"],
   timetable: ["Explore my timetable", "استعراض جدولي", "میرا ٹائم ٹیبل دیکھیں"],
@@ -105,6 +118,22 @@ const tasks: Record<LaunchTask, readonly [string, string, string]> = {
   frontDesk: ["Open front desk", "فتح مكتب الاستقبال", "استقبالیہ کھولیں"],
   workspace: ["Explore my workspace", "استعراض مساحة عملي", "میری ورک اسپیس دیکھیں"],
 };
+const taskDetails: Record<LaunchTask, readonly [string, string, string]> = {
+  institution: ["Confirm school details, choose your country and create the first campus. Then continue to the AI campus interview.", "أكد بيانات المدرسة واختر الدولة وأنشئ الفرع الأول، ثم تابع حوار إعداد الفرع بالذكاء الاصطناعي.", "اسکول کی تفصیلات، ملک اور پہلا کیمپس درج کریں، پھر اے آئی کیمپس گفتگو جاری رکھیں۔"],
+  campus: ["Check campus records and contact details before starting campus-specific plans.", "راجع سجلات الفرع وبيانات التواصل قبل بدء خططه.", "کیمپس کے منصوبوں سے پہلے ریکارڈ اور رابطوں کی تفصیلات دیکھیں۔"],
+  profile: ["Complete your contact details and teaching specialties. Your school assigns classes and subjects.", "أكمل بيانات التواصل والتخصصات؛ تعيّن مدرستك الصفوف والمواد.", "رابطے اور تدریسی مضامین مکمل کریں۔ جماعتیں اور مضامین اسکول مقرر کرتا ہے۔"],
+  aiSetup: ["Answer campus questions, save your progress, and generate a setup plan. Review proposed changes before applying them.", "أجب عن أسئلة الفرع واحفظ التقدم وأنشئ خطة إعداد. راجع التغييرات المقترحة قبل تطبيقها.", "کیمپس کے سوالوں کے جواب دیں، پیش رفت محفوظ کریں اور منصوبہ بنائیں۔ تبدیلی لاگو کرنے سے پہلے جائزہ لیں۔"],
+  aiWorkspace: ["Choose from the AI tools available to your role: academic plans, timetables, communications and more. Each tool explains what it needs.", "اختر أدوات الذكاء المتاحة لدورك: الخطط الأكاديمية والجداول والمراسلات وغيرها. توضح كل أداة متطلباتها.", "اپنے کردار کے مطابق تعلیمی منصوبے، ٹائم ٹیبل، پیغامات اور دوسرے اے آئی ٹولز چنیں۔ ہر ٹول اپنی ضروریات بتاتا ہے۔"],
+  studio: ["Choose an assigned subject, add source material and prepare an exam draft for review.", "اختر مادة معيّنة لك وأضف المصادر وأعد مسودة اختبار للمراجعة.", "مقررہ مضمون چنیں، ماخذ شامل کریں اور امتحان کا مسودہ جائزے کے لیے بنائیں۔"],
+  academics: ["Review grades, subjects and class structure for your campus.", "راجع الصفوف والمواد وبنية الفصول في فرعك.", "اپنے کیمپس کی جماعتیں، مضامین اور کلاسوں کی ترتیب دیکھیں۔"],
+  timetable: ["See your assigned lessons and teaching schedule. Missing assignments are managed by your school.", "اطلع على حصصك وجدول التدريس؛ تدير المدرسة التكليفات الناقصة.", "اپنے مقررہ اسباق اور تدریسی اوقات دیکھیں۔ نامکمل ذمہ داریاں اسکول طے کرتا ہے۔"],
+  learning: ["Open your timetable, teacher-assigned learning tasks and school updates.", "افتح جدولك ومهام التعلم التي يحددها المعلم وتحديثات المدرسة.", "ٹائم ٹیبل، استاد کے دیے ہوئے کام اور اسکول کی خبریں کھولیں۔"],
+  children: ["See attendance, schedules and updates for the children linked to your account.", "اطلع على الحضور والجداول والتحديثات للأبناء المرتبطين بحسابك.", "منسلک بچوں کی حاضری، اوقات اور خبریں دیکھیں۔"],
+  fees: ["Review campus fee records, outstanding balances and finance tasks.", "راجع سجلات رسوم الفرع والأرصدة المستحقة والمهام المالية.", "کیمپس کی فیس، بقایا اور مالی کام دیکھیں۔"],
+  library: ["Open the catalogue, borrowing records and library member tools.", "افتح الفهرس وسجلات الاستعارة وأدوات أعضاء المكتبة.", "کتابوں کی فہرست، ادھار ریکارڈ اور اراکین کے ٹولز کھولیں۔"],
+  frontDesk: ["Open visitor records, admissions enquiries and your daily front-desk tools.", "افتح سجلات الزوار واستفسارات القبول وأدوات الاستقبال اليومية.", "زائرین، داخلہ سوالات اور روزمرہ استقبالیہ کے ٹولز کھولیں۔"],
+  workspace: ["Continue to your role’s dashboard. You can replay this guide from the workspace.", "تابع إلى لوحة دورك. يمكنك إعادة هذا الدليل من مساحة العمل.", "اپنے کردار کے ڈیش بورڈ پر جائیں۔ ورک اسپیس سے رہنمائی دوبارہ کھول سکتے ہیں۔"],
+};
 export function launchCopy(language: Language) {
   const index = language === "ar" ? 1 : language === "ur" ? 2 : 0;
   return {
@@ -112,5 +141,6 @@ export function launchCopy(language: Language) {
     journey: (key: LaunchJourney) => journeys[key][index],
     preparation: (key: LaunchJourney) => preparations[key][index],
     task: (key: LaunchTask) => tasks[key][index],
+    taskDetail: (key: LaunchTask) => taskDetails[key][index],
   };
 }

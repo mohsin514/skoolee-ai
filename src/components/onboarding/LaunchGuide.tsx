@@ -34,7 +34,13 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
   const [error, setError] = useState(false);
   const lock = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { if (!showcase) heading.current?.focus(); }, [chapter, showcase]);
+  const content = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showcase) {
+      content.current?.scrollTo({ top: 0 });
+      heading.current?.focus({ preventScroll: true });
+    }
+  }, [chapter, showcase]);
   const finish = async (href?: string) => {
     if (lock.current) return;
     lock.current = true; setBusy(true); setError(false);
@@ -43,7 +49,7 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
   };
   const chapters = [c.welcome, c.prepare, c.choose];
   return <ModalSurface fullscreen ariaLabel={showcase ? c.showcase : c.guide} initialFocusRef={heading} onClose={showcase ? () => setShowcase(false) : onDismiss} dismissible={!busy} disableBackdropClose dir={context.language === "en" ? "ltr" : "rtl"} lang={context.language}>
-    {showcase ? <GuideShowcase language={context.language} onReturn={() => setShowcase(false)} /> : <section className={styles.surface} data-launch-guide data-chapter={chapter} data-paused={paused || undefined}>
+    {showcase ? <GuideShowcase language={context.language} onReturn={() => setShowcase(false)} onContinue={() => { setChapter(2); setShowcase(false); }} /> : <section className={styles.surface} data-launch-guide data-chapter={chapter} data-paused={paused || undefined}>
       <header className={styles.topbar}>
         <SkooleeLogo size="1.8rem" weight="heavy" />
         <div className={styles.topActions}>
@@ -53,8 +59,8 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
         </div>
       </header>
       <div className={styles.body}>
-        <GuideStage key={`stage-${chapter}`} chapter={chapter} language={context.language} paused={paused} />
-        <div className={styles.content} key={chapter}>
+        <GuideStage chapter={chapter} language={context.language} paused={paused} journey={context.journey} />
+        <div className={styles.content} ref={content} data-guide-scroll>
           <p className={styles.eyebrow}>{c.eyebrow} · 0{chapter + 1}</p>
           <h1 className={styles.title} ref={heading} tabIndex={-1}>{chapter === 0 ? c.title : chapter === 1 ? c.journey(context.journey) : c.choose}</h1>
           <div className={styles.context}>
@@ -64,6 +70,7 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
           <p className={styles.description}>{chapter === 0 ? c.introduction : chapter === 1 ? c.preparation(context.journey) : c.workflowHint}</p>
           {chapter === 0 && <div className={styles.note}><Compass aria-hidden="true" /><div><strong>{c.scope}</strong><p>{c.scopeHint}</p></div></div>}
           {chapter === 1 && <div className={styles.notes}>
+            {(context.actions.some(action => action.task === "institution" || action.task === "aiSetup")) && <div className={styles.setupPath}><strong>{c.setupPath}</strong><ol>{[c.setupFoundation, c.setupInterview, c.setupDrafts].map(step => <li key={step}>{step}</li>)}</ol></div>}
             <div className={styles.note}><ShieldCheck aria-hidden="true" /><div><strong>{c.review}</strong><p>{c.reviewHint}</p></div></div>
             <div className={styles.note}><RotateCcw aria-hidden="true" /><div><strong>{c.save}</strong><p>{c.saveHint}</p></div></div>
           </div>}
@@ -72,18 +79,20 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
             <Button key={action.task} type="button" variant="choice" className={styles.choice} aria-pressed={selected === index} disabled={busy} onClick={() => setSelected(index)}>
               <Workflow aria-hidden="true" /><span className={styles.choiceText}>{c.task(action.task)}{index === 0 && <small>{c.recommended}</small>}</span>{selected === index && <Check aria-hidden="true" />}
             </Button>)}</div>}
-          {error && <Alert tone="danger" live="assertive" compact>{c.failed}</Alert>}
-          <div className={styles.actions}>
-            {chapter > 0 && <Button variant="outline" disabled={busy} onClick={() => setChapter(chapter - 1)}><ArrowLeft className="rtl:rotate-180" aria-hidden="true" />{c.back}</Button>}
-            <Button size="lg" loading={busy} disabled={busy} onClick={() => chapter < 2 ? setChapter(chapter + 1) : void finish(context.actions[selected]?.href)}>
-              {busy ? c.saving : chapter === 0 ? c.next : chapter === 1 ? c.continue : c.launch}<ArrowRight className="rtl:rotate-180" aria-hidden="true" />
-            </Button>
-          </div>
+          {chapter === 2 && context.actions[selected] && <div className={styles.nextStep} aria-live="polite"><p className={styles.eyebrow}>{c.nextStep}</p><p>{c.taskDetail(context.actions[selected].task)}</p></div>}
         </div>
       </div>
-      <footer className={styles.bottom}>
+      <footer className={styles.bottom}><div className={styles.footerStatus}>
+        {error && <Alert tone="danger" live="assertive" compact>{c.failed}</Alert>}
         <ol className={styles.chapters} aria-label={c.guide}>{chapters.map((label, index) => <li key={label} className={styles.chapter} aria-current={index === chapter ? "step" : undefined}><span className={styles.chapterNumber}>{index < chapter ? <Check className="size-3" aria-hidden="true" /> : index + 1}</span>{label}</li>)}</ol>
-        <p className={styles.replayHint}>{c.replayHint}</p>
+        <p className={styles.replayHint}>{c.replayHint}</p></div>
+          <div className={styles.actions} data-guide-actions>
+            {chapter > 0 && <Button variant="outline" disabled={busy} onClick={() => setChapter(chapter - 1)}><ArrowLeft className="rtl:rotate-180" aria-hidden="true" />{c.back}</Button>}
+            <Button size="lg" loading={busy} disabled={busy} onClick={() => chapter < 2 ? setChapter(chapter + 1) : void finish(context.actions[selected]?.href)}>
+              {busy ? c.saving : chapter === 0 ? c.next : chapter === 1 ? c.continue : c.task(context.actions[selected]?.task ?? "workspace")}<ArrowRight className="rtl:rotate-180" aria-hidden="true" />
+            </Button>
+          </div>
+
       </footer>
     </section>}
   </ModalSurface>;

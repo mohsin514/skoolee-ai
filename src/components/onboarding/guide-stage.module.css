@@ -1,0 +1,85 @@
+.guide {
+  --guide-repeat: 2;
+}
+.guide[data-continuous] { --guide-repeat: infinite; }
+.guide svg { overflow: hidden; }
+.entrance { animation: arrive 1.05s cubic-bezier(.16, 1, .3, 1) both; }
+.body { transform-origin: 160px 320px; animation: breathe 4.8s ease-in-out var(--guide-repeat); }
+.legLeft, .legRight { transform-origin: 160px 260px; animation: step .48s ease-in-out 2; }
+.legRight { animation-direction: reverse; }
+.headPosition { transform-origin: 158px 150px; transition: transform .65s ease; }
+.guide[data-pose="think"] .headPosition { transform: rotate(7deg) translateY(3px); }
+.guide[data-pose="ready"] .headPosition { transform: rotate(-5deg); }
+.head { transform-origin: 158px 150px; animation: nod 7s ease-in-out var(--guide-repeat); }
+.eyes { transform-box: fill-box; transform-origin: center; animation: blink 4.5s var(--guide-repeat); }
+.pose { opacity: 0; transform-origin: 190px 185px; transform: translateY(6px); transition: opacity .4s ease, transform .6s cubic-bezier(.2, .7, .3, 1); }
+.wavePose { opacity: 1; transform: none; }
+.guide[data-pose="think"] .wavePose,
+.guide[data-pose="ready"] .wavePose { opacity: 0; transform: rotate(10deg) translateY(6px); }
+.guide[data-pose="think"] .planPose,
+.guide[data-pose="ready"] .readyPose { opacity: 1; transform: none; }
+.guideArm { transform-origin: 194px 181px; animation: wave 6s ease-in-out var(--guide-repeat); }
+.guide[data-reacting] .guideArm { animation: greeting 1.2s ease-in-out 2; }
+.writingHand { transform-origin: 186px 211px; animation: write 3s ease-in-out var(--guide-repeat); }
+.presentingHand { transform-origin: 194px 183px; animation: present 5s ease-in-out var(--guide-repeat); }
+.tabletGlow { opacity: .45; animation: glow 3s ease-in-out var(--guide-repeat); }
+.guide[data-paused] *, .stage[data-paused] *, .stage[data-paused] *::after { animation-play-state: paused !important; transition: none !important; }
+.guide[data-paused] .entrance { animation: none; }
+
+/* Scene layers crossfade in place: the guide and its arrival animation stay mounted. */
+.decoration { position: absolute; inset: 0; }
+.sceneLayer { position: absolute; inset: 0; z-index: 3; opacity: 0; transform: translateY(10px); transition: opacity .5s ease, transform .65s cubic-bezier(.2, .7, .3, 1); pointer-events: none; }
+.sceneLayer[data-active] { opacity: 1; transform: none; }
+.backdropLayer { opacity: 0; transition: opacity .7s ease; }
+.stage[data-scene="0"] .welcomeBackdrop,
+.stage[data-scene="1"] .planBackdrop,
+.stage[data-scene="2"] .readyBackdrop { opacity: 1; }
+.planBackdrop { color: var(--brand-500); }
+.readyBackdrop { color: var(--brand-500); }
+.sceneCard { max-width: 37%; min-width: 0; overflow-wrap: anywhere; }
+.sceneCard strong { font-size: clamp(.58rem, 1vw, .8rem); line-height: 1.4; }
+.sceneCard small { font-size: clamp(.42rem, .7vw, .54rem); letter-spacing: .035em; }
+.leftCard { left: 1%; top: 23%; }
+.rightCard { right: 1%; top: 46%; }
+.bottomCard { right: 4%; bottom: 5%; }
+.sceneLayer[data-chapter="1"] .leftCard { top: 25%; }
+.sceneLayer[data-chapter="1"] .rightCard { top: 42%; }
+.sceneLayer[data-chapter="1"] .bottomCard { right: 5%; bottom: 7%; }
+.sceneLayer[data-chapter="2"] .leftCard { top: 30%; }
+.sceneLayer[data-chapter="2"] .rightCard { top: 23%; }
+.sceneLayer[data-chapter="2"] .bottomCard { right: 3%; bottom: 7%; }
+.caption { top: 3%; left: 6%; width: 88%; min-height: 3rem; animation: none; font-size: clamp(.64rem, 1vw, .83rem); line-height: 1.5; border-radius: 1rem; }
+.caption::after { content: ""; position: absolute; bottom: -5px; left: 48%; width: 10px; height: 10px; transform: rotate(45deg); background: var(--brand-900); }
+.cardProgress { display: flex; gap: 4px; margin-top: .55rem; }
+.cardProgress i { height: 4px; border-radius: 4px; flex: 1; min-width: 14px; background: var(--brand-200); }
+.cardProgress i[data-filled] { background: var(--brand-500); }
+.signature { min-height: 2.2rem; }
+.signature > span { max-width: 65%; text-align: start; line-height: 1.4; }
+
+@keyframes arrive { from { opacity: 0; transform: translate(-25px, 0) rotate(-2deg); } to { opacity: 1; transform: none; } }
+@keyframes step { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+@keyframes breathe { 0%, 100% { transform: translateY(0) rotate(-.35deg); } 50% { transform: translateY(-3px) rotate(.35deg); } }
+@keyframes wave { 0%, 45%, 100% { transform: rotate(0); } 8%, 24% { transform: rotate(-21deg); } 16%, 32% { transform: rotate(12deg); } }
+@keyframes greeting { 0%, 100% { transform: rotate(-5deg); } 25%, 75% { transform: rotate(-25deg); } 50% { transform: rotate(14deg); } }
+@keyframes nod { 0%, 65%, 100% { transform: rotate(0); } 25%, 40% { transform: rotate(2deg); } }
+@keyframes blink { 0%, 45%, 50%, 100% { transform: scaleY(1); } 47% { transform: scaleY(.1); } }
+@keyframes write { 0%, 60%, 100% { transform: translate(0, 0); } 15%, 40% { transform: translate(-5px, 3px); } 25%, 50% { transform: translate(2px, 2px); } }
+@keyframes present { 0%, 100% { transform: rotate(0); } 30%, 50% { transform: rotate(-7deg); } }
+@keyframes glow { 0%, 100% { opacity: .4; } 50% { opacity: .85; } }
+@media (max-width: 760px) {
+  /* The full narrative is beside the illustration. Keep a single readable cue
+     on short phone stages so cards never cover the guide's face or tablet. */
+  .leftCard, .rightCard { display: none; }
+  .sceneCard { padding: .35rem .5rem; gap: .3rem; max-width: 58%; border-radius: .65rem; }
+  .sceneCard strong { font-size: .57rem; margin-top: 0; }
+  .sceneCard small, .sceneCard > span, .cardProgress { display: none; }
+  .sceneLayer[data-chapter] .bottomCard { right: 0; bottom: 0; }
+  .caption { min-height: 2.3rem; padding: .35rem .5rem; font-size: .59rem; left: 2%; width: 96%; }
+  .signature { gap: .25rem; flex-wrap: nowrap; justify-content: space-between; }
+  .signature > span { max-width: calc(100% - 74px); font-size: .55rem; }
+  .signature button { padding-inline: .4rem; gap: .25rem; font-size: .55rem; min-height: 1.9rem; flex-shrink: 0; }
+  .signature button svg { width: .75rem; height: .75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide *, .stage *, .stage *::after { animation: none !important; transition: none !important; }
+}

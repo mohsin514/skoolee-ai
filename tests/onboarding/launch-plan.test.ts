@@ -14,7 +14,7 @@ test("every role has a useful localized route; families and staff never inherit 
     for (const language of ["en", "ar", "ur"] as const) {
       const c = launchCopy(language);
       assert.ok(c.journey(plan.journey)); assert.ok(c.preparation(plan.journey));
-      for (const action of plan.actions) assert.ok(c.task(action.task));
+      for (const action of plan.actions) { assert.ok(c.task(action.task)); assert.ok(c.taskDetail(action.task)); }
     }
     if (!["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER"].includes(role)) {
       assert.equal(plan.actions[0].href, dashboardPathForRole(role));
@@ -40,8 +40,18 @@ test("campus instructions honor missing assignments, role scope and revoked perm
     const denied = launchPlan({ ...base, role, permissions: new Map() });
     assert.ok(!denied.actions.some(action => action.href.startsWith("/ai")));
   }
+  const examsOnly = launchPlan({ ...base, role: "PRINCIPAL", permissions: new Map([["exams", { canView: true, canAdd: false }]]) });
+  assert.ok(!examsOnly.actions.some(action => action.task === "academics"));
+  const timetableOnly = launchPlan({ ...base, role: "PRINCIPAL", permissions: new Map([["timetable", { canView: true, canAdd: false }]]) });
+  assert.ok(timetableOnly.actions.some(action => action.task === "academics"));
   const readOnly = launchPlan({ ...base, role: "PRINCIPAL", permissions: new Map([["ai", { canView: true, canAdd: false }]]) });
   assert.ok(!readOnly.actions.some(action => action.task === "aiSetup"));
+  assert.ok(readOnly.actions.some(action => action.task === "aiWorkspace"));
+  for (const role of ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] as const) {
+    assert.ok(launchPlan({ ...base, role }).actions.some(action => action.task === "aiWorkspace"));
+    assert.ok(!launchPlan({ ...base, role, permissions: new Map() }).actions.some(action => action.href.startsWith("/ai")));
+    assert.ok(!launchPlan({ ...base, role, campusId: null }).actions.some(action => action.href.startsWith("/ai")));
+  }
 });
 test("welcome is limited to entry routes, never timed exams, billing or password setup", () => {
   for (const path of ["/first-login", "/login", "/protect-account", "/subscription", "/onboarding/package", "/ai/studio", "/ai/exams/attempt", "/teacher/attendance"]) assert.equal(isLaunchEntry(path), false, path);

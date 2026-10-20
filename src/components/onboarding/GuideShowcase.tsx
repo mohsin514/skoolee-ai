@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, ArrowRight, Maximize, Minimize, Pause, Play, School, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Maximize, Minimize, Pause, Play, RotateCcw, Repeat, School, ShieldCheck, Users } from "lucide-react";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -18,24 +18,32 @@ function subscribeMotion(callback: () => void) {
 }
 
 /** Presentation only: receives no identity, destinations, persistence handlers or school data. */
-export function GuideShowcase({ language, onReturn, publicView = false }: { language: Language; onReturn: () => void; publicView?: boolean }) {
+export function GuideShowcase({ language, onReturn, onContinue, publicView = false }: { language: Language; onReturn: () => void; onContinue?: () => void; publicView?: boolean }) {
   const c = launchCopy(language);
   const reducedMotion = useSyncExternalStore(subscribeMotion, () => window.matchMedia(motionQuery).matches, () => true);
   const [scene, setScene] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [loop, setLoop] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
   const surface = useRef<HTMLElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  const stopped = paused || reducedMotion;
-  useEffect(() => { heading.current?.focus(); }, []);
+  const content = useRef<HTMLDivElement>(null);
+  const complete = scene === 3;
+  const stopped = paused || reducedMotion || complete;
+  useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
+  useEffect(() => { content.current?.scrollTo({ top: 0 }); }, [scene]);
+  const advance = () => {
+    setScene(value => value < 2 ? value + 1 : loop ? 0 : 3);
+    heading.current?.focus({ preventScroll: true });
+  };
   useEffect(() => {
     if (stopped) return;
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") setScene(value => (value + 1) % 3);
+      if (document.visibilityState === "visible") setScene(value => value < 2 ? value + 1 : loop ? 0 : 3);
     }, 9000);
     return () => window.clearInterval(timer);
-  }, [stopped, scene]);
+  }, [stopped, scene, loop]);
   useEffect(() => {
     const element = surface.current;
     const changed = () => setFullscreen(document.fullscreenElement === element);
@@ -57,7 +65,7 @@ export function GuideShowcase({ language, onReturn, publicView = false }: { lang
   const descriptions = [c.demoBodyOne, c.demoBodyTwo, c.demoBodyThree];
   const features = [c.demoFeatureOne, c.demoFeatureTwo, c.demoFeatureThree];
   const icons = [School, Users, ShieldCheck];
-  return <section className={`${styles.surface} ${styles.showcase}`} ref={surface} data-showcase data-scene={scene} data-paused={stopped || undefined} dir={language === "en" ? "ltr" : "rtl"} lang={language}>
+  return <section className={`${styles.surface} ${styles.showcase}`} ref={surface} data-showcase data-scene={Math.min(scene, 2)} data-complete={complete || undefined} data-loop={loop || undefined} data-paused={stopped || undefined} dir={language === "en" ? "ltr" : "rtl"} lang={language}>
     <header className={styles.topbar}>
       <SkooleeLogo size="1.8rem" weight="heavy" />
       <div className={styles.topActions}>
@@ -66,25 +74,33 @@ export function GuideShowcase({ language, onReturn, publicView = false }: { lang
       </div>
     </header>
     <div className={styles.body}>
-      <GuideStage key={`stage-${scene}`} chapter={scene} language={language} paused={stopped} />
-      <div className={styles.content}>
-        <p className={styles.eyebrow}><span className={styles.liveDot} />{c.showcaseMode} · 0{scene + 1}</p>
-        <h1 className={styles.title} ref={heading} tabIndex={-1}>{titles[scene]}</h1>
-        <p className={styles.description} key={scene}>{descriptions[scene]}</p>
+      <GuideStage chapter={Math.min(scene, 2)} language={language} paused={stopped} />
+      <div className={styles.content} ref={content} data-guide-scroll>
+        <p className={styles.eyebrow}><span className={styles.liveDot} />{c.showcaseMode} · {complete ? "✓" : `0${scene + 1}`}</p>
+        <h1 className={styles.title} ref={heading} tabIndex={-1}>{complete ? c.showcaseComplete : titles[scene]}</h1>
+        <p className={styles.description} key={scene}>{complete ? publicView ? c.publicCompleteBody : c.showcaseCompleteBody : descriptions[scene]}</p>
         <div className={styles.demoFeatures}>{features.map((label, index) => {
           const Icon = icons[index];
           return <div key={label} data-active={scene === index || undefined}><Icon aria-hidden="true" /><span>{label}</span></div>;
         })}</div>
         {fullscreenError && <Alert tone="info" compact>{c.fullscreenFailed}</Alert>}
-        <div className={styles.actions}>
-          <Button variant="outline" aria-pressed={paused} disabled={reducedMotion} aria-label={paused ? c.play : c.pause} onClick={() => setPaused(value => !value)}>{paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}{paused ? c.play : c.pause}</Button>
-          <Button onClick={() => { setScene(value => (value + 1) % 3); heading.current?.focus(); }}>{c.showcaseNext}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>
-        </div>
       </div>
     </div>
     <footer className={`${styles.bottom} ${styles.showcaseBottom}`}>
-      <div className={styles.sceneProgress} aria-hidden="true" key={scene}>{titles.map((title, index) => <span key={title} data-active={scene === index || undefined} data-complete={index < scene || undefined}><i /></span>)}</div>
-      <p className={styles.replayHint}>{c.showcaseHint}</p>
+      <div className={styles.footerStatus}>
+        <div className={styles.sceneProgress} aria-hidden="true" key={scene}>{titles.map((title, index) => <span key={title} data-active={!complete && scene === index || undefined} data-complete={complete || index < scene || undefined}><i /></span>)}</div>
+        <p className={styles.replayHint}>{c.showcaseHint}</p>
+      </div>
+      <div className={styles.actions} data-guide-actions>
+        <Button variant="ghost" size="sm" aria-pressed={loop} onClick={() => { setLoop(value => !value); if (complete) setScene(0); }}><Repeat aria-hidden="true" />{c.exhibitionLoop}</Button>
+        {complete ? <>
+          <Button variant="outline" onClick={() => { setScene(0); setPaused(false); heading.current?.focus({ preventScroll: true }); }}><RotateCcw aria-hidden="true" />{c.watchAgain}</Button>
+          <Button onClick={onContinue ?? onReturn}>{publicView ? c.getStarted : c.chooseWorkflow}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>
+        </> : <>
+          <Button variant="outline" aria-pressed={paused} disabled={reducedMotion} aria-label={paused ? c.play : c.pause} onClick={() => setPaused(value => !value)}>{paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}<span className={styles.motionLabel}>{paused ? c.play : c.pause}</span></Button>
+          <Button onClick={advance}>{scene === 2 && !loop ? c.finishTour : c.showcaseNext}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>
+        </>}
+      </div>
     </footer>
   </section>;
 }
