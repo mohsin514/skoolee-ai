@@ -18,3 +18,9 @@ export function testCheckoutEnabled(env: Record<string, string | undefined> = pr
 
 /** Where the fake payment page lives (relative, so it works on any local port). */
 export const testCheckoutUrl = (intentId: string) => `/onboarding/package/test-checkout?intentId=${encodeURIComponent(intentId)}`;
+
+/** The SafePay sandbox card page (src/app/safepay) for an onboarding package, so dummy payments look like SafePay. */
+export function safePaySandboxUrl(intentId: string, plan: string, billingPeriod: string, amountLabel: string) {
+  const params = new URLSearchParams({ kind: "PACKAGE", intentId, orderRef: intentId, plan, billingPeriod, amountLabel });
+  return `/onboarding/package/safepay?${params.toString()}`;
+}

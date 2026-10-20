@@ -697,15 +697,18 @@ button:disabled,
   border-radius: 20px !important;
 }
 
-[data-sonner-toast].skoolee-toast::before {
-  content: "";
-  position: absolute;
-  inset-block: 10px;
-  inset-inline-start: 0;
-  width: 3px;
-  border-start-end-radius: 3px;
-  border-end-end-radius: 3px;
-  background: var(--sk-toast-accent);
+/* The tone rail is a background layer, not ::before: Sonner owns each toast's ::before (its hover/swipe
+   zone, stretched to left/right -100% while a toast is removed), so a painted ::before smeared the rail
+   across the whole page when a toast closed. */
+[data-sonner-toast].skoolee-toast {
+  background:
+    linear-gradient(var(--sk-toast-accent), var(--sk-toast-accent)) left 0 top 10px / 3px calc(100% - 20px) no-repeat,
+    var(--normal-bg) !important;
+}
+[data-sonner-toast].skoolee-toast:dir(rtl) {
+  background:
+    linear-gradient(var(--sk-toast-accent), var(--sk-toast-accent)) right 0 top 10px / 3px calc(100% - 20px) no-repeat,
+    var(--normal-bg) !important;
 }
 
 [data-sonner-toast].skoolee-toast[data-type="success"] { --sk-toast-accent: #059669; --sk-toast-chip: #ecfdf5; }

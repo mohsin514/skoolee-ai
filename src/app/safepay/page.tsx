@@ -23,6 +23,8 @@ function SafePayForm() {
   const billingPeriod = params.get("billingPeriod") || "monthly";
   const contract = params.get("contract") || "";
   const amountLabel = params.get("amountLabel") || "PKR 0/mo";
+  // PACKAGE: an onboarding package bought in development (no SafePay keys); settled by the dev-only endpoint.
+  const intentId = params.get("intentId") || "";
 
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
@@ -68,20 +70,28 @@ function SafePayForm() {
     if (!cardNumber.replace(/\s/g, "").length || !expiry.length || !cvv.length || !cardName.length) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/safepay/simulate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          kind === "FEE" ? { orderRef, kind: "FEE" } : { orderRef, schoolId, plan, billingPeriod, contract }
-        ),
-      });
+      const res = kind === "PACKAGE"
+        ? await fetch("/api/onboarding/package/test-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ intentId, outcome: "paid" }),
+        })
+        : await fetch("/api/safepay/simulate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            kind === "FEE" ? { orderRef, kind: "FEE" } : { orderRef, schoolId, plan, billingPeriod, contract }
+          ),
+        });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "The payment did not go through. Please try again.");
       setDone(true);
       setTimeout(
         () =>
           router.push(
-            kind === "FEE"
+            kind === "PACKAGE"
+              ? `/onboarding/package/status?intentId=${encodeURIComponent(intentId)}&return=success`
+              : kind === "FEE"
               ? safeReturnPath(returnTo, role) ?? "/dashboard/fees"
               : `${landingPath || "/dashboard/billing"}?safepay_status=completed`
           ),
@@ -106,7 +116,7 @@ function SafePayForm() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-ink-strong">Payment successful</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-            {kind === "FEE" ? "Taking you back to your fees…" : "Taking you back to billing…"}
+            {kind === "FEE" ? "Taking you back to your fees…" : kind === "PACKAGE" ? "Taking you back to your setup…" : "Taking you back to billing…"}
           </p>
         </div>
       </div>

@@ -19,9 +19,10 @@ import { getPaymentConfig } from "@/lib/payments/gateway";
 import { getPriceId, stripe, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
 import { PAY_LATER_PROVIDER, SALES_ASSISTED_PROVIDER, safePayAvailable, automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
-import { TEST_CHECKOUT_PROVIDER, testCheckoutEnabled, testCheckoutUrl } from "@/lib/payments/test-checkout";
+import { TEST_CHECKOUT_PROVIDER, safePaySandboxUrl, testCheckoutEnabled } from "@/lib/payments/test-checkout";
 
 import { saveSubscriptionRequest } from "@/lib/billing/lifecycle";
+import { getPackageCopy } from "@/app/onboarding/package/copy";
 import type { PlanType } from "@/types";
 
 export const runtime = "nodejs";
@@ -206,16 +207,17 @@ export async function POST(req: NextRequest) {
     const canUseBank = Boolean(paymentConfig.bank?.bankName);
     const realRail = automatedCheckoutAvailable(billing.country) && (canUseStripe || canUseSafePay || canUseBank);
     if (intent.provider === "NONE" && !realRail && testCheckoutEnabled()) {
-      // Development-only: no money moves; the test page settles or declines this intent.
+      // Development-only: no money moves. The SafePay sandbox card page settles this intent.
+      const sandboxUrl = safePaySandboxUrl(intent.id, getPackageCopy("en").planNames[plan] ?? plan, parsed.data.billingPeriod, `PKR ${(intent.amount ?? 0).toLocaleString("en-PK")}`);
       const claim = await prisma.onboardingCheckoutIntent.updateMany({
         where: { id: intent.id, status: "PENDING", provider: "NONE" },
-        data: { provider: TEST_CHECKOUT_PROVIDER, providerReference: intent.id, status: "CHECKOUT_PENDING", checkoutUrl: testCheckoutUrl(intent.id), failureReason: null },
+        data: { provider: TEST_CHECKOUT_PROVIDER, providerReference: intent.id, status: "CHECKOUT_PENDING", checkoutUrl: sandboxUrl, failureReason: null },
       });
       if (!claim.count) {
         const latest = await prisma.onboardingCheckoutIntent.findUnique({ where: { id: intent.id } });
         return Response.json({ success: true, intentId: intent.id, status: latest?.status ?? "PENDING", url: latest?.checkoutUrl ?? undefined });
       }
-      return Response.json({ success: true, intentId: intent.id, status: "CHECKOUT_PENDING", url: testCheckoutUrl(intent.id) });
+      return Response.json({ success: true, intentId: intent.id, status: "CHECKOUT_PENDING", url: sandboxUrl });
     }
     // No payment method is configured on this server: the choice stands as payment due (pay later). Nothing
     // is charged and the plan does not change until it is paid; this is a configuration gap, so it is logged.
