@@ -18,7 +18,10 @@ function subscribeMotion(callback: () => void) {
 }
 
 /** Presentation only: receives no identity, destinations, persistence handlers or school data. */
-export function GuideShowcase({ language, onReturn, onContinue, publicView = false }: { language: Language; onReturn: () => void; onContinue?: () => void; publicView?: boolean }) {
+export function GuideShowcase({ language, onReturn, onContinue, publicView = false, entryLabel, entryPending = false, entryError, completionDescription }: {
+  language: Language; onReturn: () => void; onContinue?: () => void; publicView?: boolean;
+  entryLabel?: string; entryPending?: boolean; entryError?: string; completionDescription?: string;
+}) {
   const c = launchCopy(language);
   const reducedMotion = useSyncExternalStore(subscribeMotion, () => window.matchMedia(motionQuery).matches, () => true);
   const [scene, setScene] = useState(0);
@@ -70,7 +73,7 @@ export function GuideShowcase({ language, onReturn, onContinue, publicView = fal
       <SkooleeLogo size="1.8rem" weight="heavy" />
       <div className={styles.topActions}>
         <Button variant="ghost" size="sm" aria-label={fullscreen ? c.fullscreenExit : c.fullscreen} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize aria-hidden="true" /> : <Maximize aria-hidden="true" />}</Button>
-        <Button variant="outline" size="sm" onClick={onReturn}>{publicView ? <ArrowRight className="rtl:rotate-180" aria-hidden="true" /> : <ArrowLeft className="rtl:rotate-180" aria-hidden="true" />}{publicView ? c.getStarted : c.showcaseReturn}</Button>
+        <Button variant="outline" size="sm" loading={entryPending} onClick={onReturn}>{publicView || entryLabel ? <ArrowRight className="rtl:rotate-180" aria-hidden="true" /> : <ArrowLeft className="rtl:rotate-180" aria-hidden="true" />}{entryPending ? c.checkingEntry : entryLabel ?? (publicView ? c.getStarted : c.showcaseReturn)}</Button>
       </div>
     </header>
     <div className={styles.body}>
@@ -78,7 +81,7 @@ export function GuideShowcase({ language, onReturn, onContinue, publicView = fal
       <div className={styles.content} ref={content} data-guide-scroll>
         <p className={styles.eyebrow}><span className={styles.liveDot} />{c.showcaseMode} · {complete ? "✓" : `0${scene + 1}`}</p>
         <h1 className={styles.title} ref={heading} tabIndex={-1}>{complete ? c.showcaseComplete : titles[scene]}</h1>
-        <p className={styles.description} key={scene}>{complete ? publicView ? c.publicCompleteBody : c.showcaseCompleteBody : descriptions[scene]}</p>
+        <p className={styles.description} key={scene}>{complete ? completionDescription ?? (publicView ? c.publicCompleteBody : c.showcaseCompleteBody) : descriptions[scene]}</p>
         <div className={styles.demoFeatures}>{features.map((label, index) => {
           const Icon = icons[index];
           return <div key={label} data-active={scene === index || undefined}><Icon aria-hidden="true" /><span>{label}</span></div>;
@@ -88,6 +91,7 @@ export function GuideShowcase({ language, onReturn, onContinue, publicView = fal
     </div>
     <footer className={`${styles.bottom} ${styles.showcaseBottom}`}>
       <div className={styles.footerStatus}>
+        {entryError && <Alert tone="danger" compact>{entryError}</Alert>}
         <div className={styles.sceneProgress} aria-hidden="true" key={scene}>{titles.map((title, index) => <span key={title} data-active={!complete && scene === index || undefined} data-complete={complete || index < scene || undefined}><i /></span>)}</div>
         <p className={styles.replayHint}>{c.showcaseHint}</p>
       </div>
@@ -95,7 +99,7 @@ export function GuideShowcase({ language, onReturn, onContinue, publicView = fal
         <Button variant="ghost" size="sm" aria-pressed={loop} onClick={() => { setLoop(value => !value); if (complete) setScene(0); }}><Repeat aria-hidden="true" />{c.exhibitionLoop}</Button>
         {complete ? <>
           <Button variant="outline" onClick={() => { setScene(0); setPaused(false); heading.current?.focus({ preventScroll: true }); }}><RotateCcw aria-hidden="true" />{c.watchAgain}</Button>
-          <Button onClick={onContinue ?? onReturn}>{publicView ? c.getStarted : c.chooseWorkflow}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>
+          <Button loading={entryPending} onClick={onContinue ?? onReturn}>{entryPending ? c.checkingEntry : entryLabel ?? (publicView ? c.getStarted : c.chooseWorkflow)}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>
         </> : <>
           <Button variant="outline" aria-pressed={paused} disabled={reducedMotion} aria-label={paused ? c.play : c.pause} onClick={() => setPaused(value => !value)}>{paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}<span className={styles.motionLabel}>{paused ? c.play : c.pause}</span></Button>
           <Button onClick={advance}>{scene === 2 && !loop ? c.finishTour : c.showcaseNext}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>

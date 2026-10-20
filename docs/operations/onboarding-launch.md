@@ -14,7 +14,7 @@ The character stays mounted while changing from a welcoming wave to writing on a
 4. Missing campus or teacher subject assignments explain what is needed. Read-only accounts can inspect permitted workspaces; creation stays disabled. Students and parents are not given staff AI authoring access.
 5. Live AI availability is explicit. Without a configured provider, saved work and forms remain available; setup can prepare clearly labelled starter drafts. That fallback is not evidence of live-provider generation.
 
-The private showcase ends at the workflow chooser; the public showcase ends at registration. Closing a saved interview removes the old setup intent, so changing campus does not unexpectedly reopen it. Explicit workflow links take precedence over stale setup links. Invalid or forbidden workflow links return to the permitted chooser.
+The embedded private showcase ends at the workflow chooser. The standalone `/showcase` resolves its continuation from the current session: existing accounts return to their personal onboarding or workspace; confirmed guests may register. The button rechecks the session when clicked, respects mandatory password/setup and suspension recovery, and sends expired or lost member sessions to sign-in. If a student starts an exam in another tab, continuation follows the active-exam boundary back to the candidate room. A failed continuation request shows retry rather than falling through to registration. Closing a saved interview removes the old setup intent, so changing campus does not unexpectedly reopen it. Explicit workflow links take precedence over stale setup links. Invalid or forbidden workflow links return to the permitted chooser.
 
 ## Deployment
 
@@ -25,6 +25,7 @@ On 20 October 2026, `prisma migrate deploy` successfully applied both pending mi
 ## Verification on 20 October 2026
 
 - 20 browser tests passed, covering every role, campus isolation/resume, activation, real workflow discovery/deep links, read-only scope, saved setup, replay, failed-save retry without pointer movement, motion/pause, full screen, finite completion and optional exhibition loops, unsigned registration entry, keyboard focus and EN/AR/UR layouts. Explicit short-screen coverage includes 1280×720, 1024×600, 390×667 and a 320×256 high-zoom fallback.
+- 11 additional showcase-entry browser tests passed: current-account onboarding/workspace destinations, password and suspension priority, expired/revoked sessions (including the student proxy boundary), sign-in/out in another tab, failure/retry and genuine guest registration. The active-exam handoff test checks the existing 409 response/navigation contract with a mocked response; it does not create an exam attempt.
 - 16 onboarding unit tests and 5 design-system checks passed.
 - Next route type generation, TypeScript, targeted ESLint and whitespace checks passed.
 - Existing prototype generation regression: 2 passed; live-provider recovery skipped because this isolated run had no AI key.

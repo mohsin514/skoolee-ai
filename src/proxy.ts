@@ -23,7 +23,7 @@ import {
 } from "@/lib/auth/session-cookie";
 
 const PUBLIC_PATHS = [
-  "/showcase", // Generic product presentation; no account data or setup mutations.
+  "/showcase", // Generic presentation with a session-aware continuation; no setup mutations.
   "/school-capture", // Empty phone handoff shell; all capture data requires current authenticated API access.
   "/", "/login", "/sign-in", "/register", "/register-split", "/sign-up", "/pricing",
   "/verify-success", // Informational destination of token verification; it creates no session.
@@ -38,6 +38,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/sso", "/api/auth/sso", // SKO-446: school sign-in; the routes verify state, PKCE and the provider's ID token.
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
+  "/api/auth/showcase-entry", // Read-only current-session continuation; also resolves genuine guests.
   "/api/auth/signup-step1", "/api/auth/signup-step2",
   "/api/reports/download", // Route authenticates session or a single-child capability.
   "/api/parent/data",

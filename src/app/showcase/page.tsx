@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PublicShowcase } from "@/components/onboarding/PublicShowcase";
+import { resolveShowcaseEntry } from "@/lib/onboarding/showcase-entry";
 
 export const metadata: Metadata = {
   title: "Meet Skoolee AI",
@@ -8,5 +9,6 @@ export const metadata: Metadata = {
 
 export default async function ShowcasePage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
   const { lang } = await searchParams;
-  return <PublicShowcase language={lang === "ar" || lang === "ur" ? lang : "en"} />;
+  const entry = await resolveShowcaseEntry();
+  return <PublicShowcase language={lang === "ar" || lang === "ur" ? lang : "en"} entry={entry} />;
 }
