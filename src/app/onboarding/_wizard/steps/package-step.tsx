@@ -21,8 +21,7 @@ export function PackageStep({ t, local, language, headingRef, folio, notices, bu
   const state = !chosen ? null
     : active ? local.packageState.active
     : chosen.status === "CUSTOM_QUOTE" ? local.packageState.requested
-    : chosen.provider === "SALES_ASSISTED" ? local.packageState.reserved
-    : chosen.provider === "PAY_LATER" ? local.packageState.due
+    : chosen.provider === "PAY_LATER" || chosen.provider === "SALES_ASSISTED" ? local.packageState.due
     : local.packageState.checkout;
   const reasonId = "package-continue-reason";
   const blocked = !chosen && !busy;
@@ -68,8 +67,8 @@ export function PackageStep({ t, local, language, headingRef, folio, notices, bu
                 <p className="sk-choice-tag" data-tone={active ? undefined : "info"}>{state}</p>
               </div>
               {canPurchase ? (
-                <Button type="button" variant={chosen.provider === "PAY_LATER" ? "default" : "secondary"} size="sm" onClick={onChoosePackage}>
-                  {chosen.provider === "PAY_LATER" ? packages.chooser.payNow : t.changePackage}
+                <Button type="button" variant={chosen.provider === "PAY_LATER" || chosen.provider === "SALES_ASSISTED" ? "default" : "secondary"} size="sm" onClick={onChoosePackage}>
+                  {chosen.provider === "PAY_LATER" || chosen.provider === "SALES_ASSISTED" ? packages.chooser.payNow : t.changePackage}
                 </Button>
               ) : null}
             </div>

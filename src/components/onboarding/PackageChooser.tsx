@@ -231,9 +231,10 @@ export function PackageChooser({
 
   // ── Choose ──
   const pendingFor = (type: PlanType) => (pending && pending.plan === type ? pending : null);
-  const waitsOnTeam = (p: Pending | null) => Boolean(p && (p.provider === "SALES_ASSISTED" || p.status === "CUSTOM_QUOTE"));
-  /** Chosen earlier with "pay later": choosing it again leads to the payment step, not a status page. */
-  const isDeferred = (p: Pending | null) => Boolean(p && p.provider === "PAY_LATER");
+  // Only a Custom request waits on the team now. An older paid "reservation" (SALES_ASSISTED) is payment due:
+  // like "pay later", choosing it again leads to the payment step.
+  const waitsOnTeam = (p: Pending | null) => Boolean(p && p.status === "CUSTOM_QUOTE");
+  const isDeferred = (p: Pending | null) => Boolean(p && (p.provider === "PAY_LATER" || p.provider === "SALES_ASSISTED"));
   const receiptFromPending = (p: Pending): ReceiptData => ({
     kind: p.status === "CUSTOM_QUOTE" ? "custom" : "reserved",
     plan: p.plan as PlanType, period: p.billingPeriod === "annual" ? "annual" : "monthly", intentId: p.intentId,
