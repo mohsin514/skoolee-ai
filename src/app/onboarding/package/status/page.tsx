@@ -71,7 +71,7 @@ function CheckoutStatus() {
   }, [intentId, load, copy.missingReference]);
 
   useEffect(() => {
-    if (!intent || intent.provider === "BANK_TRANSFER" || !["CHECKOUT_PENDING", "PENDING_SETTLEMENT"].includes(intent.status)) return;
+    if (!intent || intent.provider === "BANK_TRANSFER" || intent.provider === "SALES_ASSISTED" || !["CHECKOUT_PENDING", "PENDING_SETTLEMENT"].includes(intent.status)) return;
     const timer = window.setInterval(() => { void load().catch(() => undefined); }, 8000);
     return () => window.clearInterval(timer);
   }, [intent, load]);
@@ -119,10 +119,12 @@ function CheckoutStatus() {
   };
 
   const isSettled = intent?.status === "SETTLED";
+  // Reserved: chosen where no online payment exists; the team confirms payment, nothing was charged.
+  const isReserved = intent?.provider === "SALES_ASSISTED" && intent.status === "PENDING_SETTLEMENT";
   const isPending = intent && ["CHECKOUT_PENDING", "PENDING_SETTLEMENT", "PENDING"].includes(intent.status);
   const canRetry = intent && (
     ["FAILED", "CANCELLED"].includes(intent.status) ||
-    (intent.provider !== "BANK_TRANSFER" && ["PENDING", "PENDING_SETTLEMENT"].includes(intent.status) && !intent.checkoutUrl)
+    (intent.provider !== "BANK_TRANSFER" && intent.provider !== "SALES_ASSISTED" && ["PENDING", "PENDING_SETTLEMENT"].includes(intent.status) && !intent.checkoutUrl)
   );
   const resumeStep = intent?.returnStep || "package";
   const stateTone: AlertTone = isSettled ? "success" : isPending ? "info" : intent?.status === "FAILED" ? "danger" : intent?.status === "CANCELLED" ? "warning" : "neutral";
@@ -154,15 +156,15 @@ function CheckoutStatus() {
         {!intent && !error && <StatusSkeleton label={copy.loadingOrder.replace(/…$/, "")} />}
         {intent && (
           <div className="mt-6 space-y-5">
-            <Alert tone={stateTone} live="polite" title={copy.stateNames[intent.status] ?? intent.status}>
+            <Alert tone={stateTone} live="polite" title={isReserved ? copy.statusReserved : copy.stateNames[intent.status] ?? intent.status}>
               <p className="text-sm leading-relaxed text-ink-muted">
-                {isSettled ? copy.savedActive : isPending ? copy.savedPending : intent.status === "FAILED" ? intent.failureReason || copy.savedFailed : intent.status === "CANCELLED" ? copy.savedCancelled : copy.savedSelection}
+                {isReserved ? copy.savedReserved : isSettled ? copy.savedActive : isPending ? copy.savedPending : intent.status === "FAILED" ? intent.failureReason || copy.savedFailed : intent.status === "CANCELLED" ? copy.savedCancelled : copy.savedSelection}
               </p>
             </Alert>
             <dl className="grid gap-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 text-sm sm:grid-cols-2">
               <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.orderReference}</dt><dd dir="ltr" className="mt-0.5 break-all font-mono font-semibold text-ink-strong"><bdi>{intent.id}</bdi></dd></div>
               <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.package}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan}</dd></div>
-              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.paymentState}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{copy.stateNames[intent.status] ?? intent.status}</dd></div>
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.paymentState}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{isReserved ? copy.statusReserved : copy.stateNames[intent.status] ?? intent.status}</dd></div>
               {intent.amount != null && <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.savedAmount}</dt><dd dir="ltr" className="mt-0.5 font-semibold tabular-nums text-ink-strong"><bdi>{intent.currency} {intent.amount.toLocaleString()}</bdi></dd></div>}
             </dl>
             {bank && intent.status === "PENDING_SETTLEMENT" && <dl className="grid gap-4 rounded-2xl border border-border-subtle bg-white p-4 text-sm sm:grid-cols-2">
@@ -176,7 +178,12 @@ function CheckoutStatus() {
               {canRetry && <Button variant="default" type="button" onClick={retry} loading={busy} className="w-full">
                 {!busy && <RefreshCw aria-hidden="true" className="h-4 w-4" />}{copy.retryCheckout}
               </Button>}
-              {isPending && <Button variant="outline" type="button" onClick={() => void refresh()} loading={refreshing} className="w-full">{copy.refreshStatus}</Button>}
+              {isPending && !isReserved && <Button variant="outline" type="button" onClick={() => void refresh()} loading={refreshing} className="w-full">{copy.refreshStatus}</Button>}
+              {intent.status === "FAILED" || intent.status === "CANCELLED" ? (
+                <Link href={`/onboarding?step=${encodeURIComponent(resumeStep)}&packages=open`} className={buttonVariants({ variant: "outline", className: "w-full" })}>
+                  {copy.chooseAnother}
+                </Link>
+              ) : null}
               <Link href={`/onboarding?step=${encodeURIComponent(resumeStep)}`} className={buttonVariants({ variant: "outline", className: "w-full" })}>
                 {copy.resumeSetup}
               </Link>

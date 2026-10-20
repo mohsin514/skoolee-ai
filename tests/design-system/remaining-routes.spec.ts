@@ -12,6 +12,9 @@ test.beforeAll(async () => {
   const root = process.cwd();
   const result = await build({ entryPoints: [path.join(root, "tests/design-system/remaining-routes.fixture.tsx")], bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": '"test"' }, plugins: [{ name: "synthetic-route-boundaries", setup(builder: { onResolve: (options: { filter: RegExp }, callback: (args: { path: string }) => unknown) => void; onLoad: (options: { filter: RegExp; namespace: string }, callback: (args: { path: string }) => unknown) => void }) {
     builder.onResolve({ filter: /^(next\/(navigation|link)|@\/components\/locale\/LocaleProvider)$/ }, args => ({ path: args.path, namespace: "route-stub" }));
+    // CSS modules (e.g. the mascot's logo) resolve to class-name proxies; the real CSS is not needed for these contracts.
+    builder.onResolve({ filter: /\.module\.css$/ }, args => ({ path: args.path, namespace: "css-module-stub" }));
+    builder.onLoad({ filter: /.*/, namespace: "css-module-stub" }, () => ({ loader: "js", contents: "export default new Proxy({}, { get: (_, key) => String(key) });" }));
     builder.onLoad({ filter: /.*/, namespace: "route-stub" }, args => ({ loader: "jsx", resolveDir: root, contents: args.path === "next/navigation"
       ? 'const router={push:p=>window.__routeNavigation.push(p),replace:p=>window.__routeNavigation.push(p)};export const useRouter=()=>router;export const useSearchParams=()=>new URLSearchParams(location.search);'
       : args.path === "next/link" ? 'import React from "react";export default function Link({children,...props}){return <a {...props}>{children}</a>}'
@@ -71,10 +74,11 @@ for (const width of [390, 1440]) test(`package choices preserve sizing, period a
   await page.getByRole("spinbutton", { name: "Expected campuses" }).fill("3");
   await page.getByRole("button", { name: /Annual/ }).click();
   await expect(page.getByRole("button", { name: /Annual/ })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Continue with free package" }).click();
+  // The footer mirrors the recommended action, so card actions are scoped to their card.
+  await page.locator('[data-plan="FREE"]').getByRole("button", { name: "Keep Basic" }).click();
   expect((await requests(page))[0].body).toMatchObject({ plan: "FREE", billingPeriod: "annual", expectedCampuses: 3, expectedEnrollment: 75, returnStep: "review" });
   expect((await requests(page))[0].body.idempotencyKey).toEqual(expect.any(String));
-  await expect(page.getByRole("button", { name: /Continue with free package/ })).toBeDisabled();
+  await expect(page.locator('[data-plan="FREE"]').getByRole("button", { name: /Keep Basic/ })).toBeDisabled();
   await noOverflow(page); await page.screenshot({ path: test.info().outputPath(`package-${width}.png`), fullPage: true });
 });
 for (const width of [390, 1440]) test(`recovery actions keep reset and home contracts at ${width}px`, async ({ page }) => {

@@ -2,6 +2,7 @@
 
 import { unresolvedOptionalWork, type SetupStepId } from "@/lib/onboarding/setup-state";
 import { ErrorSummary } from "@/components/onboarding/ErrorSummary";
+import { PackageChooser } from "@/components/onboarding/PackageChooser";
 import { fill } from "./copy";
 import { HandoverPanel } from "./_wizard/handover-panel";
 import { useSetupWizard } from "./_wizard/use-setup-wizard";
@@ -27,7 +28,7 @@ export default function OnboardingWizard() {
   // A ready load whose view has not landed yet keeps the skeleton too.
   if (load.kind === "loading" || !ready) return <WizardSkeleton t={t} />;
 
-  const { v, d, s, isGroup, limit, planned, split, overLimit, compareHref, errorEntries } = ready;
+  const { v, d, s, isGroup, limit, planned, split, overLimit, errorEntries } = ready;
   const notices = errorEntries.length > 0 ? (
     <ErrorSummary
       ref={summaryRef}
@@ -86,11 +87,12 @@ export default function OnboardingWizard() {
           {...withBack}
           isGroup={isGroup}
           planName={v.plan.name}
+          pendingPackage={v.pendingPackage}
           limit={limit}
           planned={planned.length}
           draftsBeyond={split.drafts.length}
           canPurchase={v.actor.canPurchase}
-          compareHref={compareHref}
+          onChoosePackage={w.packages.show}
           onContinue={continueFrom("package")}
         />
       )}
@@ -102,7 +104,7 @@ export default function OnboardingWizard() {
           limit={limit}
           draftsBeyond={split.drafts.length}
           canPurchase={v.actor.canPurchase}
-          compareHref={compareHref}
+          onChoosePackage={w.packages.show}
           form={w.newCampus}
           setForm={w.setNewCampus}
           formErrors={w.campusErrors}
@@ -154,7 +156,7 @@ export default function OnboardingWizard() {
           draftCount={split.drafts.length}
           overLimit={overLimit}
           canPurchase={v.actor.canPurchase}
-          compareHref={compareHref}
+          onChoosePackage={w.packages.show}
           optionalWork={unresolvedOptionalWork(w.type, w.mode, d)}
           offDays={ready.offDays}
           listSeparator={ready.listSeparator}
@@ -168,6 +170,24 @@ export default function OnboardingWizard() {
           editable={activating || success ? [] : reachable.filter((id) => id !== "review")}
           onEdit={(id) => void w.goTo(id)}
           onActivate={() => void w.handleActivate()}
+        />
+      )}
+
+      {w.packages.open && v.actor.canPurchase && (
+        <PackageChooser
+          onClose={w.packages.hide}
+          onChosen={() => void w.refreshView()}
+          language={w.language}
+          returnStep={step}
+          campuses={Math.max(1, planned.length)}
+          students={w.packages.students}
+          onStudentsChange={w.packages.setStudents}
+          period={w.packages.period}
+          onPeriodChange={w.packages.setPeriod}
+          pending={v.pendingPackage}
+          contactEmail={v.contactEmail}
+          beforeLeave={w.beforeLeave}
+          returnFocusRef={w.packages.fromLink ? headingRef : undefined}
         />
       )}
 

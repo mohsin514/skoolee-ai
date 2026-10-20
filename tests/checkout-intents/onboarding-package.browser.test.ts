@@ -63,16 +63,31 @@ test("a Saudi school sees a sales-assisted quote for paid packages and cannot st
     assert.deepEqual(catalogue.paymentMethods, []);
     const page = await context.newPage();
     const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+    // The old page link opens the chooser modal inside the wizard.
     await page.goto(base + "/onboarding/package?returnStep=campuses&campuses=2");
-    await page.getByText("Online payment is not available for your region yet", { exact: false }).first().waitFor();
-    assert.equal(await page.getByRole("button", { name: "Request a custom quote" }).count(), 3, "BASIC, PRO and ENTERPRISE offer a quote");
-    assert.equal(await page.getByRole("button", { name: "Checkout unavailable" }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Continue with free package" }).count(), 1);
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText("Online payment isn't available for your school yet", { exact: false }).first().waitFor();
+    assert.equal(await dialog.getByRole("button", { name: /quote/i }).count(), 0, "no quote buttons: every package is chosen the same way");
+    assert.equal(await dialog.getByRole("button", { name: "Checkout unavailable" }).count(), 0);
+    if (width > 640) {
+      // The synthetic school is on BASIC ("Pro"): its own card keeps it, the others are chosen.
+      assert.equal(await dialog.locator('[data-plan="BASIC"]').getByRole("button", { name: "Keep Pro" }).count(), 1);
+      for (const [plan, name] of [["PRO", "Enterprise"], ["ENTERPRISE", "Custom"]]) {
+        assert.equal(await dialog.locator(`[data-plan="${plan}"]`).getByRole("button", { name: new RegExp(`^Choose ${name}`) }).count(), 1, `${plan} is chosen like any package`);
+      }
+    } else {
+      assert.equal(await dialog.locator("[data-plan] [aria-expanded]").count(), 4, "phones list the packages as accordion rows");
+    }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `no horizontal overflow at ${width}`);
     await page.screenshot({ path: `${evidence}/package-sa-en-${width}.png`, fullPage: true });
     const direct = await context.request.post(base + "/api/onboarding/package", { data: { plan: "BASIC", billingPeriod: "monthly", expectedCampuses: 2, expectedEnrollment: 120, returnStep: "campuses", idempotencyKey: randomUUID() } });
-    assert.equal(direct.status(), 409, await direct.text());
-    assert.match((await direct.json()).error, /not yet available for your school's region/);
+    // No automated checkout in this region: the package is reserved for the team to confirm (nothing charged).
+    assert.equal(direct.status(), 200, await direct.text());
+    const reserved = await direct.json();
+    assert.equal(reserved.reserved, true);
+    assert.equal(reserved.status, "PENDING_SETTLEMENT");
+    const saved = await raw.onboardingCheckoutIntent.findUnique({ where: { id: reserved.intentId } });
+    assert.equal(saved?.provider, "SALES_ASSISTED");
     assert.deepEqual(errors, []);
     await context.close();
   }
@@ -82,8 +97,9 @@ test("Arabic package page explains the regional quote right-to-left", async () =
   const context = await signedIn(schools.get("SA-ar")!, { width: 390, height: 900 });
   const page = await context.newPage();
   await page.goto(base + "/onboarding/package?returnStep=campuses");
-  await page.getByText("الدفع الإلكتروني غير متاح لمنطقتك بعد", { exact: false }).first().waitFor();
+  await page.getByRole("dialog").getByText("الدفع الإلكتروني غير متاح لمدرستك بعد", { exact: false }).first().waitFor();
   assert.equal(await page.locator("main").getAttribute("dir"), "rtl");
+  assert.equal(await page.getByRole("dialog").evaluate((el) => getComputedStyle(el).direction), "rtl", "the portaled dialog keeps the page direction");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   await page.screenshot({ path: `${evidence}/package-sa-ar-390.png`, fullPage: true });
   await context.close();
@@ -96,9 +112,9 @@ test("a Pakistani school is not routed to the regional quote", async () => {
   assert.equal(catalogue.salesAssisted, false);
   const page = await context.newPage();
   await page.goto(base + "/onboarding/package?returnStep=campuses");
-  await page.getByRole("button", { name: "Continue with free package" }).waitFor();
-  assert.equal(await page.getByText("Online payment is not available for your region yet", { exact: false }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: "Request a custom quote" }).count(), 1, "only the custom ENTERPRISE quote");
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('[data-plan="ENTERPRISE"]').getByRole("button", { name: /^Choose Custom/ }).waitFor();
+  assert.equal(await dialog.getByRole("button", { name: /quote/i }).count(), 0, "no quote buttons");
   await page.screenshot({ path: `${evidence}/package-pk-en-1440.png`, fullPage: true });
   await context.close();
 });
@@ -136,14 +152,14 @@ test("a campus beyond the package is kept as a draft with a route to compare pac
   const notice = page.getByRole("status").filter({ hasText: "are beyond this package" });
   await notice.waitFor({ timeout: 30_000 });
   assert.match(await notice.innerText(), /^1 campus drafts? (is|are) beyond this package\. They stay saved as drafts/u);
-  const compare = notice.getByRole("link", { name: "Compare packages" });
-  assert.equal(await compare.getAttribute("href"), "/onboarding/package?returnStep=campuses&campuses=2");
+  const compare = notice.getByRole("button", { name: "Compare packages" });
   await shot("4-campus-draft");
   await compare.click();
-  await page.waitForURL(/\/onboarding\/package\?returnStep=campuses&campuses=2/u, { timeout: 30_000 });
-  await page.getByRole("button", { name: "Continue with free package" }).waitFor({ timeout: 30_000 });
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('[data-plan="FREE"]').waitFor({ timeout: 30_000 });
   await shot("5-compare-packages");
-  await page.goBack();
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "detached", timeout: 30_000 });
   for (const name of ["North campus", "South campus"]) await page.getByText(name, { exact: true }).first().waitFor({ timeout: 30_000 });
   await page.reload();
   for (const name of ["North campus", "South campus"]) await page.getByText(name, { exact: true }).first().waitFor({ timeout: 30_000 });

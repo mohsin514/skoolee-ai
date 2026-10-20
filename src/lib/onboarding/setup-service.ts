@@ -163,13 +163,19 @@ function planFor(school: SchoolRow) {
 
 export async function setupView(actor: SetupActor) {
   const { setup, school, user } = actor;
-  const [delegate, activeCampuses, me, country] = await Promise.all([
+  const [delegate, activeCampuses, me, country, openChoice] = await Promise.all([
     setup.delegateUserId
       ? prisma.user.findFirst({ where: { id: setup.delegateUserId, schoolId: school.id }, select: { id: true, fullName: true, email: true, canPurchaseSubscription: true, mustChangePassword: true } })
       : Promise.resolve(null),
     prisma.campus.count({ where: { schoolId: school.id, archivedAt: null } }),
     prisma.user.findFirst({ where: { id: user.userId, schoolId: school.id }, select: { preferredLanguage: true, fullName: true } }),
     registeredSchoolCountry(school.id),
+    // The latest package choice still waiting on payment or on the team (reserved, custom, checkout started).
+    prisma.onboardingCheckoutIntent.findFirst({
+      where: { schoolId: school.id, status: { in: ["PENDING_SETTLEMENT", "CHECKOUT_PENDING", "CUSTOM_QUOTE"] } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, plan: true, status: true, provider: true, billingPeriod: true, expectedCampuses: true, expectedEnrollment: true },
+    }),
   ]);
   const type = setup.institutionType as InstitutionType;
   const draft = parseSetupDraft(setup.draft);
@@ -203,6 +209,11 @@ export async function setupView(actor: SetupActor) {
       ? { fullName: delegate.fullName, email: delegate.email, canPurchaseSubscription: delegate.canPurchaseSubscription, pendingFirstSignIn: delegate.mustChangePassword }
       : null,
     plan: planFor(school),
+    /** A package chosen but not active yet (null when none): reserved for the team, custom terms, or checkout started. */
+    pendingPackage: openChoice ? {
+      intentId: openChoice.id, plan: openChoice.plan, status: openChoice.status, provider: openChoice.provider, billingPeriod: openChoice.billingPeriod,
+      expectedCampuses: openChoice.expectedCampuses, expectedEnrollment: openChoice.expectedEnrollment,
+    } : null,
     activeCampuses,
     contactEmail: school.contactEmail,
     language: me?.preferredLanguage || "en",

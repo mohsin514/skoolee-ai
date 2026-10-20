@@ -53,7 +53,6 @@ export type SetupWizardReady = {
   planned: CampusDraft[];
   split: { activate: CampusDraft[]; drafts: CampusDraft[] };
   overLimit: boolean;
-  compareHref: string;
   offDays: number[];
   workingDays: number[];
   thisYear: number;
@@ -128,6 +127,20 @@ export type SetupWizard = {
   goBack: () => void;
   saveAndExit: () => Promise<void>;
   handleLogout: () => Promise<void>;
+  /**
+   * The package chooser modal (PackageChooser): open state, whether an old link opened it, and the size and
+   * period the owner set there (kept for the session so reopening keeps them).
+   */
+  packages: {
+    open: boolean; fromLink: boolean;
+    students: number | null; setStudents: (students: number | null) => void;
+    period: "monthly" | "annual"; setPeriod: (period: "monthly" | "annual") => void;
+    show: () => void; hide: () => void;
+  };
+  /** Saves an edited setup before leaving for payment (so the unsaved-changes guard cannot block the redirect). */
+  beforeLeave: () => Promise<boolean>;
+  /** Re-reads the saved setup without the loading skeleton (after a package choice). */
+  refreshView: () => Promise<void>;
   saveCampus: () => Promise<void>;
   editCampus: (campus: CampusDraft) => void;
   cancelCampusEdit: () => void;
@@ -173,6 +186,11 @@ export function useSetupWizard(): SetupWizard {
   const bumpError = useCallback(() => setErrorSeq((n) => n + 1), []);
 
   const [savingCampus, setSavingCampus] = useState(false);
+  // Package chooser: `?packages=open` (the old /onboarding/package link) opens it on arrival.
+  const [packagesOpen, setPackagesOpen] = useState(false);
+  const [packagesFromLink, setPackagesFromLink] = useState(false);
+  const [packagesStudents, setPackagesStudents] = useState<number | null>(null);
+  const [packagesPeriod, setPackagesPeriod] = useState<"monthly" | "annual">("monthly");
 
   const language = view?.language || "en";
   const lang = toLanguage(language);
@@ -199,8 +217,18 @@ export function useSetupWizard(): SetupWizard {
     try {
       const res = await getOnboardingSession();
       if ("view" in res) {
-        applyView(res.view, new URLSearchParams(window.location.search).get("step"));
+        const query = new URLSearchParams(window.location.search);
+        applyView(res.view, query.get("step"));
         setLoad({ kind: "ready" });
+        if (query.get("packages") === "open") {
+          const students = Number(query.get("students"));
+          setPackagesStudents(Number.isSafeInteger(students) && students > 0 ? students : null);
+          setPackagesFromLink(true);
+          setPackagesOpen(true);
+          query.delete("packages");
+          query.delete("students");
+          window.history.replaceState(null, "", `${window.location.pathname}${query.size ? `?${query}` : ""}`);
+        }
       } else if ("redirect" in res) {
         window.location.replace(dashboardPathForRole(res.role));
       } else if ("signedOut" in res) {
@@ -216,6 +244,18 @@ export function useSetupWizard(): SetupWizard {
   }, [applyView]);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  /** After a package choice: adopt the fresh view (plan, pending package) on the current step, no skeleton. */
+  const refreshView = useCallback(async () => {
+    try {
+      const res = await getOnboardingSession();
+      // Only the package fields: adopting the new version without the new draft would let a stale local draft
+      // save over another tab's change (the version check is what catches that).
+      if ("view" in res) setView((prev) => (prev ? { ...prev, plan: res.view.plan, pendingPackage: res.view.pendingPackage } : res.view));
+    } catch {
+      // The next save or reload picks the change up.
+    }
+  }, []);
 
   const flow = useMemo(() => setupFlow(type), [type]);
   const completed = view?.completedSteps ?? [];
@@ -473,7 +513,6 @@ export function useSetupWizard(): SetupWizard {
     const planned = campusesForCompletion(type, d);
     const split = splitByCapacity(planned, limit);
     const overLimit = split.drafts.length > 0;
-    const compareHref = `/onboarding/package?returnStep=${encodeURIComponent(step)}&campuses=${Math.max(1, planned.length)}`;
     const offDays = WEEK_DAYS.filter((day) => s.weekends.includes(day));
     const workingDays = WEEK_DAYS.filter((day) => !s.weekends.includes(day));
     const thisYear = new Date().getFullYear();
@@ -547,7 +586,7 @@ export function useSetupWizard(): SetupWizard {
     };
 
     ready = {
-      v, d, s, isGroup, limit, planned, split, overLimit, compareHref, offDays, workingDays, thisYear, typeChanged,
+      v, d, s, isGroup, limit, planned, split, overLimit, offDays, workingDays, thisYear, typeChanged,
       failed, listSeparator, logoSrc, logoPreview: logoImage(t.logo, 72), toggleWorkingDay, setAcademicYear, errorEntries, focusError, jumpToError,
       attention, sealState, coverData,
     };
@@ -564,6 +603,15 @@ export function useSetupWizard(): SetupWizard {
     saveFailed, deleteError, setCampusToDelete: (campus) => { if (!saving) { setDeleteError(null); setCampusToDelete(campus); } },
     headingRef, summaryRef,
     setSchool, continueFrom, goTo, goBack, saveAndExit, handleLogout,
+    packages: {
+      open: packagesOpen, fromLink: packagesFromLink,
+      students: packagesStudents, setStudents: setPackagesStudents,
+      period: packagesPeriod, setPeriod: setPackagesPeriod,
+      show: () => { setPackagesFromLink(false); setPackagesOpen(true); },
+      hide: () => setPackagesOpen(false),
+    },
+    beforeLeave: async () => (dirty ? Boolean(await persist({ step, complete: false })) : true),
+    refreshView,
     saveCampus, editCampus, cancelCampusEdit, confirmDeleteCampus, handleActivate,
     signals: {
       thinking: saving || activating,

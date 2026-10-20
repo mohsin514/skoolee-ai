@@ -18,11 +18,52 @@ import { COMMERCIAL_CATALOG_VERSION, type BillingPeriod } from "@/config/plans";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { getPriceId, stripe, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
-import { automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
+import { SALES_ASSISTED_PROVIDER, automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
 import { TEST_CHECKOUT_PROVIDER, testCheckoutEnabled, testCheckoutUrl } from "@/lib/payments/test-checkout";
+
+import { saveSubscriptionRequest } from "@/lib/billing/lifecycle";
+import type { PlanType } from "@/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type IntentRow = { id: string; plan: string; billingPeriod: string; amount: number | null; currency: string | null; expectedCampuses: number; expectedEnrollment: number };
+
+/**
+ * A new package choice withdraws the school's older open reservations and custom requests, so at most one
+ * waits on the team and the wizard never shows a stale one. Real payment attempts are never touched.
+ */
+async function supersedeOpenChoices(schoolId: string, keepId: string) {
+  await prisma.onboardingCheckoutIntent.updateMany({
+    where: { schoolId, id: { not: keepId }, OR: [{ provider: SALES_ASSISTED_PROVIDER, status: "PENDING_SETTLEMENT" }, { status: "CUSTOM_QUOTE" }] },
+    data: { status: "CANCELLED", failureReason: "Superseded by a later package choice." },
+  });
+}
+
+/**
+ * Puts a reservation (no online payment for the school) or a custom-package request in the platform team's
+ * review queue (owner console → Subscription requests), so the "our team will contact you" promise has an
+ * owner. Idempotent per intent.
+ */
+async function queueForTeam(user: { schoolId: string; userId: string }, intent: IntentRow, outcome: "RESERVED" | "CUSTOM_REQUESTED") {
+  await saveSubscriptionRequest({
+    schoolId: user.schoolId,
+    userId: user.userId,
+    idempotencyKey: `onboarding-intent:${intent.id}`,
+    kind: "PLAN_CHANGE",
+    requestedPlan: intent.plan as PlanType,
+    details: {
+      source: "onboarding",
+      outcome,
+      intentId: intent.id,
+      preview: { billingPeriod: intent.billingPeriod },
+      amount: intent.amount,
+      currency: intent.currency,
+      expectedCampuses: intent.expectedCampuses,
+      expectedEnrollment: intent.expectedEnrollment,
+    },
+  });
+}
 
 export async function GET() {
   try {
@@ -48,8 +89,10 @@ export async function GET() {
       where: { id: user.userId, schoolId: user.schoolId },
       select: { preferredLanguage: true },
     });
+    // Stripe only counts when a price is configured for the paid packages (the POST checks per plan and period).
+    const stripePriced = Boolean(getPriceId("BASIC", "monthly") || getPriceId("PRO", "monthly"));
     const methods = regionalPaymentMethods(billing.country, [
-      stripe && paymentConfig.availableMethods.includes("stripe") ? "stripe" : null,
+      stripe && stripePriced && paymentConfig.availableMethods.includes("stripe") ? "stripe" : null,
       paymentConfig.availableMethods.includes("safepay") ? "safepay" : null,
       paymentConfig.bank?.bankName ? "bank_transfer" : null,
     ].filter((method): method is OnboardingPaymentMethod => Boolean(method)));
@@ -62,6 +105,8 @@ export async function GET() {
       country: billing.country,
       salesAssisted: !testCheckout && !automatedCheckoutAvailable(billing.country),
       testCheckout,
+      /** What "Choose" does for a paid package: pay online, the dev test page, or reserve it for the team to confirm. */
+      checkoutMode: testCheckout ? "test" : methods.length > 0 ? "online" : "reserve",
       regionalCurrency: billing.regionalCurrency,
       priceCurrency: "PKR",
       catalogueVersion: COMMERCIAL_CATALOG_VERSION,
@@ -104,6 +149,7 @@ export async function POST(req: NextRequest) {
       }
     }
     const selectedContract = intent.contractSnapshot as typeof contract;
+    if (intent.status !== "SETTLED") await supersedeOpenChoices(user.schoolId, intent.id);
 
     if (intent.status === "SETTLED") {
       return Response.json({ success: true, intentId: intent.id, status: intent.status, returnStep: intent.returnStep });
@@ -115,7 +161,11 @@ export async function POST(req: NextRequest) {
       return Response.json({ success: true, intentId: intent.id, status: intent.status, returnStep: intent.returnStep });
     }
     if (intent.status === "CUSTOM_QUOTE") {
+      await queueForTeam(user, intent, "CUSTOM_REQUESTED");
       return Response.json({ success: true, intentId: intent.id, status: intent.status, returnStep: intent.returnStep });
+    }
+    if (intent.provider === SALES_ASSISTED_PROVIDER) {
+      return Response.json({ success: true, intentId: intent.id, status: intent.status, reserved: true, returnStep: intent.returnStep });
     }
     if (intent.checkoutUrl) {
       return Response.json({ success: true, intentId: intent.id, status: intent.status, url: intent.checkoutUrl });
@@ -147,24 +197,25 @@ export async function POST(req: NextRequest) {
       }
       return Response.json({ success: true, intentId: intent.id, status: "CHECKOUT_PENDING", url: testCheckoutUrl(intent.id) });
     }
-    if (intent.provider === "NONE" && !automatedCheckoutAvailable(billing.country)) {
-      await prisma.onboardingCheckoutIntent.update({
-        where: { id: intent.id },
-        data: { status: "FAILED", failureReason: "Automated checkout is not available in this school's region." },
+    // No online payment for this school (region not automated, or no rail configured): the package is
+    // reserved and the team confirms price and payment. Nothing is charged and the plan does not change yet.
+    if (intent.provider === "NONE" && !realRail) {
+      if (automatedCheckoutAvailable(billing.country)) {
+        // The region pays online but no rail can serve this plan and period: a configuration gap, not a sale path.
+        console.warn("[onboarding-package] no payment rail configured; reserving for the team", { schoolId: user.schoolId, plan, billingPeriod: parsed.data.billingPeriod });
+      }
+      const claim = await prisma.onboardingCheckoutIntent.updateMany({
+        where: { id: intent.id, status: "PENDING", provider: "NONE" },
+        data: { provider: SALES_ASSISTED_PROVIDER, providerReference: intent.id, status: "PENDING_SETTLEMENT", failureReason: null },
       });
-      throw new ApiError("Automated checkout is not yet available for your school's region. Request a quote and our team will confirm pricing and payment with you, or continue with the free package.", 409);
+      const latest = claim.count ? null : await prisma.onboardingCheckoutIntent.findUnique({ where: { id: intent.id } });
+      if (claim.count) await queueForTeam(user, intent, "RESERVED");
+      return Response.json({ success: true, intentId: intent.id, status: latest?.status ?? "PENDING_SETTLEMENT", reserved: true, returnStep: intent.returnStep });
     }
 
     const provider = intent.provider !== "NONE"
       ? intent.provider
-      : canUseStripe ? "STRIPE" : canUseSafePay ? "SAFEPAY" : canUseBank ? "BANK_TRANSFER" : null;
-    if (!provider) {
-      await prisma.onboardingCheckoutIntent.update({
-        where: { id: intent.id },
-        data: { status: "FAILED", failureReason: "No payment method is currently configured." },
-      });
-      throw new ApiError("Paid checkout is not currently available. You can continue with the free package or request a custom quote.", 503);
-    }
+      : canUseStripe ? "STRIPE" : canUseSafePay ? "SAFEPAY" : "BANK_TRANSFER";
 
     if (provider === "STRIPE") {
       const amount = checkoutAmount(selectedContract, parsed.data.billingPeriod as BillingPeriod);

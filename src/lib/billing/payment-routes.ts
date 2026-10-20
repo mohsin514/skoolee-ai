@@ -16,3 +16,11 @@ export function automatedCheckoutAvailable(country: Country): boolean {
 export function regionalPaymentMethods(country: Country, configured: readonly OnboardingPaymentMethod[]): OnboardingPaymentMethod[] {
   return automatedCheckoutAvailable(country) ? [...configured] : [];
 }
+
+/**
+ * A paid package chosen where no online payment is possible (region not
+ * automated, or no rail configured): the choice is recorded as reserved
+ * (status PENDING_SETTLEMENT) and the team confirms price and payment. No
+ * money moves and no plan activates until it is settled.
+ */
+export const SALES_ASSISTED_PROVIDER = "SALES_ASSISTED" as const;

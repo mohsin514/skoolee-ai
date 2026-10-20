@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   Building, CheckCircle2, Mail, MapPin, Pencil, Plus, Trash2, UserRound, Users,
 } from "lucide-react";
@@ -28,7 +27,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /* ═══ STEP: Campuses (group only) ═══ */
 export function CampusesStep({
-  t, local, language, headingRef, folio, notices, busy, back, campuses, limit, draftsBeyond, canPurchase, compareHref, country,
+  t, local, language, headingRef, folio, notices, busy, back, campuses, limit, draftsBeyond, canPurchase, onChoosePackage, country,
   form, setForm, formErrors, rowErrors, editingKey, savingCampus, institutionCity, onSaveCampus, onEditCampus, onCancelEdit,
   deleting, deleteError, onAskDelete, onCancelDelete, onConfirmDelete, onContinue,
 }: CampusesStepProps) {
@@ -156,7 +155,7 @@ export function CampusesStep({
               tone="warning"
               className="mb-4"
               data-mascot-anchor="capacity"
-              actions={canPurchase ? <Link href={compareHref} className="sk-link text-sm">{t.comparePackages}</Link> : undefined}
+              actions={canPurchase ? <Button type="button" variant="link" size="sm" className="h-auto min-h-0 px-0" onClick={onChoosePackage}>{t.comparePackages}</Button> : undefined}
             >
               {fill(t.overLimit, draftsBeyond)}
             </Alert>

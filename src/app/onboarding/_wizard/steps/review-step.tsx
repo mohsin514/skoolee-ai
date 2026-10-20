@@ -11,7 +11,7 @@ import { StepCard } from "@/components/onboarding/StepCard";
 import { StepDock } from "@/components/onboarding/StepDock";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { FollowUpList, type FollowUpItem } from "@/components/ui/follow-up-list";
 import { authCopy } from "@/lib/auth/auth-copy";
 import type { OptionalWorkKey, SetupStepId } from "@/lib/onboarding/setup-state";
@@ -33,7 +33,7 @@ const OPTIONAL_WORK_LOOK: Record<OptionalWorkKey, Pick<FollowUpItem, "icon" | "t
 /* ═══ STEP: Review & activate: the charter as one letterhead of numbered articles ═══ */
 export function ReviewStep({
   t, language, headingRef, folio, notices, busy, back, type, mode, isGroup, school, logoPreview, planName, limit, planned,
-  activateCount, draftCount, overLimit, canPurchase, compareHref, optionalWork, offDays, listSeparator, success, workspaceHref,
+  activateCount, draftCount, overLimit, canPurchase, onChoosePackage, optionalWork, offDays, listSeparator, success, workspaceHref,
   failure, activating, saving, sealState, attention, editable, onEdit, onActivate,
 }: ReviewStepProps) {
   const s = school;
@@ -96,7 +96,7 @@ export function ReviewStep({
       dock={(
         <StepDock
           back={back}
-          extra={overLimit && canPurchase ? <Link href={compareHref} className={buttonVariants({ variant: "outline" })}>{t.changePackage}</Link> : undefined}
+          extra={overLimit && canPurchase ? <Button type="button" variant="outline" onClick={onChoosePackage}>{t.changePackage}</Button> : undefined}
           primary={(
             <Button size="lg" onClick={onActivate} disabled={activating || saving || busy || Boolean(success)} loading={activating} aria-describedby={overLimit ? "launch-capacity-note" : undefined} className="sk-nudge-trigger flex-1 gap-3">
               {activating ? t.activating : <>{overLimit ? t.activateEligible : t.activate} <ForwardArrow className="w-5 h-5" /></>}

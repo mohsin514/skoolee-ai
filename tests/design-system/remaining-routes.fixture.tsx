@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import CorrectionClient from "../../src/app/corrections/view";
-import PackagePage from "../../src/app/onboarding/package/page";
+import { PackageChooser } from "../../src/components/onboarding/PackageChooser";
 import RouteError from "../../src/app/teacher/error";
 import { BulkImportDialog } from "../../src/app/dashboard/students/bulk-import-dialog";
 import { defaultLocale } from "../../src/lib/locale/package";
@@ -32,6 +32,6 @@ function ImportFixture() {
 }
 createRoot(document.getElementById("fixture-root")!).render(config.surface === "corrections"
   ? <CorrectionClient actorId="fixture-actor" schoolId="fixture-school" initialKind="MARK" initialLanguage={config.language || "en"} initialLocale={defaultLocale} />
-  : config.surface === "package" ? <PackagePage />
+  : config.surface === "package" ? <PackageChooser onClose={() => {}} onChosen={() => {}} language="en" returnStep="review" campuses={2} students={75} />
     : config.surface === "import" ? <ImportFixture />
       : <RouteError error={new Error("Synthetic route failure")} reset={() => { window.__routeRetries++; }} />);

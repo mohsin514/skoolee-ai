@@ -295,7 +295,8 @@ export function useMascotWatch(logoRef: RefObject<HTMLSpanElement | null>, opts:
 
   useEffect(() => {
     const logo = logoRef.current;
-    const main = logo?.closest("main");
+    // A dialog portals outside <main>; its own root is the mascot's world there (page mascots still find <main>).
+    const main = logo?.closest<HTMLElement>("main, [role='dialog']");
     if (!logo || !main) return;
     const instance = createController(logo, main, reduced, setFocus, setCapsLock);
     controller.current = instance;

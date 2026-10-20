@@ -114,7 +114,7 @@ test("standalone owner: identity once, package visible, one primary campus, no r
   await button(page, "Continue").click();
 
   await heading(page).filter({ hasText: "Package" }).waitFor();
-  await page.getByRole("link", { name: "Compare packages" }).waitFor();
+  await page.getByRole("button", { name: "Compare packages" }).waitFor();
   await shot(page, "04-standalone-package-en-1440");
   await button(page, /^Continue with/).click();
   await heading(page).filter({ hasText: "Academic defaults" }).waitFor();
@@ -171,11 +171,14 @@ test("group owner: three campus drafts survive a failed checkout and sign-out, r
   assert.equal(await cards.filter({ hasText: "North campus" }).getByText("Activate", { exact: true }).count(), 1);
   await shot(page, "06-group-campus-drafts-en-1440");
 
-  // Change package: the isolated app has no payment provider, so paid checkout is shown as unavailable.
-  await page.getByRole("link", { name: "Compare packages", exact: true }).click();
-  await page.waitForURL(/\/onboarding\/package\?returnStep=campuses&campuses=3/);
-  await page.getByText("Paid checkout is not currently available.").first().waitFor({ timeout: 20_000 });
-  await shot(page, "07a-package-compare-checkout-unavailable-en-1440");
+  // Change package: the isolated app has no payment provider, so paid packages are reserved for the team.
+  await page.getByRole("button", { name: "Compare packages", exact: true }).click();
+  const chooser = page.getByRole("dialog");
+  await chooser.getByText("Online payment isn't available for your school yet", { exact: false }).first().waitFor({ timeout: 20_000 });
+  assert.equal(await chooser.getByRole("button", { name: /quote/i }).count(), 0);
+  await shot(page, "07a-package-chooser-reserve-en-1440");
+  await page.keyboard.press("Escape");
+  await chooser.waitFor({ state: "detached" });
   // A provider-cancelled checkout returns to the exact saved step with drafts intact.
   const intent = await raw.onboardingCheckoutIntent.create({ data: { schoolId: account.schoolId, userId: account.userId, idempotencyKey: randomUUID(), plan: "PRO", catalogueVersion: "test", contractSnapshot: {}, expectedCampuses: 3, expectedEnrollment: 300, returnStep: "campuses", provider: "STRIPE", status: "CANCELLED" } });
   await page.goto(base + `/onboarding/package/status?intentId=${intent.id}`);
@@ -282,7 +285,7 @@ test("handover: the delegate resumes the exact saved step without purchase promp
   await delegate.page.goto(base + "/onboarding");
   await heading(delegate.page).filter({ hasText: "Package" }).waitFor();
   await delegate.page.getByText("You are completing this setup for the institution owner.").waitFor();
-  assert.equal(await delegate.page.getByRole("link", { name: "Compare packages" }).count(), 0, "no purchase prompt without delegation");
+  assert.equal(await delegate.page.getByRole("button", { name: "Compare packages" }).count(), 0, "no purchase prompt without delegation");
   assert.equal((await delegate.context.request.get(base + "/api/onboarding/package")).status(), 403);
   assert.equal(await delegate.page.getByTestId("handover-panel").count(), 0, "a delegate cannot re-delegate");
   await noOverflow(delegate.page);
@@ -305,7 +308,7 @@ test("non-owner staff land on a no-access explanation instead of a spinner or pu
   const { context, page } = await newPage(390, staffEmail);
   await page.goto(base + "/onboarding");
   await page.getByText("Setup is managed by your institution owner").waitFor();
-  assert.equal(await page.getByRole("link", { name: "Compare packages" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Compare packages" }).count(), 0);
   assert.equal((await context.request.get(base + "/api/onboarding/package")).status(), 403);
   await shot(page, "13-non-owner-no-access-en-390");
   await context.close();
@@ -404,7 +407,7 @@ test("invalid website is rejected visibly and correction allows the owner to con
   await shot(page, "fixed-website-validation-1440");
   await page.locator("#field-website").fill("www.school.edu.pk");
   await button(page, "Continue").click();
-  await page.getByRole("link", { name: "Compare packages" }).waitFor();
+  await page.getByRole("button", { name: "Compare packages" }).waitFor();
   const saved = await raw.institutionSetup.findUniqueOrThrow({ where: { schoolId: account.schoolId } });
   assert.equal((saved.draft as { school: { website: string } }).school.website, "www.school.edu.pk");
   await context.close();

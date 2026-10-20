@@ -464,11 +464,20 @@ export function ModalSurface({
   describedBy,
   ariaLabel,
   className,
+  dir,
+  lang,
   children,
 }: {
   onClose: () => void;
   size?: ModalSize;
   wide?: boolean;
+  /**
+   * The dialog portals to <body>, outside the page's own `dir`/`lang` (the
+   * root <html> carries neither), so a right-to-left screen passes its
+   * direction and language here.
+   */
+  dir?: "ltr" | "rtl";
+  lang?: string;
   /** An immersive workflow using the same focus, dismissal and draft guards. */
   fullscreen?: boolean;
   dirty?: boolean;
@@ -607,6 +616,8 @@ export function ModalSurface({
 
   const dialog = (
     <div
+      dir={dir}
+      lang={lang}
       className={cn(
         "fixed inset-0 flex justify-center",
         fullscreen ? "items-stretch p-0" : "items-end sm:items-center sm:p-6",
@@ -755,6 +766,9 @@ export interface ModalProps {
    * to be asked, which is the whole point of a confirm step.
    */
   role?: "dialog" | "alertdialog";
+  /** Direction and language for the portaled dialog (see ModalSurface). */
+  dir?: "ltr" | "rtl";
+  lang?: string;
 }
 
 export function Modal({
@@ -770,10 +784,14 @@ export function Modal({
   describedBy,
   role = "dialog",
   className,
+  dir,
+  lang,
   ...chrome
 }: ModalProps) {
   return (
     <ModalSurface
+      dir={dir}
+      lang={lang}
       onClose={onClose}
       size={size}
       wide={wide}
@@ -808,7 +826,7 @@ function ModalChrome({
   bodyClassName,
 }: Omit<
   ModalProps,
-  "onClose" | "size" | "wide" | "dirty" | "dirtyMessage" | "disableBackdropClose" | "dismissible" | "initialFocusRef" | "returnFocusRef" | "describedBy" | "role" | "className"
+  "onClose" | "size" | "wide" | "dirty" | "dirtyMessage" | "disableBackdropClose" | "dismissible" | "initialFocusRef" | "returnFocusRef" | "describedBy" | "role" | "className" | "dir" | "lang"
 >) {
   const copy = useOverlayMessages();
   const t = MODAL_TONES[tone];

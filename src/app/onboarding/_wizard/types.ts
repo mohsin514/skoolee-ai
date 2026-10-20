@@ -63,6 +63,8 @@ export type IdentityStepProps = StepBase & {
 };
 
 export type PackageStepProps = StepBase & {
+  /** A package chosen but not active yet (reserved for the team, custom terms, or checkout started). */
+  pendingPackage: { plan: string; status: string; provider: string } | null;
   isGroup: boolean;
   planName: string;
   /** Campuses the package activates; -1 = unlimited. */
@@ -72,7 +74,8 @@ export type PackageStepProps = StepBase & {
   /** Planned campuses beyond the package's capacity (saved as drafts). */
   draftsBeyond: number;
   canPurchase: boolean;
-  compareHref: string;
+  /** Opens the package chooser modal. */
+  onChoosePackage(): void;
   onContinue(): void;
 };
 
@@ -81,7 +84,8 @@ export type CampusesStepProps = StepBase & {
   limit: number;
   draftsBeyond: number;
   canPurchase: boolean;
-  compareHref: string;
+  /** Opens the package chooser modal. */
+  onChoosePackage(): void;
   form: CampusForm;
   setForm(next: CampusForm): void;
   formErrors: StepErrors;
@@ -136,7 +140,8 @@ export type ReviewStepProps = StepBase & {
   draftCount: number;
   overLimit: boolean;
   canPurchase: boolean;
-  compareHref: string;
+  /** Opens the package chooser modal. */
+  onChoosePackage(): void;
   optionalWork: OptionalWorkKey[];
   /** ISO weekdays closed, in week order. */
   offDays: number[];
