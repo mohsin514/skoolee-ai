@@ -199,11 +199,20 @@ test("AI workflow discovery explains availability, requires scope and opens resu
   await expect(launchpad.getByText(t.prototype, { exact: true })).toBeVisible();
   await expect(launchpad.getByText(t.prototypeHint, { exact: true })).toBeVisible();
   await expect(page.locator("[data-ai-launch-setup]")).toBeEnabled();
+  await expect(page.locator('[aria-hidden="true"][class*="z-[9999]"]')).toHaveCount(0);
+  await launchpad.evaluate(node => {
+    node.scrollIntoView({ block: "start", behavior: "instant" });
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      if (parent.scrollHeight > parent.clientHeight && /auto|scroll/.test(getComputedStyle(parent).overflowY)) {
+        parent.scrollTop = Math.max(0, parent.scrollTop - 90);
+        return;
+      }
+    }
+  });
+  await expect(launchpad.getByRole("heading", { name: t.title, exact: true })).toBeInViewport();
+  await page.screenshot({ path: "test-results/launch-guide/evidence/14-ai-workflow-launchpad.png", animations: "disabled" });
   await launchpad.getByRole("button", { name: t.all, exact: true }).click();
   await expect(launchpad.locator('[data-ai-workflow="history"]')).toBeVisible();
-  await expect(page.locator('[aria-hidden="true"][class*="z-[9999]"]')).toHaveCount(0);
-  await launchpad.scrollIntoViewIfNeeded();
-  await launchpad.screenshot({ path: "test-results/launch-guide/evidence/14-ai-workflow-launchpad.png", animations: "disabled" });
   await launchpad.locator('[data-ai-workflow="academicSetup"] button').click();
   await expect(page).toHaveURL(/\/ai\?workflow=academicSetup$/);
   await expect(page.getByRole("heading", { name: c.academicSetupTitle, exact: true })).toBeVisible();
