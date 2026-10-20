@@ -66,6 +66,8 @@ export type PackageCardProps = {
   onToggle?(): void;
   /** Clicking anywhere on the card (outside its own controls) chooses it; the card's button stays the keyboard path. */
   onSelect?(): void;
+  /** The owner picked this card (it wears the selected ring and tag). */
+  selected?: { label: string };
 };
 
 /** Element ids a card exposes (the chooser wires aria-describedby to them). */
@@ -76,12 +78,13 @@ export const packageIds = (plan: string) => ({
   detail: `package-${plan}-detail`,
 });
 
-function PackageCardImpl({ plan, name, tags, recommended, price, why, meters, fit, limits, features, action, next, current, busy, compact, open, onToggle, onSelect }: PackageCardProps) {
+function PackageCardImpl({ plan, name, tags, recommended, price, why, meters, fit, limits, features, action, next, current, busy, compact, open, onToggle, onSelect, selected }: PackageCardProps) {
   const ids = packageIds(plan);
   const NextIcon = next.icon;
-  const tagList = tags?.length ? (
+  const allTags = selected ? [{ label: selected.label, tone: "brand" as const, icon: Check }, ...(tags ?? [])] : tags;
+  const tagList = allTags?.length ? (
     <span className="sk-package-tags">
-      {tags.map(({ label, tone, icon: Icon }) => (
+      {allTags.map(({ label, tone, icon: Icon }) => (
         <span key={label} className="sk-choice-tag shrink-0" data-tone={tone}>{Icon ? <Icon aria-hidden="true" className="size-3.5 shrink-0" /> : null}<span>{label}</span></span>
       ))}
     </span>
@@ -160,6 +163,8 @@ function PackageCardImpl({ plan, name, tags, recommended, price, why, meters, fi
       data-open={compact && open ? "" : undefined}
       aria-labelledby={ids.name}
       data-selectable={onSelect && !compact ? "" : undefined}
+      data-selected={selected ? "" : undefined}
+      aria-current={selected ? "true" : undefined}
       onClick={onSelect && !compact ? (event) => {
         if ((event.target as HTMLElement).closest("button, a, input, [role='button']")) return;
         onSelect();

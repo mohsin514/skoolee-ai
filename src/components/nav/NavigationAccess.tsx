@@ -27,22 +27,32 @@ export function NavigationAccessProvider({ children, access: provided }: { child
   useEffect(() => {
     if (provided !== undefined) return;
     const controller = new AbortController();
-    // A stalled request must expose recovery, while an obsolete response must
-    // never reopen the destination that replaced it.
-    const timeout = window.setTimeout(() => {
-      controller.abort();
-      setState({ access: null, status: 'error', routeKey, version });
-    }, 10_000);
+    let timeout: number | undefined;
+    let cancelled = false;
     setState({ access: null, status: 'loading', routeKey, version });
-    fetch('/api/navigation/access', { cache: 'no-store', signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Access unavailable');
-        const body = await response.json();
-        if (!body.access || typeof body.access !== 'object' || Array.isArray(body.access) || Object.values(body.access).some((value) => typeof value !== 'boolean')) throw new Error('Invalid access');
-        if (!controller.signal.aborted) setState({ access: body.access, status: 'ready', routeKey, version });
-      }).catch(() => { if (!controller.signal.aborted) setState({ access: null, status: 'error', routeKey, version }); })
-      .finally(() => window.clearTimeout(timeout));
-    return () => { window.clearTimeout(timeout); controller.abort(); };
+    // A slow server (cold start, a busy database) is not a failure: each attempt gets 20s and a failed one is
+    // retried twice with a short pause before recovery is offered. An obsolete response never reopens a route.
+    const attempt = (left: number) => {
+      const request = new AbortController();
+      const abortRequest = () => request.abort();
+      controller.signal.addEventListener('abort', abortRequest);
+      timeout = window.setTimeout(() => request.abort(), 20_000);
+      fetch('/api/navigation/access', { cache: 'no-store', signal: request.signal })
+        .then(async (response) => {
+          if (!response.ok) throw new Error('Access unavailable');
+          const body = await response.json();
+          if (!body.access || typeof body.access !== 'object' || Array.isArray(body.access) || Object.values(body.access).some((value) => typeof value !== 'boolean')) throw new Error('Invalid access');
+          if (!cancelled) setState({ access: body.access, status: 'ready', routeKey, version });
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (left > 0) { timeout = window.setTimeout(() => attempt(left - 1), 1_500); return; }
+          setState({ access: null, status: 'error', routeKey, version });
+        })
+        .finally(() => controller.signal.removeEventListener('abort', abortRequest));
+    };
+    attempt(2);
+    return () => { cancelled = true; window.clearTimeout(timeout); controller.abort(); };
   }, [provided, routeKey, version]);
   useEffect(() => {
     if (provided !== undefined) return;

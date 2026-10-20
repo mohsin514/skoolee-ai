@@ -35,6 +35,7 @@ export type ChooserCopy = {
   next: { free: string; current: string; online: string; bank: string; test: string; reserve: string; custom: string; pendingReserved: string; pendingCustom: string; pendingCheckout: string; downgrade: string; pendingDeferred: string };
   nextDrafts: Plural;
   verdict: { loading: string; beyond: string; campusesOnly: string; tight: string; tightAlt: string; current: string; roomy: string; fit: string; whyNotCampuses: string; whyNotStudents: string; price: string; announce: string };
+  selected: string; continueWith: string; reserveNow: string;
   payEyebrow: string; payTitle: string; payBody: string; payNow: string; payLater: string; payNowTest: string;
   notNow: string; modeTestTitle: string; modeTest: string; modeReserve: string;
   handoffTitle: string; handoffTestTitle: string; handoffBody: string; handoffTestBody: string; handoffFallback: string;
@@ -102,7 +103,7 @@ const en: PackageCopy = {
       current: "Your current package, {0}, already fits {1} and {2}.", roomy: "{0} fits {1} and {2}, with room for {3} more.", fit: "{0} fits {1} and {2}.",
       whyNotCampuses: "Why not {0}? It covers {1}.", whyNotStudents: "Why not {0}? It covers up to {1}.", price: "{0} · {1}", announce: "Recommended: {0}. {1}",
     },
-    payEyebrow: "Payment", payTitle: "Pay for {0}", payBody: "Pay now and {0} is active straight away. Or skip for now: your choice is saved, setup carries on, and {0} activates as soon as you pay.", payNow: "Pay now", payLater: "Skip for now, pay later", payNowTest: "Pay now (test checkout)",
+    selected: "Selected", continueWith: "Continue with {0}", reserveNow: "Reserve {0}, our team confirms payment", payEyebrow: "Payment", payTitle: "Pay for {0}", payBody: "Pay now and {0} is active straight away. Or skip for now: your choice is saved, setup carries on, and {0} activates as soon as you pay.", payNow: "Pay now", payLater: "Skip for now, pay later", payNowTest: "Pay now (test checkout)",
     notNow: "Not now", modeTestTitle: "Test checkout (development only)",
     modeTest: "No payment keys are set on this server, so paid packages open a test payment page. No money moves.",
     modeReserve: "Online payment isn't available for your school yet. Choosing a paid package reserves it, and our team confirms the price and payment with you. Nothing is charged here.",
@@ -206,7 +207,7 @@ const ar: PackageCopy = {
       current: "باقتك الحالية {0} تناسب {1} و{2} بالفعل.", roomy: "{0} تناسب {1} و{2}، مع مساحة لـ{3} إضافيين.", fit: "{0} تناسب {1} و{2}.",
       whyNotCampuses: "لماذا ليست {0}؟ تغطي {1}.", whyNotStudents: "لماذا ليست {0}؟ تغطي حتى {1}.", price: "{0} · {1}", announce: "الموصى بها: {0}. {1}",
     },
-    payEyebrow: "الدفع", payTitle: "ادفع لـ{0}", payBody: "ادفع الآن لتُفعّل {0} فوراً. أو تخطَّ الآن: يُحفظ اختيارك ويستمر الإعداد، وتُفعّل {0} فور الدفع.", payNow: "ادفع الآن", payLater: "تخطَّ الآن، ادفع لاحقاً", payNowTest: "ادفع الآن (دفع تجريبي)",
+    selected: "محددة", continueWith: "المتابعة مع {0}", reserveNow: "احجز {0}، ويؤكد فريقنا الدفع", payEyebrow: "الدفع", payTitle: "ادفع لـ{0}", payBody: "ادفع الآن لتُفعّل {0} فوراً. أو تخطَّ الآن: يُحفظ اختيارك ويستمر الإعداد، وتُفعّل {0} فور الدفع.", payNow: "ادفع الآن", payLater: "تخطَّ الآن، ادفع لاحقاً", payNowTest: "ادفع الآن (دفع تجريبي)",
     notNow: "ليس الآن", modeTestTitle: "دفع تجريبي (للتطوير فقط)",
     modeTest: "لا توجد مفاتيح دفع على هذا الخادم، لذا تفتح الباقات المدفوعة صفحة دفع تجريبية. لا تُنقل أي أموال.",
     modeReserve: "الدفع الإلكتروني غير متاح لمدرستك بعد. اختيار باقة مدفوعة يحجزها، ويؤكد فريقنا السعر والدفع معك. لا يُخصم شيء هنا.",
@@ -310,7 +311,7 @@ const ur: PackageCopy = {
       current: "آپ کا موجودہ پیکیج {0} پہلے ہی {1} اور {2} کے لیے موزوں ہے۔", roomy: "{0} آپ کے {1} اور {2} کے لیے موزوں ہے، مزید {3} کی گنجائش کے ساتھ۔", fit: "{0} آپ کے {1} اور {2} کے لیے موزوں ہے۔",
       whyNotCampuses: "{0} کیوں نہیں؟ اس میں {1} ہے۔", whyNotStudents: "{0} کیوں نہیں؟ اس میں {1} تک کی گنجائش ہے۔", price: "{0} · {1}", announce: "تجویز کردہ: {0}۔ {1}",
     },
-    payEyebrow: "ادائیگی", payTitle: "{0} کی ادائیگی", payBody: "ابھی ادائیگی کریں تو {0} فوراً فعال ہو جائے گا۔ یا ابھی چھوڑ دیں: آپ کا انتخاب محفوظ ہے، سیٹ اپ جاری رہے گا، اور ادائیگی ہوتے ہی {0} فعال ہو جائے گا۔", payNow: "ابھی ادائیگی کریں", payLater: "ابھی چھوڑیں، بعد میں ادائیگی", payNowTest: "ابھی ادائیگی (ٹیسٹ)",
+    selected: "منتخب", continueWith: "{0} کے ساتھ جاری رکھیں", reserveNow: "{0} محفوظ کریں، ٹیم ادائیگی کی تصدیق کرے گی", payEyebrow: "ادائیگی", payTitle: "{0} کی ادائیگی", payBody: "ابھی ادائیگی کریں تو {0} فوراً فعال ہو جائے گا۔ یا ابھی چھوڑ دیں: آپ کا انتخاب محفوظ ہے، سیٹ اپ جاری رہے گا، اور ادائیگی ہوتے ہی {0} فعال ہو جائے گا۔", payNow: "ابھی ادائیگی کریں", payLater: "ابھی چھوڑیں، بعد میں ادائیگی", payNowTest: "ابھی ادائیگی (ٹیسٹ)",
     notNow: "ابھی نہیں", modeTestTitle: "ٹیسٹ ادائیگی (صرف ڈیولپمنٹ)",
     modeTest: "اس سرور پر ادائیگی کیز موجود نہیں، اس لیے ادائیگی والے پیکیج ٹیسٹ صفحہ کھولتے ہیں۔ کوئی رقم منتقل نہیں ہوتی۔",
     modeReserve: "آپ کے اسکول کے لیے آن لائن ادائیگی ابھی دستیاب نہیں۔ ادائیگی والا پیکیج منتخب کرنے سے وہ محفوظ ہو جاتا ہے، اور ہماری ٹیم قیمت اور ادائیگی طے کرتی ہے۔ یہاں کچھ نہیں کاٹا جاتا۔",

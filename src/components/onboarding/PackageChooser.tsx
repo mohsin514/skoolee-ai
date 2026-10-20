@@ -132,6 +132,8 @@ export function PackageChooser({
   const [error, setError] = useState<ChooseError | null>(null);
   const [errorSeq, setErrorSeq] = useState(0);
   const [openRows, setOpenRows] = useState<Set<PlanType> | null>(null);
+  // The card the owner clicked: it is highlighted and the footer continues with it.
+  const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   // Idempotency keys per distinct selection (state, not a ref, so handlers stay plain render values).
   const [keys, setKeys] = useState<Record<string, string>>({});
   const stageRef = useRef<HTMLElement>(null);
@@ -262,9 +264,10 @@ export function PackageChooser({
     }
     // An order already waiting on payment for this package: its status page, never a second checkout.
     if (waiting && !isDeferred(waiting)) { void openStatus(waiting.intentId); return; }
-    // A paid package with online payment: first the payment step (pay now, or skip and pay later).
-    if ((plan.price ?? 0) > 0 && mode !== "reserve" && !opts.confirmed) {
+    // A paid package: first the payment step (pay now / reserve, or skip and pay later).
+    if ((plan.price ?? 0) > 0 && !opts.confirmed) {
       setError(null);
+      setSelectedPlan(plan.type);
       setPhase({ kind: "pay", plan: plan.type });
       return;
     }
@@ -434,7 +437,8 @@ export function PackageChooser({
         busy={busyPlan === plan.type}
         compact={compact}
         open={open}
-        onSelect={busyPlan || downgradeBlocked(plan) ? undefined : () => void choose(plan)}
+        onSelect={busyPlan || downgradeBlocked(plan) ? undefined : () => setSelectedPlan(plan.type)}
+        selected={selectedPlan === plan.type ? { label: c.selected } : undefined}
         onToggle={() => setOpenRows((prev) => {
           // Until the first toggle the open row follows the recommendation; after that only the user moves rows.
           const next = new Set(prev ?? (rec ? [rec.type] : []));
@@ -526,7 +530,11 @@ export function PackageChooser({
         <>
           <Button type="button" variant="ghost" onClick={onClose} disabled={Boolean(busyPlan)}>{c.notNow}</Button>
           {/* Keyed by plan: a recommendation that changes under the pointer remounts the button, so no click lands on the new plan. */}
-          {rec ? <span key={`footer-${rec.type}`} className="contents">{actionFor(rec, "footer")}</span> : null}
+          {selectedPlan && catalogue?.plans[selectedPlan] ? (
+            <Button key={`footer-selected-${selectedPlan}`} type="button" onClick={() => void choose(catalogue.plans[selectedPlan])} disabled={Boolean(busyPlan) || downgradeBlocked(catalogue.plans[selectedPlan])} loading={busyPlan === selectedPlan} className="gap-2">
+              {fill(c.continueWith, nameOf(selectedPlan))} <ForwardArrow />
+            </Button>
+          ) : rec ? <span key={`footer-${rec.type}`} className="contents">{actionFor(rec, "footer")}</span> : null}
         </>
       )}
     />
@@ -612,7 +620,7 @@ export function PackageChooser({
               {error ? <Alert tone="danger" title={error.title}>{error.body}</Alert> : null}
               <div className="sk-pay-actions">
                 <Button type="button" onClick={() => void choose(payPlan, { confirmed: true })} disabled={Boolean(busyPlan)} loading={busyPlan === payPlan.type && !error} className="gap-2">
-                  <Lock aria-hidden="true" className="size-4" />{mode === "test" ? c.payNowTest : c.payNow}
+                  <Lock aria-hidden="true" className="size-4" />{mode === "reserve" ? fill(c.reserveNow, nameOf(payPlan.type)) : mode === "test" ? c.payNowTest : c.payNow}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => void choose(payPlan, { confirmed: true, payLater: true })} disabled={Boolean(busyPlan)}>
                   {c.payLater}
