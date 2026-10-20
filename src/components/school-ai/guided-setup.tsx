@@ -20,6 +20,10 @@ import { useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
 import { SetupGenerationPanel, type SetupGenerationPhase, type SetupGenerationResult } from "./setup-generation-panel";
 import { setupGenerationCopy } from "./setup-generation-copy";
 import { restoreSetupGeneration } from "./setup-generation-client";
+import { AiGuide } from "@/components/onboarding/AiGuide";
+import { launchCopy } from "@/components/onboarding/launch-copy";
+import { Progress } from "@/components/ui/progress";
+import guideStyles from "@/components/onboarding/launch-guide.module.css";
 
 interface Props {
   language: Language;
@@ -28,6 +32,7 @@ interface Props {
   voiceAvailable: boolean;
   assistantAvailable?: boolean;
   campusId?: string | null;
+  campusName?: string;
   onSave: (draft: SetupDraft, record?: AiWorkspaceRecord) => Promise<AiWorkspaceRecord>;
   onClose: () => void;
   onUpload: (file: File, origin: "upload" | "camera") => Promise<void>;
@@ -39,8 +44,9 @@ interface Props {
 const paths: { key: SetupPath; hint: SchoolAICopyKey; Icon: typeof Building2 }[] = [{ key: "new", hint: "newHint", Icon: Building2 }, { key: "import", hint: "importHint", Icon: FileStack }, { key: "migrate", hint: "migrateHint", Icon: Layers3 }];
 const outcomes = ["exams", "timetable", "fees", "records", "complete"] as const;
 
-export function GuidedSetup({ language, record, defaults, voiceAvailable, assistantAvailable = false, campusId, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
+export function GuidedSetup({ language, record, defaults, voiceAvailable, assistantAvailable = false, campusId, campusName, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
   const c = schoolAICopy(language);
+  const guide = launchCopy(language);
   const generationCopy = setupGenerationCopy(language);
   const guard = useWorkspaceDraftNavigation();
   const [savedRecord, setSavedRecord] = useState(record);
@@ -72,6 +78,8 @@ export function GuidedSetup({ language, record, defaults, voiceAvailable, assist
   const preparing = generationPhase === "saving" || generationPhase === "generating";
   const busy = pending || preparing;
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline);
+  const answerQuestions = questions.filter(item => item.key !== "path");
+  const confirmed = answerQuestions.filter(item => draft.confirmedKeys.includes(item.key as typeof draft.confirmedKeys[number]) && !validateSetupAnswer(item.key, draft.answers[item.key as keyof typeof draft.answers] || "", draft.answers)).length;
   useWorkspaceDraft(dirty || preparing);
   useEffect(() => { live.current = true; return () => { live.current = false; generationRequest.current?.abort(); restoreRequest.current?.abort(); }; }, []);
   useEffect(() => { heading.current?.focus(); }, [index, reviewing]);
@@ -163,8 +171,21 @@ export function GuidedSetup({ language, record, defaults, voiceAvailable, assist
     finally { setPending(false); }
   };
   return <ModalSurface fullscreen ariaLabel={c.setupTitle} onClose={onClose} disableBackdropClose dismissible={!busy && !mediaBusy && !helpActive} dirty={dirty || helpDirty} initialFocusRef={heading}><section className={styles.setup} dir={language === "en" ? "ltr" : "rtl"}>
-    <header className={styles.setupHeader}><div className="flex items-center gap-3"><span className={styles.choiceIcon}><Sparkles aria-hidden="true" className="size-5" /></span><span className="font-extrabold">{c.workspace}</span></div><Button variant="outline" disabled={busy || mediaBusy || helpActive} onClick={() => void close()}><Save aria-hidden="true" />{c.saveExit}</Button></header>
-    <div className={styles.setupBody}>
+    <header className={styles.setupHeader}><div className="flex min-w-0 items-center gap-3"><span className={styles.choiceIcon}><Sparkles aria-hidden="true" className="size-5" /></span><div className="min-w-0"><span className="font-extrabold">{c.workspace}</span>{campusName && <p className="mt-1 break-words text-xs text-ink-muted">{campusName}</p>}</div></div><Button variant="outline" disabled={busy || mediaBusy || helpActive} onClick={() => void close()}><Save aria-hidden="true" />{c.saveExit}</Button></header>
+    <div className={guideStyles.interviewLayout}>
+      <aside className={guideStyles.interviewAside} aria-label={guide.guide}>
+        <AiGuide pose={reviewing ? "ready" : pending ? "think" : "wave"} />
+        <h2>{reviewing ? guide.ready : guide.interview}</h2>
+        <p>{guide.interviewHint}</p>
+        <Progress value={confirmed} max={answerQuestions.length} label={guide.confirmed} valueText={`${confirmed} / ${answerQuestions.length}`} showValue />
+        {(["profile", "academics", "people", "policies"] as const).filter(section => questions.some(item => item.section === section)).map(section => {
+          const items = answerQuestions.filter(item => item.section === section);
+          const complete = items.length > 0 && items.every(item => draft.confirmedKeys.includes(item.key as typeof draft.confirmedKeys[number]) && !validateSetupAnswer(item.key, draft.answers[item.key as keyof typeof draft.answers] || "", draft.answers));
+          return <div className={guideStyles.interviewSection} key={section} aria-current={!reviewing && question.section === section ? "step" : undefined}>{complete ? <CheckCircle2 aria-hidden="true" /> : <span aria-hidden="true">○</span>}{c[section]}</div>;
+        })}
+        <p>{guide.draftHint}</p>
+      </aside>
+      <div className={guideStyles.interviewMain}>
       {reviewing ? <div className={styles.question} key="review"><p className={styles.eyebrow}>{c.workspace}</p><h1 ref={heading} tabIndex={-1} className={styles.questionTitle}>{generationCopy.reviewTitle}</h1><p className={styles.description}>{generationCopy.reviewHint}</p>
         <SetupGenerationPanel language={language} phase={generationPhase} result={generation} error={generationError || (generationPhase === "failed" ? error : "")} stale={Boolean(generation && (dirty || generation.currentSourceVersion !== savedRecord?.version))} disabled={busy || helpActive || mediaBusy} onGenerate={() => void prepare({ ...draft, step: "review" })} onOpen={next => { const open = () => onOpenRecord(next); if (helpDirty) guard(open); else open(); }} />
         <details className={styles.reviewAnswers} open={!generation && !preparing}><summary>{generationCopy.reviewAnswers}</summary>
@@ -187,6 +208,7 @@ export function GuidedSetup({ language, record, defaults, voiceAvailable, assist
       {error && (reviewing || question.type !== "date") && <Alert className="mt-4" tone="danger" compact live="assertive">{error}</Alert>}
       {notice && <Alert tone="success" compact live="polite" className="mt-4">{notice}</Alert>}
       <SetupHelp language={language} topicKey={reviewing ? "review" : question.key} question={reviewing ? c.review : c[question.label]} campusId={campusId} assistantAvailable={assistantAvailable} voiceAvailable={voiceAvailable} disabled={busy || mediaBusy} onUpload={upload} onActivityChange={setHelpActive} onDraftChange={setHelpDirty} />
+      </div>
     </div>
   </section></ModalSurface>;
 }

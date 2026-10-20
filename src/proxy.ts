@@ -13,6 +13,7 @@ import {
 } from "./lib/roles";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { requiredOnboardingPath } from "@/lib/onboarding/launch-plan";
 import { allowedDuringCandidateExam, candidateExamUrl } from "@/lib/school-ai/exam-boundary";
 // The cookie helper stays dependency-free. The active candidate boundary below
 // is the explicit, narrow exception that reads authoritative database state.
@@ -22,6 +23,7 @@ import {
 } from "@/lib/auth/session-cookie";
 
 const PUBLIC_PATHS = [
+  "/showcase", // Generic product presentation; no account data or setup mutations.
   "/school-capture", // Empty phone handoff shell; all capture data requires current authenticated API access.
   "/", "/login", "/sign-in", "/register", "/register-split", "/sign-up", "/pricing",
   "/verify-success", // Informational destination of token verification; it creates no session.
@@ -211,8 +213,21 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
     }
 
-    const onboardingPath = role === "TEACHER" ? "/teacher-onboarding" : "/onboarding";
-    if (!onboardingComplete && pathname !== onboardingPath && !pathname.startsWith(onboardingPath + "/") && !pathname.startsWith("/api")) {
+    let onboardingPath = requiredOnboardingPath(role, onboardingComplete);
+    // A campus administrator's incomplete profile is not permission to create an institution.
+    // Only owners and explicitly named delegates enter the institution wizard.
+    if (!mustChangePassword && onboardingPath === "/onboarding" && !pathname.startsWith("/api")) {
+      const { needsInstitutionSetup } = await import("@/lib/onboarding/setup-routing");
+      try {
+        if (!await needsInstitutionSetup(String(payload.userId), String(payload.schoolId))) {
+          onboardingPath = null;
+          if (pathname === "/onboarding") return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
+        }
+      } catch {
+        return NextResponse.json({ error: "Setup status is unavailable. Please retry." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+      }
+    }
+    if (!mustChangePassword && onboardingPath && pathname !== onboardingPath && !pathname.startsWith(onboardingPath + "/") && !pathname.startsWith("/api")) {
       return NextResponse.redirect(new URL(onboardingPath, req.url));
     }
 

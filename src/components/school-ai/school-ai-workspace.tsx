@@ -43,6 +43,8 @@ import studioStyles from "./exam-studio/studio-shell.module.css";
 import { WorkspaceDraftBoundary, useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
 import { DemoWorkflowPanel } from "./demo-workflow-panel";
 import { prototypeCopy } from "./prototype-copy";
+import { useSearchParams } from "next/navigation";
+import { START_CAMPUS_SETUP_EVENT } from "@/lib/onboarding/launch-plan";
 
 type Tab = "overview" | "sources" | "curriculum" | "academicSetup" | "timetableSetup" | "announcements" | "work" | "policies" | "history" | "feeInvoices" | "examPlanning" | "setupTasks" | "schoolOperations" | "financeOperations" | "runs" | "schoolSetup" | "knowledge";
 type Capabilities = WorkspaceCapabilities & { setupDefaults?: SetupAnswers };
@@ -56,6 +58,8 @@ export function SchoolAIWorkspace(props: { role?: string; campusId?: string | nu
 }
 
 function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId, examOnly = false }: { role?: string; campusId?: string | null; examOnly?: boolean }) {
+  const searchParams = useSearchParams();
+  const setupIntent = searchParams.get("setup") === "1";
   const { language } = useLocale();
   const c = schoolAICopy(language);
   const prototype = prototypeCopy(language);
@@ -80,6 +84,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const [workflowRecordId, setWorkflowRecordId] = useState<string | null>(null);
   const [policyRecordId, setPolicyRecordId] = useState<string | null>(null);
   const [setup, setSetup] = useState(false);
+  const [openingSetup, setOpeningSetup] = useState(false);
   const [setupRecord, setSetupRecord] = useState<AiWorkspaceRecord | undefined>();
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedCampus, setSelectedCampus] = useState("");
@@ -89,6 +94,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const mounted = useRef(true);
   const setupRequested = useRef(false);
   const setupCreateKey = useRef<string | null>(null);
+  const setupLoad = useRef<AbortController | null>(null);
   const scopeInitialized = useRef(false);
   const requestSequence = useRef(0);
   const toolContent = useRef<HTMLDivElement>(null);
@@ -131,13 +137,33 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     }).catch(() => { if (mounted.current) setFeatures(UNCONFIGURED_CAPABILITIES); });
     return () => { mounted.current = false; abort.abort(); };
   }, [refresh]);
+  const loadSetup = useCallback(async () => {
+    if (!campusId || !capabilities?.canCreate || !capabilities.kinds.includes("ONBOARDING")) return;
+    setupLoad.current?.abort();
+    const controller = new AbortController(); setupLoad.current = controller;
+    setOpeningSetup(true); setError(""); setNotice("");
+    try {
+      // Query the selected campus directly: an older interview can be absent from the latest workspace page.
+      const result = await workspaceRequest<WorkspaceResponse>(`/api/school-ai/workspace?kind=ONBOARDING&activeOnly=1&limit=1&campusId=${encodeURIComponent(campusId)}`, { signal: controller.signal });
+      if (!mounted.current || controller.signal.aborted) return;
+      setSetupRecord(result.records[0]); setSetup(true);
+    } catch { if (mounted.current && !controller.signal.aborted) setError("failed"); }
+    finally { if (mounted.current && !controller.signal.aborted) setOpeningSetup(false); }
+  }, [campusId, capabilities, setSetup]);
+  useEffect(() => () => { setupLoad.current?.abort(); }, [campusId]);
   useEffect(() => {
-    if (examOnly || !capabilities || setupRequested.current || needsCampus) return;
+    const start = () => { if (!examOnly) guard(() => { void loadSetup(); }); };
+    window.addEventListener(START_CAMPUS_SETUP_EVENT, start);
+    return () => window.removeEventListener(START_CAMPUS_SETUP_EVENT, start);
+  }, [examOnly, guard, loadSetup]);
+  useEffect(() => {
+    if (!setupIntent) { setupRequested.current = false; return; }
+    if (examOnly || !capabilities || !capabilities.canCreate || setupRequested.current || needsCampus) return;
     setupRequested.current = true;
-    if (new URLSearchParams(window.location.search).get("setup") === "1" && capabilities.kinds.includes("ONBOARDING")) {
-      setSetupRecord(records.find(record => record.kind === "ONBOARDING" && record.status !== "ARCHIVED" && record.campusId === campusId)); setSetup(true);
+    if (capabilities.kinds.includes("ONBOARDING")) {
+      void loadSetup();
     }
-  }, [capabilities, records, campusId, needsCampus, examOnly]);
+  }, [capabilities, campusId, needsCampus, examOnly, setupIntent, loadSetup]);
   const saveRecord: SaveRecord = async (kind, title, data, existing, idempotencyKey) => {
     const result = await workspaceRequest<{ record: AiWorkspaceRecord }>(existing ? `/api/school-ai/workspace/${encodeURIComponent(existing.id)}` : "/api/school-ai/workspace", {
       method: existing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
@@ -166,6 +192,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     finally { if (mounted.current) setUploading(false); }
   };
   const changeScope = (next: () => void) => guard(() => {
+    setupLoad.current?.abort(); setOpeningSetup(false); setupRequested.current = false;
     setError(""); setNotice(""); setSetupRecord(undefined); setupCreateKey.current = null; setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); setWorkflowRecordId(null); setPolicyRecordId(null); next();
   });
   const loadMore = async () => {
@@ -174,7 +201,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     try { const result = await workspaceRequest<WorkspaceResponse>(`/api/school-ai/workspace?cursor=${encodeURIComponent(nextCursor)}`); setRecords(previous => [...previous, ...result.records.filter(item => !previous.some(record => record.id === item.id))]); setNextCursor(result.nextCursor || null); }
     catch { setError("failed"); } finally { setLoadingMore(false); }
   };
-  const beginSetup = () => guard(() => { setSetupRecord(visibleRecords.find(record => record.kind === "ONBOARDING" && record.status !== "ARCHIVED")); setSetup(true); setError(""); setNotice(""); });
+  const beginSetup = () => guard(() => { void loadSetup(); });
   const saveSetup = async (draft: SetupDraft, existing?: AiWorkspaceRecord) => {
     if (!setupCreateKey.current) setupCreateKey.current = crypto.randomUUID();
     const record = await saveRecord("ONBOARDING", draft.answers.schoolName || c.setupTitle, { ...draft }, existing, setupCreateKey.current);
@@ -237,7 +264,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     guard(() => { setTab(id); setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); setWorkflowRecordId(null); setPolicyRecordId(null); setError(""); setNotice(""); });
   };
   return <><div className={`${styles.workspace} ${examOnly ? "p-3 sm:p-6" : ""}`} dir={language === "en" ? "ltr" : "rtl"}>
-    {!examOnly && <header className={styles.hero}><p className={styles.eyebrow}>{c.eyebrow}</p><h1 className={styles.heroTitle}>{c.headline}</h1><p className={styles.heroDescription}>{c.introduction}</p>{hasKind("ONBOARDING") && <Button className="mt-6" disabled={needsCampus} onClick={beginSetup}><Sparkles aria-hidden="true" />{onboarding ? c.resumeSetup : c.startSetup}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>}</header>}
+    {!examOnly && <header className={styles.hero}><p className={styles.eyebrow}>{c.eyebrow}</p><h1 className={styles.heroTitle}>{c.headline}</h1><p className={styles.heroDescription}>{c.introduction}</p>{hasKind("ONBOARDING") && <Button className="mt-6" loading={openingSetup} disabled={needsCampus || !capabilities.canCreate} onClick={beginSetup}><Sparkles aria-hidden="true" />{onboarding ? c.resumeSetup : c.startSetup}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>}</header>}
     <DemoWorkflowPanel language={language} initialWorkflow={examOnly ? "paper" : "assistant"} />
     {manager && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mt-5 p-5"}`}><FormField name="ai-campus-scope" label={c.workspaceCampus} hint={c.workspaceCampusHint}><Select value={selectedCampus} onChange={event => { const value = event.target.value; if (value !== selectedCampus) changeScope(() => setSelectedCampus(value)); }}><option value="">{c.chooseCampus}</option>{capabilities.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select></FormField>{needsCampus && <p className="mt-3 text-sm text-ink-muted">{c.selectCampusToStart}</p>}</section>}
     {role === "TEACHER" && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mt-5 p-5"}`}><FormField name="ai-teaching-scope" label={c.subject} hint={c.selectSubjectHint}><Select value={selectedSubject} onChange={event => { const value = event.target.value; if (value !== selectedSubject) changeScope(() => setSelectedSubject(value)); }}><option value="">{c.chooseSubject}</option>{subjects.map(item => <option key={item.id} value={item.id}>{item.className} · {item.name}</option>)}</Select></FormField></section>}
@@ -281,5 +308,5 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     {tab === "history" && <RevisionHistoryPanel key={`${campusId}:${selectedSubject}`} language={language} records={visibleRecords} onRecord={putRecord} onAction={recordAction} />}
     </div>
     {nextCursor && <div className="mt-6 flex justify-center"><Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? c.loading : c.loadMore}</Button></div>}
-  </div>{setup && hasKind("ONBOARDING") && !needsCampus && <GuidedSetup key={campusId || "school"} language={language} record={setupRecord} defaults={setupDefaults} voiceAvailable={features.voiceTranscription} assistantAvailable={features.assistant} campusId={campusId} canApprove={capabilities.canApprove} onAction={recordAction} onSave={saveSetup} onGenerated={putRecords} onOpenRecord={record => { setSetup(false); openRecord(record); }} onClose={() => setSetup(false)} onUpload={upload} />}</>;
+  </div>{setup && hasKind("ONBOARDING") && !needsCampus && <GuidedSetup key={campusId || "school"} language={language} record={setupRecord} defaults={setupDefaults} voiceAvailable={features.voiceTranscription} assistantAvailable={features.assistant} campusId={campusId} campusName={capabilities.campuses.find(campus => campus.id === campusId)?.name} canApprove={capabilities.canApprove} onAction={recordAction} onSave={saveSetup} onGenerated={putRecords} onOpenRecord={record => { setSetup(false); openRecord(record); }} onClose={() => setSetup(false)} onUpload={upload} />}</>;
 }

@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { Progress } from "@/components/ui/progress";
+import { GuideCompanion } from "@/components/onboarding/GuideCompanion";
+import { launchCopy } from "@/components/onboarding/launch-copy";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 
 
@@ -451,6 +453,7 @@ export default function TeacherOnboardingPage() {
           ) : null}
         </div>
 
+        <GuideCompanion language={language} title={launchCopy(language).journey("teacher")} hint={launchCopy(language).preparation("teacher")} />
         <form onSubmit={handleSubmit} noValidate aria-busy={saving}>
           <DraftRecovery recordLabel={ui("Teacher onboarding")} draft={recovery} saving={saving} excluded={ui("National ID, date of birth, home address and emergency contacts are not stored in device drafts.")} />
           <FormErrorSummary errors={Object.fromEntries(Object.entries(errors).map(([key, value]) => [key, ui(value)]))} onFocusField={(field) => { setStep(FIELD_STEP[field] ?? 0); requestAnimationFrame(() => document.getElementById(field === "dateOfBirth" ? "dob" : field)?.focus()); }} />

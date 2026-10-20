@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { fill } from "../copy";
 import type { SetupWizard, SetupWizardReady } from "./use-setup-wizard";
 import { WizardCover } from "./wizard-cover";
+import { GuideCompanion } from "@/components/onboarding/GuideCompanion";
 
 /**
  * The setup desk on the Front Desk shell ("Charter Desk", spec §5.1): AuthShell's
@@ -91,6 +92,7 @@ export function WizardFrame({ wizard, ready, children }: { wizard: SetupWizard; 
         onSelect={(id) => void goTo(id as SetupStepId)}
       />
 
+      <GuideCompanion language={lang} title={t.steps[step].title} ready={Boolean(success)} />
       {children}
     </AuthShell>
   );

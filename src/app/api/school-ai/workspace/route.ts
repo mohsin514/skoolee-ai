@@ -17,9 +17,11 @@ export async function GET(request: NextRequest) {
     const status = statusInput ? workspaceStatusSchema.safeParse(statusInput) : null;
     if (kind && !kind.success || status && !status.success) throw new SchoolAiError("Invalid workspace filter.");
     const limit = request.nextUrl.searchParams.get("limit");
+    const campusId = request.nextUrl.searchParams.get("campusId") || undefined;
+    if (campusId && campusId.length > 200) throw new SchoolAiError("Invalid campus.");
     if (limit !== null && (!/^\d{1,3}$/.test(limit) || Number(limit) < 1 || Number(limit) > 100)) throw new SchoolAiError("Choose a page size between 1 and 100.");
     const [page, capabilities] = await Promise.all([
-      listWorkspaceRecords(user, { kind: kind?.success ? kind.data : undefined, status: status?.success ? status.data : undefined, limit: limit ? Number(limit) : undefined, cursor: request.nextUrl.searchParams.get("cursor") ?? undefined }),
+      listWorkspaceRecords(user, { kind: kind?.success ? kind.data : undefined, status: status?.success ? status.data : undefined, limit: limit ? Number(limit) : undefined, cursor: request.nextUrl.searchParams.get("cursor") ?? undefined, campusId, activeOnly: request.nextUrl.searchParams.get("activeOnly") === "1" }),
       getWorkspaceCapabilities(user),
     ]);
     return Response.json({ ...page, capabilities }, { headers: { "Cache-Control": "private, no-store" } });

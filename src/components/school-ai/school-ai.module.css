@@ -37,8 +37,8 @@
 .message { max-width: 94%; padding: 16px 18px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; font-size: 14px; border: 1px solid var(--color-border-subtle, #e7ddec); }
 .userMessage { align-self: flex-end; background: #f4eafd; }
 .assistantMessage { align-self: flex-start; background: var(--color-surface, white); }
-.setup { height: 100dvh; overflow-y: auto; overscroll-behavior: contain; padding: clamp(20px, 4vw, 48px); padding-bottom: max(32px, env(safe-area-inset-bottom)); background: radial-gradient(ellipse at top, #f4e6fc 0, #fbf9fe 48%, #fff 100%); }
-.setupHeader { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 44px; }
+.setup { height: 100dvh; overflow-y: auto; overscroll-behavior: contain; padding: clamp(16px, 3vw, 32px); padding-bottom: max(32px, env(safe-area-inset-bottom)); background: radial-gradient(ellipse at top, var(--brand-100) 0, var(--brand-50) 48%, white 100%); }
+.setupHeader { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--edge); }
 .setupBody { max-width: 780px; margin-inline: auto; }
 .question { animation: arrive .28s ease-out both; }
 .questionTitle { font-size: clamp(25px, 4vw, 40px); font-weight: 800; line-height: 1.25; letter-spacing: -.03em; margin-block: 14px; }

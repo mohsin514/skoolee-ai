@@ -149,7 +149,7 @@ export type ReviewStepProps = StepBase & {
   offDays: number[];
   listSeparator: string;
   success: { activated: number; drafts: number } | null;
-  workspaceHref: "/setup/readiness";
+  workspaceHref: "/setup/readiness" | "/ai?setup=1";
   /** The last activation failure; `goTo` jumps to the step that failed (label = fill(t.goToStep, title)). */
   failure: { message: string; goTo?: { label: string; onClick(): void } } | null;
   activating: boolean;

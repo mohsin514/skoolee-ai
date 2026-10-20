@@ -162,7 +162,7 @@ export default function OnboardingWizard() {
           offDays={ready.offDays}
           listSeparator={ready.listSeparator}
           success={success}
-          workspaceHref="/setup/readiness"
+          workspaceHref="/ai?setup=1"
           failure={failure}
           activating={activating}
           saving={saving}

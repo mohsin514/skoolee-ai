@@ -485,8 +485,9 @@ export function useSetupWizard(): SetupWizard {
       const res = await finishOnboarding(version);
       if (res.success) {
         setSuccess({ activated: res.activated, drafts: res.drafts });
-        // Setup leads continue on the readiness home (SKO-397), which links on to guided AI setup.
-        const target = "/setup/readiness";
+        // Continue directly into the existing, campus-scoped AI interview.
+        // Its generated drafts still require review; activation is only the institution foundation.
+        const target = "/ai?setup=1";
         const reduced = prefersReducedMotion();
         // Bring the charter head (the sealed line, the success alert) into view.
         requestAnimationFrame(() => document.querySelector("[data-step-card]")?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" }));

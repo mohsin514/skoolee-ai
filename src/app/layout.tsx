@@ -6,6 +6,7 @@ import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
 import BootSplash from "@/components/BootSplash";
 import { NetworkProvider } from "@/components/providers/network-provider";
 import { CandidateExamGuard } from "@/components/providers/candidate-exam-guard";
+import { FirstRunGuide } from "@/components/onboarding/FirstRunGuide";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -90,7 +91,7 @@ export default function RootLayout({
         <BootSplash />
         <Suspense fallback={null}>
           <AppLoaderProvider>
-            <NetworkProvider><CandidateExamGuard>{children}</CandidateExamGuard></NetworkProvider>
+            <NetworkProvider><CandidateExamGuard>{children}<FirstRunGuide /></CandidateExamGuard></NetworkProvider>
             <AppToaster />
           </AppLoaderProvider>
         </Suspense>

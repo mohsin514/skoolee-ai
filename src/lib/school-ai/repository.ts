@@ -220,20 +220,25 @@ async function revision(db: TxClient, record: StoredRecord, user: AuthUser, acti
   await db.auditLog.create({ data: { schoolId: user.schoolId, tableName: "school_ai_records", recordId: record.id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { action, kind: record.kind, version: record.version, status: record.status, campusId: record.campusId } } });
 }
 
-export async function listWorkspaceRecords(user: AuthUser, filters: { kind?: WorkspaceKind; status?: WorkspaceStatus; limit?: number; cursor?: string } = {}): Promise<{ records: AiWorkspaceRecord[]; nextCursor?: string }> {
+export async function listWorkspaceRecords(user: AuthUser, filters: { kind?: WorkspaceKind; status?: WorkspaceStatus; limit?: number; cursor?: string; campusId?: string; activeOnly?: boolean } = {}): Promise<{ records: AiWorkspaceRecord[]; nextCursor?: string }> {
   return withContext(user, async () => {
     try {
       const permissions = await loadWorkspacePermissionSnapshot(user);
       await assertSchoolAiAccess(user, "view", permissions);
       const kinds = allowedWorkspaceKinds(user);
       if (filters.kind && !kinds.includes(filters.kind)) throw new SchoolAiError("This workspace type is outside your role.", 403);
+      if (filters.campusId) {
+        if (user.role !== "SUPER_ADMIN" && filters.campusId !== user.campusId) throw new SchoolAiError("This campus is outside your scope.", 403);
+        const campus = await prisma.campus.findFirst({ where: { id: filters.campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true } });
+        if (!campus) throw new SchoolAiError("This campus is unavailable.", 403);
+      }
       const limit = Math.min(100, Math.max(1, filters.limit ?? 100));
       const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user) : [];
       const where: Prisma.SchoolAiRecordWhereInput = {
         schoolId: user.schoolId,
         kind: filters.kind ?? { in: kinds },
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}),
+        ...(filters.status ? { status: filters.status } : filters.activeOnly ? { status: { not: "ARCHIVED" } } : {}),
+        ...(filters.campusId ? { campusId: filters.campusId } : user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}),
         ...(!isSchoolAiManager(user) ? { createdById: user.userId } : {}),
       };
       if (user.role === "TEACHER") {
