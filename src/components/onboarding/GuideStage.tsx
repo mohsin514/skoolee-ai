@@ -5,10 +5,13 @@ import { ArrowUpRight, ClipboardCheck, FilePenLine, GraduationCap, Hand, Message
 import { Button } from "@/components/ui/button";
 import type { Language } from "@/lib/locale/package";
 import type { LaunchJourney } from "@/lib/onboarding/launch-plan";
+import type { UserRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { AiGuide } from "./AiGuide";
 import { launchCopy } from "./launch-copy";
 import { guideGreeting, guideScenes } from "./stage-copy";
+import { roleGuideCopy } from "./role-guide-copy";
+import { roleGuideIcons } from "./role-guide-icons";
 import styles from "./launch-guide.module.css";
 import motion from "./guide-stage.module.css";
 
@@ -19,9 +22,12 @@ const sceneIcons = [
 ] as const;
 
 /** The same living stage powers the personal welcome and the public-facing showcase. */
-export function GuideStage({ chapter, language, paused, journey }: { chapter: number; language: Language; paused: boolean; journey?: LaunchJourney }) {
+export function GuideStage({ chapter, language, paused, journey, role }: { chapter: number; language: Language; paused: boolean; journey?: LaunchJourney; role?: UserRole }) {
   const c = launchCopy(language);
-  const scenes = guideScenes(language, journey);
+  const personal = role ? roleGuideCopy(role, language) : undefined;
+  const scenes = personal?.scenes ?? guideScenes(language, journey);
+  const [BackdropIcon, CompanionIcon] = role ? roleGuideIcons[role] : [School, GraduationCap];
+  const campusBackdrop = !role || ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"].includes(role);
   const currentChapter = Math.max(0, Math.min(2, chapter));
   const scene = scenes[currentChapter];
   const [greetingChapter, setGreetingChapter] = useState<number | null>(null);
@@ -41,8 +47,13 @@ export function GuideStage({ chapter, language, paused, journey }: { chapter: nu
         <path className={styles.connection} d="M100 160C150 160 140 310 260 310S370 180 420 200M260 310C270 380 360 410 420 395" />
         <path className={styles.signal} d="M100 160C150 160 140 310 260 310S370 180 420 200M260 310C270 380 360 410 420 395" />
         <g className={cn(styles.campusDrawing, motion.backdropLayer, motion.welcomeBackdrop)} stroke="currentColor" strokeWidth="1.5">
-          <path d="M55 384v-91l60-33 60 33v91m-120-91h120m-95 91v-54h70v54m-35-124v-29h32v18h-32m253 137v-92l-45-24-45 24v92m-16 0h125M35 387h165" />
-          <path d="M328 313h12v17h-12zm28 0h12v17h-12zm-28 29h12v17h-12zm28 0h12v17h-12z" />
+          {campusBackdrop ? <>
+            <path d="M55 384v-91l60-33 60 33v91m-120-91h120m-95 91v-54h70v54m-35-124v-29h32v18h-32m253 137v-92l-45-24-45 24v92m-16 0h125M35 387h165" />
+            <path d="M328 313h12v17h-12zm28 0h12v17h-12zm-28 29h12v17h-12zm28 0h12v17h-12z" />
+          </> : <>
+            <BackdropIcon x="50" y="282" width="115" height="115" strokeWidth=".6" />
+            <CompanionIcon x="335" y="272" width="95" height="95" strokeWidth=".6" />
+          </>}
         </g>
         <g className={cn(motion.backdropLayer, motion.planBackdrop)} stroke="currentColor" strokeWidth="1.5">
           <rect x="49" y="283" width="115" height="99" rx="10" strokeDasharray="5 5" />
@@ -61,11 +72,11 @@ export function GuideStage({ chapter, language, paused, journey }: { chapter: nu
       </svg>
       <div className={styles.platform}><span /></div>
       <div className={styles.heroCharacter}>
-        <AiGuide pose={greeting ? "wave" : currentChapter === 0 ? "wave" : currentChapter === 1 ? "think" : "ready"} paused={paused} continuous reacting={greeting} />
+        <AiGuide role={role} pose={greeting ? "wave" : currentChapter === 0 ? "wave" : currentChapter === 1 ? "think" : "ready"} paused={paused} continuous reacting={greeting} />
       </div>
       {scenes.map((item, sceneIndex) => <div key={sceneIndex} className={motion.sceneLayer} data-chapter={sceneIndex} data-active={sceneIndex === currentChapter || undefined} data-guide-scene-cards={sceneIndex}>
         {item.cards.map((card, cardIndex) => {
-          const Icon = sceneIcons[sceneIndex][cardIndex];
+          const Icon = role ? roleGuideIcons[role][cardIndex] : sceneIcons[sceneIndex][cardIndex];
           return <div key={cardIndex} className={cn(styles.workflowCard, motion.sceneCard, [motion.leftCard, motion.rightCard, motion.bottomCard][cardIndex])}>
             <span className={styles.cardIcon}><Icon /></span>
             <div><small>{card.label}</small><strong>{card.title}</strong><span className={motion.cardProgress}><i data-filled /><i data-filled={sceneIndex > 0 || undefined} /><i data-filled={sceneIndex > 1 || undefined} /></span></div>
@@ -74,7 +85,7 @@ export function GuideStage({ chapter, language, paused, journey }: { chapter: nu
       </div>)}
       </div>
       <div className={cn(styles.guideSpeech, motion.caption)} data-guide-narration role="status" aria-live="polite" aria-atomic="true">
-        <Sparkles aria-hidden="true" />{greeting ? guideGreeting(language) : scene.caption}
+        <Sparkles aria-hidden="true" />{greeting ? personal?.greeting ?? guideGreeting(language) : scene.caption}
       </div>
     </div>
     <div className={cn(styles.stageSignature, motion.signature)}>

@@ -6,8 +6,11 @@ import SkooleeLogo from "@/components/SkooleeLogo";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import type { Language } from "@/lib/locale/package";
+import type { UserRole } from "@/lib/roles";
 import { GuideStage } from "./GuideStage";
 import { launchCopy } from "./launch-copy";
+import { roleGuideCopy } from "./role-guide-copy";
+import { roleGuideIcons } from "./role-guide-icons";
 import styles from "./launch-guide.module.css";
 
 const motionQuery = "(prefers-reduced-motion: reduce)";
@@ -17,12 +20,14 @@ function subscribeMotion(callback: () => void) {
   return () => media.removeEventListener("change", callback);
 }
 
-/** Presentation only: receives no identity, destinations, persistence handlers or school data. */
-export function GuideShowcase({ language, onReturn, onContinue, publicView = false, entryLabel, entryPending = false, entryError, completionDescription }: {
+/** Presentation only. An optional role personalizes the private tour without account data. */
+export function GuideShowcase({ language, role, onReturn, onContinue, publicView = false, entryLabel, entryPending = false, entryError, completionDescription }: {
   language: Language; onReturn: () => void; onContinue?: () => void; publicView?: boolean;
+  role?: UserRole;
   entryLabel?: string; entryPending?: boolean; entryError?: string; completionDescription?: string;
 }) {
   const c = launchCopy(language);
+  const personal = role ? roleGuideCopy(role, language) : undefined;
   const reducedMotion = useSyncExternalStore(subscribeMotion, () => window.matchMedia(motionQuery).matches, () => true);
   const [scene, setScene] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -64,10 +69,10 @@ export function GuideShowcase({ language, onReturn, onContinue, publicView = fal
       else setFullscreenError(true);
     } catch { setFullscreenError(true); }
   };
-  const titles = [c.demoTitleOne, c.demoTitleTwo, c.demoTitleThree];
-  const descriptions = [c.demoBodyOne, c.demoBodyTwo, c.demoBodyThree];
-  const features = [c.demoFeatureOne, c.demoFeatureTwo, c.demoFeatureThree];
-  const icons = [School, Users, ShieldCheck];
+  const titles = personal ? [personal.title, personal.preparationTitle, personal.chooseTitle] : [c.demoTitleOne, c.demoTitleTwo, c.demoTitleThree];
+  const descriptions = personal ? [personal.introduction, personal.preparation, personal.scenes[2].caption] : [c.demoBodyOne, c.demoBodyTwo, c.demoBodyThree];
+  const features = personal ? personal.scenes[Math.min(scene, 2)].cards.map(card => card.title) : [c.demoFeatureOne, c.demoFeatureTwo, c.demoFeatureThree];
+  const icons = role ? roleGuideIcons[role] : [School, Users, ShieldCheck];
   return <section className={`${styles.surface} ${styles.showcase}`} ref={surface} data-showcase data-scene={Math.min(scene, 2)} data-complete={complete || undefined} data-loop={loop || undefined} data-paused={stopped || undefined} dir={language === "en" ? "ltr" : "rtl"} lang={language}>
     <header className={styles.topbar}>
       <SkooleeLogo size="1.8rem" weight="heavy" />
@@ -77,11 +82,11 @@ export function GuideShowcase({ language, onReturn, onContinue, publicView = fal
       </div>
     </header>
     <div className={styles.body}>
-      <GuideStage chapter={Math.min(scene, 2)} language={language} paused={stopped} />
+      <GuideStage chapter={Math.min(scene, 2)} language={language} paused={stopped} role={role} />
       <div className={styles.content} ref={content} data-guide-scroll>
         <p className={styles.eyebrow}><span className={styles.liveDot} />{c.showcaseMode} · {complete ? "✓" : `0${scene + 1}`}</p>
         <h1 className={styles.title} ref={heading} tabIndex={-1}>{complete ? c.showcaseComplete : titles[scene]}</h1>
-        <p className={styles.description} key={scene}>{complete ? completionDescription ?? (publicView ? c.publicCompleteBody : c.showcaseCompleteBody) : descriptions[scene]}</p>
+        <p className={styles.description} key={scene}>{complete ? completionDescription ?? (personal ? `${personal.scenes[2].caption} ${personal.saveHint}` : publicView ? c.publicCompleteBody : c.showcaseCompleteBody) : descriptions[scene]}</p>
         <div className={styles.demoFeatures}>{features.map((label, index) => {
           const Icon = icons[index];
           return <div key={label} data-active={scene === index || undefined}><Icon aria-hidden="true" /><span>{label}</span></div>;

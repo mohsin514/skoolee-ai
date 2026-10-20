@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 import { USER_ROLES, dashboardPathForRole, type UserRole } from "../../src/lib/roles";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
+import { roleGuideCopy } from "../../src/components/onboarding/role-guide-copy";
 import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { setupGenerationCopy } from "../../src/components/school-ai/setup-generation-copy";
 import { setupQuestions, type SetupAnswers } from "../../src/lib/school-ai/onboarding";
@@ -57,6 +58,8 @@ async function passwordLogin(page: Page, role: UserRole) {
 for (const role of USER_ROLES) {
   test(`password login automatically opens personal onboarding for ${role}`, async ({ page, context }) => {
     await passwordLogin(page, role);
+    await expect(page.getByRole("heading", { name: roleGuideCopy(role, "en").title, exact: true })).toBeVisible();
+    await expect(page.locator("[data-launch-guide] [data-guide-persona]")).toHaveAttribute("data-guide-persona", role);
     if (role === "SUPER_ADMIN") await expect(page).toHaveURL(/\/onboarding$/);
     if (role === "TEACHER") await expect(page).toHaveURL(/\/teacher-onboarding$/);
     const welcome = await (await context.request.get("/api/auth/welcome")).json();
@@ -144,6 +147,7 @@ test("campus guide runs through every interview answer, generates scoped drafts 
   await expect(page).toHaveURL(/\/ai\?setup=1$/);
   const copy = schoolAICopy("en"), generation = setupGenerationCopy("en");
   const dialog = page.getByRole("dialog");
+  await expect(dialog.locator("[data-guide-persona]")).toHaveAttribute("data-guide-persona", "CAMPUS_ADMIN");
   const answers: SetupAnswers = {
     schoolName: "Password Campus", country: "Pakistan", timezone: "Asia/Karachi", campuses: "One campus in Lahore",
     grades: "Grades 1 to 5", academicYear: "2026–2027", startDate: "2026-08-01", endDate: "2027-06-30",

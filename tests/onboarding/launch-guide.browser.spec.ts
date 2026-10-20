@@ -5,6 +5,7 @@ import { SignJWT } from "jose";
 import { USER_ROLES, type UserRole } from "../../src/lib/roles";
 import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
+import { roleGuideCopy } from "../../src/components/onboarding/role-guide-copy";
 import { workspaceLaunchCopy } from "../../src/components/school-ai/workspace-launch-copy";
 
 const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
@@ -86,7 +87,7 @@ test("all eleven roles receive their own guide; acknowledgement is isolated and 
 
 test("new owner welcome survives a save failure, persists across reload and replays without resetting setup", async ({ page, context }) => {
   await signIn(context, "owner"); await page.goto("/onboarding");
-  await expect(page.getByRole("heading", { name: launchCopy("en").title })).toBeVisible();
+  await expect(page.getByRole("heading", { name: roleGuideCopy("SUPER_ADMIN", "en").title })).toBeVisible();
   await shot(page, "01-owner-welcome-desktop");
   await chapters(page);
   await expect(page.getByRole("group", { name: launchCopy("en").choose }).getByRole("button", { name: /Set up my institution/ })).toBeVisible();
@@ -115,6 +116,7 @@ test("new owner welcome survives a save failure, persists across reload and repl
   await launch.click();
   await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
   await expect(page.locator("#step-heading")).toBeVisible();
+  await expect(page.locator("aside [data-guide-persona]")).toHaveAttribute("data-guide-persona", "SUPER_ADMIN");
   const before = await db.institutionSetup.findUniqueOrThrow({ where: { schoolId } });
   await page.reload(); await expect(page.getByRole("button", { name: "Replay guide" })).toBeVisible();
   await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
@@ -132,7 +134,7 @@ test("campus admin first use launches the scoped AI interview and resumes an old
   await expect(page).toHaveURL(/\/admin(?:\?view=overview)?$/);
   await expect(page.locator("[data-launch-guide]")).toBeVisible();
   await page.getByRole("button", { name: "Show me the way" }).click();
-  await expect(page.getByRole("heading", { name: "One campus. A connected team." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: roleGuideCopy("CAMPUS_ADMIN", "en").preparationTitle })).toBeVisible();
   await shot(page, "03-campus-preparation");
   await page.getByRole("button", { name: "Let’s get started" }).click();
   await page.locator("[data-guide-actions]").getByRole("button", { name: launchCopy("en").task("aiSetup"), exact: true }).click();
@@ -140,6 +142,7 @@ test("campus admin first use launches the scoped AI interview and resumes an old
   const c = schoolAICopy("en");
   await expect(page.getByRole("heading", { name: c.setupPath, exact: true })).toBeVisible();
   await expect(page.getByRole("dialog").getByText("North Campus · Synthetic", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog").locator("[data-guide-persona]")).toHaveAttribute("data-guide-persona", "CAMPUS_ADMIN");
   await page.screenshot({ path: "test-results/launch-guide/evidence/04-campus-ai-interview.png", animations: "disabled" });
   await page.getByRole("button", { name: c.next, exact: true }).click();
   await expect(page.getByRole("heading", { name: c.schoolName, exact: true })).toBeVisible();
@@ -262,6 +265,11 @@ test("student, principal, teacher and temporary-password entry keep the right bo
     await expect(page.locator("[data-launch-guide]")).toBeVisible(); await chapters(page);
     await expect(page.getByRole("group", { name: launchCopy("en").choose }).getByRole("button", { name: new RegExp(task) })).toBeVisible();
     await shot(page, `06-role-${key.toLowerCase()}`);
+    if (key === "teacher-new") {
+      await page.locator("[data-guide-actions]").getByRole("button", { name: task, exact: true }).click();
+      await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
+      await expect(page.locator("aside [data-guide-persona]")).toHaveAttribute("data-guide-persona", "TEACHER");
+    }
   }
   await signIn(context, "password"); await page.goto("/teacher");
   await expect(page).toHaveURL(/\/first-login$/);
@@ -286,7 +294,7 @@ for (const language of ["en", "ar", "ur"] as const) {
     }
     await page.getByRole("button", { name: c.next, exact: true }).focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("heading", { name: c.journey("campus") })).toBeFocused();
+    await expect(page.getByRole("heading", { name: roleGuideCopy("ADMIN", language).preparationTitle })).toBeFocused();
     await page.getByRole("button", { name: c.continue, exact: true }).click();
     await shot(page, `08-choices-${language}-320`);
     const animations = await page.locator("[data-launch-guide] svg g").evaluateAll(nodes => nodes.map(node => getComputedStyle(node).animationName));
@@ -331,7 +339,8 @@ for (const language of ["en", "ar"] as const) {
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         if (chapter < 2) {
           await next.click();
-          await expect(guide.getByRole("heading", { name: chapter === 0 ? c.journey("campus") : c.choose, exact: true })).toBeFocused();
+          const personal = roleGuideCopy("ADMIN", language);
+          await expect(guide.getByRole("heading", { name: chapter === 0 ? personal.preparationTitle : personal.chooseTitle, exact: true })).toBeFocused();
           await expect.poll(() => pane.evaluate(node => node.scrollTop)).toBe(0);
         }
       }
@@ -422,7 +431,7 @@ test.describe("living guide and exhibition showcase", () => {
     const showcaseCharacter = await showcase.locator("[data-guide-stage] [data-pose] svg").elementHandle();
     await expect(showcase).not.toContainText("Alex");
     await expect(showcase).not.toContainText("Synthetic");
-    await expect(page.getByRole("heading", { name: launchCopy("en").demoTitleOne })).toBeFocused();
+    await expect(page.getByRole("heading", { name: roleGuideCopy("RECEPTIONIST", "en").title })).toBeFocused();
     let writes = 0;
     page.on("request", request => { if (request.method() === "POST" && request.url().includes("/api/")) writes++; });
     await page.getByRole("button", { name: "Full screen", exact: true }).click();
@@ -455,7 +464,7 @@ test.describe("living guide and exhibition showcase", () => {
     await expect(showcase).toHaveAttribute("data-complete", "true");
     await page.getByRole("button", { name: "Choose my workflow", exact: true }).click();
     await expect(guide).toHaveAttribute("data-chapter", "2");
-    await expect(page.getByRole("heading", { name: launchCopy("en").choose })).toBeFocused();
+    await expect(page.getByRole("heading", { name: roleGuideCopy("RECEPTIONIST", "en").chooseTitle })).toBeFocused();
     await expect(guide.locator("[data-guide-actions]").getByRole("button", { name: launchCopy("en").task("frontDesk"), exact: true })).toBeVisible();
     expect(writes).toBe(0);
     const after = await db.user.findUniqueOrThrow({ where: { id: before.id } });
@@ -477,7 +486,7 @@ test.describe("living guide and exhibition showcase", () => {
     await fullyInViewport(page.locator("[data-guide-stage] [data-pose] svg"), page);
     await fullyInViewport(page.getByRole("button", { name: c.showcaseNext, exact: true }), page);
     await page.getByRole("button", { name: c.showcaseNext, exact: true }).click();
-    await expect(page.getByRole("heading", { name: c.demoTitleTwo })).toBeFocused();
+    await expect(page.getByRole("heading", { name: roleGuideCopy("ADMIN", "ar").preparationTitle })).toBeFocused();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator("[data-showcase]").evaluate(node => { node.scrollTop = 0; });
     await page.screenshot({ path: "test-results/launch-guide/evidence/12-showcase-ar-mobile.png", animations: "disabled" });

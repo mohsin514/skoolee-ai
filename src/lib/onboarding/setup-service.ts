@@ -206,6 +206,7 @@ export async function setupView(actor: SetupActor) {
     updatedAt: setup.updatedAt.toISOString(),
     actor: {
       kind: actor.kind,
+      role: user.role,
       userId: user.userId,
       fullName: me?.fullName ?? user.fullName ?? "",
       canPurchase: actor.kind === "owner" || Boolean(user.canPurchaseSubscription),

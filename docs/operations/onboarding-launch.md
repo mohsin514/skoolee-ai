@@ -2,6 +2,10 @@
 
 The shared guide introduces all eleven roles, explains preparation and review, and launches a permitted first workflow. Welcome acknowledgement is separate from institution/profile completion. Replay preserves saved setup.
 
+Each role has its own welcome, preparation, three-scene narrative and next-step framing in English, Arabic and Urdu. Students see learning, parents see linked family records, teachers see teaching preparation, and school leaders see their own operational or academic responsibilities. Finance, library, reception and platform roles have distinct narratives too. The shared animated character changes outfit, accessories and task props for the role, including its planning tablet and ready-state symbol. These are illustrations of the person's work, not inferred personal appearance or fabricated account progress.
+
+The private demonstration retains that role's narrative and character without displaying account identity. The public showcase retains the general product presentation. The same character follows teachers into profile setup and leaders into institution/campus setup. Role presentation never grants access; the server-filtered workflow choices remain authoritative.
+
 Institution activation opens campus AI setup. Groups choose a campus explicitly; campus users remain scoped to their assignment. Existing interviews resume even when older than the default workspace page. Teacher profile and password completion retain priority.
 
 The character stays mounted while changing from a welcoming wave to writing on a tablet and presenting the launch. Narration, cards and background details change with each scene. Say hello is temporary and never overrides a later chapter. Shared brand tokens, the canonical wordmark and Button controls serve onboarding and the public `/showcase` presentation. The showcase plays three scenes once, ends with a next-step action, and offers Watch again. Exhibition loop is an explicit opt-in for display stands. It supports browser full screen and pause/manual advance, and contains no account details or setup writes. The shared viewport frame keeps the stage and footer controls visible while long text scrolls separately; focus changes do not scroll the outer surface. At extreme zoom/short heights, it becomes a readable scrolling document. The shared Button hover no longer moves the pointer target, fixing a repeat-hover loop after error layout changes. Arabic and Urdu use `?lang=ar` and `?lang=ur`. Reduced motion disables animation and autoplay.
@@ -35,5 +39,14 @@ On 20 October 2026, `prisma migrate deploy` successfully applied both pending mi
 Default dashboard, supported language and campaign query parameters permit automatic welcome launch. Explicit task links keep priority. Slow welcome requests have a 30-second timeout and a visible retry instead of silently hiding the guide; acknowledgement uses the same timeout. These changes require no additional migration.
 
 Run `npm run test:onboarding`, `npm run check:ui`, and `npm run test:onboarding:launch`. Browser acceptance requires the isolated database and local server specified in the browser test/config. Set `ONBOARDING_RECORD_VIDEO=1` only when recordings are needed. Generated screenshots/videos stay in ignored `test-results/`.
+
+## Role personalization verification
+
+- 19 role-personalization browser scenarios passed across the main run and targeted rechecks: all eleven role stories, greetings, changing scenes, private showcase and replay; distinct accessory geometry for every role; parent/student phone layouts in EN/AR/UR; and the generic public showcase. The admin recheck followed a wording change during the initial run.
+- All 48 existing browser regressions passed again with personalized title/character assertions and companion continuity through owner, teacher and campus setup. Combined coverage is 67 distinct passing browser scenarios. Password/MFA, campus prototype drafts, session boundaries, motion, pause and replay remained covered.
+- 18 onboarding unit tests, 5 shared UI checks, TypeScript and targeted ESLint passed.
+- Role characters were visually checked together and in wave, planning and ready poses. Captures include five role welcomes and twelve localized phone views.
+
+The main launch browser command includes these scenarios. To run only role personalization, use `npx playwright test --config tests/onboarding/role-persona.config.ts`. The same isolated database guard applies. This change has no database migration.
 
 Recordings, screenshots and detailed acceptance notes are attached to [SKO-397](https://linear.app/skoolee-ai-app/issue/SKO-397), with shared UI evidence on [SKO-379](https://linear.app/skoolee-ai-app/issue/SKO-379). Redundant local captures and logs are excluded from the source commit.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Compass, GraduationCap, MapPin, MonitorPlay, Pause, Play, RotateCcw, ShieldCheck, Workflow } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Compass, MapPin, MonitorPlay, Pause, Play, RotateCcw, ShieldCheck, Workflow } from "lucide-react";
 import { ModalSurface } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -12,6 +12,8 @@ import SkooleeLogo from "@/components/SkooleeLogo";
 import { GuideStage } from "./GuideStage";
 import { GuideShowcase } from "./GuideShowcase";
 import { launchCopy } from "./launch-copy";
+import { roleGuideCopy } from "./role-guide-copy";
+import { roleGuideIcons } from "./role-guide-icons";
 import styles from "./launch-guide.module.css";
 
 export interface LaunchContext extends LaunchPlan {
@@ -26,6 +28,9 @@ export interface LaunchContext extends LaunchPlan {
 
 export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchContext; onFinish: (href?: string) => Promise<void>; onDismiss: () => void }) {
   const c = launchCopy(context.language);
+  const personal = roleGuideCopy(context.role, context.language);
+  const RoleIcon = roleGuideIcons[context.role][0];
+  const institutionSetup = context.actions.some(action => action.task === "institution");
   const [chapter, setChapter] = useState(0);
   const [selected, setSelected] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -49,7 +54,7 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
   };
   const chapters = [c.welcome, c.prepare, c.choose];
   return <ModalSurface fullscreen ariaLabel={showcase ? c.showcase : c.guide} initialFocusRef={heading} onClose={showcase ? () => setShowcase(false) : onDismiss} dismissible={!busy} disableBackdropClose dir={context.language === "en" ? "ltr" : "rtl"} lang={context.language}>
-    {showcase ? <GuideShowcase language={context.language} onReturn={() => setShowcase(false)} onContinue={() => { setChapter(2); setShowcase(false); }} /> : <section className={styles.surface} data-launch-guide data-chapter={chapter} data-paused={paused || undefined}>
+    {showcase ? <GuideShowcase language={context.language} role={context.role} onReturn={() => setShowcase(false)} onContinue={() => { setChapter(2); setShowcase(false); }} /> : <section className={styles.surface} data-launch-guide data-role={context.role} data-chapter={chapter} data-paused={paused || undefined}>
       <header className={styles.topbar}>
         <SkooleeLogo size="1.8rem" weight="heavy" />
         <div className={styles.topActions}>
@@ -59,20 +64,20 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
         </div>
       </header>
       <div className={styles.body}>
-        <GuideStage chapter={chapter} language={context.language} paused={paused} journey={context.journey} />
+        <GuideStage chapter={chapter} language={context.language} paused={paused} role={context.role} />
         <div className={styles.content} ref={content} data-guide-scroll>
           <p className={styles.eyebrow}>{c.eyebrow} · 0{chapter + 1}</p>
-          <h1 className={styles.title} ref={heading} tabIndex={-1}>{chapter === 0 ? c.title : chapter === 1 ? c.journey(context.journey) : c.choose}</h1>
+          <h1 className={styles.title} ref={heading} tabIndex={-1}>{chapter === 0 ? personal.title : chapter === 1 ? institutionSetup ? c.journey("institution") : personal.preparationTitle : personal.chooseTitle}</h1>
           <div className={styles.context}>
-            <span><GraduationCap className="size-3.5" aria-hidden="true" />{context.fullName.split(" ")[0]} · {roleLabel(context.role, context.language)}</span>
+            <span><RoleIcon className="size-3.5" aria-hidden="true" />{context.fullName.trim().split(/\s+/)[0]} · {roleLabel(context.role, context.language)}</span>
             <span><MapPin className="size-3.5" aria-hidden="true" />{context.campusName || context.schoolName}</span>
           </div>
-          <p className={styles.description}>{chapter === 0 ? c.introduction : chapter === 1 ? c.preparation(context.journey) : c.workflowHint}</p>
-          {chapter === 0 && <div className={styles.note}><Compass aria-hidden="true" /><div><strong>{c.scope}</strong><p>{c.scopeHint}</p></div></div>}
+          <p className={styles.description}>{chapter === 0 ? personal.introduction : chapter === 1 ? institutionSetup ? c.preparation("institution") : personal.preparation : personal.scenes[2].caption}</p>
+          {chapter === 0 && <div className={styles.note}><Compass aria-hidden="true" /><div><strong>{personal.scopeTitle}</strong><p>{personal.scopeHint}</p></div></div>}
           {chapter === 1 && <div className={styles.notes}>
             {(context.actions.some(action => action.task === "institution" || action.task === "aiSetup")) && <div className={styles.setupPath}><strong>{c.setupPath}</strong><ol>{[c.setupFoundation, c.setupInterview, c.setupDrafts].map(step => <li key={step}>{step}</li>)}</ol></div>}
-            <div className={styles.note}><ShieldCheck aria-hidden="true" /><div><strong>{c.review}</strong><p>{c.reviewHint}</p></div></div>
-            <div className={styles.note}><RotateCcw aria-hidden="true" /><div><strong>{c.save}</strong><p>{c.saveHint}</p></div></div>
+            <div className={styles.note}><ShieldCheck aria-hidden="true" /><div><strong>{personal.reviewTitle}</strong><p>{personal.reviewHint}</p></div></div>
+            <div className={styles.note}><RotateCcw aria-hidden="true" /><div><strong>{personal.saveTitle}</strong><p>{personal.saveHint}</p></div></div>
           </div>}
           {context.needsCampus && chapter > 0 && <Alert tone="info" compact>{c.campusMissing}</Alert>}
           {chapter === 2 && <div className={styles.choices} role="group" aria-label={c.choose}>{context.actions.map((action, index) =>

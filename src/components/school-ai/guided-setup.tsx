@@ -11,6 +11,7 @@ import { ModalSurface } from "@/components/ui/modal";
 import { schoolAICopy, interpolateAI, type SchoolAICopyKey } from "@/lib/school-ai/copy";
 import { readSetupDraft, setupQuestions, setupReadiness, validateSetupAnswer, type SetupDraft, type SetupAnswers, type SetupPath } from "@/lib/school-ai/onboarding";
 import type { Language } from "@/lib/locale/package";
+import type { UserRole } from "@/lib/roles";
 import type { AiWorkspaceRecord } from "@/lib/school-ai/types";
 import { MultimodalComposer } from "./multimodal-composer";
 import { WorkspaceRequestError, workspaceErrorText, workspaceRequest, type RecordAction } from "./workspace-client";
@@ -27,6 +28,7 @@ import guideStyles from "@/components/onboarding/launch-guide.module.css";
 
 interface Props {
   language: Language;
+  role?: UserRole;
   record?: AiWorkspaceRecord;
   defaults?: SetupAnswers;
   voiceAvailable: boolean;
@@ -44,7 +46,7 @@ interface Props {
 const paths: { key: SetupPath; hint: SchoolAICopyKey; Icon: typeof Building2 }[] = [{ key: "new", hint: "newHint", Icon: Building2 }, { key: "import", hint: "importHint", Icon: FileStack }, { key: "migrate", hint: "migrateHint", Icon: Layers3 }];
 const outcomes = ["exams", "timetable", "fees", "records", "complete"] as const;
 
-export function GuidedSetup({ language, record, defaults, voiceAvailable, assistantAvailable = false, campusId, campusName, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
+export function GuidedSetup({ language, role, record, defaults, voiceAvailable, assistantAvailable = false, campusId, campusName, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
   const c = schoolAICopy(language);
   const guide = launchCopy(language);
   const generationCopy = setupGenerationCopy(language);
@@ -174,7 +176,7 @@ export function GuidedSetup({ language, record, defaults, voiceAvailable, assist
     <header className={styles.setupHeader}><div className="flex min-w-0 items-center gap-3"><span className={styles.choiceIcon}><Sparkles aria-hidden="true" className="size-5" /></span><div className="min-w-0"><span className="font-extrabold">{c.workspace}</span>{campusName && <p className="mt-1 break-words text-xs text-ink-muted">{campusName}</p>}</div></div><Button variant="outline" disabled={busy || mediaBusy || helpActive} onClick={() => void close()}><Save aria-hidden="true" />{c.saveExit}</Button></header>
     <div className={guideStyles.interviewLayout}>
       <aside className={guideStyles.interviewAside} aria-label={guide.guide}>
-        <AiGuide pose={reviewing ? "ready" : pending ? "think" : "wave"} />
+        <AiGuide role={role} pose={reviewing ? "ready" : pending ? "think" : "wave"} />
         <h2>{reviewing ? guide.ready : guide.interview}</h2>
         <p>{guide.interviewHint}</p>
         <Progress value={confirmed} max={answerQuestions.length} label={guide.confirmed} valueText={`${confirmed} / ${answerQuestions.length}`} showValue />

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { isLaunchEntry, isLaunchTask, launchPlan, requiredOnboardingPath } from "../../src/lib/onboarding/launch-plan";
 import { USER_ROLES, dashboardPathForRole } from "../../src/lib/roles";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
+import { roleGuideCopy } from "../../src/components/onboarding/role-guide-copy";
 
 const permissions = new Map(["ai", "exams", "timetable"].map(key => [key, { canView: true, canAdd: true }]));
 const base = { institutionSetup: false, onboardingComplete: true, campusId: "campus-a", permissions };
@@ -66,4 +67,31 @@ test("dashboard defaults and campaign attribution allow welcome; explicit work r
     assert.equal(isLaunchTask(search), true, search);
   }
   assert.equal(isLaunchTask("view=overview", "#payment"), true);
+});
+
+test("every role has its own complete story in each supported language", () => {
+  for (const language of ["en", "ar", "ur"] as const) {
+    const titles = new Set<string>();
+    for (const role of USER_ROLES) {
+      const copy = roleGuideCopy(role, language);
+      for (const text of [
+        copy.title, copy.introduction, copy.preparationTitle, copy.preparation,
+        copy.chooseTitle, copy.greeting, copy.scopeTitle, copy.scopeHint,
+        copy.reviewTitle, copy.reviewHint, copy.saveTitle, copy.saveHint,
+      ]) {
+        assert.ok(text.trim().length > 0, `${role} ${language} contains an empty instruction`);
+        if (language !== "en") assert.match(text, /[\u0600-\u06ff]/, `${role} ${language} has an untranslated instruction`);
+      }
+      titles.add(copy.title);
+      assert.equal(copy.scenes.length, 3);
+      assert.equal(new Set(copy.scenes.map(scene => scene.caption)).size, 3, `${role} ${language} repeats its scene narration`);
+      for (const scene of copy.scenes) {
+        assert.ok(scene.caption.trim());
+        assert.ok(scene.status.trim());
+        assert.equal(scene.cards.length, 3);
+        assert.ok(scene.cards.every(card => card.label.trim() && card.title.trim()));
+      }
+    }
+    assert.equal(titles.size, USER_ROLES.length, `${language} reuses a role headline`);
+  }
 });

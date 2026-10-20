@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, CheckCircle2, ClipboardList, Clock3, FileText, History, LayoutDashboard, Mail, ReceiptText, ListChecks, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
 import { useLocale } from "@/components/locale/LocaleProvider";
+import { normalizeUserRole } from "@/lib/roles";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
@@ -339,5 +340,5 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     {tab === "history" && <RevisionHistoryPanel key={`${campusId}:${selectedSubject}`} language={language} records={visibleRecords} onRecord={putRecord} onAction={recordAction} />}
     </div>
     {nextCursor && <div className="mt-6 flex justify-center"><Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? c.loading : c.loadMore}</Button></div>}
-  </div>{setup && hasKind("ONBOARDING") && !needsCampus && <GuidedSetup key={campusId || "school"} language={language} record={setupRecord} defaults={setupDefaults} voiceAvailable={features.voiceTranscription} assistantAvailable={features.assistant} campusId={campusId} campusName={capabilities.campuses.find(campus => campus.id === campusId)?.name} canApprove={capabilities.canApprove} onAction={recordAction} onSave={saveSetup} onGenerated={putRecords} onOpenRecord={record => { setSetup(false); replaceWorkspaceIntent(); openRecord(record); }} onClose={() => { setSetup(false); replaceWorkspaceIntent("overview"); setTab("overview"); }} onUpload={upload} />}</>;
+  </div>{setup && hasKind("ONBOARDING") && !needsCampus && <GuidedSetup key={campusId || "school"} language={language} role={normalizeUserRole(role) ?? undefined} record={setupRecord} defaults={setupDefaults} voiceAvailable={features.voiceTranscription} assistantAvailable={features.assistant} campusId={campusId} campusName={capabilities.campuses.find(campus => campus.id === campusId)?.name} canApprove={capabilities.canApprove} onAction={recordAction} onSave={saveSetup} onGenerated={putRecords} onOpenRecord={record => { setSetup(false); replaceWorkspaceIntent(); openRecord(record); }} onClose={() => { setSetup(false); replaceWorkspaceIntent("overview"); setTab("overview"); }} onUpload={upload} />}</>;
 }

@@ -1,0 +1,18 @@
+.persona .taskProp {
+  transition: transform .6s cubic-bezier(.2, .7, .3, 1);
+}
+
+/* The free hand lifts the same tool when the guide presents the next action. */
+.persona[data-pose="ready"] .taskProp {
+  transform: translate(13px, -20px);
+}
+
+.persona[data-paused] .taskProp {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .persona .taskProp {
+    transition: none;
+  }
+}
