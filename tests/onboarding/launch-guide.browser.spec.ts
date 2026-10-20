@@ -44,6 +44,12 @@ async function chapters(page: Page, language: "en" | "ar" | "ur" = "en") {
   await page.getByRole("button", { name: c.next, exact: true }).click();
   await page.getByRole("button", { name: c.continue, exact: true }).click();
 }
+/** The guide opens on the showcase; "Return to my guide" leads into the personal chapters. */
+async function enterGuide(page: Page, language: "en" | "ar" | "ur" = "en") {
+  await expect(page.locator("[data-showcase]")).toBeVisible();
+  await page.locator("[data-showcase] header").getByRole("button", { name: launchCopy(language).showcaseReturn, exact: true }).click();
+  await expect(page.locator("[data-launch-guide]")).toHaveAttribute("data-chapter", "0");
+}
 async function fullyInViewport(locator: Locator, page: Page) {
   await expect(locator).toBeVisible();
   const box = await locator.boundingBox();
@@ -87,6 +93,7 @@ test("all eleven roles receive their own guide; acknowledgement is isolated and 
 
 test("new owner welcome survives a save failure, persists across reload and replays without resetting setup", async ({ page, context }) => {
   await signIn(context, "owner"); await page.goto("/onboarding");
+  await enterGuide(page);
   await expect(page.getByRole("heading", { name: roleGuideCopy("SUPER_ADMIN", "en").title })).toBeVisible();
   await shot(page, "01-owner-welcome-desktop");
   await chapters(page);
@@ -121,7 +128,7 @@ test("new owner welcome survives a save failure, persists across reload and repl
   await page.reload(); await expect(page.getByRole("button", { name: "Replay guide" })).toBeVisible();
   await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
   await page.getByRole("button", { name: "Replay guide" }).click();
-  await expect(page.locator("[data-launch-guide]")).toHaveAttribute("data-chapter", "0");
+  await enterGuide(page);
   await page.getByRole("button", { name: "Explore on my own" }).click();
   const after = await db.institutionSetup.findUniqueOrThrow({ where: { schoolId } });
   expect(after.version).toBe(before.version);
@@ -132,7 +139,7 @@ test("new owner welcome survives a save failure, persists across reload and repl
 test("campus admin first use launches the scoped AI interview and resumes an older saved interview", async ({ page, context }) => {
   await signIn(context, "CAMPUS_ADMIN"); await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin(?:\?view=overview)?$/);
-  await expect(page.locator("[data-launch-guide]")).toBeVisible();
+  await enterGuide(page);
   await page.getByRole("button", { name: "Show me the way" }).click();
   await expect(page.getByRole("heading", { name: roleGuideCopy("CAMPUS_ADMIN", "en").preparationTitle })).toBeVisible();
   await shot(page, "03-campus-preparation");
@@ -262,7 +269,7 @@ test("student, principal, teacher and temporary-password entry keep the right bo
   for (const [key, route, task] of [["STUDENT", "/student", "Open my learning workspace"], ["PRINCIPAL", "/principal", "Guide my campus setup with AI"], ["teacher-new", "/teacher-onboarding", "Set up my teacher profile"]]) {
     await signIn(context, key); await page.goto(route);
     await expect(page).toHaveURL(new RegExp(`${route}$`));
-    await expect(page.locator("[data-launch-guide]")).toBeVisible(); await chapters(page);
+    await enterGuide(page); await chapters(page);
     await expect(page.getByRole("group", { name: launchCopy("en").choose }).getByRole("button", { name: new RegExp(task) })).toBeVisible();
     await shot(page, `06-role-${key.toLowerCase()}`);
     if (key === "teacher-new") {
@@ -281,7 +288,7 @@ for (const language of ["en", "ar", "ur"] as const) {
   test(`responsive ${language} welcome, keyboard navigation and reduced motion`, async ({ page, context }) => {
     await signIn(context, language === "en" ? "ADMIN" : language); await page.goto("/admin");
     const c = launchCopy(language);
-    await expect(page.locator("[data-launch-guide]")).toBeVisible();
+    await enterGuide(page, language);
     await expect(page.getByRole("dialog", { name: c.guide })).toHaveCSS("direction", language === "en" ? "ltr" : "rtl");
     for (const width of [1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: width < 500 ? 844 : 1000 });
@@ -309,6 +316,7 @@ for (const language of ["en", "ar"] as const) {
     for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 600 }, { width: 390, height: 667 }]) {
       await page.setViewportSize(viewport);
       await page.goto("/admin");
+      await enterGuide(page, language);
       const guide = page.locator("[data-launch-guide]");
       await expect(guide).toBeVisible();
       await expect(page.locator('[aria-hidden="true"][class*="z-[9999]"]')).toHaveCount(0);
@@ -357,7 +365,7 @@ test("motion can be paused and Escape exits without marking setup or the welcome
   await signIn(context, "RECEPTIONIST");
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/receptionist");
-  await expect(page.locator("[data-launch-guide]")).toBeVisible();
+  await enterGuide(page);
   await page.getByRole("button", { name: "Pause motion" }).click();
   await expect(page.getByRole("button", { name: "Play motion" })).toHaveAttribute("aria-pressed", "true");
   const states = await page.locator("[data-launch-guide] svg g").evaluateAll(nodes => nodes.map(node => getComputedStyle(node).animationPlayState));
@@ -366,7 +374,7 @@ test("motion can be paused and Escape exits without marking setup or the welcome
   await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
   expect((await db.user.findUniqueOrThrow({ where: { id: accounts.get("RECEPTIONIST")!.id } })).welcomeCompletedAt).toBeNull();
   await page.getByRole("button", { name: "Replay guide" }).click();
-  await expect(page.locator("[data-launch-guide]")).toHaveAttribute("data-chapter", "0");
+  await enterGuide(page);
 });
 
 test("confirmed institution activation automatically hands off to campus AI setup", async ({ page, context }) => {
@@ -396,6 +404,7 @@ test.describe("living guide and exhibition showcase", () => {
     await signIn(context, "RECEPTIONIST");
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/receptionist");
+    await enterGuide(page);
     const guide = page.locator("[data-launch-guide]");
     await expect(guide).toBeVisible();
     await expect(page.locator('[aria-hidden="true"][class*="z-[9999]"]')).toHaveCount(0);
@@ -478,7 +487,8 @@ test.describe("living guide and exhibition showcase", () => {
     await page.setViewportSize({ width: 390, height: 667 });
     await page.goto("/admin");
     const c = launchCopy("ar");
-    await page.getByRole("button", { name: c.showcase, exact: true }).click();
+    // The guide opens on the showcase by default.
+    await expect(page.locator("[data-showcase]")).toBeVisible();
     await page.clock.install();
     await page.clock.fastForward(20000);
     await expect(page.locator("[data-showcase]")).toHaveAttribute("data-scene", "0");

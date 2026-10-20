@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Maximize, Minimize, Pause, Play, RotateCcw, Repe
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { InkHeading } from "@/components/ui/ink-heading";
 import type { Language } from "@/lib/locale/package";
 import type { UserRole } from "@/lib/roles";
 import { GuideStage } from "./GuideStage";
@@ -85,11 +86,11 @@ export function GuideShowcase({ language, role, onReturn, onContinue, publicView
       <GuideStage chapter={Math.min(scene, 2)} language={language} paused={stopped} role={role} />
       <div className={styles.content} ref={content} data-guide-scroll>
         <p className={styles.eyebrow}><span className={styles.liveDot} />{c.showcaseMode} · {complete ? "✓" : `0${scene + 1}`}</p>
-        <h1 className={styles.title} ref={heading} tabIndex={-1}>{complete ? c.showcaseComplete : titles[scene]}</h1>
+        <InkHeading className={styles.title} ref={heading} tabIndex={-1} swashKey={scene} text={complete ? c.showcaseComplete : titles[scene]} />
         <p className={styles.description} key={scene}>{complete ? completionDescription ?? (personal ? `${personal.scenes[2].caption} ${personal.saveHint}` : publicView ? c.publicCompleteBody : c.showcaseCompleteBody) : descriptions[scene]}</p>
         <div className={styles.demoFeatures}>{features.map((label, index) => {
           const Icon = icons[index];
-          return <div key={label} data-active={scene === index || undefined}><Icon aria-hidden="true" /><span>{label}</span></div>;
+          return <div key={label} data-active={scene === index || undefined}><Icon aria-hidden="true" /><span>{label}</span><span className={styles.leader} aria-hidden="true" /><span className={styles.featureNumber} aria-hidden="true">{`0${index + 1}`}</span></div>;
         })}</div>
         {fullscreenError && <Alert tone="info" compact>{c.fullscreenFailed}</Alert>}
       </div>

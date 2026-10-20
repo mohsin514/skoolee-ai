@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Check, Compass, MapPin, MonitorPlay, Pause, Play
 import { ModalSurface } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { InkHeading } from "@/components/ui/ink-heading";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import type { Language } from "@/lib/locale/package";
 import type { LaunchPlan } from "@/lib/onboarding/launch-plan";
@@ -34,7 +35,8 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
   const [chapter, setChapter] = useState(0);
   const [selected, setSelected] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [showcase, setShowcase] = useState(false);
+  // The guide opens on the showcase; "Return to my guide" leads into the personal chapters.
+  const [showcase, setShowcase] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const lock = useRef(false);
@@ -66,8 +68,8 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
       <div className={styles.body}>
         <GuideStage chapter={chapter} language={context.language} paused={paused} role={context.role} />
         <div className={styles.content} ref={content} data-guide-scroll>
-          <p className={styles.eyebrow}>{c.eyebrow} · 0{chapter + 1}</p>
-          <h1 className={styles.title} ref={heading} tabIndex={-1}>{chapter === 0 ? personal.title : chapter === 1 ? institutionSetup ? c.journey("institution") : personal.preparationTitle : personal.chooseTitle}</h1>
+          <p className={styles.eyebrow}><span className={styles.liveDot} aria-hidden="true" />{c.eyebrow} · 0{chapter + 1}</p>
+          <InkHeading className={styles.title} ref={heading} tabIndex={-1} swashKey={chapter} text={chapter === 0 ? personal.title : chapter === 1 ? institutionSetup ? c.journey("institution") : personal.preparationTitle : personal.chooseTitle} />
           <div className={styles.context}>
             <span><RoleIcon className="size-3.5" aria-hidden="true" />{context.fullName.trim().split(/\s+/)[0]} · {roleLabel(context.role, context.language)}</span>
             <span><MapPin className="size-3.5" aria-hidden="true" />{context.campusName || context.schoolName}</span>
@@ -89,7 +91,7 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
       </div>
       <footer className={styles.bottom}><div className={styles.footerStatus}>
         {error && <Alert tone="danger" live="assertive" compact>{c.failed}</Alert>}
-        <ol className={styles.chapters} aria-label={c.guide}>{chapters.map((label, index) => <li key={label} className={styles.chapter} aria-current={index === chapter ? "step" : undefined}><span className={styles.chapterNumber}>{index < chapter ? <Check className="size-3" aria-hidden="true" /> : index + 1}</span>{label}</li>)}</ol>
+        <ol className={styles.chapters} aria-label={c.guide}>{chapters.map((label, index) => <li key={label} className={styles.chapter} aria-current={index === chapter ? "step" : undefined}><span className={styles.chapterNumber}>{index < chapter ? <Check className="size-3" aria-hidden="true" /> : `0${index + 1}`}</span>{label}</li>)}</ol>
         <p className={styles.replayHint}>{c.replayHint}</p></div>
           <div className={styles.actions} data-guide-actions>
             {chapter > 0 && <Button variant="outline" disabled={busy} onClick={() => setChapter(chapter - 1)}><ArrowLeft className="rtl:rotate-180" aria-hidden="true" />{c.back}</Button>}

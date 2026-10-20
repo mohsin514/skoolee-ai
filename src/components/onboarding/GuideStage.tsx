@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type React from "react";
 import { ArrowUpRight, ClipboardCheck, FilePenLine, GraduationCap, Hand, MessageCircle, Play, RotateCcw, School, Sparkles, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Language } from "@/lib/locale/package";
 import type { LaunchJourney } from "@/lib/onboarding/launch-plan";
 import type { UserRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+import { WaxSeal } from "@/components/auth/WaxSeal";
 import { AiGuide } from "./AiGuide";
 import { launchCopy } from "./launch-copy";
 import { guideGreeting, guideScenes } from "./stage-copy";
@@ -21,7 +23,16 @@ const sceneIcons = [
   [Play, RotateCcw, ArrowUpRight],
 ] as const;
 
-/** The same living stage powers the personal welcome and the public-facing showcase. */
+/** Celebration pieces on the ink cover: direction, distance, spin and tint per piece (CSS custom properties). */
+const CONFETTI = [
+  [-150, -120, 220, "var(--brand-300)"], [-95, -170, -160, "var(--berry)"], [-40, -190, 300, "white"],
+  [30, -185, -240, "var(--brand-200)"], [90, -165, 180, "var(--brand-400)"], [150, -115, -200, "var(--berry)"],
+  [-170, -40, 140, "var(--brand-100)"], [175, -45, -150, "var(--brand-300)"], [-110, -95, -300, "white"],
+  [115, -100, 260, "var(--brand-200)"],
+].map(([x, y, r, c], i) => ({ "--x": `${x}%`, "--y": `${y}%`, "--r": `${r}deg`, "--c": c, "--d": `${i * 45}ms` }) as React.CSSProperties);
+
+/** The same living stage powers the personal welcome and the public-facing showcase. It is the
+ *  Front Desk ink cover (.sk-ink-cover): masthead, a spotlit cameo, letterhead cards, embossed seal. */
 export function GuideStage({ chapter, language, paused, journey, role }: { chapter: number; language: Language; paused: boolean; journey?: LaunchJourney; role?: UserRole }) {
   const c = launchCopy(language);
   const personal = role ? roleGuideCopy(role, language) : undefined;
@@ -38,9 +49,19 @@ export function GuideStage({ chapter, language, paused, journey, role }: { chapt
     return () => window.clearTimeout(timer);
   }, [greetingChapter, paused]);
 
-  return <div className={cn(styles.stage, motion.stage)} data-guide-stage data-scene={currentChapter} data-paused={paused || undefined}>
+  return <div className={cn(styles.stage, motion.stage, "sk-ink-cover")} data-guide-stage data-scene={currentChapter} data-paused={paused || undefined}>
+    <div className={cn("sk-cover-masthead", styles.coverMasthead)} aria-hidden="true">
+      <WaxSeal size={30} finish="foil" />
+      <span className="sk-folio">Skoolee AI</span>
+      <span className="sk-cover-rule" />
+      <span className="sk-folio" dir="ltr">{`0${currentChapter + 1} / 03`}</span>
+    </div>
     <div className={styles.stageArtwork}>
       <div className={motion.decoration} aria-hidden="true">
+      {/* Art direction: a scene-tinted glow, slow light rays and a spotlight on the cameo (decorative). */}
+      <div className={styles.aurora}><span /><span /><span /></div>
+      <div className={styles.rays} />
+      <div className={styles.spotlight} />
       <div className={styles.stageGrid} />
       <div className={styles.halo}><span /><span /><span /></div>
       <svg className={styles.constellation} viewBox="0 0 520 520" fill="none" focusable="false">
@@ -71,6 +92,8 @@ export function GuideStage({ chapter, language, paused, journey, role }: { chapt
         <g className={styles.sparkleTwo} stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M452 299v16m-8-8h16M188 95v10m-5-5h10" /></g>
       </svg>
       <div className={styles.platform}><span /></div>
+      {/* The final scene celebrates once as it arrives (remounted per visit, so it replays). */}
+      {currentChapter === 2 ? <div className={styles.confetti} aria-hidden="true" key="ready">{CONFETTI.map((piece, index) => <i key={index} style={piece} />)}</div> : null}
       <div className={styles.heroCharacter}>
         <AiGuide role={role} pose={greeting ? "wave" : currentChapter === 0 ? "wave" : currentChapter === 1 ? "think" : "ready"} paused={paused} continuous reacting={greeting} />
       </div>
@@ -78,6 +101,7 @@ export function GuideStage({ chapter, language, paused, journey, role }: { chapt
         {item.cards.map((card, cardIndex) => {
           const Icon = role ? roleGuideIcons[role][cardIndex] : sceneIcons[sceneIndex][cardIndex];
           return <div key={cardIndex} className={cn(styles.workflowCard, motion.sceneCard, [motion.leftCard, motion.rightCard, motion.bottomCard][cardIndex])}>
+            <WaxSeal size={22} className={styles.cardSeal} />
             <span className={styles.cardIcon}><Icon /></span>
             <div><small>{card.label}</small><strong>{card.title}</strong><span className={motion.cardProgress}><i data-filled /><i data-filled={sceneIndex > 0 || undefined} /><i data-filled={sceneIndex > 1 || undefined} /></span></div>
           </div>;
@@ -92,5 +116,6 @@ export function GuideStage({ chapter, language, paused, journey, role }: { chapt
       <span><span className={styles.liveDot} aria-hidden="true" />{scene.status}</span>
       <Button variant="ghost" size="sm" disabled={paused || greeting} onClick={() => setGreetingChapter(currentChapter)}><Hand aria-hidden="true" />{c.sayHello}</Button>
     </div>
+    <WaxSeal finish="emboss" className="sk-cover-emboss" size={416} />
   </div>;
 }

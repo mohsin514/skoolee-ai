@@ -79,10 +79,18 @@ async function accessoryGeometry(prop: Locator) {
   ));
 }
 
+/** The guide opens on the showcase; "Return to my guide" leads into the personal chapters. */
+async function enterGuide(page: Page, language: "en" | "ar" | "ur" = "en") {
+  await expect(page.locator("[data-showcase]")).toBeVisible();
+  await page.locator("[data-showcase] header").getByRole("button", { name: launchCopy(language).showcaseReturn, exact: true }).click();
+  await expect(page.locator("[data-launch-guide]")).toHaveAttribute("data-chapter", "0");
+}
+
 for (const role of USER_ROLES) {
   test(`${role} receives personal scenes, a role companion and a matching replay`, async ({ page, context }) => {
     await signIn(context, role);
     await page.goto(dashboardPathForRole(role));
+    await enterGuide(page);
     const c = launchCopy("en"), personal = roleGuideCopy(role, "en");
     const guide = page.locator("[data-launch-guide]");
     await expect(guide.getByRole("heading", { name: personal.title, exact: true })).toBeVisible();
@@ -124,7 +132,7 @@ for (const role of USER_ROLES) {
     await page.keyboard.press("Escape");
     await expect(guide).toHaveCount(0);
     await page.getByRole("button", { name: c.replay, exact: true }).click();
-    await expect(guide).toHaveAttribute("data-chapter", "0");
+    await enterGuide(page);
     await expect(guide.getByRole("heading", { name: personal.title, exact: true })).toBeVisible();
     await expect(character(guide)).toHaveAttribute("data-guide-persona", role);
     if (captureRoles.includes(role)) await capture(page, `01-${role.toLowerCase()}-welcome`);
@@ -138,6 +146,7 @@ test("all eleven roles have visibly different accessories", async ({ page, conte
   for (const role of USER_ROLES) {
     await signIn(context, role);
     await page.goto(dashboardPathForRole(role));
+    await enterGuide(page);
     const prop = character(page.locator("[data-launch-guide]")).locator("[data-guide-prop]");
     await expect(prop).toBeVisible();
     // IDs, colors and role labels cannot make identical drawings pass this check.
@@ -153,6 +162,7 @@ for (const role of ["STUDENT", "PARENT"] as const) {
       await signIn(context, role, language);
       await page.setViewportSize({ width: 390, height: 667 });
       await page.goto(dashboardPathForRole(role));
+      await enterGuide(page, language);
       const c = launchCopy(language), personal = roleGuideCopy(role, language);
       const guide = page.locator("[data-launch-guide]");
       await expect(guide.getByRole("heading", { name: personal.title, exact: true })).toBeVisible();
