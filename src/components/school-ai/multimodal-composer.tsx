@@ -21,6 +21,7 @@ export interface MultimodalComposerProps {
   busy?: boolean;
   voiceAvailable?: boolean;
   submitLabel?: string;
+  submitDisabled?: boolean;
   placeholder?: string;
   label?: string;
   onActivityChange?: (active: boolean) => void;
@@ -28,7 +29,7 @@ export interface MultimodalComposerProps {
 
 /** Voice becomes editable text. Uploads are separate reviewable source records, never implicit commands. */
 const SUPPORTED_UPLOAD = /\.(pdf|jpe?g|png|webp|txt|csv)$/i;
-export function MultimodalComposer({ language, value, onChange, onSubmit, onUpload, disabled, busy, voiceAvailable, submitLabel, placeholder, label, onActivityChange }: MultimodalComposerProps) {
+export function MultimodalComposer({ language, value, onChange, onSubmit, onUpload, disabled, busy, voiceAvailable, submitLabel, submitDisabled, placeholder, label, onActivityChange }: MultimodalComposerProps) {
   const c = schoolAICopy(language);
   const id = useId();
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -132,7 +133,7 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
   return <div className={styles.composer}>
     <label className="sr-only" htmlFor={id}>{label || c.textLabel}</label>
     <Textarea id={id} value={value} onChange={event => onChange(event.target.value)} maxLength={4000} placeholder={placeholder || c.messagePlaceholder} disabled={occupied || recording} rows={3}
-      onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && value.trim() && !occupied && !recording && onSubmit) { event.preventDefault(); void onSubmit(); } }} />
+      onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && value.trim() && !occupied && !recording && !submitDisabled && onSubmit) { event.preventDefault(); void onSubmit(); } }} />
     <div className={styles.composerToolbar}>
       <div className="flex flex-wrap gap-1">
         {onUpload && <><IconButton variant="ghost" label={c.attach} disabled={occupied || recording} onClick={() => uploadRef.current?.click()}><Paperclip aria-hidden="true" /></IconButton>
@@ -141,7 +142,7 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
           <Input ref={cameraRef} type="file" className="hidden" tabIndex={-1} aria-label={c.scan} accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => { attachFile(event.target.files?.[0], "camera"); event.target.value = ""; }} /></>}
         <IconButton variant={recording ? "destructive" : "ghost"} label={recording ? c.stopRecording : c.record} tooltip={voiceAvailable ? undefined : c.serviceUnavailable} disabled={occupied && !recording} aria-pressed={recording} onClick={recording ? stop : () => void start()}>{starting || transcribing ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : recording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}</IconButton>
       </div>
-      {onSubmit && <Button type="button" loading={busy} disabled={occupied || recording || !value.trim()} onClick={() => void onSubmit()}>{busy ? null : <Send aria-hidden="true" />}{busy ? c.working : submitLabel || c.send}</Button>}
+      {onSubmit && <Button type="button" loading={busy} disabled={occupied || recording || !value.trim() || submitDisabled} onClick={() => void onSubmit()}>{busy ? null : <Send aria-hidden="true" />}{busy ? c.working : submitLabel || c.send}</Button>}
     </div>
     {(recording || transcribing || feedback) && <p className={`mt-2 text-sm ${failed ? "text-destructive" : "text-ink-muted"}`} role={failed ? "alert" : "status"}>{recording ? c.recording : transcribing ? c.transcribing : feedback}</p>}
   </div>;

@@ -5,12 +5,12 @@ import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import {
   AICreditError,
+  AIProviderQuotaError,
   consumeAICreditAndLog,
   ensureAICreditsAvailable,
   generateAIDraft,
 } from "@/lib/ai/openai";
-import { transliterateToUrdu } from "@/lib/urdu";
-import { Pseudonymizer } from "@/lib/ai/pseudonymize";
+import { PIILeakError, Pseudonymizer } from "@/lib/ai/pseudonymize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
   if (text.length < 2) {
     return Response.json({ error: "Text is too short to translate" }, { status: 400 });
   }
+  if (text.length > 5000) {
+    return Response.json({ error: "Keep the remark under 5,000 characters." }, { status: 400 });
+  }
 
   try {
     await ensureAICreditsAvailable(user.schoolId);
@@ -55,6 +58,7 @@ export async function POST(req: NextRequest) {
       prompt: `Translate the following English report card remark into Urdu:\n${safeText}`,
       temperature: 0.3,
       maxTokens: 250,
+      signal: req.signal,
     });
 
     const translation = pseudonymizer.unmask(draft.text)
@@ -62,9 +66,7 @@ export async function POST(req: NextRequest) {
       .replace(/["'“”]+$/, "")
       .trim();
 
-    if (!translation) {
-      return Response.json({ translation: transliterateToUrdu(text) });
-    }
+    if (!translation || !/[\u0600-\u06ff]/u.test(translation)) throw new Error("The provider did not return an Urdu translation.");
 
     await consumeAICreditAndLog({
       schoolId: user.schoolId,
@@ -77,13 +79,15 @@ export async function POST(req: NextRequest) {
       tokensUsed: draft.tokensUsed,
       approvalStatus: "DRAFT",
       output: jsonValue({ en: text, ur: translation }),
-    }).catch(() => {});
+    });
 
     return Response.json({ translation, model: draft.model });
   } catch (error) {
     if (error instanceof AICreditError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
-    return Response.json({ translation: transliterateToUrdu(text) });
+    if (error instanceof PIILeakError) return Response.json({ error: "Remove private identifiers before translating this remark." }, { status: 422 });
+    if (error instanceof AIProviderQuotaError) return Response.json({ error: "AI translation is temporarily unavailable because the provider's quota is exhausted. You can enter Urdu manually." }, { status: 503 });
+    return Response.json({ error: "Urdu translation is unavailable right now. Try again or enter Urdu manually." }, { status: 503 });
   }
 }

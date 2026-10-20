@@ -7,10 +7,10 @@ import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
-import { transliterateToUrdu } from "@/lib/urdu";
 import { assertNoPII, PIILeakError, Pseudonymizer } from "./pseudonymize";
 import { AI_POLICY_VERSION, AI_SOURCE_VERSION } from "./evaluation";
 import { PAPER_GENERATION_FEATURE, unknownPaperGeneration } from "@/lib/school-ai/paper-generation";
+import { approvedOpenAIEndpoint, openAICompletionSettings } from "./openai-settings";
 
 type AIProvider = "pollinations" | "openai" | "ollama";
 
@@ -162,7 +162,22 @@ export function getAIModel() {
 }
 
 export function validateAIGatewayPolicy() {
-  return { providers: providerOrder(), timeoutMs: AI_TIMEOUT_MS, promptVersion: AI_PROMPT_VERSION };
+  const providers = providerOrder();
+  if (providers.includes("openai") && !approvedOpenAIEndpoint()) {
+    throw new Error("AI gateway policy blocks this OpenAI destination");
+  }
+  return { providers, timeoutMs: AI_TIMEOUT_MS, promptVersion: AI_PROMPT_VERSION };
+}
+
+/** Configuration readiness, not a claim that the provider's quota or network is healthy. */
+export function getAITextProviderStatus(): { configured: boolean; providers: AIProvider[]; model: string | null } {
+  try {
+    const { providers } = validateAIGatewayPolicy();
+    const ready = providers.find(provider => provider === "openai"
+      ? Boolean(process.env.OPENAI_API_KEY?.trim())
+      : provider === "ollama" || Boolean(process.env.POLLINATIONS_API_KEY?.trim()));
+    return { configured: Boolean(ready), providers, model: ready ? modelLabel(ready) : null };
+  } catch { return { configured: false, providers: [], model: null }; }
 }
 
 function estimateTokens(messages: ChatMessage[], output = "") {
@@ -210,18 +225,11 @@ async function completeWithOpenAI({
   /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
   signal?: AbortSignal;
 }): Promise<ProviderResult> {
-  if (process.env.OPENAI_BASE_URL) {
-    let url: URL;
-    try { url = new URL(process.env.OPENAI_BASE_URL); } catch { throw new Error("AI gateway policy has an invalid OpenAI destination"); }
-    if (url.protocol !== "https:" || url.hostname !== "api.openai.com") {
-      throw new Error("AI gateway policy blocks this OpenAI destination");
-    }
-  }
+  if (!approvedOpenAIEndpoint()) throw new Error("AI gateway policy blocks this OpenAI destination");
   const response = await getOpenAIClient().chat.completions.create({
     model: OPENAI_MODEL,
     messages,
-    temperature,
-    max_tokens: maxTokens,
+    ...openAICompletionSettings(OPENAI_MODEL, temperature, maxTokens),
   }, { timeout: AI_TIMEOUT_MS, ...(signal ? { signal } : {}) });
 
   const text = response.choices[0]?.message?.content?.trim() || "";
@@ -637,8 +645,11 @@ export async function generateRemark(
 
   if (request.language === "both") {
     const parts = text.split("---").map((s) => s.trim()).filter(Boolean);
-    const remarkEn = parts[0] || text;
-    const remarkUr = parts[1] || transliterateToUrdu(remarkEn);
+    const remarkEn = parts[0];
+    const remarkUr = parts[1];
+    if (!remarkEn || !remarkUr || !/[\u0600-\u06ff]/u.test(remarkUr)) {
+      throw new Error("The provider did not return both requested remark languages. Please retry.");
+    }
     return {
       remarkEn,
       remarkUr,

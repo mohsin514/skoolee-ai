@@ -41,7 +41,7 @@ export function StudyAssistant() {
   useEffect(() => { void load(); }, [load]);
   const submit = async () => {
     setBusy(true);
-    try { const result = await call("POST", { action: "ask", question, resourceId: resourceId || undefined, language }); setLatest(result); if (result.outcome === "BLOCKED") await load(); }
+    try { const result = await call("POST", { action: "ask", question, resourceId: resourceId || undefined, language }); setLatest(result); await load(); }
     catch (e) { if (e instanceof ExamActive) { setData(d => ({ blocked: { title: "", href: e.examUrl }, resources: d?.resources ?? [], turns: d?.turns ?? [] })); return; } toast.error(ui(e instanceof Error ? e.message : "Study assistance is unavailable. Your class resources still work.")); } finally { setBusy(false); }
   };
   const flag = async (turnId: string, action: "report" | "help") => { try { await call("POST", { action, turnId }); toast.success(action === "help" ? ui("Your teacher has been asked to help.") : ui("Thank you. Your teacher will check this answer.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
@@ -82,7 +82,7 @@ export function TeacherStudyDesk() {
   const ui = useUiText();
   const [desk, setDesk] = useState<Desk | null>(null), [deskFailed, setDeskFailed] = useState(false), [busy, setBusy] = useState(false);
   const [resourceId, setResourceId] = useState(""), [section, setSection] = useState(""), [text, setText] = useState("");
-  const load = useCallback(async () => { let r: Response; try { r = await fetch("/api/study/teacher", { cache: "no-store" }); } catch { setDeskFailed(true); return; } setDeskFailed(r.status >= 500); const j = await r.json().catch(() => ({})); if (j.success) { setDesk(j.data); setResourceId(id => id || j.data.resources.find((x: { eligible: boolean }) => x.eligible)?.id || ""); } }, []);
+  const load = useCallback(async () => { let r: Response; try { r = await fetch("/api/study/teacher", { cache: "no-store" }); } catch { setDeskFailed(true); return; } const j = await r.json().catch(() => ({})); setDeskFailed(!r.ok || !j.success); if (r.ok && j.success) { setDesk(j.data); setResourceId(id => id || j.data.resources.find((x: { eligible: boolean }) => x.eligible)?.id || ""); } }, []);
   useEffect(() => { void load(); }, [load]);
   const post = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { const r = await fetch("/api/study/teacher", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok || !j.success) throw new Error(j.error || "The change was not saved."); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (!desk && deskFailed) return <section className="sk-panel p-5" data-study-desk><ErrorState title={ui("Could not load study help.")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></section>;

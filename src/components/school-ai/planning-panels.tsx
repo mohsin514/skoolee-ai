@@ -21,11 +21,11 @@ import { useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
 import { isAcademicSetupPlan } from "./academic-setup-panel";
 import { isTimetableSetupPlan } from "./timetable-setup-panel";
 
-interface PanelProps { language: Language; records: AiWorkspaceRecord[]; canCreate: boolean; canApprove: boolean; onSave: SaveRecord; onAction: RecordAction }
-export function PolicyPanel({ language, records, canCreate, canApprove, onSave, onAction }: PanelProps) {
+interface PanelProps { language: Language; records: AiWorkspaceRecord[]; canCreate: boolean; canApprove: boolean; onSave: SaveRecord; onAction: RecordAction; initialRecordId?: string | null }
+export function PolicyPanel({ language, records, canCreate, canApprove, onSave, onAction, initialRecordId }: PanelProps) {
   const c = schoolAICopy(language);
   const guard = useWorkspaceDraftNavigation();
-  const [selection, setSelection] = useState<string | null>(null);
+  const [selection, setSelection] = useState<string | null>(initialRecordId || null);
   const policies = records.filter(record => record.kind === "POLICY" && !record.data.knowledge && record.status !== "ARCHIVED");
   const selected = policies.find(record => record.id === selection);
   return <section className={`sk-panel ${styles.panel}`}><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className={styles.sectionTitle}>{c.policiesTitle}</h2><p className={styles.description}>{c.policiesHint}</p></div>{canCreate && <Button variant="outline" onClick={() => guard(() => setSelection("new"))}><Plus aria-hidden="true" />{c.addPolicy}</Button>}</div>
@@ -61,10 +61,10 @@ function PolicyEditor({ language, record, canCreate, canApprove, onSave, onActio
   </div>;
 }
 
-export function WorkPanel({ language, records, canCreate, canApprove, onSave, onAction, scope, onOpenRecord, moduleHref }: PanelProps & { scope: { subjectId?: string; classId?: string }; onOpenRecord: (record: AiWorkspaceRecord) => void; moduleHref: (module: string) => string | undefined }) {
+export function WorkPanel({ language, records, canCreate, canApprove, onSave, onAction, scope, onOpenRecord, moduleHref, initialRecordId }: PanelProps & { scope: { subjectId?: string; classId?: string }; onOpenRecord: (record: AiWorkspaceRecord) => void; moduleHref: (module: string) => string | undefined }) {
   const c = schoolAICopy(language);
   const guard = useWorkspaceDraftNavigation();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialRecordId || null);
   const work = records.filter(record => record.kind === "WORKFLOW" && !isAcademicSetupPlan(record) && !isTimetableSetupPlan(record) && (record.data.proposal as { operation?: string } | undefined)?.operation !== "communications.queue_announcement" && record.status !== "ARCHIVED");
   const review = records.filter(record => record.status === "IN_REVIEW");
   const current = work.find(record => record.id === selected);

@@ -1,5 +1,7 @@
 import OpenAI, { toFile } from "openai";
 import { ApiError } from "@/lib/api/scope";
+import { getAITextProviderStatus } from "@/lib/ai/openai";
+import { approvedOpenAIEndpoint } from "@/lib/ai/openai-settings";
 import { extractionSchema, unreviewedExtraction, parseModelJson } from "./intake";
 import { sourceStorageAvailable } from "./source-storage";
 import { transcriptConfidence } from "./voice";
@@ -12,21 +14,14 @@ function mediaModel(task: MediaTask) {
   return task === "documents" ? process.env.SCHOOL_AI_DOCUMENT_MODEL : process.env.SCHOOL_AI_TRANSCRIPTION_MODEL;
 }
 
-function approvedOpenAIEndpoint() {
-  try {
-    const url = new URL(process.env.OPENAI_BASE_URL || "https://api.openai.com/v1");
-    return url.protocol === "https:" && url.hostname === "api.openai.com" && !url.username && !url.password && !url.port && !url.search && !url.hash && ["/v1", "/v1/"].includes(url.pathname);
-  } catch { return false; }
-}
-
 function mediaReady(task: MediaTask) {
   return approvedOpenAIEndpoint() && process.env.SCHOOL_AI_MEDIA_EGRESS_APPROVED === "true" && Boolean(process.env.OPENAI_API_KEY && mediaModel(task));
 }
 
 export function schoolAiProviderCapabilities() {
-  const textProvider = (process.env.AI_PROVIDER || "auto").toLowerCase();
-  const approvedText = textProvider === "openai" || (textProvider === "auto" && (process.env.AI_PROVIDER_ORDER || "openai") === "openai");
-  const textReady = approvedText && approvedOpenAIEndpoint() && Boolean(process.env.OPENAI_API_KEY);
+  // Readiness must use the same approved destinations, order and credentials as dispatch.
+  // A valid configured fallback chain must not disable the entire School AI workspace.
+  const textReady = getAITextProviderStatus().configured;
   return {
     documentUpload: sourceStorageAvailable(),
     documentExtraction: mediaReady("documents"),
@@ -42,7 +37,7 @@ export function schoolAiProviderCapabilities() {
 }
 
 export function assertSchoolAiTextProvider() {
-  if (!schoolAiProviderCapabilities().assistant) throw new ApiError("Configure an approved OpenAI text provider to use this feature. Manual editing remains available.", 503);
+  if (!schoolAiProviderCapabilities().assistant) throw new ApiError("Configure an approved text provider to use live AI. You can try the sample demo or continue editing manually.", 503);
 }
 
 function mediaClient(task: MediaTask) {

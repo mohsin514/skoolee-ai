@@ -206,8 +206,8 @@ export function RoleHeader({
 
   return (
     <>
-      <header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white/40 backdrop-blur-xl border border-edge/25 rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
-        <div className="hidden min-[400px]:flex items-center gap-4">
+      <header data-workspace-header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white border border-border rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.08),0_8px_28px_-10px_rgba(129,39,207,0.16)] z-40", compact ? "mb-3" : "mb-4")}>
+        <div className="flex min-w-0 items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-brand-400 flex items-center justify-center shadow-md shadow-primary/15 shrink-0">
             <LayoutDashboard className="h-[18px] w-[18px] text-white" />
           </div>
@@ -217,9 +217,10 @@ export function RoleHeader({
               either side of midnight). That mismatch was throwing a hydration
               error on every dashboard load. The client value is the correct
               one; suppress the diff rather than degrade to a server guess. */}
-          <div className="hidden sm:block">
-            <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-ink-strong leading-tight">{t(greeting)}, <bdi>{displayName}</bdi></p>
-            <p suppressHydrationWarning className="text-2xs font-semibold text-ink-muted leading-tight mt-px">{today}</p>
+          <div className="min-w-0">
+            {eyebrow && <p className="text-xs font-bold leading-tight text-ink-strong">{eyebrow}</p>}
+            <p suppressHydrationWarning className={cn("text-xs font-semibold tracking-tight text-ink-muted leading-tight", eyebrow ? "mt-1 hidden sm:block" : "hidden sm:block")}>{t(greeting)}, <bdi>{displayName}</bdi></p>
+            {!eyebrow && <p suppressHydrationWarning className="hidden sm:block text-2xs font-semibold text-ink-muted leading-tight mt-px">{today}</p>}
           </div>
         </div>
 

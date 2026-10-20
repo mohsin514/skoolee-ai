@@ -54,11 +54,15 @@ test("cancelling mid-generation aborts the provider call, charges nothing and is
   const before = await credits(), controller = new AbortController();
   let providerSawAbort = false;
   // A provider that honours the signal, as the OpenAI client and fetch do.
-  const slow = ({ signal }: { signal?: AbortSignal }) => new Promise<never>((_, reject) => signal!.addEventListener("abort", () => { providerSawAbort = true; reject(new GenerationCancelledError()); }, { once: true }));
+  const slow = ({ signal }: { signal?: AbortSignal }) => new Promise<never>((_, reject) => {
+    signal!.addEventListener("abort", () => { providerSawAbort = true; reject(new GenerationCancelledError()); }, { once: true });
+    // The ITEMS stage precedes database preparation. Abort only once dispatch
+    // actually reaches the provider, irrespective of database or machine load.
+    queueMicrotask(() => controller.abort());
+  });
   const request = input();
   const stream = paperGenerationFrames(author, request, { signal: controller.signal, generate: slow as never, assertProvider: () => undefined });
-  const frames: GenerationFrame[] = [];
-  await as(async () => { for await (const frame of decodeFrames(encodeFrames((async function* () { for await (const frame of stream) { yield frame; if (frame.type === "stage" && frame.stage === "ITEMS") setTimeout(() => controller.abort(), 50); } })()))) frames.push(frame); });
+  const frames = await as(() => collect(stream));
   assert.equal(providerSawAbort, true, "the provider request itself was aborted");
   assert.deepEqual([frames.at(-1)!.type, frames.filter(frame => frame.type === "item").length], ["cancelled", 0]);
   assert.deepEqual(await credits(), { aiCreditsUsed: before.aiCreditsUsed, aiCreditsReserved: 0 }, "nothing charged and the reservation is released");

@@ -15,7 +15,6 @@ import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { UrduInput } from "@/components/ui/urdu-input";
-import { transliterateToUrdu } from "@/lib/urdu";
 import { downloadPdfFile, downloadReportCardPdf } from "@/lib/download";
 import {
   AiActionPanel, BrandButton, EmptyState, RoleShell, StatCard, type RoleNavItem,
@@ -835,11 +834,13 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
   const [detailLoading, setDetailLoading] = useState(!report.subjectDistribution);
   const [remarks, setRemarks] = useState({ en: report.remarksEn || "", ur: report.remarksUr || "" });
   const [translatingUr, setTranslatingUr] = useState(false);
+  const [translationError, setTranslationError] = useState("");
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
   const urduTouchedRef = useRef(Boolean(report.remarksUr));
   const translateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translateSeq = useRef(0);
+  const translationRequest = useRef<AbortController | null>(null);
   const avatar = report.student?.profileImageUrl;
 
   useEffect(() => {
@@ -870,33 +871,45 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
     return () => {
       if (translateTimer.current) clearTimeout(translateTimer.current);
       translateSeq.current += 1;
+      translationRequest.current?.abort();
     };
   }, []);
 
   const runUrduTranslation = async (en: string) => {
     const seq = ++translateSeq.current;
+    translationRequest.current?.abort();
+    const controller = new AbortController();
+    translationRequest.current = controller;
     setTranslatingUr(true);
+    setTranslationError("");
     try {
       const res = await fetch("/api/ai/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: en }),
+        signal: controller.signal,
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Translation failed");
       if (seq === translateSeq.current && !urduTouchedRef.current && result.translation) {
         setRemarks((r) => ({ ...r, ur: result.translation }));
       }
-    } catch { /* auto-translation failure is non-critical */ }
+    } catch (error) {
+      if (seq === translateSeq.current) setTranslationError(error instanceof Error ? error.message : "Urdu translation is unavailable. You can enter Urdu manually.");
+    }
     finally {
       if (seq === translateSeq.current) setTranslatingUr(false);
     }
   };
 
   const handleRemarksEnChange = (en: string) => {
+    translateSeq.current += 1;
+    translationRequest.current?.abort();
+    setTranslatingUr(false);
+    setTranslationError("");
     setRemarks((r) => {
       const next = { ...r, en };
-      if (!urduTouchedRef.current) next.ur = transliterateToUrdu(en);
+      if (!urduTouchedRef.current) next.ur = "";
       return next;
     });
     if (translateTimer.current) clearTimeout(translateTimer.current);
@@ -909,7 +922,9 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
     urduTouchedRef.current = true;
     if (translateTimer.current) clearTimeout(translateTimer.current);
     translateSeq.current += 1;
+    translationRequest.current?.abort();
     setTranslatingUr(false);
+    setTranslationError("");
     setRemarks((r) => ({ ...r, ur }));
   };
 
@@ -917,7 +932,6 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
     urduTouchedRef.current = false;
     if (translateTimer.current) clearTimeout(translateTimer.current);
     const en = remarks.en.trim();
-    setRemarks((r) => ({ ...r, ur: transliterateToUrdu(en) }));
     if (en.length >= 4) runUrduTranslation(en);
   };
 
@@ -1158,6 +1172,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                     ) : null}
                     <Button variant="secondary" size="sm" type="button"
                       className="inline-flex justify-start items-center gap-1"
+                      disabled={translatingUr || remarks.en.trim().length < 4}
                       onClick={handleTranslateUrdu} title="Auto-convert from English remarks">
                       <Languages className="h-3 w-3" /> Auto-translate
                     </Button>
@@ -1166,7 +1181,8 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
                 <div className="mt-1.5">
                   <UrduInput value={remarks.ur} onChange={handleRemarksUrChange} textarea placeholder="اردو میں نوٹس لکھیں..." />
                 </div>
-                {!remarks.ur && remarks.en ? (
+                {translationError ? <p className="mt-1.5 text-xs text-status-error-text" role="alert">{translationError}</p> : null}
+                {!translationError && !remarks.ur && remarks.en ? (
                   <p className="mt-1.5 flex items-center gap-1 text-2xs font-medium text-ink-subtle">
                     <RefreshCw className="h-3 w-3" /> Urdu auto-translates from the English remark as you type.
                   </p>
@@ -1174,7 +1190,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
               </div>
               <div className="flex justify-end">
                 <BrandButton variant="dark" icon={savingRemarks ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  onClick={() => onSaveRemarks({ en: remarks.en, ur: remarks.ur })} disabled={savingRemarks}>
+                  onClick={() => onSaveRemarks({ en: remarks.en, ur: remarks.ur })} disabled={savingRemarks || translatingUr}>
                   {savingRemarks ? "Saving..." : "Save Remarks"}
                 </BrandButton>
               </div>

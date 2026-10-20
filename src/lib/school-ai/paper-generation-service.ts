@@ -1,3 +1,4 @@
+import { aiOutputSchema } from "@/lib/ai/output-schema";
 import { randomUUID } from "node:crypto";
 import { Prisma, type SchoolAiRequest } from "@prisma/client";
 import { z } from "zod";
@@ -55,7 +56,7 @@ async function begin(user: AuthUser, input: PaperGenerationInput, assertProvider
     }
     const issues = validateBlueprint(input.blueprint, curriculum);
     if (issues.length) return { status: 422, body: { state: "FAILED", code: "AI_GENERATION_INVALID_BLUEPRINT", error: "Review the assessment blueprint.", details: issues } };
-    const prompt = JSON.stringify({ task: "Prepare a paper in the requested language; questions, instructions, solutions and rubric must use that language.", language: input.language, coverageSection: input.coverageSection, curriculumId: record.id, curriculumVersion: record.version, curriculum, blueprint: input.blueprint, lockedQuestions: (input.lockedQuestions ?? []).map(question => ({ ...question, figures: figureTextContext(question.figures) })), outputSchema: z.toJSONSchema(paperDataSchema) });
+    const prompt = JSON.stringify({ task: "Prepare a paper in the requested language; questions, instructions, solutions and rubric must use that language.", language: input.language, coverageSection: input.coverageSection, curriculumId: record.id, curriculumVersion: record.version, curriculum, blueprint: input.blueprint, lockedQuestions: (input.lockedQuestions ?? []).map(question => ({ ...question, figures: figureTextContext(question.figures) })), outputSchema: aiOutputSchema(paperDataSchema) });
     if (prompt.length > 120000) throw new SchoolAiError("This curriculum is too large for one generation request. Prepare an approved curriculum for the assessed term or unit and try again.", 422);
     assertProvider(); // Configuration only; never network work inside the transaction.
     await reserveAICredits(user.schoolId, 1, tx);

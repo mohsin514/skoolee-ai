@@ -33,6 +33,23 @@ test("native multilingual text extraction preserves content without inventing ph
   assert.equal(source.text, text); assert.deepEqual(source.pages, []); assert.equal(source.tokensUsed, 0);
 });
 
+test("text readiness follows the gateway's normalized approved provider order", () => {
+  const keys = ["OPENAI_API_KEY", "OPENAI_BASE_URL", "AI_PROVIDER", "AI_PROVIDER_ORDER"];
+  const before = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, { OPENAI_API_KEY: "synthetic-test-key-never-sent", AI_PROVIDER: " auto ", AI_PROVIDER_ORDER: " openai , ollama " });
+    delete process.env.OPENAI_BASE_URL;
+    assert.equal(schoolAiProviderCapabilities().assistant, true);
+    assert.equal(schoolAiProviderCapabilities().paperGeneration, true);
+    process.env.AI_PROVIDER_ORDER = "openai,unknown";
+    assert.equal(schoolAiProviderCapabilities().assistant, false);
+    process.env.AI_PROVIDER = " OPENAI ";
+    assert.equal(schoolAiProviderCapabilities().assistant, true);
+    process.env.OPENAI_API_KEY = "";
+    assert.equal(schoolAiProviderCapabilities().assistant, false);
+  } finally { for (const key of keys) if (before[key] === undefined) delete process.env[key]; else process.env[key] = before[key]; }
+});
+
 test("provider errors cannot disclose their response bodies or credentials", async () => {
   for (const status of [400, 401, 429, 500]) {
     const response = schoolAiError(Object.assign(new Error("PRIVATE PROVIDER BODY synthetic-secret"), { status }));

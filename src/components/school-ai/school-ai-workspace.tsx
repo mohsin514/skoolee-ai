@@ -41,6 +41,8 @@ import { UNCONFIGURED_CAPABILITIES, workspaceRequest, type AIFeatureCapabilities
 import styles from "./school-ai.module.css";
 import studioStyles from "./exam-studio/studio-shell.module.css";
 import { WorkspaceDraftBoundary, useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
+import { DemoWorkflowPanel } from "./demo-workflow-panel";
+import { prototypeCopy } from "./prototype-copy";
 
 type Tab = "overview" | "sources" | "curriculum" | "academicSetup" | "timetableSetup" | "announcements" | "work" | "policies" | "history" | "feeInvoices" | "examPlanning" | "setupTasks" | "schoolOperations" | "financeOperations" | "runs" | "schoolSetup" | "knowledge";
 type Capabilities = WorkspaceCapabilities & { setupDefaults?: SetupAnswers };
@@ -56,6 +58,7 @@ export function SchoolAIWorkspace(props: { role?: string; campusId?: string | nu
 function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId, examOnly = false }: { role?: string; campusId?: string | null; examOnly?: boolean }) {
   const { language } = useLocale();
   const c = schoolAICopy(language);
+  const prototype = prototypeCopy(language);
   const studioCopy = studioShellCopy(language);
   const guard = useWorkspaceDraftNavigation();
   const [records, setRecords] = useState<AiWorkspaceRecord[]>([]);
@@ -74,6 +77,8 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const [operationRecordId, setOperationRecordId] = useState<string | null>(null);
   const [schoolSetupRecordId,setSchoolSetupRecordId] = useState<string | null>(null);
   const [financeOperationRecordId, setFinanceOperationRecordId] = useState<string | null>(null);
+  const [workflowRecordId, setWorkflowRecordId] = useState<string | null>(null);
+  const [policyRecordId, setPolicyRecordId] = useState<string | null>(null);
   const [setup, setSetup] = useState(false);
   const [setupRecord, setSetupRecord] = useState<AiWorkspaceRecord | undefined>();
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -86,6 +91,8 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const setupCreateKey = useRef<string | null>(null);
   const scopeInitialized = useRef(false);
   const requestSequence = useRef(0);
+  const toolContent = useRef<HTMLDivElement>(null);
+  const focusOpenedRecord = useRef(false);
   const role = capabilities?.role || initialRole || "";
   const manager = ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"].includes(role);
   const subjects = capabilities?.subjects || [];
@@ -99,6 +106,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   useWorkspaceDraft(uploading);
   const hasKind = (kind: AiWorkspaceRecord["kind"]) => capabilities?.kinds.includes(kind) ?? false;
   const putRecord = useCallback((record: AiWorkspaceRecord) => setRecords(previous => [record, ...previous.filter(item => item.id !== record.id)]), []);
+  const putRecords = useCallback((generated: AiWorkspaceRecord[]) => setRecords(previous => [...generated, ...previous.filter(item => !generated.some(record => record.id === item.id))]), []);
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     try {
@@ -106,13 +114,14 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
       if (!mounted.current || sequence !== requestSequence.current) return;
       setRecords(result.records); setCapabilities(result.capabilities); setNextCursor(result.nextCursor || null); setError("");
       if (!scopeInitialized.current) {
-        scopeInitialized.current = true; setSelectedCampus(result.capabilities.campuses.length === 1 ? result.capabilities.campuses[0].id : "");
-        // Exam Studio: a teacher with exactly one assigned subject works in it, as `resolveStudioScope` does.
-        if (examOnly && result.capabilities.role === "TEACHER" && result.capabilities.subjects.length === 1) setSelectedSubject(result.capabilities.subjects[0].id);
+        scopeInitialized.current = true;
+        const assignedCampus = result.capabilities.campuses.find(campus => campus.id === initialCampusId);
+        setSelectedCampus(assignedCampus?.id || (result.capabilities.campuses.length === 1 ? result.capabilities.campuses[0].id : ""));
+        if (result.capabilities.role === "TEACHER" && result.capabilities.subjects.length === 1) setSelectedSubject(result.capabilities.subjects[0].id);
       }
     } catch { if (mounted.current && sequence === requestSequence.current) setError("failed"); }
     finally { if (mounted.current && sequence === requestSequence.current) setLoading(false); }
-  }, [examOnly]);
+  }, [initialCampusId]);
   useEffect(() => {
     mounted.current = true;
     void refresh();
@@ -157,7 +166,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     finally { if (mounted.current) setUploading(false); }
   };
   const changeScope = (next: () => void) => guard(() => {
-    setError(""); setNotice(""); setSetupRecord(undefined); setupCreateKey.current = null; setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); next();
+    setError(""); setNotice(""); setSetupRecord(undefined); setupCreateKey.current = null; setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); setWorkflowRecordId(null); setPolicyRecordId(null); next();
   });
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
@@ -172,6 +181,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     setSetupRecord(record); return record;
   };
   const openRecord = (record: AiWorkspaceRecord) => {
+    focusOpenedRecord.current = record.kind !== "ONBOARDING";
     if (isSchoolSetupPlan(record)) {setSchoolSetupRecordId(record.id);setTab("schoolSetup");}
     else if (isAcademicSetupPlan(record)) { setAcademicRecordId(record.id); setTab("academicSetup"); }
     else if (isTimetableSetupPlan(record)) { setTimetableRecordId(record.id); setTab("timetableSetup"); }
@@ -182,15 +192,22 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     else if (isExamSessionPlan(record)) { setExamPlanRecordId(record.id); setTab("examPlanning"); }
     else if (record.kind === "ONBOARDING") { setSetupRecord(record); setSetup(true); }
     else if (record.kind === "SOURCE") setTab("sources");
-    else if (record.kind === "POLICY") setTab(record.data.knowledge?"knowledge":"policies");
+    else if (record.kind === "POLICY") { setPolicyRecordId(record.id); setTab(record.data.knowledge?"knowledge":"policies"); }
+    else if (record.kind === "WORKFLOW") { setWorkflowRecordId(record.id); setTab("work"); }
     else if (record.kind === "CURRICULUM" || record.kind === "PAPER") setTab("curriculum");
   };
+  useEffect(() => {
+    if (!focusOpenedRecord.current || setup) return;
+    focusOpenedRecord.current = false;
+    toolContent.current?.focus({ preventScroll: true });
+    toolContent.current?.scrollIntoView({ block: "start" });
+  }, [tab, setup, academicRecordId, schoolSetupRecordId, workflowRecordId, policyRecordId]);
 
   // SKO-470: a shared run link (#run-<id>) reopens the runs tab, where the panel focuses that run.
   const runsVisible = !examOnly && manager && Boolean(capabilities?.tools?.length);
   useEffect(() => { if (!runsVisible || !window.location.hash.startsWith("#run-")) return; const frame = requestAnimationFrame(() => setTab("runs")); return () => cancelAnimationFrame(frame); }, [runsVisible]);
   if (loading) return <TaskLoading label={c.loading} />;
-  if (!capabilities) return <TaskFeedback kind="error" title={c.failed} action={<Button onClick={() => { setLoading(true); void refresh(); }}><RefreshCw aria-hidden="true" />{c.retry}</Button>} />;
+  if (!capabilities) return <div className={styles.workspace}><TaskFeedback kind="error" title={c.failed} action={<Button onClick={() => { setLoading(true); void refresh(); }}><RefreshCw aria-hidden="true" />{c.retry}</Button>} /><DemoWorkflowPanel language={language} initialWorkflow={examOnly ? "paper" : "assistant"} /></div>;
   const active = visibleRecords.filter(record => record.status !== "ARCHIVED");
   const onboarding = active.find(record => record.kind === "ONBOARDING");
   const setupAnswers = readSetupDraft(onboarding?.data).answers;
@@ -215,14 +232,21 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     if (!visibleTabs.some(item => item.id === next)) return;
     setTab(next); setError(""); setNotice("");
   });
+  const selectTab = (id: Tab) => {
+    if (tab === id) return;
+    guard(() => { setTab(id); setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); setWorkflowRecordId(null); setPolicyRecordId(null); setError(""); setNotice(""); });
+  };
   return <><div className={`${styles.workspace} ${examOnly ? "p-3 sm:p-6" : ""}`} dir={language === "en" ? "ltr" : "rtl"}>
     {!examOnly && <header className={styles.hero}><p className={styles.eyebrow}>{c.eyebrow}</p><h1 className={styles.heroTitle}>{c.headline}</h1><p className={styles.heroDescription}>{c.introduction}</p>{hasKind("ONBOARDING") && <Button className="mt-6" disabled={needsCampus} onClick={beginSetup}><Sparkles aria-hidden="true" />{onboarding ? c.resumeSetup : c.startSetup}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Button>}</header>}
+    <DemoWorkflowPanel language={language} initialWorkflow={examOnly ? "paper" : "assistant"} />
     {manager && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mt-5 p-5"}`}><FormField name="ai-campus-scope" label={c.workspaceCampus} hint={c.workspaceCampusHint}><Select value={selectedCampus} onChange={event => { const value = event.target.value; if (value !== selectedCampus) changeScope(() => setSelectedCampus(value)); }}><option value="">{c.chooseCampus}</option>{capabilities.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select></FormField>{needsCampus && <p className="mt-3 text-sm text-ink-muted">{c.selectCampusToStart}</p>}</section>}
     {role === "TEACHER" && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mt-5 p-5"}`}><FormField name="ai-teaching-scope" label={c.subject} hint={c.selectSubjectHint}><Select value={selectedSubject} onChange={event => { const value = event.target.value; if (value !== selectedSubject) changeScope(() => setSelectedSubject(value)); }}><option value="">{c.chooseSubject}</option>{subjects.map(item => <option key={item.id} value={item.id}>{item.className} · {item.name}</option>)}</Select></FormField></section>}
-    <nav className={`${styles.tabs} ${examOnly ? studioStyles.workspaceTabs : ""}`} aria-label={c.workspace}>{visibleTabs.map(({ id, Icon }) => <Button key={id} variant={tab === id ? "secondary" : "ghost"} aria-pressed={tab === id} className={styles.tab} onClick={() => { if (tab !== id) guard(() => { setTab(id); setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); setError(""); setNotice(""); }); }}><Icon aria-hidden="true" />{examOnly ? studioCopy[id as StudioWorkspaceTab] : c[id]}</Button>)}</nav>
+    <nav className={styles.mobileNavigation} aria-label={c.workspace}><FormField name="ai-workspace-tool" label={prototype.navigation}><Select value={tab} onChange={event => selectTab(event.target.value as Tab)}>{visibleTabs.map(({ id }) => <option key={id} value={id}>{examOnly ? studioCopy[id as StudioWorkspaceTab] : c[id]}</option>)}</Select></FormField></nav>
+    <nav className={`${styles.tabs} ${examOnly ? studioStyles.workspaceTabs : ""}`} aria-label={c.workspace}>{visibleTabs.map(({ id, Icon }) => <Button key={id} type="button" variant="choice" aria-pressed={tab === id} className={styles.tab} onClick={() => selectTab(id)}><Icon aria-hidden="true" />{examOnly ? studioCopy[id as StudioWorkspaceTab] : c[id]}</Button>)}</nav>
     {!examOnly && hasKind("PAPER") && <div className="mb-5 flex flex-wrap gap-3"><Link className={buttonVariants({ variant: "default" })} href={EXAM_STUDIO_HREF}><Sparkles aria-hidden="true" />{studioCopy.openStudio}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Link><Link className={buttonVariants({ variant: "outline" })} href="/ai/exams"><BookOpen aria-hidden="true" />{c.exams}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Link></div>}
     {error && <div className="mb-5"><TaskFeedback kind="error" title={c[error as "failed" | "serviceUnavailable" | "uploadInvalid"] || c.failed} action={<Button variant="outline" onClick={() => guard(() => void refresh())}><RefreshCw aria-hidden="true" />{c.reload}</Button>} /></div>}
     {notice && <p role="status" className={`${styles.notice} mb-5`}><CheckCircle2 className="mt-1 size-4 shrink-0" aria-hidden="true" />{notice}</p>}
+    <div ref={toolContent} tabIndex={-1} data-ai-workspace-tool-content>
     {tab === "overview" && examOnly && capabilities && <StudioSpaces language={language} capabilities={capabilities} records={visibleRecords} reload={() => void refresh()} openTool={navigateStudio}
       scope={resolveStudioScope(capabilities, { campusId: campusId ?? "", subjectId: selectedSubject })}>
       <StudioOverview records={visibleRecords} language={language} scopeReady={!needsCampus && !needsSubject} canReadSources={hasKind("SOURCE")} canReadPapers={hasKind("PAPER")} onNavigate={navigateStudio} />
@@ -234,27 +258,28 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
         {!needsCampus && !needsSubject && <PrivateAssistant language={language} campusId={campusId} {...scope} canCreate={canCreate} assistantAvailable={features.assistant} voiceAvailable={features.voiceTranscription} disabled={uploading} onUpload={upload} onRecord={putRecord} />}
         {(needsCampus || needsSubject) && <p className={styles.description}>{needsCampus ? c.selectCampusToStart : c.selectSubjectHint}</p>}
       </section><aside className="space-y-5"><section className={`sk-panel ${styles.panel}`}><h2 className={styles.sectionTitle}>{c.readiness}</h2>{onboarding ? setupReadiness(setupAnswers).map(group => <div className={styles.recordRow} key={group.label}><span className="text-sm font-semibold">{c[group.label]}</span><TaskStatus attention={Boolean(group.missing.length)}>{group.missing.length ? c.needsInformation : c.readyDraft}</TaskStatus></div>) : <><p className={styles.description}>{hasKind("ONBOARDING") ? c.setupHint : c.setupRestricted}</p>{hasKind("ONBOARDING") && <Button variant="outline" disabled={needsCampus} onClick={beginSetup}>{c.startSetup}</Button>}</>}</section>
-        <section className={`sk-panel ${styles.panel}`}><h2 className="mb-3 font-bold">{c.capabilities}</h2>{(Object.keys(UNCONFIGURED_CAPABILITIES) as (keyof AIFeatureCapabilities)[]).map(key => <div className={styles.recordRow} key={key}><span className="text-xs font-semibold">{c[key]}</span><span className={`text-xs ${features[key] ? "text-primary" : "text-ink-muted"}`}>{!featureStatusKnown ? c.capabilityUnknown : features[key] ? c.configured : key === "secureBrowser" || key === "proctoring" ? c.notAvailable : c.notConfigured}</span></div>)}</section>
+        <section className={`sk-panel ${styles.panel}`}><h2 className="mb-3 font-bold">{c.capabilities}</h2>{(Object.keys(UNCONFIGURED_CAPABILITIES) as (keyof AIFeatureCapabilities)[]).map(key => <div className={styles.recordRow} key={key}><span className="text-xs font-semibold">{c[key]}</span><span className={`text-xs ${features[key] ? "text-primary" : "text-ink-muted"}`}>{!featureStatusKnown ? c.capabilityUnknown : features[key] ? prototype.configured : key === "secureBrowser" || key === "proctoring" ? c.notAvailable : c.notConfigured}</span></div>)}</section>
       </aside></div>
       {manager && campusId && <WorkspaceInsights key={campusId} language={language} campusId={campusId} />}
     </>}
     {tab === "sources" && <SourceLibrary onRecord={putRecord} canArchive={capabilities.canArchive} key={`${campusId}:${selectedSubject}`} language={language} records={visibleRecords} canCreate={canCreate} canApprove={capabilities.canApprove} onSave={saveRecord} onAction={recordAction} onUpload={upload} scope={scope} uploading={uploading} campusId={campusId} canImportRoster={!examOnly && capabilities.canImportRoster} />}
     {tab !== "overview" && tab !== "history" && !needsCampus && !needsSubject && <DomainAssistant key={`${campusId}:${selectedSubject}:${tab}`} domain={tab} title={c[tab]} records={visibleRecords} language={language} campusId={campusId} {...scope} canCreate={canCreate} assistantAvailable={features.assistant} voiceAvailable={features.voiceTranscription} disabled={uploading} onUpload={upload} onRecord={putRecord}/> }
     {tab === "curriculum" && <AssessmentStudio key={`${campusId}:${selectedSubject}`} records={visibleRecords} locale={language} onRefresh={refresh} campusId={campusId} subjects={subjects.filter(item => item.campusId === campusId && (role !== "TEACHER" || item.id === selectedSubject))} canCreate={canCreate} canApprove={capabilities.canApprove} />}
-    {tab === "academicSetup" && academicPlansVisible && <AcademicSetupPanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={academicRecordId} canCreate={canCreate} canApprove={capabilities.canApprove} canApply={canSetUpAcademics && !needsCampus} onRecord={putRecord} onAction={recordAction} />}
+    {tab === "academicSetup" && academicPlansVisible && <AcademicSetupPanel key={`${campusId}:${academicRecordId || "none"}`} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={academicRecordId} canCreate={canCreate} canApprove={capabilities.canApprove} canApply={canSetUpAcademics && !needsCampus} onRecord={putRecord} onAction={recordAction} />}
     {tab === "timetableSetup" && timetablePlansVisible && <TimetableSetupPanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={timetableRecordId} canCreate={canCreate} canApprove={capabilities.canApprove} canApply={canSetUpTimetable && !needsCampus} onRecord={putRecord} onAction={recordAction} />}
     {tab === "announcements" && announcementsVisible && <AnnouncementPanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={announcementRecordId} canCreate={canCreate && canQueueAnnouncement} canApprove={capabilities.canApprove} canQueue={canQueueAnnouncement && !needsCampus} onRecord={putRecord} onAction={recordAction} />}
     {tab === "feeInvoices" && feesVisible && <FeeInvoicePanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={feeRecordId} canCreate={canCreate && canGenerateInvoices} canApprove={capabilities.canApprove} canGenerate={canGenerateInvoices && !needsCampus} onRecord={putRecord} onAction={recordAction} />}
     {tab === "examPlanning" && examPlansVisible && <ExamSessionPlanPanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={examPlanRecordId} canCreate={canCreate && canPlanExams} canApprove={capabilities.canApprove} canApply={canPlanExams && !needsCampus} onRecord={putRecord} onAction={recordAction} />}
-    {tab === "schoolSetup" && schoolSetupVisible && <SchoolSetupPanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id===campusId)} campusId={campusId} initialRecordId={schoolSetupRecordId} canCreate={canCreate} canApprove={capabilities.canApprove} canExecute={!needsCampus} onRecord={putRecord} onAction={recordAction} />}
+    {tab === "schoolSetup" && schoolSetupVisible && <SchoolSetupPanel key={`${campusId}:${schoolSetupRecordId || "none"}`} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id===campusId)} campusId={campusId} initialRecordId={schoolSetupRecordId} canCreate={canCreate} canApprove={capabilities.canApprove} canExecute={!needsCampus} onRecord={putRecord} onAction={recordAction} />}
     {tab === "schoolOperations" && schoolOperations.length > 0 && <SchoolOperationsPanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={operationRecordId} canCreate={canCreate} canApprove={capabilities.canApprove} canExecute={!needsCampus} allowedOperations={schoolOperations} onRecord={putRecord} onAction={recordAction} />}
     {tab === "financeOperations" && financeOperationsVisible && <FinanceOperationsPanel key={campusId || "none"} language={language} records={visibleRecords} campuses={capabilities.campuses.filter(item => item.id === campusId)} campusId={campusId} initialRecordId={financeOperationRecordId} canCreate={canCreate} canApprove={capabilities.canApprove} canExecute={!needsCampus} onRecord={putRecord} onAction={recordAction} />}
     {tab === "runs" && manager && campusId && <RunsPanel key={campusId} language={language} campusId={campusId} records={visibleRecords} operations={executableOperations} />}
     {tab === "setupTasks" && <SetupTasksPanel key={campusId || "none"} language={language} campusId={campusId} records={visibleRecords} canManage={manager && canCreate} onRecord={putRecord} />}
-    {tab === "work" && <WorkPanel key={`${campusId}:${selectedSubject}`} language={language} records={visibleRecords} canCreate={canCreate} canApprove={capabilities.canApprove} onSave={saveRecord} onAction={recordAction} scope={scope} onOpenRecord={openRecord} moduleHref={module => moduleWorkspaceHref(role, module)} />}
+    {tab === "work" && <WorkPanel key={`${campusId}:${selectedSubject}:${workflowRecordId || "none"}`} initialRecordId={workflowRecordId} language={language} records={visibleRecords} canCreate={canCreate} canApprove={capabilities.canApprove} onSave={saveRecord} onAction={recordAction} scope={scope} onOpenRecord={openRecord} moduleHref={module => moduleWorkspaceHref(role, module)} />}
     {tab === "knowledge" && <KnowledgePanel key={campusId || "none"} language={language} records={visibleRecords} canCreate={canCreate} canApprove={capabilities.canApprove} onSave={saveRecord} onAction={recordAction} />}
-    {tab === "policies" && <PolicyPanel key={campusId || "none"} language={language} records={visibleRecords} canCreate={canCreate} canApprove={capabilities.canApprove} onSave={saveRecord} onAction={recordAction} />}
+    {tab === "policies" && <PolicyPanel key={`${campusId}:${policyRecordId || "none"}`} initialRecordId={policyRecordId} language={language} records={visibleRecords} canCreate={canCreate} canApprove={capabilities.canApprove} onSave={saveRecord} onAction={recordAction} />}
     {tab === "history" && <RevisionHistoryPanel key={`${campusId}:${selectedSubject}`} language={language} records={visibleRecords} onRecord={putRecord} onAction={recordAction} />}
+    </div>
     {nextCursor && <div className="mt-6 flex justify-center"><Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? c.loading : c.loadMore}</Button></div>}
-  </div>{setup && hasKind("ONBOARDING") && !needsCampus && <GuidedSetup key={campusId || "school"} language={language} record={setupRecord} defaults={setupDefaults} voiceAvailable={features.voiceTranscription} assistantAvailable={features.assistant} campusId={campusId} canApprove={capabilities.canApprove} onAction={recordAction} onSave={saveSetup} onClose={() => setSetup(false)} onUpload={upload} />}</>;
+  </div>{setup && hasKind("ONBOARDING") && !needsCampus && <GuidedSetup key={campusId || "school"} language={language} record={setupRecord} defaults={setupDefaults} voiceAvailable={features.voiceTranscription} assistantAvailable={features.assistant} campusId={campusId} canApprove={capabilities.canApprove} onAction={recordAction} onSave={saveSetup} onGenerated={putRecords} onOpenRecord={record => { setSetup(false); openRecord(record); }} onClose={() => setSetup(false)} onUpload={upload} />}</>;
 }

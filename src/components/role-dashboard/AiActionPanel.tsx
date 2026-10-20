@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "./BrandButton";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { getAIPrototypeDraft } from "@/lib/ai/prototype";
 
 
 export interface AIFeatureOption {
@@ -42,6 +43,8 @@ export function AiActionPanel({
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [output, setOutput] = useState("");
+  const [outputMode, setOutputMode] = useState<"live" | "demo">("live");
+  const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,7 +56,7 @@ export function AiActionPanel({
   const runAI = async () => {
     if (!selected) return;
     setBusy(true);
-    setOutput("");
+    setError("");
 
     try {
       const payload: Record<string, unknown> = {
@@ -69,17 +72,28 @@ export function AiActionPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "AI request failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "AI could not complete this request. Check the context and try again.");
 
       setOutput(data.data?.output || "");
+      setOutputMode("live");
       toast.success("AI draft saved");
       await onComplete?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "AI request failed");
+      const message = error instanceof Error ? error.message : "AI request failed";
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
+  };
+
+  const showSample = () => {
+    const sample = getAIPrototypeDraft(selected?.feature ?? "");
+    if (!sample) return;
+    setOutput(sample.output);
+    setOutputMode("demo");
+    setError("");
   };
 
   /* The panel drafts a lesson plan or a set of remarks and then showed it in a
@@ -117,7 +131,8 @@ export function AiActionPanel({
         <Select
           value={feature}
           aria-label="AI action"
-          onChange={(event) => setFeature(event.target.value)}
+          onChange={(event) => { setFeature(event.target.value); setOutput(""); setError(""); }}
+          disabled={busy}
         >
           {options.map((option) => (
             <option key={option.feature} value={option.feature}>
@@ -150,13 +165,15 @@ export function AiActionPanel({
           {busy ? "Drafting" : "Run AI"}
         </BrandButton>
         </Tooltip>
+        {getAIPrototypeDraft(selected?.feature ?? "") ? <Button variant="outline" className="w-full" type="button" disabled={busy} onClick={showSample}>Try with sample data</Button> : null}
+        {error ? <p role="alert" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-ink">{error} You can retry or explore the sample preview.</p> : null}
 
         {output ? (
-          <div className="sk-fade-in rounded-2xl border border-status-success-border bg-status-success-surface p-4">
+          <div className="sk-fade-in rounded-2xl border border-status-success-border bg-status-success-surface p-4" aria-live="polite" data-ai-output-mode={outputMode}>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-status-success-text">
                 <Check className="sk-check-pop w-4 h-4" />
-                <p className="text-2xs font-semibold uppercase tracking-wider">Draft saved</p>
+                <p className="text-2xs font-semibold uppercase tracking-wider">{outputMode === "demo" ? "Sample preview · not saved" : "Draft saved"}</p>
               </div>
               <div className="flex items-center gap-1">
                 <Tooltip content="Copy this draft to the clipboard">
@@ -172,7 +189,7 @@ export function AiActionPanel({
                 <Tooltip content="Draft this again with the same context">
                 <Button variant="secondary" size="sm"
                   type="button"
-                  onClick={runAI}
+                  onClick={outputMode === "demo" ? showSample : runAI}
                   disabled={busy}
                   className="inline-flex justify-start items-center gap-1"
                 >
@@ -188,7 +205,7 @@ export function AiActionPanel({
               {output}
             </p>
             <p className="mt-2 text-2xs font-semibold text-status-success-text/80">
-              {output.split(/\s+/).filter(Boolean).length} words · scroll for the rest · always read an AI draft before you use it
+              {outputMode === "demo" ? "Fictional sample · no AI credits used · no school records changed" : `${output.split(/\s+/).filter(Boolean).length} words · always review an AI draft before using it`}
             </p>
           </div>
         ) : null}

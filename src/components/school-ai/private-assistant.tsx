@@ -20,6 +20,9 @@ import type { AssistantFocus } from "@/lib/school-ai/assistant-focus";
 import { assistantCatalogCopy } from "./assistant-catalog-copy";
 import { AssistantEntityPicker } from "./assistant-entity-picker";
 import { catalogOperationsForFocus, type AssistantCatalogSelection } from "@/lib/school-ai/assistant-catalog";
+import { AssistantResponse } from "./assistant-response";
+import { DemoWorkflowPanel } from "./demo-workflow-panel";
+import { prototypeCopy } from "./prototype-copy";
 
 export interface PrivateAssistantProps {
   language: Language; campusId?: string | null; subjectId?: string; classId?: string;
@@ -35,6 +38,7 @@ export function PrivateAssistant(props: PrivateAssistantProps) {
 }
 function ConversationPanel({ language, campusId, subjectId, classId, canCreate, assistantAvailable, voiceAvailable, disabled, onUpload, onRecord, onActivityChange, onDraftChange, purpose = "WORKSPACE", topicKey, promptPrefix,focus }: PrivateAssistantProps) {
   const c = conversationCopy(language), general = schoolAICopy(language), guard = useWorkspaceDraftNavigation();
+  const prototype = prototypeCopy(language);
   const [catalog, setCatalog] = useState<AssistantCatalogSelection>();
   const [conversations, setConversations] = useState<PrivateConversation[]>([]), [page, setPage] = useState<PrivateConversationPage | null>(null);
   const [archived, setArchived] = useState(false), [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -162,12 +166,15 @@ function ConversationPanel({ language, campusId, subjectId, classId, canCreate, 
     {notice && <p role="status" className="text-sm text-ink-muted">{notice}</p>}
     {nextCursor && <Button variant="ghost" disabled={busy || loading} onClick={() => void refreshList().catch(error => setError(workspaceErrorText(error, general)))}>{c.more}</Button>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {!assistantAvailable && <p role="status" className="rounded-xl border border-border bg-surface-subtle p-3 text-sm text-ink-muted">{general.serviceUnavailable}</p>}
+    {(error || !assistantAvailable) && <DemoWorkflowPanel language={language} compact initialMessage={message || undefined} />}
     {loading && <p role="status" className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 aria-hidden="true" className="size-4 motion-safe:animate-spin" />{c.loading}</p>}
     {page?.nextVersion && <Button variant="outline" disabled={busy || loading} onClick={() => void load(page.conversation.id, false, page.nextVersion!)}>{c.earlier}</Button>}
-    {page?.exchanges.length ? <div role="log" aria-label={c.title} className={styles.conversation}>{page.exchanges.map(exchange => exchange.hidden ? <p key={exchange.id} className="rounded-xl border border-border p-3 text-sm text-ink-muted">{c.hidden}</p> : <div key={exchange.id} className="space-y-3">{exchange.turns?.map(turn => <article key={turn.role} className={`${styles.message} ${turn.role === "user" ? styles.userMessage : styles.assistantMessage}`}><p className="mb-1 text-xs font-semibold">{turn.role === "user" ? c.you : c.assistant}</p><p className="whitespace-pre-wrap break-words">{turn.text}</p></article>)}</div>)}</div> : !loading && <p className="text-sm text-ink-muted">{c.empty}</p>}
+    {page?.exchanges.length ? <div role="log" aria-label={c.title} className={styles.conversation}>{page.exchanges.map(exchange => exchange.hidden ? <p key={exchange.id} className="rounded-xl border border-border p-3 text-sm text-ink-muted">{c.hidden}</p> : <div key={exchange.id} className="space-y-3">{exchange.turns?.map(turn => <article key={turn.role} className={`${styles.message} ${turn.role === "user" ? styles.userMessage : styles.assistantMessage}`}><p className="mb-1 text-xs font-semibold">{turn.role === "user" ? c.you : c.assistant}</p>{turn.role === "assistant" ? <AssistantResponse text={turn.text} /> : <p className="whitespace-pre-wrap break-words">{turn.text}</p>}</article>)}</div>)}</div> : !loading && <p className="text-sm text-ink-muted">{c.empty}</p>}
+    {!loading && !page?.exchanges.length && !message && !focus && !page?.conversation.archivedAt && <div><p className="mb-2 text-xs font-semibold text-ink-muted">{prototype.starterTitle}</p><div className={styles.starterPrompts}>{([{ label: prototype.lesson, prompt: prototype.lessonPrompt }, { label: prototype.notice, prompt: prototype.noticePrompt }, { label: prototype.checklist, prompt: prototype.checklistPrompt }]).map(item => <Button key={item.label} type="button" variant="outline" size="sm" disabled={disabled || !canCreate || busy || voiceBusy || liveVoiceBusy} onClick={() => setMessage(item.prompt)}>{item.label}</Button>)}</div></div>}
     {page?.recovery && <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm" data-turn-recovery={page.recovery.status}><span>{page.recovery.status === "PENDING" ? c.pending : c.recovery}</span>{page.recovery.status !== "PENDING" && canCreate && <Button size="sm" variant="outline" disabled={busy || loading || disabled} onClick={() => void ask()}><RefreshCw aria-hidden="true" />{c.retry}</Button>}</div>}
     {focus && catalogOperationsForFocus[focus.domain] && !page?.conversation.archivedAt && <AssistantEntityPicker language={language} campusId={campusId} focus={focus} value={catalog} onChange={setCatalog} disabled={disabled || !canCreate || busy || loading || voiceBusy || liveVoiceBusy} />}
     {voiceAvailable && assistantAvailable && !page?.conversation.archivedAt && <VoiceConversation key={language} language={language} disabled={disabled || !canCreate || loading || busy} onTurn={ask} onActivityChange={setLiveVoiceBusy} />}
-    {page?.conversation.archivedAt ? <p className="text-sm text-ink-muted">{c.archivedHint}</p> : <MultimodalComposer language={language} value={message} onChange={setMessage} onSubmit={async () => { await ask(); }} onUpload={onUpload} voiceAvailable={voiceAvailable} disabled={disabled || !canCreate || loading || liveVoiceBusy} busy={busy} onActivityChange={setVoiceBusy} />}
+    {page?.conversation.archivedAt ? <p className="text-sm text-ink-muted">{c.archivedHint}</p> : <MultimodalComposer language={language} value={message} onChange={setMessage} onSubmit={async () => { await ask(); }} submitDisabled={!assistantAvailable} onUpload={onUpload} voiceAvailable={voiceAvailable} disabled={disabled || !canCreate || loading || liveVoiceBusy} busy={busy} onActivityChange={setVoiceBusy} />}
   </section>;
 }

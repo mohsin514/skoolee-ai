@@ -294,15 +294,18 @@ export async function findWorkspaceCreateByKey(user: AuthUser, key: string, expe
 export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceCreateInput, options: {
   trustedSourceMetadata?: TrustedSourceMetadata;
   idempotencyFingerprint?: string;
+  /** Internal composition: atomically create a generated package with its receipt. */
+  transactionClient?: TxClient;
   /** Database-only extension; may rerun after a rolled-back serialization conflict, never on a committed replay. */
   onCreate?: (tx: TxClient, record: AiWorkspaceRecord) => Promise<unknown>;
 } = {}): Promise<AiWorkspaceRecord> {
-  return withContext(user, async () => {
+  const create = async () => {
     try {
-      const permissions = await loadWorkspacePermissionSnapshot(user);
+      const db = options.transactionClient ?? prisma;
+      const permissions = await loadWorkspacePermissionSnapshot(user, db);
       await assertSchoolAiAccess(user, "add", permissions);
       const input = createWorkspaceSchema.parse(rawInput);
-      const campusId = await resolveWorkspaceCampus(user, input.campusId);
+      const campusId = await resolveWorkspaceCampus(user, input.campusId, db);
       const preparedData = input.kind === "SOURCE" ? protectSourceMetadata(input.data, undefined, options.trustedSourceMetadata) : input.data;
       const parsed = parseWorkspaceData(input.kind, preparedData);
       const data = input.kind === "PAPER" ? preparePaperWrite(user, parsed) : parsed;
@@ -316,10 +319,10 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
         if (previous.requestHash !== requestHash) throw new SchoolAiError("This idempotency key was already used for different content. Use a new key for a new draft.", 409);
         return publicRecord(await scopedRecord(user, previous.id, "read", db, permissions));
       };
-      const replay = await existing(prisma);
+      const replay = await existing(db);
       if (replay) return replay;
       try {
-        return await transaction(user, async (tx) => {
+        const save = async (tx: TxClient) => {
           const replayInside = await existing(tx);
           if (replayInside) return replayInside;
           const subject = await assertWorkspaceSubject(user, campusId, data, tx);
@@ -328,16 +331,23 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
           if (options.onCreate) await options.onCreate(tx, publicRecord(record));
           await revision(tx, record, user, "CREATE");
           return publicRecord(record);
-        });
+        };
+        return await (options.transactionClient ? save(options.transactionClient) : transaction(user, save));
       } catch (error) {
+        // The outer owner must retry a rolled-back transaction in its entirety.
+        if (options.transactionClient) throw error;
         if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code)) {
           const replayAfterRace = await existing(prisma);
           if (replayAfterRace) return replayAfterRace;
         }
         throw error;
       }
-    } catch (error) { return translateDatabaseError(error); }
-  });
+    } catch (error) {
+      if (options.transactionClient) throw error;
+      return translateDatabaseError(error);
+    }
+  };
+  return options.transactionClient ? create() : withContext(user, create);
 }
 
 /** Reuses the same version/approval boundary inside a larger atomic domain transaction. */
