@@ -18,7 +18,7 @@ import { COMMERCIAL_CATALOG_VERSION, type BillingPeriod } from "@/config/plans";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { getPriceId, stripe, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
-import { PAY_LATER_PROVIDER, SALES_ASSISTED_PROVIDER, automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
+import { PAY_LATER_PROVIDER, SALES_ASSISTED_PROVIDER, safePayAvailable, automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
 import { TEST_CHECKOUT_PROVIDER, testCheckoutEnabled, testCheckoutUrl } from "@/lib/payments/test-checkout";
 
 import { saveSubscriptionRequest } from "@/lib/billing/lifecycle";
@@ -106,7 +106,8 @@ export async function GET() {
       salesAssisted: !testCheckout && !automatedCheckoutAvailable(billing.country),
       testCheckout,
       /** What "Choose" does for a paid package: pay online, the dev test page, or reserve it for the team to confirm. */
-      checkoutMode: testCheckout ? "test" : methods.length > 0 ? "online" : "reserve",
+      // "none": no payment method is configured on this server; paid packages can be chosen and paid later.
+      checkoutMode: testCheckout ? "test" : methods.length > 0 ? "online" : "none",
       regionalCurrency: billing.regionalCurrency,
       priceCurrency: "PKR",
       catalogueVersion: COMMERCIAL_CATALOG_VERSION,
@@ -201,7 +202,7 @@ export async function POST(req: NextRequest) {
     const canUseStripe = Boolean(
       stripe && paymentConfig.availableMethods.includes("stripe") && stripePriceId
     );
-    const canUseSafePay = paymentConfig.availableMethods.includes("safepay");
+    const canUseSafePay = paymentConfig.availableMethods.includes("safepay") && safePayAvailable(billing.country);
     const canUseBank = Boolean(paymentConfig.bank?.bankName);
     const realRail = automatedCheckoutAvailable(billing.country) && (canUseStripe || canUseSafePay || canUseBank);
     if (intent.provider === "NONE" && !realRail && testCheckoutEnabled()) {
@@ -216,20 +217,15 @@ export async function POST(req: NextRequest) {
       }
       return Response.json({ success: true, intentId: intent.id, status: "CHECKOUT_PENDING", url: testCheckoutUrl(intent.id) });
     }
-    // No online payment for this school (region not automated, or no rail configured): the package is
-    // reserved and the team confirms price and payment. Nothing is charged and the plan does not change yet.
+    // No payment method is configured on this server: the choice stands as payment due (pay later). Nothing
+    // is charged and the plan does not change until it is paid; this is a configuration gap, so it is logged.
     if (intent.provider === "NONE" && !realRail) {
-      if (automatedCheckoutAvailable(billing.country)) {
-        // The region pays online but no rail can serve this plan and period: a configuration gap, not a sale path.
-        console.warn("[onboarding-package] no payment rail configured; reserving for the team", { schoolId: user.schoolId, plan, billingPeriod: parsed.data.billingPeriod });
-      }
-      const claim = await prisma.onboardingCheckoutIntent.updateMany({
+      console.warn("[onboarding-package] no payment rail configured; recording the choice as payment due", { schoolId: user.schoolId, plan, billingPeriod: parsed.data.billingPeriod });
+      await prisma.onboardingCheckoutIntent.updateMany({
         where: { id: intent.id, status: "PENDING", provider: "NONE" },
-        data: { provider: SALES_ASSISTED_PROVIDER, providerReference: intent.id, status: "PENDING_SETTLEMENT", failureReason: null },
+        data: { provider: PAY_LATER_PROVIDER, providerReference: intent.id, status: "PENDING_SETTLEMENT", failureReason: null },
       });
-      const latest = claim.count ? null : await prisma.onboardingCheckoutIntent.findUnique({ where: { id: intent.id } });
-      if (claim.count) await queueForTeam(user, intent, "RESERVED");
-      return Response.json({ success: true, intentId: intent.id, status: latest?.status ?? "PENDING_SETTLEMENT", reserved: true, returnStep: intent.returnStep });
+      return Response.json({ success: true, intentId: intent.id, status: "PENDING_SETTLEMENT", deferred: true, returnStep: intent.returnStep });
     }
 
     const provider = intent.provider !== "NONE"

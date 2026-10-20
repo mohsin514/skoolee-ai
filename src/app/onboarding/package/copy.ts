@@ -35,7 +35,7 @@ export type ChooserCopy = {
   next: { free: string; current: string; online: string; bank: string; test: string; reserve: string; custom: string; pendingReserved: string; pendingCustom: string; pendingCheckout: string; downgrade: string; pendingDeferred: string };
   nextDrafts: Plural;
   verdict: { loading: string; beyond: string; campusesOnly: string; tight: string; tightAlt: string; current: string; roomy: string; fit: string; whyNotCampuses: string; whyNotStudents: string; price: string; announce: string };
-  selected: string; continueWith: string; reserveNow: string;
+  selected: string; continueWith: string; reserveNow: string; payUnavailable: string;
   payEyebrow: string; payTitle: string; payBody: string; payNow: string; payLater: string; payNowTest: string;
   notNow: string; modeTestTitle: string; modeTest: string; modeReserve: string;
   handoffTitle: string; handoffTestTitle: string; handoffBody: string; handoffTestBody: string; handoffFallback: string;
@@ -92,7 +92,7 @@ const en: PackageCopy = {
     next: {
       free: "Starts now. No card needed.", current: "This is your package today.", online: "Pay securely online, then you're back in setup.",
       bank: "Pay by bank transfer. Details come next.", test: "Opens a test checkout. No money moves.",
-      reserve: "Reserved now. Our team confirms payment. Nothing is charged here.", custom: "Reserved now. Our team agrees terms with you. Nothing is charged here.",
+      reserve: "Choose now, pay later. Online payment isn't set up yet.", custom: "Reserved now. Our team agrees terms with you. Nothing is charged here.",
       pendingReserved: "Reserved. Our team will confirm payment with you.", pendingCustom: "Requested. Our team will agree terms with you.", pendingCheckout: "Checkout started. Continue where you left off.",
       downgrade: "Your {0} package stays active. Moving to a smaller package happens from Billing after setup.", pendingDeferred: "Payment due. Pay now to activate it.",
     },
@@ -103,10 +103,10 @@ const en: PackageCopy = {
       current: "Your current package, {0}, already fits {1} and {2}.", roomy: "{0} fits {1} and {2}, with room for {3} more.", fit: "{0} fits {1} and {2}.",
       whyNotCampuses: "Why not {0}? It covers {1}.", whyNotStudents: "Why not {0}? It covers up to {1}.", price: "{0} · {1}", announce: "Recommended: {0}. {1}",
     },
-    selected: "Selected", continueWith: "Continue with {0}", reserveNow: "Reserve {0}, our team confirms payment", payEyebrow: "Payment", payTitle: "Pay for {0}", payBody: "Pay now and {0} is active straight away. Or skip for now: your choice is saved, setup carries on, and {0} activates as soon as you pay.", payNow: "Pay now", payLater: "Skip for now, pay later", payNowTest: "Pay now (test checkout)",
+    selected: "Selected", continueWith: "Continue with {0}", reserveNow: "Reserve {0}, our team confirms payment", payUnavailable: "Online payment isn't set up on this server yet. Skip for now: your choice is saved, and you can pay from the Package step once it is.", payEyebrow: "Payment", payTitle: "Pay for {0}", payBody: "Pay now and {0} is active straight away. Or skip for now: your choice is saved, setup carries on, and {0} activates as soon as you pay.", payNow: "Pay now", payLater: "Skip for now, pay later", payNowTest: "Pay now (test checkout)",
     notNow: "Not now", modeTestTitle: "Test checkout (development only)",
     modeTest: "No payment keys are set on this server, so paid packages open a test payment page. No money moves.",
-    modeReserve: "Online payment isn't available for your school yet. Choosing a paid package reserves it, and our team confirms the price and payment with you. Nothing is charged here.",
+    modeReserve: "Online payment isn't available for your school yet. Choose a package now and pay later: your choice is saved and setup carries on.",
     handoffTitle: "Opening secure checkout", handoffTestTitle: "Opening test checkout",
     handoffBody: "Taking you to pay for {0}. Your setup is saved and you'll come back here.", handoffTestBody: "Taking you to the test checkout for {0}. No money moves.",
     handoffFallback: "Not moving? Continue to checkout",
@@ -196,7 +196,7 @@ const ar: PackageCopy = {
     next: {
       free: "تبدأ الآن. دون بطاقة.", current: "هذه باقتك اليوم.", online: "ادفع إلكترونياً بأمان، ثم تعود إلى الإعداد.",
       bank: "الدفع بالتحويل البنكي. تظهر التفاصيل تالياً.", test: "تفتح دفعاً تجريبياً. لا تُنقل أي أموال.",
-      reserve: "تُحجز الآن ويؤكد فريقنا الدفع. لا يُخصم شيء هنا.", custom: "تُحجز الآن ويتفق فريقنا معك على الشروط. لا يُخصم شيء هنا.",
+      reserve: "اختر الآن وادفع لاحقاً. الدفع الإلكتروني غير مفعّل بعد.", custom: "تُحجز الآن ويتفق فريقنا معك على الشروط. لا يُخصم شيء هنا.",
       pendingReserved: "محجوزة. سيؤكد فريقنا الدفع معك.", pendingCustom: "مطلوبة. سيتفق فريقنا معك على الشروط.", pendingCheckout: "بدأ الدفع. تابع من حيث توقفت.",
       downgrade: "تبقى باقتك {0} مفعّلة. الانتقال إلى باقة أصغر يتم من الفوترة بعد الإعداد.", pendingDeferred: "الدفع مستحق. ادفع الآن لتفعيلها.",
     },
@@ -207,10 +207,10 @@ const ar: PackageCopy = {
       current: "باقتك الحالية {0} تناسب {1} و{2} بالفعل.", roomy: "{0} تناسب {1} و{2}، مع مساحة لـ{3} إضافيين.", fit: "{0} تناسب {1} و{2}.",
       whyNotCampuses: "لماذا ليست {0}؟ تغطي {1}.", whyNotStudents: "لماذا ليست {0}؟ تغطي حتى {1}.", price: "{0} · {1}", announce: "الموصى بها: {0}. {1}",
     },
-    selected: "محددة", continueWith: "المتابعة مع {0}", reserveNow: "احجز {0}، ويؤكد فريقنا الدفع", payEyebrow: "الدفع", payTitle: "ادفع لـ{0}", payBody: "ادفع الآن لتُفعّل {0} فوراً. أو تخطَّ الآن: يُحفظ اختيارك ويستمر الإعداد، وتُفعّل {0} فور الدفع.", payNow: "ادفع الآن", payLater: "تخطَّ الآن، ادفع لاحقاً", payNowTest: "ادفع الآن (دفع تجريبي)",
+    selected: "محددة", continueWith: "المتابعة مع {0}", reserveNow: "احجز {0}، ويؤكد فريقنا الدفع", payUnavailable: "الدفع الإلكتروني غير مفعّل على هذا الخادم بعد. تخطَّ الآن: يُحفظ اختيارك ويمكنك الدفع من خطوة الباقة عند تفعيله.", payEyebrow: "الدفع", payTitle: "ادفع لـ{0}", payBody: "ادفع الآن لتُفعّل {0} فوراً. أو تخطَّ الآن: يُحفظ اختيارك ويستمر الإعداد، وتُفعّل {0} فور الدفع.", payNow: "ادفع الآن", payLater: "تخطَّ الآن، ادفع لاحقاً", payNowTest: "ادفع الآن (دفع تجريبي)",
     notNow: "ليس الآن", modeTestTitle: "دفع تجريبي (للتطوير فقط)",
     modeTest: "لا توجد مفاتيح دفع على هذا الخادم، لذا تفتح الباقات المدفوعة صفحة دفع تجريبية. لا تُنقل أي أموال.",
-    modeReserve: "الدفع الإلكتروني غير متاح لمدرستك بعد. اختيار باقة مدفوعة يحجزها، ويؤكد فريقنا السعر والدفع معك. لا يُخصم شيء هنا.",
+    modeReserve: "الدفع الإلكتروني غير متاح لمدرستك بعد. اختر باقة الآن وادفع لاحقاً: يُحفظ اختيارك ويستمر الإعداد.",
     handoffTitle: "جارٍ فتح الدفع الآمن", handoffTestTitle: "جارٍ فتح الدفع التجريبي",
     handoffBody: "ننقلك لدفع {0}. إعدادك محفوظ وستعود إلى هنا.", handoffTestBody: "ننقلك إلى الدفع التجريبي لـ{0}. لا تُنقل أي أموال.",
     handoffFallback: "لم يحدث شيء؟ تابع إلى الدفع",
@@ -300,7 +300,7 @@ const ur: PackageCopy = {
     next: {
       free: "ابھی شروع کریں۔ کارڈ کی ضرورت نہیں۔", current: "یہ آج آپ کا پیکیج ہے۔", online: "محفوظ آن لائن ادائیگی کریں، پھر سیٹ اپ پر واپس آئیں۔",
       bank: "بینک ٹرانسفر سے ادائیگی۔ تفصیلات اگلے مرحلے میں۔", test: "ٹیسٹ ادائیگی کھلتی ہے۔ کوئی رقم منتقل نہیں ہوتی۔",
-      reserve: "ابھی محفوظ؛ ہماری ٹیم ادائیگی کی تصدیق کرے گی۔ یہاں کچھ نہیں کاٹا جاتا۔", custom: "ابھی محفوظ؛ ہماری ٹیم آپ کے ساتھ شرائط طے کرے گی۔ یہاں کچھ نہیں کاٹا جاتا۔",
+      reserve: "ابھی منتخب کریں، بعد میں ادائیگی کریں۔ آن لائن ادائیگی ابھی فعال نہیں۔", custom: "ابھی محفوظ؛ ہماری ٹیم آپ کے ساتھ شرائط طے کرے گی۔ یہاں کچھ نہیں کاٹا جاتا۔",
       pendingReserved: "محفوظ۔ ہماری ٹیم آپ کے ساتھ ادائیگی کی تصدیق کرے گی۔", pendingCustom: "درخواست شدہ۔ ہماری ٹیم شرائط طے کرے گی۔", pendingCheckout: "ادائیگی شروع ہو چکی۔ جہاں چھوڑا تھا وہاں سے جاری رکھیں۔",
       downgrade: "آپ کا {0} پیکیج فعال رہے گا۔ چھوٹے پیکیج پر منتقلی سیٹ اپ کے بعد بلنگ سے ہوتی ہے۔", pendingDeferred: "ادائیگی باقی ہے۔ فعال کرنے کے لیے ابھی ادائیگی کریں۔",
     },
@@ -311,10 +311,10 @@ const ur: PackageCopy = {
       current: "آپ کا موجودہ پیکیج {0} پہلے ہی {1} اور {2} کے لیے موزوں ہے۔", roomy: "{0} آپ کے {1} اور {2} کے لیے موزوں ہے، مزید {3} کی گنجائش کے ساتھ۔", fit: "{0} آپ کے {1} اور {2} کے لیے موزوں ہے۔",
       whyNotCampuses: "{0} کیوں نہیں؟ اس میں {1} ہے۔", whyNotStudents: "{0} کیوں نہیں؟ اس میں {1} تک کی گنجائش ہے۔", price: "{0} · {1}", announce: "تجویز کردہ: {0}۔ {1}",
     },
-    selected: "منتخب", continueWith: "{0} کے ساتھ جاری رکھیں", reserveNow: "{0} محفوظ کریں، ٹیم ادائیگی کی تصدیق کرے گی", payEyebrow: "ادائیگی", payTitle: "{0} کی ادائیگی", payBody: "ابھی ادائیگی کریں تو {0} فوراً فعال ہو جائے گا۔ یا ابھی چھوڑ دیں: آپ کا انتخاب محفوظ ہے، سیٹ اپ جاری رہے گا، اور ادائیگی ہوتے ہی {0} فعال ہو جائے گا۔", payNow: "ابھی ادائیگی کریں", payLater: "ابھی چھوڑیں، بعد میں ادائیگی", payNowTest: "ابھی ادائیگی (ٹیسٹ)",
+    selected: "منتخب", continueWith: "{0} کے ساتھ جاری رکھیں", reserveNow: "{0} محفوظ کریں، ٹیم ادائیگی کی تصدیق کرے گی", payUnavailable: "اس سرور پر آن لائن ادائیگی ابھی فعال نہیں۔ ابھی چھوڑ دیں: آپ کا انتخاب محفوظ ہے، فعال ہوتے ہی پیکیج کے مرحلے سے ادائیگی کریں۔", payEyebrow: "ادائیگی", payTitle: "{0} کی ادائیگی", payBody: "ابھی ادائیگی کریں تو {0} فوراً فعال ہو جائے گا۔ یا ابھی چھوڑ دیں: آپ کا انتخاب محفوظ ہے، سیٹ اپ جاری رہے گا، اور ادائیگی ہوتے ہی {0} فعال ہو جائے گا۔", payNow: "ابھی ادائیگی کریں", payLater: "ابھی چھوڑیں، بعد میں ادائیگی", payNowTest: "ابھی ادائیگی (ٹیسٹ)",
     notNow: "ابھی نہیں", modeTestTitle: "ٹیسٹ ادائیگی (صرف ڈیولپمنٹ)",
     modeTest: "اس سرور پر ادائیگی کیز موجود نہیں، اس لیے ادائیگی والے پیکیج ٹیسٹ صفحہ کھولتے ہیں۔ کوئی رقم منتقل نہیں ہوتی۔",
-    modeReserve: "آپ کے اسکول کے لیے آن لائن ادائیگی ابھی دستیاب نہیں۔ ادائیگی والا پیکیج منتخب کرنے سے وہ محفوظ ہو جاتا ہے، اور ہماری ٹیم قیمت اور ادائیگی طے کرتی ہے۔ یہاں کچھ نہیں کاٹا جاتا۔",
+    modeReserve: "آپ کے اسکول کے لیے آن لائن ادائیگی ابھی دستیاب نہیں۔ ابھی پیکیج منتخب کریں اور بعد میں ادائیگی کریں: آپ کا انتخاب محفوظ ہے اور سیٹ اپ جاری رہے گا۔",
     handoffTitle: "محفوظ ادائیگی کھل رہی ہے", handoffTestTitle: "ٹیسٹ ادائیگی کھل رہی ہے",
     handoffBody: "{0} کی ادائیگی کے لیے لے جا رہے ہیں۔ آپ کا سیٹ اپ محفوظ ہے اور آپ یہیں واپس آئیں گے۔", handoffTestBody: "{0} کی ٹیسٹ ادائیگی پر لے جا رہے ہیں۔ کوئی رقم منتقل نہیں ہوتی۔",
     handoffFallback: "آگے نہیں بڑھا؟ ادائیگی پر جائیں",

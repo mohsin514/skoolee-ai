@@ -51,7 +51,7 @@ type Plan = {
 type Catalogue = {
   plans: Record<PlanType, Plan>;
   currentPlan: PlanType;
-  checkoutMode?: "online" | "test" | "reserve";
+  checkoutMode?: "online" | "test" | "none";
   paymentMethods?: string[];
   catalogueVersion?: string;
 };
@@ -273,7 +273,7 @@ export function PackageChooser({
     }
     setError(null);
     setBusyPlan(plan.type);
-    if ((plan.price ?? 0) > 0 && mode !== "reserve" && !opts.payLater && beforeLeave && !(await beforeLeave())) {
+    if ((plan.price ?? 0) > 0 && mode !== "none" && !opts.payLater && beforeLeave && !(await beforeLeave())) {
       setError({ title: c.failTitle, body: c.saveFirstFailed, retry: plan.type });
       setErrorSeq((n) => n + 1);
       setBusyPlan(null);
@@ -337,7 +337,7 @@ export function PackageChooser({
     if (waiting) return note(Clock3, waiting.status === "CUSTOM_QUOTE" ? c.next.pendingCustom : waiting.provider === "SALES_ASSISTED" ? c.next.pendingReserved : c.next.pendingCheckout);
     if (plan.price == null) return note(Handshake, c.next.custom);
     if (mode === "test") return note(FlaskConical, c.next.test);
-    if (mode === "reserve") return note(CalendarClock, c.next.reserve);
+    if (mode === "none") return note(CalendarClock, c.next.reserve);
     const methods = catalogue?.paymentMethods ?? [];
     if (methods.includes("stripe") || methods.includes("safepay")) return note(Lock, c.next.online);
     return note(Landmark, c.next.bank);
@@ -580,10 +580,10 @@ export function PackageChooser({
           </section>
         ) : null}
 
-        {phase.kind === "choose" && (mode === "test" || mode === "reserve" || error) ? (
+        {phase.kind === "choose" && (mode === "test" || mode === "none" || error) ? (
           <div className="sk-chooser-notices">
             {mode === "test" ? <Alert compact tone="warning" icon={FlaskConical} live="off" title={c.modeTestTitle}>{c.modeTest}</Alert> : null}
-            {mode === "reserve" ? <Alert compact tone="info" icon={Info} live="off">{c.modeReserve}</Alert> : null}
+            {mode === "none" ? <Alert compact tone="info" icon={Info} live="off">{c.modeReserve}</Alert> : null}
             {error ? (
               <div ref={errorRef} tabIndex={-1} className="outline-none">
                 <Alert
@@ -618,9 +618,11 @@ export function PackageChooser({
               />
               <p className="sk-receipt-body">{fill(c.payBody, nameOf(payPlan.type))}</p>
               {error ? <Alert tone="danger" title={error.title}>{error.body}</Alert> : null}
+              {mode === "none" ? <Alert compact tone="info" icon={Info} live="off" id="pay-unavailable">{c.payUnavailable}</Alert> : null}
               <div className="sk-pay-actions">
-                <Button type="button" onClick={() => void choose(payPlan, { confirmed: true })} disabled={Boolean(busyPlan)} loading={busyPlan === payPlan.type && !error} className="gap-2">
-                  <Lock aria-hidden="true" className="size-4" />{mode === "reserve" ? fill(c.reserveNow, nameOf(payPlan.type)) : mode === "test" ? c.payNowTest : c.payNow}
+                {/* Pay now is always offered; with no payment method on this server it is disabled and says why. */}
+                <Button type="button" onClick={() => void choose(payPlan, { confirmed: true })} disabled={Boolean(busyPlan) || mode === "none"} loading={busyPlan === payPlan.type && !error} aria-describedby={mode === "none" ? "pay-unavailable" : undefined} className="gap-2">
+                  <Lock aria-hidden="true" className="size-4" />{mode === "test" ? c.payNowTest : c.payNow}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => void choose(payPlan, { confirmed: true, payLater: true })} disabled={Boolean(busyPlan)}>
                   {c.payLater}

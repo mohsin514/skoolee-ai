@@ -10,10 +10,10 @@ test("Pakistani schools keep every configured automated payment route", () => {
   assert.deepEqual(regionalPaymentMethods("PK", configured), [...configured]);
 });
 
-test("schools outside validated markets get no automated route and use a quote instead", () => {
+test("schools everywhere can pay online; SafePay is offered to Pakistani schools only", () => {
   for (const country of COUNTRIES.filter(item => item !== "PK")) {
-    assert.equal(automatedCheckoutAvailable(country), false, country);
-    assert.deepEqual(regionalPaymentMethods(country, configured), [], country);
+    assert.equal(automatedCheckoutAvailable(country), true, country);
+    assert.deepEqual(regionalPaymentMethods(country, configured), ["stripe", "bank_transfer"], country);
   }
 });
 

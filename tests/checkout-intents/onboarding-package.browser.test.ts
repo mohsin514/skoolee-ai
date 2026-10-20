@@ -59,7 +59,7 @@ test("a Saudi school sees a sales-assisted quote for paid packages and cannot st
     const context = await signedIn(schools.get("SA")!, { width, height: 1000 });
     const catalogueResponse = await context.request.get(base + "/api/onboarding/package"), catalogue = await catalogueResponse.json();
     assert.equal(catalogue.country, "SA", `${catalogueResponse.status()} ${JSON.stringify(catalogue).slice(0, 200)}`);
-    assert.equal(catalogue.salesAssisted, true);
+    assert.equal(catalogue.salesAssisted, false, "every school can pay online when a payment method is configured");
     assert.deepEqual(catalogue.paymentMethods, []);
     const page = await context.newPage();
     const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
@@ -81,13 +81,13 @@ test("a Saudi school sees a sales-assisted quote for paid packages and cannot st
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `no horizontal overflow at ${width}`);
     await page.screenshot({ path: `${evidence}/package-sa-en-${width}.png`, fullPage: true });
     const direct = await context.request.post(base + "/api/onboarding/package", { data: { plan: "BASIC", billingPeriod: "monthly", expectedCampuses: 2, expectedEnrollment: 120, returnStep: "campuses", idempotencyKey: randomUUID() } });
-    // No automated checkout in this region: the package is reserved for the team to confirm (nothing charged).
+    // No payment method is configured on the isolated app: the choice stands as payment due (nothing charged).
     assert.equal(direct.status(), 200, await direct.text());
-    const reserved = await direct.json();
-    assert.equal(reserved.reserved, true);
-    assert.equal(reserved.status, "PENDING_SETTLEMENT");
-    const saved = await raw.onboardingCheckoutIntent.findUnique({ where: { id: reserved.intentId } });
-    assert.equal(saved?.provider, "SALES_ASSISTED");
+    const deferred = await direct.json();
+    assert.equal(deferred.deferred, true);
+    assert.equal(deferred.status, "PENDING_SETTLEMENT");
+    const saved = await raw.onboardingCheckoutIntent.findUnique({ where: { id: deferred.intentId } });
+    assert.equal(saved?.provider, "PAY_LATER");
     assert.deepEqual(errors, []);
     await context.close();
   }
