@@ -11,7 +11,7 @@
 export const TEST_CHECKOUT_PROVIDER = "TEST" as const;
 
 /** The live production app: dummy payments are never possible there, whatever the flag says. */
-const PRODUCTION_HOST = /(^|\.)skooleeai\.com$/i;
+const PRODUCTION_HOSTS = new Set(["app.skooleeai.com", "skooleeai.com", "www.skooleeai.com"]);
 
 function hostOf(value: string | undefined) {
   if (!value) return "";
@@ -21,14 +21,14 @@ function hostOf(value: string | undefined) {
 /**
  * Explicit opt-in (ALLOW_TEST_CHECKOUT=true) on a local `next dev` server or a non-production deployment
  * (the dev site on Vercel). Production is recognised by Vercel's own project URL (always set on Vercel)
- * or the app URL: anything on skooleeai.com can never take dummy payments, whatever the flag says.
+ * or the app URL: the live app (app.skooleeai.com, skooleeai.com) can never take dummy payments; dev.skooleeai.com can, whatever the flag says.
  */
 export function testCheckoutEnabled(env: Record<string, string | undefined> = process.env): boolean {
   if (env.ALLOW_TEST_CHECKOUT !== "true") return false;
   if (env.NODE_ENV === "development") return true;
   const hosts = [env.VERCEL_PROJECT_PRODUCTION_URL, env.NEXT_PUBLIC_APP_URL].map(hostOf).filter(Boolean);
   // A production build must say where it runs, and none of those places may be the live app.
-  return hosts.length > 0 && !hosts.some((host) => PRODUCTION_HOST.test(host));
+  return hosts.length > 0 && !hosts.some((host) => PRODUCTION_HOSTS.has(host.toLowerCase()));
 }
 
 /** Where the fake payment page lives (relative, so it works on any local port). */
