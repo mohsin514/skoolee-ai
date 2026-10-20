@@ -90,7 +90,7 @@ export async function readinessView(user: AuthUser, now = new Date()) {
       getLocalePackage(user.schoolId, null, now, undefined, tx),
     ]);
     return { lead: true as const, readiness: { status: row.status, version: row.version, approvedById: row.approvedById, approvedAt: row.approvedAt, evidence: row.evidence, rehearsal: row.rehearsal },
-      facts, ...evaluateReadiness(facts), tasks, staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency } };
+      facts, ...evaluateReadiness(facts, user.role), tasks, staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency } };
   });
 }
 

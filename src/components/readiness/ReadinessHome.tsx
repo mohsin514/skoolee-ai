@@ -1,14 +1,25 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Circle, ClipboardCheck, FlaskConical, Sparkles } from "lucide-react";
+import {
+  ArrowLeft, CheckCircle2, Circle, ClipboardCheck, Coins, FlaskConical, Info, ListChecks, Rocket, Sparkles, Users, Building2, type LucideIcon,
+} from "lucide-react";
+import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { getReadinessCopy } from "./readiness-copy";
+import { getLaunchCopy } from "./readiness-launch-copy";
 
-type Check = { id: string; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string };
+/**
+ * School readiness as "launch control": a hero with the share of required checks done, a spotlight on the
+ * one next step, the checks as a journey (Foundation → People → Money & data → Rehearse) with why each
+ * matters and an Open that lands where the person can act, then practice, reconciliation and follow-ups,
+ * and a go-live bar once everything required is done.
+ */
+type Check = { id: string; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string; delegated?: boolean };
 type Task = { id: string; key: string; title: string; ownerId: string | null; status: "OPEN" | "DONE" | "DEFERRED" };
 type Batch = { id: string; kind: string; state: string; sourceName: string; total: number; accepted: number; rejected: number; unresolved: number; unknownClass: number };
 type LeadView = {
@@ -20,6 +31,13 @@ type LeadView = {
 type StaffView = { lead: false; tasks: Task[] };
 type Preview = { step: "attendance" | "assessment" | "family"; className: string; campusName: string; timezone: string; currency: string; learners: Array<{ name: string; status: string }>; subjects: string[] };
 const STEPS = ["attendance", "assessment", "family"] as const;
+const PHASES: { key: "foundation" | "people" | "money" | "rehearse"; icon: LucideIcon; checks: string[] }[] = [
+  { key: "foundation", icon: Building2, checks: ["campus", "locale", "academic"] },
+  { key: "people", icon: Users, checks: ["staff", "roster", "guardians"] },
+  { key: "money", icon: Coins, checks: ["fees", "imports"] },
+  { key: "rehearse", icon: FlaskConical, checks: ["rehearsal"] },
+];
+const fill = (template: string, ...values: (string | number)[]) => template.replace(/\{(\d+)\}/g, (_, i) => String(values[Number(i)] ?? ""));
 
 async function call(body?: unknown) {
   const response = await fetch("/api/readiness", { cache: "no-store", ...(body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
@@ -31,6 +49,7 @@ async function call(body?: unknown) {
 export function ReadinessHome() {
   const { language } = useLocale();
   const t = getReadinessCopy(language);
+  const l = getLaunchCopy(language);
   const rtl = language === "ar" || language === "ur";
   const [view, setView] = useState<LeadView | StaffView | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -48,100 +67,222 @@ export function ReadinessHome() {
   }
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   const owner = (id: string | null) => !view || !view.lead || !id ? t.unassigned : view.staff.find(person => person.id === id)?.fullName ?? t.unassigned;
+  const checkTitle = (id: string) => t.checks[id as keyof typeof t.checks] ?? id;
 
-  const taskRow = (task: Task, lead: boolean) => <li key={task.id} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1.4fr_1fr_auto] sm:items-center">
-    <p className="text-sm"><span className="font-semibold">{t.optionalTasks[task.key] ?? task.title}</span><span className="ms-2 rounded-full border px-2 py-0.5 text-xs">{t.statuses[task.status]}</span></p>
-    {lead && view?.lead ? <label className="grid gap-1 text-xs font-semibold">{t.owner}<Select value={task.ownerId ?? ""} disabled={busy} onChange={event => run(() => call({ op: "task", action: "assign", taskId: task.id, ownerId: event.target.value || null }))}>
-      <option value="">{t.unassigned}</option>{view.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></label> : <p className="text-sm text-slate-600">{lead ? `${t.owner}: ${owner(task.ownerId)}` : t.assignedToYou}</p>}
-    <div className="flex flex-wrap gap-2">
-      {task.status !== "DONE" && <Button type="button" variant="outline" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DONE" }))}>{t.markDone}</Button>}
-      {lead && task.status === "OPEN" && <Button type="button" variant="ghost" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DEFERRED" }))}>{t.defer}</Button>}
-      {lead && task.status !== "OPEN" && <Button type="button" variant="ghost" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "OPEN" }))}>{t.reopen}</Button>}
-    </div>
-  </li>;
-
-  return <main lang={language} dir={rtl ? "rtl" : "ltr"} className="mx-auto w-full max-w-5xl min-w-0 space-y-5 p-3 sm:p-6">
-    <header className="sk-panel space-y-2 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-bold"><ClipboardCheck aria-hidden="true" className="h-6 w-6 text-primary" />{t.title}</h1>
-        {view?.lead && <span className={`rounded-full border px-3 py-1 text-sm font-semibold ${view.readiness.status === "READY" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>{view.readiness.status === "READY" ? t.statusReady : t.statusSetup}</span>}
+  const taskRow = (task: Task, lead: boolean) => (
+    <li key={task.id} className="sk-launch-task" data-status={task.status}>
+      <div className="min-w-0">
+        <p className="font-semibold text-ink-strong">{t.optionalTasks[task.key] ?? task.title}</p>
+        <span className="sk-choice-tag mt-1" data-tone={task.status === "DONE" ? undefined : task.status === "DEFERRED" ? "brand" : "info"}>{t.statuses[task.status]}</span>
       </div>
-      <p className="text-sm text-slate-600">{t.intro}</p>
-      {view?.lead && <p className="text-sm">{t.mode}: <strong>{t.modes[view.facts.adoptionMode]}</strong> · {t.localeSummary}: <bdi dir="ltr">{view.locale.country} · {view.locale.timezone} · {view.locale.currency}</bdi>{view.readiness.approvedAt ? <> · {t.approvedBy}: {date(view.readiness.approvedAt)}</> : null}</p>}
-      {view?.lead && <Link href="/ai?setup=1" className={buttonVariants({ variant: "link", className: "h-auto gap-1 p-0" })}><Sparkles aria-hidden="true" className="h-4 w-4" />{t.aiSetup}</Link>}
-    </header>
-    {status && <p role={status.tone === "error" ? "alert" : "status"} className={`rounded-xl border p-3 text-sm ${status.tone === "error" ? "border-rose-300 bg-rose-50 text-rose-900" : "border-emerald-300 bg-emerald-50 text-emerald-900"}`}>{status.text}</p>}
-    {!view && !status && <p role="status">{t.loading}</p>}
+      {lead && view?.lead ? (
+        <label className="grid gap-1 text-xs font-semibold text-ink-muted">{t.owner}
+          <Select value={task.ownerId ?? ""} disabled={busy} onChange={event => run(() => call({ op: "task", action: "assign", taskId: task.id, ownerId: event.target.value || null }))}>
+            <option value="">{t.unassigned}</option>{view.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}
+          </Select>
+        </label>
+      ) : <p className="text-sm text-ink-muted">{lead ? `${t.owner}: ${owner(task.ownerId)}` : t.assignedToYou}</p>}
+      <div className="flex flex-wrap gap-2">
+        {task.status !== "DONE" && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DONE" }))}>{t.markDone}</Button>}
+        {lead && task.status === "OPEN" && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DEFERRED" }))}>{t.defer}</Button>}
+        {lead && task.status !== "OPEN" && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "OPEN" }))}>{t.reopen}</Button>}
+      </div>
+    </li>
+  );
 
-    {view && !view.lead && <section aria-labelledby="my-tasks" className="sk-panel space-y-3 p-4 sm:p-6">
-      <h2 id="my-tasks" className="text-lg font-bold">{t.myTasks}</h2><p className="text-sm text-slate-600">{t.myTasksHelp}</p>
-      <ul className="space-y-2">{view.tasks.map(task => taskRow(task, false))}</ul>
-    </section>}
+  const lead = view?.lead ? view : null;
+  const required = lead ? lead.checks.filter(check => check.required) : [];
+  const doneRequired = required.filter(check => check.passed).length;
+  const percent = required.length ? Math.round((doneRequired / required.length) * 100) : 0;
+  const next = lead?.nextRequired ? lead.checks.find(check => check.id === lead.nextRequired) ?? null : null;
+  const live = lead?.readiness.status === "READY";
 
-    {view?.lead && <>
-      <section aria-labelledby="next-step" className="sk-panel p-4 sm:p-6">
-        <h2 id="next-step" className="text-lg font-bold">{t.next}</h2>
-        {view.nextRequired ? <p className="mt-2 flex flex-wrap items-center gap-3 text-sm"><strong>{t.checks[view.nextRequired as keyof typeof t.checks]}</strong>
-          <Link className={buttonVariants({ variant: "default" })} href={view.checks.find(check => check.id === view.nextRequired)!.href}>{t.open}</Link></p>
-          : <p className="mt-2 text-sm text-emerald-800">{t.allRequiredDone}</p>}
-      </section>
+  return (
+    <main lang={language} dir={rtl ? "rtl" : "ltr"} className="sk-launch">
+      <Link href="/dashboard" className={buttonVariants({ variant: "link", className: "-ms-2 h-auto gap-2 px-2" })}>
+        <ArrowLeft aria-hidden="true" className="size-4 rtl:rotate-180" />{l.back}
+      </Link>
 
-      {([true, false] as const).filter(required => view.checks.some(check => check.required === required)).map(required => <section key={String(required)} aria-label={required ? t.required : t.optional} className="sk-panel space-y-3 p-4 sm:p-6">
-        <h2 className="text-lg font-bold">{required ? t.required : t.optional}</h2>
-        <ul className="space-y-2">{view.checks.filter(check => check.required === required).map(check => <li key={check.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3">
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 font-semibold">{check.passed ? <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-emerald-600" /> : <Circle aria-hidden="true" className="h-5 w-5 text-amber-600" />}{t.checks[check.id as keyof typeof t.checks]}<span className="sr-only"> — {check.passed ? t.passed : t.pending}</span></p>
-            <p className="mt-1 text-xs text-slate-600">{Object.entries(check.evidence).map(([key, value]) => <span key={key} className="me-3 inline-block"><bdi dir="ltr">{typeof value === "boolean" ? (value ? t.yes : t.no) : value}</bdi> {t.evidence[key as keyof typeof t.evidence] ?? key}</span>)}</p>
+      {/* ── Hero ── */}
+      <header className="sk-launch-hero">
+        <div className="min-w-0 space-y-3">
+          <p className="sk-eyebrow text-primary">{t.title}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{live ? l.liveTitle : t.statusSetup}</h1>
+          <p className="max-w-[60ch] text-sm leading-relaxed text-ink-muted">{live ? l.liveBody : t.intro}</p>
+          {lead ? (
+            <div className="flex flex-wrap gap-2">
+              <span className="sk-choice-tag" data-tone="brand">{t.modes[lead.facts.adoptionMode]}</span>
+              <span className="sk-choice-tag" data-tone="info"><bdi dir="ltr">{lead.locale.country} · {lead.locale.timezone} · {lead.locale.currency}</bdi></span>
+              {lead.readiness.approvedAt ? <span className="sk-choice-tag">{t.approvedBy}: {date(lead.readiness.approvedAt)}</span> : null}
+            </div>
+          ) : null}
+          {lead ? <Link href="/ai?setup=1" className={buttonVariants({ variant: "link", className: "h-auto gap-1 p-0" })}><Sparkles aria-hidden="true" className="size-4" />{t.aiSetup}</Link> : null}
+        </div>
+        {lead ? (
+          <div className="sk-launch-ring" style={{ ["--sk-ring-value" as string]: `${percent}%` }} role="img" aria-label={fill(l.progress, doneRequired, required.length)}>
+            <div className="sk-launch-ring-inner">
+              <span className="text-3xl font-bold text-ink-strong tabular-nums"><bdi dir="ltr">{percent}%</bdi></span>
+              <span className="text-xs font-semibold text-ink-muted">{l.percentLabel}</span>
+            </div>
           </div>
-          <span className="flex items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${check.passed ? "border-emerald-300 text-emerald-800" : "border-amber-300 text-amber-900"}`}>{check.passed ? t.passed : t.pending}</span>
-            {!check.passed && <Link href={check.href} className={buttonVariants({ variant: "outline" })}>{t.open}</Link>}</span>
-        </li>)}</ul>
-      </section>)}
+        ) : null}
+      </header>
 
-      <section aria-labelledby="reconcile" className="sk-panel space-y-3 p-4 sm:p-6">
-        <h2 id="reconcile" className="text-lg font-bold">{t.reconcileTitle}</h2><p className="text-sm text-slate-600">{t.reconcileHelp}</p>
-        {view.facts.imports.batches.length === 0 ? <p className="text-sm">{t.noImports}</p> : <ul className="grid gap-2 sm:grid-cols-2">{view.facts.imports.batches.map(batch => <li key={batch.id} className="rounded-xl border p-3 text-sm">
-          <p className="font-semibold"><bdi>{batch.sourceName}</bdi> <span className="text-xs text-slate-500">· {batch.kind} · {batch.state}</span></p>
-          <p className="mt-1">{t.source}: <bdi dir="ltr">{batch.total}</bdi> {t.rows} → <bdi dir="ltr">{batch.accepted}</bdi> {t.accepted} · <bdi dir="ltr">{batch.rejected}</bdi> {t.rejected} · <bdi dir="ltr">{batch.unresolved}</bdi> {t.unresolved}{batch.unknownClass ? <> · <strong className="text-rose-800"><bdi dir="ltr">{batch.unknownClass}</bdi> {t.unknownClass}</strong></> : null}</p>
-        </li>)}</ul>}
-        <p className="rounded-xl bg-slate-50 p-3 text-sm">{t.inSystem}: <bdi dir="ltr">{view.facts.students}</bdi> {t.evidence.students} · <bdi dir="ltr">{view.facts.studentsWithoutGuardian}</bdi> {t.guardiansMissing} · <bdi dir="ltr">{view.facts.openingBalances}</bdi> {t.openingBalances}</p>
-      </section>
+      {status ? <Alert tone={status.tone === "error" ? "danger" : "success"} live={status.tone === "error" ? "assertive" : "polite"}>{status.text}</Alert> : null}
+      {!view && !status ? <p role="status" className="text-sm text-ink-muted">{t.loading}</p> : null}
 
-      <section id="practice" aria-labelledby="practice-heading" className="sk-panel space-y-3 p-4 sm:p-6">
-        <h2 id="practice-heading" className="flex items-center gap-2 text-lg font-bold"><FlaskConical aria-hidden="true" className="h-5 w-5" />{t.practiceTitle}</h2>
-        <p role="note" className="rounded-xl border border-dashed border-violet-400 bg-violet-50 p-3 text-sm font-semibold text-violet-900">{t.practiceBanner}</p>
-        <ol className="grid gap-2 sm:grid-cols-3">{STEPS.map(step => <li key={step} className="rounded-xl border p-3 text-sm">
-          <p className="font-semibold">{t.steps[step]}</p>
-          {view.readiness.rehearsal[step] && <p className="text-xs text-emerald-800">{t.doneAt}: {date(view.readiness.rehearsal[step])}</p>}
-          <Button type="button" variant={view.readiness.rehearsal[step] ? "outline" : "default"} className="mt-2" disabled={busy}
-            onClick={() => run(async () => { const result = await call({ op: "rehearse", step }); setPreview(result.preview); }, true)}>{view.readiness.rehearsal[step] ? t.rerun : t.run}</Button>
-        </li>)}</ol>
-        {preview && <div aria-live="polite" className="space-y-2 rounded-xl border border-violet-300 p-3 text-sm">
-          <p className="font-semibold">{t.steps[preview.step]} · {t.classLabel}: <bdi>{preview.className}</bdi> · {t.campusLabel}: <bdi>{preview.campusName}</bdi></p>
-          {preview.step === "attendance" && <ul className="space-y-1">{preview.learners.map(learner => <li key={learner.name} className="flex justify-between gap-3"><span>{learner.name}</span><span>{learner.status === "PRESENT" ? t.present : t.absent}</span></li>)}</ul>}
-          {preview.step === "assessment" && (preview.subjects.length ? <ul className="list-inside list-disc">{preview.subjects.map(subject => <li key={subject}><bdi>{subject}</bdi></li>)}</ul> : <p>{t.subjectsNone}</p>)}
-          {preview.step === "family" && <div className="rounded-xl bg-slate-50 p-3"><p className="font-semibold">{t.familySees}: {preview.learners[0].name}</p>
-            <p>{t.attendanceToday}: {t.present} · {t.upcoming}: <bdi>{preview.subjects[0] ?? "—"}</bdi></p>
-            <p className="text-xs text-slate-600">{t.timezone}: <bdi dir="ltr">{preview.timezone}</bdi> · {t.currency}: <bdi dir="ltr">{preview.currency}</bdi></p></div>}
-        </div>}
-      </section>
+      {view && !view.lead ? (
+        <section aria-labelledby="my-tasks" className="sk-panel space-y-3 p-4 sm:p-6">
+          <h2 id="my-tasks" className="text-lg font-bold text-ink-strong">{t.myTasks}</h2>
+          <p className="text-sm text-ink-muted">{t.myTasksHelp}</p>
+          <ul className="space-y-2">{view.tasks.map(task => taskRow(task, false))}</ul>
+        </section>
+      ) : null}
 
-      <section aria-labelledby="tasks-heading" className="sk-panel space-y-3 p-4 sm:p-6">
-        <h2 id="tasks-heading" className="text-lg font-bold">{t.tasksTitle}</h2><p className="text-sm text-slate-600">{t.tasksHelp}</p>
-        <ul className="space-y-2">{view.tasks.map(task => taskRow(task, true))}</ul>
-        <form className="grid gap-2 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={event => { event.preventDefault(); run(() => call({ op: "task", action: "create", title: newTask.title, ownerId: newTask.ownerId || null }).then(() => setNewTask({ title: "", ownerId: "" }))); }}>
-          <label className="grid gap-1 text-sm font-semibold">{t.newTask}<Input required minLength={3} value={newTask.title} onChange={event => setNewTask({ ...newTask, title: event.target.value })} /></label>
-          <label className="grid gap-1 text-sm font-semibold">{t.owner}<Select value={newTask.ownerId} onChange={event => setNewTask({ ...newTask, ownerId: event.target.value })}><option value="">{t.unassigned}</option>{view.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></label>
-          <Button type="submit" disabled={busy}>{t.add}</Button>
-        </form>
-      </section>
+      {lead ? <>
+        <nav aria-label={l.sectionsLabel} className="sk-launch-nav">
+          <a href="#checks"><ListChecks aria-hidden="true" className="size-4" />{l.nav.checks}</a>
+          <a href="#practice"><FlaskConical aria-hidden="true" className="size-4" />{l.nav.practice}</a>
+          <a href="#reconcile"><ClipboardCheck aria-hidden="true" className="size-4" />{l.nav.reconcile}</a>
+          <a href="#tasks"><Rocket aria-hidden="true" className="size-4" />{l.nav.tasks}</a>
+        </nav>
 
-      {view.readiness.status !== "READY" && <section aria-labelledby="approve-heading" className="sk-panel space-y-2 p-4 sm:p-6">
-        <h2 id="approve-heading" className="text-lg font-bold">{t.approveTitle}</h2><p className="text-sm text-slate-600">{t.approveHelp}</p>
-        {!view.ready && <p className="text-sm text-amber-900">{t.approveBlocked}</p>}
-        <p className="text-sm"><bdi dir="ltr">{view.tasks.filter(task => task.status === "OPEN").length}</bdi> {t.outstanding}</p>
-        <Button type="button" disabled={busy || !view.ready} onClick={() => run(() => call({ op: "approve", expectedVersion: view.readiness.version }))}>{t.approve}</Button>
-      </section>}
-    </>}
-  </main>;
+        {/* ── Spotlight: the one next step ── */}
+        <section aria-labelledby="next-step" className="sk-launch-spotlight" data-done={!next || undefined}>
+          {next ? <>
+            <div className="min-w-0 space-y-1">
+              <p id="next-step" className="sk-eyebrow">{l.nextEyebrow}</p>
+              <p className="text-xl font-bold text-ink-strong">{checkTitle(next.id)}</p>
+              <p className="text-sm text-ink-muted">{l.why[next.id as keyof typeof l.why]}</p>
+              {next.delegated ? <p className="flex items-start gap-1.5 text-xs font-semibold text-status-info-text"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{l.delegated}</p> : null}
+            </div>
+            <Link href={next.href} className={buttonVariants({ variant: "default", className: "shrink-0 gap-2" })}>{t.open} <ForwardArrow /></Link>
+          </> : <>
+            <div className="min-w-0 space-y-1">
+              <p id="next-step" className="sk-eyebrow">{l.nextEyebrow}</p>
+              <p className="text-xl font-bold text-ink-strong">{live ? l.liveTitle : l.allDoneTitle}</p>
+              <p className="text-sm text-ink-muted">{live ? l.liveBody : l.allDoneBody}</p>
+            </div>
+            {!live ? <a href="#approve" className={buttonVariants({ variant: "default", className: "shrink-0 gap-2" })}><Rocket aria-hidden="true" className="size-4" />{l.goApprove}</a> : null}
+          </>}
+        </section>
+
+        {/* ── The journey ── */}
+        <section id="checks" aria-label={l.nav.checks} className="sk-launch-journey">
+          {PHASES.map(phase => {
+            const checks = phase.checks.map(id => lead.checks.find(check => check.id === id)).filter((check): check is Check => Boolean(check));
+            if (!checks.length) return null;
+            const PhaseIcon = phase.icon;
+            const phaseDone = checks.every(check => check.passed || !check.required);
+            return (
+              <div key={phase.key} className="sk-launch-phase" data-done={phaseDone || undefined}>
+                <h2 className="sk-launch-phase-title"><span className="sk-launch-phase-icon" aria-hidden="true"><PhaseIcon className="size-4" /></span>{l.phases[phase.key]}</h2>
+                <ul className="sk-launch-checks">
+                  {checks.map(check => (
+                    <li key={check.id} className="sk-launch-check" data-passed={check.passed || undefined} data-next={check.id === lead.nextRequired || undefined}>
+                      <span className="sk-launch-check-dot" aria-hidden="true">{check.passed ? <CheckCircle2 className="size-5" /> : <Circle className="size-5" />}</span>
+                      <div className="min-w-0 space-y-1.5">
+                        <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong">
+                          {checkTitle(check.id)}
+                          <span className="sr-only"> — {check.passed ? t.passed : t.pending}</span>
+                          {!check.required ? <span className="sk-choice-tag" data-tone="brand">{l.optionalTag}</span> : null}
+                        </p>
+                        <p className="text-xs leading-relaxed text-ink-muted">{l.why[check.id as keyof typeof l.why]}</p>
+                        <p className="flex flex-wrap gap-1.5">
+                          {Object.entries(check.evidence).map(([key, value]) => (
+                            <span key={key} className="sk-launch-chip"><bdi dir="ltr" className="font-bold">{typeof value === "boolean" ? (value ? t.yes : t.no) : value}</bdi> {t.evidence[key as keyof typeof t.evidence] ?? key}</span>
+                          ))}
+                        </p>
+                        {!check.passed && check.delegated ? <p className="flex items-start gap-1.5 text-xs font-semibold text-status-info-text"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{l.delegated}</p> : null}
+                      </div>
+                      <div className="sk-launch-check-action">
+                        <span className="sk-choice-tag" data-tone={check.passed ? undefined : "info"}>{check.passed ? l.doneTag : l.todoTag}</span>
+                        {!check.passed ? <Link href={check.href} className={buttonVariants({ variant: check.id === lead.nextRequired ? "default" : "outline", size: "sm", className: "gap-1.5" })}>{t.open} <ForwardArrow /></Link> : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* ── Practice ── */}
+        <section id="practice" aria-labelledby="practice-heading" className="sk-panel space-y-4 p-4 sm:p-6">
+          <div className="space-y-1">
+            <h2 id="practice-heading" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><FlaskConical aria-hidden="true" className="size-5 text-primary" />{t.practiceTitle}</h2>
+            <p className="text-sm text-ink-muted">{l.practiceHint}</p>
+          </div>
+          <ol className="sk-launch-steps">{STEPS.map((step, index) => {
+            const done = Boolean(lead.readiness.rehearsal[step]);
+            return (
+              <li key={step} className="sk-launch-step" data-done={done || undefined}>
+                <span className="sk-launch-step-num" aria-hidden="true">{done ? <CheckCircle2 className="size-4" /> : index + 1}</span>
+                <p className="font-semibold text-ink-strong">{t.steps[step]}</p>
+                {done ? <p className="text-xs text-status-success-text">{t.doneAt}: {date(lead.readiness.rehearsal[step])}</p> : null}
+                <Button type="button" size="sm" variant={done ? "outline" : "default"} disabled={busy}
+                  onClick={() => run(async () => { const result = await call({ op: "rehearse", step }); setPreview(result.preview); }, true)}>{done ? t.rerun : t.run}</Button>
+              </li>
+            );
+          })}</ol>
+          {preview ? (
+            <div aria-live="polite" className="sk-launch-preview">
+              <p className="sk-choice-tag" data-tone="brand">{t.practiceBanner}</p>
+              <p className="font-semibold text-ink-strong">{t.steps[preview.step]} · {t.classLabel}: <bdi>{preview.className}</bdi> · {t.campusLabel}: <bdi>{preview.campusName}</bdi></p>
+              {preview.step === "attendance" ? <ul className="space-y-1">{preview.learners.map(learner => <li key={learner.name} className="flex justify-between gap-3 text-sm"><span>{learner.name}</span><span className="sk-choice-tag" data-tone={learner.status === "PRESENT" ? undefined : "info"}>{learner.status === "PRESENT" ? t.present : t.absent}</span></li>)}</ul> : null}
+              {preview.step === "assessment" ? (preview.subjects.length ? <ul className="list-inside list-disc text-sm">{preview.subjects.map(subject => <li key={subject}><bdi>{subject}</bdi></li>)}</ul> : <p className="text-sm">{t.subjectsNone}</p>) : null}
+              {preview.step === "family" ? <div className="space-y-1 text-sm"><p className="font-semibold">{t.familySees}: {preview.learners[0].name}</p>
+                <p>{t.attendanceToday}: {t.present} · {t.upcoming}: <bdi>{preview.subjects[0] ?? "—"}</bdi></p>
+                <p className="text-xs text-ink-muted">{t.timezone}: <bdi dir="ltr">{preview.timezone}</bdi> · {t.currency}: <bdi dir="ltr">{preview.currency}</bdi></p></div> : null}
+            </div>
+          ) : null}
+        </section>
+
+        {/* ── Reconcile ── */}
+        <section id="reconcile" aria-labelledby="reconcile-heading" className="sk-panel space-y-3 p-4 sm:p-6">
+          <h2 id="reconcile-heading" className="text-lg font-bold text-ink-strong">{t.reconcileTitle}</h2>
+          <p className="text-sm text-ink-muted">{t.reconcileHelp}</p>
+          <div className="sk-launch-stats">
+            <div><span className="tabular-nums"><bdi dir="ltr">{lead.facts.students}</bdi></span><small>{t.evidence.students}</small></div>
+            <div data-tone={lead.facts.studentsWithoutGuardian ? "warning" : undefined}><span className="tabular-nums"><bdi dir="ltr">{lead.facts.studentsWithoutGuardian}</bdi></span><small>{t.guardiansMissing}</small></div>
+            <div><span className="tabular-nums"><bdi dir="ltr">{lead.facts.openingBalances}</bdi></span><small>{t.openingBalances}</small></div>
+          </div>
+          {lead.facts.imports.batches.length === 0 ? <p className="text-sm text-ink-muted">{t.noImports}</p> : (
+            <ul className="grid gap-2 sm:grid-cols-2">{lead.facts.imports.batches.map(batch => (
+              <li key={batch.id} className="sk-launch-batch">
+                <p className="font-semibold text-ink-strong"><bdi>{batch.sourceName}</bdi> <span className="text-xs text-ink-subtle">· {batch.kind} · {batch.state}</span></p>
+                <p className="text-sm text-ink-muted">{t.source}: <bdi dir="ltr">{batch.total}</bdi> {t.rows} → <bdi dir="ltr">{batch.accepted}</bdi> {t.accepted} · <bdi dir="ltr">{batch.rejected}</bdi> {t.rejected} · <bdi dir="ltr">{batch.unresolved}</bdi> {t.unresolved}{batch.unknownClass ? <> · <strong className="text-status-warning-text"><bdi dir="ltr">{batch.unknownClass}</bdi> {t.unknownClass}</strong></> : null}</p>
+              </li>
+            ))}</ul>
+          )}
+        </section>
+
+        {/* ── Follow-ups ── */}
+        <section id="tasks" aria-labelledby="tasks-heading" className="sk-panel space-y-3 p-4 sm:p-6">
+          <h2 id="tasks-heading" className="text-lg font-bold text-ink-strong">{t.tasksTitle}</h2>
+          <p className="text-sm text-ink-muted">{t.tasksHelp}</p>
+          <ul className="space-y-2">{lead.tasks.map(task => taskRow(task, true))}</ul>
+          <form className="grid gap-2 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={event => { event.preventDefault(); run(() => call({ op: "task", action: "create", title: newTask.title, ownerId: newTask.ownerId || null }).then(() => setNewTask({ title: "", ownerId: "" }))); }}>
+            <label className="grid gap-1 text-sm font-semibold">{t.newTask}<Input required minLength={3} value={newTask.title} onChange={event => setNewTask({ ...newTask, title: event.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-semibold">{t.owner}<Select value={newTask.ownerId} onChange={event => setNewTask({ ...newTask, ownerId: event.target.value })}><option value="">{t.unassigned}</option>{lead.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></label>
+            <Button type="submit" disabled={busy}>{t.add}</Button>
+          </form>
+        </section>
+
+        {/* ── Go-live ── */}
+        {!live ? (
+          <section id="approve" aria-labelledby="approve-heading" className="sk-launch-approve" data-ready={lead.ready || undefined}>
+            <div className="min-w-0 space-y-1">
+              <h2 id="approve-heading" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><Rocket aria-hidden="true" className="size-5 text-primary" />{t.approveTitle}</h2>
+              <p className="text-sm text-ink-muted">{lead.ready ? l.approveBar : t.approveBlocked} {t.approveHelp}</p>
+              <p className="text-xs text-ink-subtle"><bdi dir="ltr">{lead.tasks.filter(task => task.status === "OPEN").length}</bdi> {t.outstanding}</p>
+            </div>
+            <Button type="button" disabled={busy || !lead.ready} onClick={() => run(() => call({ op: "approve", expectedVersion: lead.readiness.version }))} className="shrink-0 gap-2">
+              <Rocket aria-hidden="true" className="size-4" />{t.approve}
+            </Button>
+          </section>
+        ) : null}
+      </> : null}
+    </main>
+  );
 }

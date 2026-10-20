@@ -33,9 +33,31 @@ export interface ReadinessFacts {
 }
 
 export type CheckId = "campus" | "locale" | "academic" | "staff" | "roster" | "imports" | "guardians" | "fees" | "rehearsal";
-export interface ReadinessCheck { id: CheckId; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string }
+/** Where a check is fixed, and whether it is campus-level work a group owner hands to campus admins. */
+export interface ReadinessCheck { id: CheckId; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string; delegated?: boolean }
 
-export function evaluateReadiness(facts: ReadinessFacts) {
+/**
+ * Where each check is fixed for the person looking. A school owner (ADMIN / CAMPUS_ADMIN) works in the
+ * campus console (/admin views). A group owner (SUPER_ADMIN) cannot open /admin (403) and is sent from
+ * /dashboard/* back to /super, so campus-level work points at the group's Schools view, where each campus
+ * and its admin are managed, and is marked as delegated to campus admins.
+ */
+export function checkHref(id: CheckId, role: string): { href: string; delegated?: boolean } {
+  const group = role === "SUPER_ADMIN";
+  switch (id) {
+    case "campus": return { href: group ? "/super?view=schools" : "/admin?view=institution" };
+    case "locale": return { href: "/settings/locale" };
+    case "academic": return group ? { href: "/super?view=schools", delegated: true } : { href: "/admin?view=academic-hub" };
+    case "staff": return group ? { href: "/super?view=schools", delegated: true } : { href: "/admin?view=teachers" };
+    case "roster": return group ? { href: "/super?view=schools", delegated: true } : { href: "/admin?view=students" };
+    case "imports": return group ? { href: "/super?view=schools", delegated: true } : { href: "/admin?view=students" };
+    case "guardians": return { href: "/dashboard/guardians" };
+    case "fees": return { href: group ? "/super?view=fees" : "/admin?view=fees" };
+    case "rehearsal": return { href: "/setup/readiness#practice" };
+  }
+}
+
+export function evaluateReadiness(facts: ReadinessFacts, role = "ADMIN") {
   const full = facts.adoptionMode === "FULL_OPERATIONS";
   const rehearsed = REHEARSAL_STEPS.filter(step => !!facts.rehearsal[step]).length;
   const checks: ReadinessCheck[] = [
@@ -50,6 +72,7 @@ export function evaluateReadiness(facts: ReadinessFacts) {
     { id: "fees", required: full, passed: facts.feeStructures >= 1, evidence: { feeStructures: facts.feeStructures, openingBalances: facts.openingBalances }, href: "/admin?view=fees" },
     { id: "rehearsal", required: true, passed: rehearsed === REHEARSAL_STEPS.length, evidence: { completedSteps: rehearsed, totalSteps: REHEARSAL_STEPS.length }, href: "/setup/readiness#practice" },
   ];
+  for (const check of checks) Object.assign(check, checkHref(check.id, role));
   const blocking = checks.filter(check => check.required && !check.passed);
   return { checks, ready: blocking.length === 0, nextRequired: blocking[0]?.id ?? null };
 }
