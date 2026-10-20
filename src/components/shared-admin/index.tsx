@@ -1,4 +1,5 @@
 "use client";
+import { AiWorkflowsHome } from "@/components/ai-workflows/AiWorkflowsHome";
 import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
 import { Tooltip } from "@/components/ui/tooltip";
 import { IconButton } from "@/components/ui/icon-button";
@@ -2015,47 +2016,7 @@ export function AIPanel({
   onComplete: () => void;
   title?: string;
 }) {
-  const [showAllInsights, setShowAllInsights] = useState(false);
-  const displayInsights = showAllInsights ? insights : insights?.slice(0, 5);
-
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-8">
-      <div className="sk-panel sk-rise p-6 relative overflow-hidden" style={{ animationDelay: "80ms" }}>
-        <CornerSparkles />
-        <AiActionPanel title={title} options={features} compact onComplete={onComplete} />
-      </div>
-      <div className="space-y-8">
-        <SnapshotColumn icon={Sparkles} title="AI Review Queue" count={reviewItems?.length ?? 0}>
-          <AIReviewQueue items={reviewItems} onComplete={onComplete} />
-        </SnapshotColumn>
-        <SnapshotColumn
-          icon={FileText}
-          title="AI Insights"
-          after={insights?.length > 5 ? (
-            <SystemButton variant="ghost"
-              type="button"
-              onClick={() => setShowAllInsights(!showAllInsights)}
-              className="hover:underline"
-            >
-              {showAllInsights ? "Show Less" : `View All (${insights.length})`}
-            </SystemButton>
-          ) : null}
-        >
-          {displayInsights?.length ? (
-            displayInsights.map((insight: any) => (
-              <div key={insight.id} className="rounded-2xl bg-brand-50/60 px-4 py-3">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{insight.feature.replaceAll("_", " ")}</p>
-                <p className="mt-1 text-sm font-bold text-ink-strong">{insight.title}</p>
-                <p className="mt-1 text-xs font-semibold leading-relaxed text-ink-muted">{insight.summary}</p>
-              </div>
-            ))
-          ) : (
-            <EmptyInline text="Class, review, and intervention drafts will appear here." />
-          )}
-        </SnapshotColumn>
-      </div>
-    </div>
-  );
+  return <AiWorkflowsHome title={title} features={features} insights={insights} reviewItems={reviewItems ?? []} onComplete={onComplete} />;
 }
 
 export function MoveStudentModal({

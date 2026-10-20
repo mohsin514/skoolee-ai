@@ -4,17 +4,15 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import {
-  BarChart3, BookOpen, Bot, BrainCircuit, ChevronDown, ClipboardCheck, Copy,
-  GraduationCap, Lightbulb, Search, Sparkles, Users, X,
+  BrainCircuit, ChevronDown, ClipboardCheck, Copy,
+  Lightbulb, Search, Sparkles, X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { StatTiles } from "@/components/shared-admin/workspace";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { AiActionPanel } from "@/components/role-dashboard";
+import { AiWorkflowsHome } from "@/components/ai-workflows/AiWorkflowsHome";
 import { AISkeleton, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
-import { CornerSparkles } from "@/components/CornerSparkles";
 import { cn } from "@/lib/utils";
 import { Input as SystemInput } from "@/components/ui/input";
 
@@ -98,103 +96,8 @@ export default function AIPage() {
   if (loading && !data) return <AISkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
-  return (
-    <TeacherPage
-      tone="ai"
-      icon={BrainCircuit}
-      eyebrow="Teaching Assistant"
-      title="AI Insights & Tools"
-      summary={
-        insights.length
-          ? `${insights.length} draft${insights.length === 1 ? "" : "s"} saved · weak topics, homework, lesson plans and remarks`
-          : "Weak topics, homework suggestions, lesson plans and remark generation"
-      }
-    >
-      <div className="space-y-3">
-        {/* The tiles double as navigation, the same as on every other teacher
-            screen — the old dark "Academic Capacity" card restated three of
-            these four numbers immediately beside them. */}
-        <StatTiles
-          tiles={[
-            { key: "subjects", icon: BookOpen, label: "Subjects", value: teacherSubjects.length, hint: "Assigned", tone: "violet" },
-            { key: "classes", icon: GraduationCap, label: "Classes", value: classHubs.length, hint: classHubs.length === 1 ? "1 class hub" : `${classHubs.length} class hubs`, tone: "emerald" },
-            { key: "exams", icon: BarChart3, label: "Active exams", value: (data.activeExams || []).length, hint: "In progress", tone: "teal" },
-            { key: "students", icon: Users, label: "Students", value: data.totalStudents || 0, hint: "Enrolled", tone: "rose" },
-          ]}
-        />
-
-        {/* ── The tool itself ── */}
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_320px]">
-          <section className="sk-panel sk-enter group relative min-w-0 overflow-hidden border-primary/10 transition-all duration-300">
-            {/* One wash, not six. */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -end-24 -top-24 h-64 w-64 rounded-full bg-primary/[0.07] blur-3xl"
-            />
-            <CornerSparkles />
-            <div className="relative p-4 sm:p-5">
-              <div className="mb-4 flex items-center gap-3">
-                <span aria-hidden="true" className="sk-icon-tile flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-300 text-white shadow-brand">
-                  <Bot className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="text-base font-bold tracking-tight text-ink-strong">AI Assistant</h2>
-                  <p className="text-xs leading-relaxed text-ink-subtle">
-                    Drafts are saved below — nothing is sent to a guardian automatically.
-                  </p>
-                </div>
-              </div>
-              <AiActionPanel
-                title="Teacher AI"
-                options={teacherAIFeatures}
-                campusId={aiCampusId}
-                onComplete={loadData}
-              />
-            </div>
-          </section>
-
-          {/* ── What the assistant is good for ──
-              The dark panel used to be four repeated stat numbers. A teacher
-              opening this screen for the first time has no idea what any of
-              the five actions actually produce; that is the gap worth
-              filling. */}
-          <aside className="sk-enter relative overflow-hidden rounded-[28px] bg-gradient-to-br from-ink-strong via-brand-950 to-ink-strong p-5 text-white shadow-xl" style={{ "--sk-delay": "80ms" } as CSSProperties}>
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -end-20 -top-20 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
-            />
-            <CornerSparkles color="var(--color-brand-400)" />
-            <div className="relative">
-              <div className="mb-4 flex items-center gap-2">
-                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10">
-                  <Sparkles className="h-3.5 w-3.5 text-brand-300" />
-                </span>
-                <h2 className="text-2xs font-semibold uppercase tracking-wider text-white/70">What it can do</h2>
-              </div>
-              <ul className="space-y-2.5">
-                {[
-                  ["Weak topics", "Where a class is losing marks, from your entered results"],
-                  ["Homework", "Practice suggestions aimed at a weak area"],
-                  ["Lesson plan", "A structured plan for one topic and period length"],
-                  ["Rewrite remark", "Turns a blunt note into report-card language"],
-                  ["Translate", "An English remark rendered into Urdu"],
-                ].map(([label, what]) => (
-                  <li key={label} className="rounded-xl bg-white/[0.06] px-3 py-2.5">
-                    <p className="text-sm font-semibold text-white">{label}</p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-white/70">{what}</p>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5 text-xs leading-relaxed text-white/75">
-                Student names are never sent to the model — drafts are written from
-                pseudonymised data and always need your review.
-              </p>
-            </div>
-          </aside>
-        </div>
-
-        {/* ── Saved drafts ── */}
-        <section className="sk-panel overflow-hidden">
+  const draftsSection = (
+        <section id="ai-drafts" className="sk-panel overflow-hidden">
           <div className="flex flex-wrap items-center gap-3 border-b border-edge/12 px-4 py-3">
             <div className="flex min-w-0 items-center gap-2.5">
               <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
@@ -269,7 +172,29 @@ export default function AIPage() {
             />
           )}
         </section>
-      </div>
+  );
+
+  return (
+    <TeacherPage
+      tone="ai"
+      icon={BrainCircuit}
+      eyebrow="Teaching Assistant"
+      title="AI Insights & Tools"
+      summary={
+        insights.length
+          ? `${insights.length} draft${insights.length === 1 ? "" : "s"} saved · weak topics, homework, lesson plans and remarks`
+          : "Weak topics, homework suggestions, lesson plans and remark generation"
+      }
+    >
+      <AiWorkflowsHome
+        title="Teacher AI"
+        features={teacherAIFeatures}
+        insights={insights}
+        campusId={aiCampusId}
+        canReview={false}
+        onComplete={loadData}
+        drafts={draftsSection}
+      />
     </TeacherPage>
   );
 }
