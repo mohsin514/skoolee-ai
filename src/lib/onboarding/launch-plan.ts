@@ -56,6 +56,16 @@ export function launchPlan(input: {
 const entryPaths = new Set(["/onboarding", "/teacher-onboarding", "/dashboard", "/super", "/admin", "/principal", "/teacher", "/student", "/parent", "/accountant", "/librarian", "/receptionist", "/owner", "/setup/readiness", "/ai"]);
 export function isLaunchEntry(pathname: string) { return entryPaths.has(pathname); }
 
+/** Default dashboard state is still a welcome entry, not a deep-linked task. */
+export function isLaunchTask(search: string, hash = "") {
+  if (hash && hash !== "#workspace-content") return true;
+  return [...new URLSearchParams(search)].some(([key, value]) =>
+    !(key === "view" && value === "overview") &&
+    !(key === "lang" && ["en", "ar", "ur"].includes(value)) &&
+    !key.startsWith("utm_")
+  );
+}
+
 /** Family and operational staff accounts never belong in institution creation. */
 export function requiredOnboardingPath(role: string, complete: boolean): string | null {
   if (complete) return null;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isLaunchEntry, launchPlan, requiredOnboardingPath } from "../../src/lib/onboarding/launch-plan";
+import { isLaunchEntry, isLaunchTask, launchPlan, requiredOnboardingPath } from "../../src/lib/onboarding/launch-plan";
 import { USER_ROLES, dashboardPathForRole } from "../../src/lib/roles";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
 
@@ -56,4 +56,14 @@ test("campus instructions honor missing assignments, role scope and revoked perm
 test("welcome is limited to entry routes, never timed exams, billing or password setup", () => {
   for (const path of ["/first-login", "/login", "/protect-account", "/subscription", "/onboarding/package", "/ai/studio", "/ai/exams/attempt", "/teacher/attendance"]) assert.equal(isLaunchEntry(path), false, path);
   for (const path of ["/onboarding", "/teacher-onboarding", "/admin", "/student", "/ai"]) assert.equal(isLaunchEntry(path), true, path);
+});
+test("dashboard defaults and campaign attribution allow welcome; explicit work remains uninterrupted", () => {
+  for (const search of ["", "view=overview", "view=overview&lang=ur", "lang=ar&utm_source=welcome", "utm_campaign=first-login"]) {
+    assert.equal(isLaunchTask(search), false, search);
+    assert.equal(isLaunchTask(search, "#workspace-content"), false, `${search} with skip-navigation anchor`);
+  }
+  for (const search of ["view=academic-hub", "setup=1", "workflow=overview", "record=123", "view=overview&workflow=fees", "view=overview&view=students"]) {
+    assert.equal(isLaunchTask(search), true, search);
+  }
+  assert.equal(isLaunchTask("view=overview", "#payment"), true);
 });

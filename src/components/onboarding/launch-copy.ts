@@ -15,6 +15,8 @@ const words = {
   back: ["Back", "رجوع", "واپس"],
   later: ["Explore on my own", "أستكشف بنفسي", "خود دیکھوں گا"],
   replay: ["Replay guide", "إعادة الدليل", "رہنمائی دوبارہ دیکھیں"],
+  openGuide: ["Open my onboarding guide", "فتح دليل إعدادي", "میری آن بورڈنگ رہنمائی کھولیں"],
+  loadingGuide: ["Loading your onboarding guide…", "جارٍ تحميل دليل إعدادك…", "آپ کی آن بورڈنگ رہنمائی لوڈ ہو رہی ہے…"],
   replayHint: ["This guide is always here when you need it. Replaying never resets your saved work.", "هذا الدليل متاح دائمًا. إعادته لا تمسح عملك المحفوظ.", "یہ رہنمائی ہمیشہ دستیاب ہے۔ دوبارہ دیکھنے سے محفوظ کام حذف نہیں ہوگا۔"],
   ready: ["Your next chapter", "خطوتك التالية", "آپ کا اگلا مرحلہ"],
   review: ["You stay in control", "القرار بيدك", "اختیار آپ کے پاس ہے"],
