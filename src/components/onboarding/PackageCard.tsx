@@ -64,6 +64,8 @@ export type PackageCardProps = {
   compact?: boolean;
   open?: boolean;
   onToggle?(): void;
+  /** Clicking anywhere on the card (outside its own controls) chooses it; the card's button stays the keyboard path. */
+  onSelect?(): void;
 };
 
 /** Element ids a card exposes (the chooser wires aria-describedby to them). */
@@ -74,7 +76,7 @@ export const packageIds = (plan: string) => ({
   detail: `package-${plan}-detail`,
 });
 
-function PackageCardImpl({ plan, name, tags, recommended, price, why, meters, fit, limits, features, action, next, current, busy, compact, open, onToggle }: PackageCardProps) {
+function PackageCardImpl({ plan, name, tags, recommended, price, why, meters, fit, limits, features, action, next, current, busy, compact, open, onToggle, onSelect }: PackageCardProps) {
   const ids = packageIds(plan);
   const NextIcon = next.icon;
   const tagList = tags?.length ? (
@@ -157,6 +159,11 @@ function PackageCardImpl({ plan, name, tags, recommended, price, why, meters, fi
       data-compact={compact || undefined}
       data-open={compact && open ? "" : undefined}
       aria-labelledby={ids.name}
+      data-selectable={onSelect && !compact ? "" : undefined}
+      onClick={onSelect && !compact ? (event) => {
+        if ((event.target as HTMLElement).closest("button, a, input, [role='button']")) return;
+        onSelect();
+      } : undefined}
     >
       {recommended ? (
         <p key={plan} className="sk-package-ribbon sk-enter-scale"><Sparkles aria-hidden="true" className="size-3.5 shrink-0" /><span>{recommended.label}</span></p>

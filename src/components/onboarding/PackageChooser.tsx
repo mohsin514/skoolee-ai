@@ -7,6 +7,7 @@ import {
   BadgeCheck, CalendarClock, Clock3, FlaskConical, Handshake, Info, Landmark, Lock, Minus, Package, Plus, Sparkles, TrendingUp, type LucideIcon,
 } from "lucide-react";
 import { CapacityMeter } from "@/components/onboarding/CapacityMeter";
+import { ConfirmedChoice } from "@/components/onboarding/ConfirmedChoice";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { PackageCard, packageIds, type PackageCardProps, type PackageMeter } from "@/components/onboarding/PackageCard";
 import { PackageHandoff, PackageReceipt, type ReceiptLedgerRow } from "@/components/onboarding/PackageReceipt";
@@ -58,7 +59,7 @@ type Bank = { bankName: string; accountTitle: string; accountNumber: string; iba
 type Pending = { intentId: string; plan: string; status: string; provider: string; billingPeriod: string; expectedCampuses?: number; expectedEnrollment?: number };
 
 export type ReceiptData = {
-  kind: "active" | "reserved" | "custom" | "bank" | "pending";
+  kind: "active" | "reserved" | "custom" | "bank" | "pending" | "deferred";
   plan: PlanType;
   period: BillingPeriod;
   intentId: string;
@@ -84,6 +85,8 @@ export type PackageChooserProps = {
   onStudentsChange?(students: number | null): void;
   period?: BillingPeriod;
   onPeriodChange?(period: BillingPeriod): void;
+  /** Whether the owner has chosen a package yet (until then nothing reads as "kept"). */
+  hasChoice?: boolean;
   /** A package already chosen but not active (reserved, requested, checkout started). */
   pending?: Pending | null;
   /** Where the team will write (the institution's contact email). */
@@ -93,7 +96,7 @@ export type PackageChooserProps = {
   returnFocusRef?: RefObject<HTMLElement | null>;
 };
 
-type Phase = { kind: "choose" } | { kind: "handoff"; plan: PlanType; url: string; test: boolean } | { kind: "receipt"; receipt: ReceiptData };
+type Phase = { kind: "choose" } | { kind: "pay"; plan: PlanType } | { kind: "handoff"; plan: PlanType; url: string; test: boolean } | { kind: "receipt"; receipt: ReceiptData };
 type ChooseError = { title: string; body: string; intentId?: string; retry: PlanType };
 
 const ORDER: PlanType[] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
@@ -108,7 +111,7 @@ function newSelectionKey() {
 
 export function PackageChooser({
   onClose, onChosen, language, returnStep, campuses: initialCampuses, students: initialStudents, onStudentsChange,
-  period: initialPeriod, onPeriodChange, pending, contactEmail, beforeLeave, returnFocusRef,
+  period: initialPeriod, onPeriodChange, pending, hasChoice = true, contactEmail, beforeLeave, returnFocusRef,
 }: PackageChooserProps) {
   const copy = getPackageCopy(language);
   const c = copy.chooser;
@@ -166,7 +169,7 @@ export function PackageChooser({
   useEffect(() => {
     if (firstPhase.current) { firstPhase.current = false; return; }
     if (phase.kind === "receipt") receiptRef.current?.focus();
-    else if (phase.kind === "handoff") handoffRef.current?.focus();
+    else if (phase.kind === "handoff" || phase.kind === "pay") handoffRef.current?.focus();
     else stageRef.current?.focus();
   }, [phase.kind]);
 
@@ -227,6 +230,8 @@ export function PackageChooser({
   // ── Choose ──
   const pendingFor = (type: PlanType) => (pending && pending.plan === type ? pending : null);
   const waitsOnTeam = (p: Pending | null) => Boolean(p && (p.provider === "SALES_ASSISTED" || p.status === "CUSTOM_QUOTE"));
+  /** Chosen earlier with "pay later": choosing it again leads to the payment step, not a status page. */
+  const isDeferred = (p: Pending | null) => Boolean(p && p.provider === "PAY_LATER");
   const receiptFromPending = (p: Pending): ReceiptData => ({
     kind: p.status === "CUSTOM_QUOTE" ? "custom" : "reserved",
     plan: p.plan as PlanType, period: p.billingPeriod === "annual" ? "annual" : "monthly", intentId: p.intentId,
@@ -245,7 +250,7 @@ export function PackageChooser({
     router.push(`/onboarding/package/status?intentId=${encodeURIComponent(intentId)}`);
   };
 
-  const choose = async (plan: Plan) => {
+  const choose = async (plan: Plan, opts: { confirmed?: boolean; payLater?: boolean } = {}) => {
     if (busyPlan) return;
     // Keeping a paid (or custom) package that is already active needs no request.
     if (plan.type === currentPlan && plan.price !== 0) { onClose(); return; }
@@ -256,24 +261,30 @@ export function PackageChooser({
       return;
     }
     // An order already waiting on payment for this package: its status page, never a second checkout.
-    if (waiting) { void openStatus(waiting.intentId); return; }
+    if (waiting && !isDeferred(waiting)) { void openStatus(waiting.intentId); return; }
+    // A paid package with online payment: first the payment step (pay now, or skip and pay later).
+    if ((plan.price ?? 0) > 0 && mode !== "reserve" && !opts.confirmed) {
+      setError(null);
+      setPhase({ kind: "pay", plan: plan.type });
+      return;
+    }
     setError(null);
     setBusyPlan(plan.type);
-    if ((plan.price ?? 0) > 0 && mode !== "reserve" && beforeLeave && !(await beforeLeave())) {
+    if ((plan.price ?? 0) > 0 && mode !== "reserve" && !opts.payLater && beforeLeave && !(await beforeLeave())) {
       setError({ title: c.failTitle, body: c.saveFirstFailed, retry: plan.type });
       setErrorSeq((n) => n + 1);
       setBusyPlan(null);
       return;
     }
     // One idempotency key per distinct selection, so a double click or a retry reuses the same intent.
-    const selection = `${plan.type}|${period}|${campuses}|${students ?? 0}`;
+    const selection = `${plan.type}|${period}|${campuses}|${students ?? 0}|${opts.payLater ? "later" : "now"}`;
     try {
       const idempotencyKey = keys[selection] ?? newSelectionKey();
       if (!keys[selection]) setKeys((prev) => ({ ...prev, [selection]: idempotencyKey }));
       const response = await fetch("/api/onboarding/package", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: plan.type, billingPeriod: period, expectedCampuses: campuses, expectedEnrollment: students ?? 0, returnStep, idempotencyKey }),
+        body: JSON.stringify({ plan: plan.type, billingPeriod: period, expectedCampuses: campuses, expectedEnrollment: students ?? 0, returnStep, idempotencyKey, payLater: opts.payLater || undefined }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -291,6 +302,7 @@ export function PackageChooser({
       }
       const receipt: ReceiptData = {
         kind: (data.status === "FREE_SELECTED" && currentPlan === "FREE") || data.status === "SETTLED" ? "active"
+          : data.deferred ? "deferred"
           : data.status === "CUSTOM_QUOTE" ? "custom"
           : data.reserved ? "reserved"
           : data.bank ? "bank"
@@ -318,6 +330,7 @@ export function PackageChooser({
     if (downgradeBlocked(plan)) return note(Info, fill(c.next.downgrade, nameOf(currentPlan)));
     if (plan.price === 0) return note(Sparkles, c.next.free);
     if (plan.type === currentPlan) return note(BadgeCheck, c.next.current);
+    if (waiting && isDeferred(waiting)) return note(Clock3, c.next.pendingDeferred);
     if (waiting) return note(Clock3, waiting.status === "CUSTOM_QUOTE" ? c.next.pendingCustom : waiting.provider === "SALES_ASSISTED" ? c.next.pendingReserved : c.next.pendingCheckout);
     if (plan.price == null) return note(Handshake, c.next.custom);
     if (mode === "test") return note(FlaskConical, c.next.test);
@@ -333,6 +346,13 @@ export function PackageChooser({
     const recommended = rec?.type === plan.type;
     const describedBy = place === "card" ? `${ids.fit} ${ids.next}${recommended ? ` ${verdictId}` : ""}` : undefined;
     const waiting = pendingFor(plan.type);
+    if (waiting && isDeferred(waiting)) {
+      return (
+        <Button type="button" variant="default" onClick={() => void choose(plan)} disabled={Boolean(busyPlan)} aria-describedby={describedBy} className="gap-2">
+          {c.payNow} <ForwardArrow />
+        </Button>
+      );
+    }
     if (waiting && !waitsOnTeam(waiting)) {
       return (
         <Button type="button" variant="outline" onClick={() => void openStatus(waiting.intentId)} disabled={Boolean(busyPlan)} aria-describedby={describedBy}>
@@ -343,7 +363,7 @@ export function PackageChooser({
     const view = waitsOnTeam(waiting);
     const keepPaid = plan.type === currentPlan && plan.price !== 0;
     const label = view ? (waiting?.status === "CUSTOM_QUOTE" ? c.viewRequest : c.viewReservation)
-      : plan.type === currentPlan ? fill(c.keep, name)
+      : plan.type === currentPlan && hasChoice ? fill(c.keep, name)
       : fill(c.choose, name);
     const variant = view ? "secondary" : keepPaid ? (recommended ? "default" : "secondary") : recommended ? "default" : "outline";
     return (
@@ -387,8 +407,9 @@ export function PackageChooser({
     ));
     const waiting = pendingFor(plan.type);
     const tags: NonNullable<PackageCardProps["tags"]> = [];
-    if (plan.type === currentPlan) tags.push({ label: copy.current, tone: "success", icon: BadgeCheck });
-    if (waiting) tags.push({ label: waiting.status === "CUSTOM_QUOTE" ? c.tagRequested : waiting.provider === "SALES_ASSISTED" ? c.tagReserved : c.tagCheckout, tone: "info", icon: Clock3 });
+    if (plan.type === currentPlan && hasChoice) tags.push({ label: copy.current, tone: "success", icon: BadgeCheck });
+    if (waiting && isDeferred(waiting)) tags.push({ label: c.eyebrows.deferred, tone: "info", icon: Clock3 });
+    else if (waiting) tags.push({ label: waiting.status === "CUSTOM_QUOTE" ? c.tagRequested : waiting.provider === "SALES_ASSISTED" ? c.tagReserved : c.tagCheckout, tone: "info", icon: Clock3 });
     if (verdict?.roomToGrow?.type === plan.type) tags.push({ label: c.tagRoom, tone: "brand", icon: TrendingUp });
     const open = openRows ? openRows.has(plan.type) : recommended;
     return (
@@ -413,6 +434,7 @@ export function PackageChooser({
         busy={busyPlan === plan.type}
         compact={compact}
         open={open}
+        onSelect={busyPlan || downgradeBlocked(plan) ? undefined : () => void choose(plan)}
         onToggle={() => setOpenRows((prev) => {
           // Until the first toggle the open row follows the recommendation; after that only the user moves rows.
           const next = new Set(prev ?? (rec ? [rec.type] : []));
@@ -467,7 +489,10 @@ export function PackageChooser({
 
   // ── Header and footer per phase ──
   const receipt = phase.kind === "receipt" ? phase.receipt : null;
-  const header = phase.kind === "handoff"
+  const payPlan = phase.kind === "pay" ? catalogue?.plans[phase.plan] ?? null : null;
+  const header = phase.kind === "pay"
+    ? { icon: Lock, tone: "violet" as const, eyebrow: c.payEyebrow, title: fill(c.payTitle, nameOf(phase.plan)), subtitle: undefined }
+    : phase.kind === "handoff"
     ? { icon: Lock, tone: "violet" as const, eyebrow: c.eyebrow, title: phase.test ? c.handoffTestTitle : c.handoffTitle, subtitle: undefined }
     : receipt
       ? { icon: receipt.kind === "active" ? BadgeCheck : Clock3, tone: receipt.kind === "active" ? "emerald" as const : "violet" as const, eyebrow: c.eyebrows[receipt.kind], title: fill(c.titles[receipt.kind], nameOf(receipt.plan)), subtitle: undefined }
@@ -484,11 +509,13 @@ export function PackageChooser({
   const footer = phase.kind === "handoff" ? undefined : (
     <PackageVerdict
       id={verdictId}
-      text={receipt ? undefined : catalogue ? sentence : c.verdict.loading}
-      price={!receipt && rec ? priceLine(rec) : undefined}
+      text={receipt || phase.kind === "pay" ? undefined : catalogue ? sentence : c.verdict.loading}
+      price={!receipt && phase.kind !== "pay" && rec ? priceLine(rec) : undefined}
       announce={receipt ? undefined : announce}
       signals={signals}
-      actions={receipt ? (
+      actions={phase.kind === "pay" ? (
+        <Button type="button" variant="ghost" onClick={() => { setError(null); setPhase({ kind: "choose" }); }} disabled={Boolean(busyPlan)}>{c.changeChoice}</Button>
+      ) : receipt ? (
         <>
           {receipt.kind !== "active" ? (
             <Button type="button" variant="ghost" onClick={() => { setError(null); setPhase({ kind: "choose" }); }}>{c.changeChoice}</Button>
@@ -573,7 +600,26 @@ export function PackageChooser({
         ) : null}
 
         <section ref={stageRef} tabIndex={-1} aria-label={c.packagesLabel} aria-busy={Boolean(busyPlan) || (!catalogue && !loadError)} className="sk-chooser-stage">
-          {phase.kind === "handoff" ? (
+          {phase.kind === "pay" && payPlan ? (
+            <div ref={handoffRef} tabIndex={-1} className="sk-pay-step">
+              <ConfirmedChoice
+                title={nameOf(payPlan.type)}
+                description={priceLine(payPlan)}
+                tag={c.payEyebrow}
+                art={<Package aria-hidden="true" />}
+              />
+              <p className="sk-receipt-body">{fill(c.payBody, nameOf(payPlan.type))}</p>
+              {error ? <Alert tone="danger" title={error.title}>{error.body}</Alert> : null}
+              <div className="sk-pay-actions">
+                <Button type="button" onClick={() => void choose(payPlan, { confirmed: true })} disabled={Boolean(busyPlan)} loading={busyPlan === payPlan.type && !error} className="gap-2">
+                  <Lock aria-hidden="true" className="size-4" />{mode === "test" ? c.payNowTest : c.payNow}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => void choose(payPlan, { confirmed: true, payLater: true })} disabled={Boolean(busyPlan)}>
+                  {c.payLater}
+                </Button>
+              </div>
+            </div>
+          ) : phase.kind === "handoff" ? (
             <PackageHandoff focusRef={handoffRef} text={fill(phase.test ? c.handoffTestBody : c.handoffBody, nameOf(phase.plan))} url={phase.url} fallbackLabel={c.handoffFallback} />
           ) : receipt ? (
             receiptView(receipt)

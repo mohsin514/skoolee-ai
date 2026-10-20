@@ -24,3 +24,6 @@ export function regionalPaymentMethods(country: Country, configured: readonly On
  * money moves and no plan activates until it is settled.
  */
 export const SALES_ASSISTED_PROVIDER = "SALES_ASSISTED" as const;
+
+/** A paid package chosen with "pay later": payment due, nothing charged, the plan activates once paid. */
+export const PAY_LATER_PROVIDER = "PAY_LATER" as const;

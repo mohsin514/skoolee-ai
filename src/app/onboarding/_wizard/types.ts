@@ -63,6 +63,8 @@ export type IdentityStepProps = StepBase & {
 };
 
 export type PackageStepProps = StepBase & {
+  /** The package the owner chose (null until they choose; nothing is pre-selected). */
+  selectedPackage: { plan: string; status: string; provider: string } | null;
   /** A package chosen but not active yet (reserved for the team, custom terms, or checkout started). */
   pendingPackage: { plan: string; status: string; provider: string } | null;
   isGroup: boolean;

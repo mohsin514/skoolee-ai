@@ -14,6 +14,8 @@ export const onboardingCheckoutSchema = z.object({
   expectedEnrollment: z.number().int().min(0).max(10_000_000),
   returnStep: z.enum(["structure", "identity", "package", "campuses", "academic", "review"]).default("package"),
   idempotencyKey: z.string().min(16).max(120),
+  /** Choose a paid package now and pay later: recorded as payment due; the plan activates only once paid. */
+  payLater: z.boolean().optional(),
 });
 export type OnboardingCheckoutInput = z.infer<typeof onboardingCheckoutSchema>;
 

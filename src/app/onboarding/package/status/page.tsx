@@ -71,7 +71,7 @@ function CheckoutStatus() {
   }, [intentId, load, copy.missingReference]);
 
   useEffect(() => {
-    if (!intent || intent.provider === "BANK_TRANSFER" || intent.provider === "SALES_ASSISTED" || !["CHECKOUT_PENDING", "PENDING_SETTLEMENT"].includes(intent.status)) return;
+    if (!intent || intent.provider === "BANK_TRANSFER" || intent.provider === "SALES_ASSISTED" || intent.provider === "PAY_LATER" || !["CHECKOUT_PENDING", "PENDING_SETTLEMENT"].includes(intent.status)) return;
     const timer = window.setInterval(() => { void load().catch(() => undefined); }, 8000);
     return () => window.clearInterval(timer);
   }, [intent, load]);
@@ -124,7 +124,7 @@ function CheckoutStatus() {
   const isPending = intent && ["CHECKOUT_PENDING", "PENDING_SETTLEMENT", "PENDING"].includes(intent.status);
   const canRetry = intent && (
     ["FAILED", "CANCELLED"].includes(intent.status) ||
-    (intent.provider !== "BANK_TRANSFER" && intent.provider !== "SALES_ASSISTED" && ["PENDING", "PENDING_SETTLEMENT"].includes(intent.status) && !intent.checkoutUrl)
+    (intent.provider !== "BANK_TRANSFER" && intent.provider !== "SALES_ASSISTED" && intent.provider !== "PAY_LATER" && ["PENDING", "PENDING_SETTLEMENT"].includes(intent.status) && !intent.checkoutUrl)
   );
   const resumeStep = intent?.returnStep || "package";
   const stateTone: AlertTone = isSettled ? "success" : isPending ? "info" : intent?.status === "FAILED" ? "danger" : intent?.status === "CANCELLED" ? "warning" : "neutral";

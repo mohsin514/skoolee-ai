@@ -1,6 +1,12 @@
 /** Wizard strings that the shared setup copy does not carry yet (English, Arabic, Urdu). */
 export const LOCAL_COPY = {
   en: {
+    noPackageTitle: "No package chosen yet",
+    noPackageBody: "You need to select a package to continue. Compare them and pick the one that fits your school.",
+    choosePackage: "Choose a package",
+    selectFirst: "Select a package to continue.",
+    yourPackage: "Your package",
+    packageState: { active: "Active", reserved: "Reserved · our team confirms payment", requested: "Requested · our team agrees terms", checkout: "Payment in progress", due: "Payment due · pay any time" },
     country: "Country",
     countryHint: "Sets the exam boards, phone code and time zones offered during setup.",
     boardName: "Board name",
@@ -19,6 +25,12 @@ export const LOCAL_COPY = {
     logoUploadFailed: "The logo could not be uploaded. Check your connection and try again.",
   },
   ar: {
+    noPackageTitle: "لم تختر باقة بعد",
+    noPackageBody: "يجب اختيار باقة للمتابعة. قارن الباقات واختر المناسبة لمدرستك.",
+    choosePackage: "اختر باقة",
+    selectFirst: "اختر باقة للمتابعة.",
+    yourPackage: "باقتك",
+    packageState: { active: "مفعّلة", reserved: "محجوزة · يؤكد فريقنا الدفع", requested: "مطلوبة · يتفق فريقنا على الشروط", checkout: "الدفع قيد التنفيذ", due: "الدفع مستحق · ادفع متى شئت" },
     country: "الدولة",
     countryHint: "تحدد الهيئات التعليمية ورمز الهاتف والمناطق الزمنية المعروضة أثناء الإعداد.",
     boardName: "اسم الهيئة",
@@ -37,6 +49,12 @@ export const LOCAL_COPY = {
     logoUploadFailed: "تعذر رفع الشعار. تحقق من اتصالك وحاول مرة أخرى.",
   },
   ur: {
+    noPackageTitle: "ابھی کوئی پیکیج منتخب نہیں",
+    noPackageBody: "جاری رکھنے کے لیے پیکیج منتخب کرنا ضروری ہے۔ موازنہ کریں اور اپنے اسکول کے لیے موزوں پیکیج چنیں۔",
+    choosePackage: "پیکیج منتخب کریں",
+    selectFirst: "جاری رکھنے کے لیے پیکیج منتخب کریں۔",
+    yourPackage: "آپ کا پیکیج",
+    packageState: { active: "فعال", reserved: "محفوظ · ہماری ٹیم ادائیگی کی تصدیق کرے گی", requested: "درخواست شدہ · ہماری ٹیم شرائط طے کرے گی", checkout: "ادائیگی جاری", due: "ادائیگی باقی · جب چاہیں ادائیگی کریں" },
     country: "ملک",
     countryHint: "سیٹ اپ میں دکھائے جانے والے بورڈ، فون کوڈ اور ٹائم زون اسی سے طے ہوتے ہیں۔",
     boardName: "بورڈ کا نام",

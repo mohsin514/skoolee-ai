@@ -251,7 +251,7 @@ export function useSetupWizard(): SetupWizard {
       const res = await getOnboardingSession();
       // Only the package fields: adopting the new version without the new draft would let a stale local draft
       // save over another tab's change (the version check is what catches that).
-      if ("view" in res) setView((prev) => (prev ? { ...prev, plan: res.view.plan, pendingPackage: res.view.pendingPackage } : res.view));
+      if ("view" in res) setView((prev) => (prev ? { ...prev, plan: res.view.plan, pendingPackage: res.view.pendingPackage, selectedPackage: res.view.selectedPackage } : res.view));
     } catch {
       // The next save or reload picks the change up.
     }

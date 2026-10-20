@@ -2391,6 +2391,7 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
     animation: sk-ring-turn 7s linear 4;
   }
   .sk-package-card[data-busy] { animation-play-state: paused; }
+  .sk-package-card[data-selectable] { cursor: pointer; }
   @container (min-width: 62rem) { .sk-package-card[data-recommended] { transform: translateY(-.5rem); } }
   .sk-package-ribbon { position: absolute; z-index: 1; inset-block-start: 0; inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: calc(100% - 2rem); translate: 0 -55%; display: inline-flex; align-items: center; justify-content: center; gap: .3rem; padding: .25rem .75rem; border-radius: var(--radius-pill); background: linear-gradient(120deg, var(--brand-700), var(--brand-500) 55%, var(--berry)); color: hsl(var(--primary-foreground)); font-size: var(--text-xs); font-weight: 700; line-height: 1.125rem; text-align: center; box-shadow: var(--shadow-brand); }
   .sk-package-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .5rem; min-block-size: 1.75rem; }
@@ -2474,6 +2475,10 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
     .sk-chooser-actions > :last-child { flex: 1; }
   }
 
+  /* Payment step: pay now or skip and pay later. */
+  .sk-pay-step { display: grid; gap: 1rem; inline-size: 100%; max-inline-size: 34rem; margin-inline: auto; padding-block: .5rem 1rem; }
+  .sk-pay-actions { display: grid; gap: .625rem; }
+  @container (min-width: 30rem) { .sk-pay-actions { grid-template-columns: 1fr 1fr; } }
   /* Hand-off: shown while the browser leaves for payment. */
   .sk-handoff { display: grid; justify-items: center; align-content: center; gap: .75rem; min-block-size: 18rem; padding: 2.5rem 1.25rem; text-align: center; color: var(--ink-muted); }
   .sk-handoff-mark { display: grid; place-items: center; inline-size: 3.5rem; block-size: 3.5rem; border-radius: var(--radius-pill); background: linear-gradient(135deg, var(--brand-600), var(--berry)); color: hsl(var(--primary-foreground)); box-shadow: var(--shadow-brand); }
@@ -2634,4 +2639,4 @@ html:has(.sk-step-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom
 @keyframes sk-price-tick { from { opacity: 0; transform: translateY(35%); } to { opacity: 1; transform: none; } }
 @keyframes sk-handoff-slide { from { inset-inline-start: -40%; } to { inset-inline-start: 100%; } }
 /* Programmatic focus targets in the package chooser (tabIndex -1): no ring. */
-.sk-chooser-stage:focus, .sk-receipt:focus, .sk-handoff:focus { outline: none; }
+.sk-chooser-stage:focus, .sk-receipt:focus, .sk-handoff:focus, .sk-pay-step:focus { outline: none; }

@@ -18,7 +18,7 @@ import { COMMERCIAL_CATALOG_VERSION, type BillingPeriod } from "@/config/plans";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { getPriceId, stripe, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
-import { SALES_ASSISTED_PROVIDER, automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
+import { PAY_LATER_PROVIDER, SALES_ASSISTED_PROVIDER, automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
 import { TEST_CHECKOUT_PROVIDER, testCheckoutEnabled, testCheckoutUrl } from "@/lib/payments/test-checkout";
 
 import { saveSubscriptionRequest } from "@/lib/billing/lifecycle";
@@ -35,7 +35,7 @@ type IntentRow = { id: string; plan: string; billingPeriod: string; amount: numb
  */
 async function supersedeOpenChoices(schoolId: string, keepId: string) {
   await prisma.onboardingCheckoutIntent.updateMany({
-    where: { schoolId, id: { not: keepId }, OR: [{ provider: SALES_ASSISTED_PROVIDER, status: "PENDING_SETTLEMENT" }, { status: "CUSTOM_QUOTE" }] },
+    where: { schoolId, id: { not: keepId }, OR: [{ provider: { in: [SALES_ASSISTED_PROVIDER, PAY_LATER_PROVIDER] }, status: "PENDING_SETTLEMENT" }, { status: "CUSTOM_QUOTE" }] },
     data: { status: "CANCELLED", failureReason: "Superseded by a later package choice." },
   });
 }
@@ -148,6 +148,14 @@ export async function POST(req: NextRequest) {
         if (refreshed) intent = refreshed;
       }
     }
+    // "Pay now" on a package chosen earlier with "pay later": the same intent moves on to checkout.
+    if (intent.provider === PAY_LATER_PROVIDER && intent.status === "PENDING_SETTLEMENT" && !parsed.data.payLater) {
+      const resumed = await prisma.onboardingCheckoutIntent.updateMany({
+        where: { id: intent.id, provider: PAY_LATER_PROVIDER, status: "PENDING_SETTLEMENT" },
+        data: { provider: "NONE", providerReference: null, status: "PENDING" },
+      });
+      if (resumed.count) intent = (await prisma.onboardingCheckoutIntent.findUnique({ where: { id: intent.id } })) ?? intent;
+    }
     const selectedContract = intent.contractSnapshot as typeof contract;
     if (intent.status !== "SETTLED") await supersedeOpenChoices(user.schoolId, intent.id);
 
@@ -163,6 +171,17 @@ export async function POST(req: NextRequest) {
     if (intent.status === "CUSTOM_QUOTE") {
       await queueForTeam(user, intent, "CUSTOM_REQUESTED");
       return Response.json({ success: true, intentId: intent.id, status: intent.status, returnStep: intent.returnStep });
+    }
+    if (intent.provider === PAY_LATER_PROVIDER) {
+      return Response.json({ success: true, intentId: intent.id, status: intent.status, deferred: true, returnStep: intent.returnStep });
+    }
+    // Pay later: the choice stands as payment due; nothing is charged and the plan does not change yet.
+    if (parsed.data.payLater && intent.provider === "NONE" && intent.status === "PENDING" && (contract.price ?? 0) > 0) {
+      await prisma.onboardingCheckoutIntent.updateMany({
+        where: { id: intent.id, status: "PENDING", provider: "NONE" },
+        data: { provider: PAY_LATER_PROVIDER, providerReference: intent.id, status: "PENDING_SETTLEMENT", failureReason: null },
+      });
+      return Response.json({ success: true, intentId: intent.id, status: "PENDING_SETTLEMENT", deferred: true, returnStep: intent.returnStep });
     }
     if (intent.provider === SALES_ASSISTED_PROVIDER) {
       return Response.json({ success: true, intentId: intent.id, status: intent.status, reserved: true, returnStep: intent.returnStep });

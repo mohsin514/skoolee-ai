@@ -163,7 +163,7 @@ function planFor(school: SchoolRow) {
 
 export async function setupView(actor: SetupActor) {
   const { setup, school, user } = actor;
-  const [delegate, activeCampuses, me, country, openChoice] = await Promise.all([
+  const [delegate, activeCampuses, me, country, openChoice, lastChoice] = await Promise.all([
     setup.delegateUserId
       ? prisma.user.findFirst({ where: { id: setup.delegateUserId, schoolId: school.id }, select: { id: true, fullName: true, email: true, canPurchaseSubscription: true, mustChangePassword: true } })
       : Promise.resolve(null),
@@ -175,6 +175,12 @@ export async function setupView(actor: SetupActor) {
       where: { schoolId: school.id, status: { in: ["PENDING_SETTLEMENT", "CHECKOUT_PENDING", "CUSTOM_QUOTE"] } },
       orderBy: { createdAt: "desc" },
       select: { id: true, plan: true, status: true, provider: true, billingPeriod: true, expectedCampuses: true, expectedEnrollment: true },
+    }),
+    // The owner's latest package choice that still stands (chosen, paid, reserved, requested or in checkout).
+    prisma.onboardingCheckoutIntent.findFirst({
+      where: { schoolId: school.id, status: { in: ["FREE_SELECTED", "SETTLED", "PENDING_SETTLEMENT", "CHECKOUT_PENDING", "CUSTOM_QUOTE"] } },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true, status: true, provider: true },
     }),
   ]);
   const type = setup.institutionType as InstitutionType;
@@ -214,6 +220,8 @@ export async function setupView(actor: SetupActor) {
       intentId: openChoice.id, plan: openChoice.plan, status: openChoice.status, provider: openChoice.provider, billingPeriod: openChoice.billingPeriod,
       expectedCampuses: openChoice.expectedCampuses, expectedEnrollment: openChoice.expectedEnrollment,
     } : null,
+    /** The package the owner chose in setup (null until they choose one: setup never picks for them). */
+    selectedPackage: lastChoice ? { plan: lastChoice.plan, status: lastChoice.status, provider: lastChoice.provider } : null,
     activeCampuses,
     contactEmail: school.contactEmail,
     language: me?.preferredLanguage || "en",

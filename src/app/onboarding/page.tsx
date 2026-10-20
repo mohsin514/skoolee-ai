@@ -88,6 +88,7 @@ export default function OnboardingWizard() {
           isGroup={isGroup}
           planName={v.plan.name}
           pendingPackage={v.pendingPackage}
+          selectedPackage={v.selectedPackage}
           limit={limit}
           planned={planned.length}
           draftsBeyond={split.drafts.length}
@@ -185,6 +186,7 @@ export default function OnboardingWizard() {
           period={w.packages.period}
           onPeriodChange={w.packages.setPeriod}
           pending={v.pendingPackage}
+          hasChoice={Boolean(v.selectedPackage)}
           contactEmail={v.contactEmail}
           beforeLeave={w.beforeLeave}
           returnFocusRef={w.packages.fromLink ? headingRef : undefined}
