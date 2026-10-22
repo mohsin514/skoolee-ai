@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { storageConnectOrigins } from "./src/lib/storage/csp";
 
 const nextConfig: NextConfig = {
   // An isolated build directory lets synthetic-data acceptance tests run beside the developer's app.
@@ -48,7 +49,7 @@ const nextConfig: NextConfig = {
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https://api.dicebear.com https://*.amazonaws.com https://*.r2.cloudflarestorage.com https://img.clerk.com",
           "font-src 'self' data:",
-          "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+          `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${storageConnectOrigins(process.env).join(" ")}`,
           "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",
           "media-src 'self' blob:",
           "object-src 'none'",
