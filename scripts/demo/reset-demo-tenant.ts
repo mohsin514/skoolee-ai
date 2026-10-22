@@ -17,7 +17,8 @@
  *
  * SKO-500 (Exam Studio slice 1) adds what the exam-chain demo needs: a Science department whose head
  * moderates, a Science subject in both Grade 7 sections, a student login, a syllabus with units and
- * page citations for the Teaching Line, and a mid-term whose Science rows sit nine days out.
+ * page citations for the Teaching Line, a mid-term whose Science rows sit nine days out, and a
+ * Grade 7 A Mathematics subject with no syllabus, for the live Syllabus Drop.
  */
 import { createHash, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
@@ -64,6 +65,8 @@ export async function resetDemoTenant(db: PrismaClient, password: string): Promi
   const subjectId = (await db.subject.create({ data: { schoolId, campusId, classId: classIds[0], name: "Science", teacherId: ids.teacher, totalMarks: 20 } })).id;
   // SKO-500: the same subject in section B, so a mid-term paper is one common paper for the grade.
   const subjectIdB = (await db.subject.create({ data: { schoolId, campusId, classId: classIds[1], name: "Science", teacherId: ids.teacher, totalMarks: 20 } })).id;
+  // SKO-500: Mathematics has no syllabus yet, so the demo can add one live (Syllabus Drop → outline → approve).
+  await db.subject.create({ data: { schoolId, campusId, classId: classIds[0], name: "Mathematics", teacherId: ids.teacher, totalMarks: 20 } });
   // SKO-500: the Science department; its head moderates the teacher's papers.
   const department = await db.department.create({ data: { schoolId, campusId, name: `${DEMO_LABEL} Science`, headId: ids.hod } });
   await db.departmentMember.create({ data: { schoolId, departmentId: department.id, userId: ids.hod, role: "HEAD", isPrimary: true } });

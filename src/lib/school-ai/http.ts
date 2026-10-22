@@ -43,6 +43,8 @@ export function schoolAiError(error: unknown) {
   // Never serialize provider responses, source text or credentials into a browser error.
   if (error instanceof AIProviderQuotaError) return Response.json({ error: "The configured AI provider has exhausted its API quota.", code: error.code }, { status: error.status });
   if (error instanceof PIILeakError) return Response.json({ error: "Review the source text and remove personal identifiers before asking the AI provider to process it.", code: "AI_SENSITIVE_CONTENT_BLOCKED" }, { status: 422 });
+  // SKO-500: keep the machine code beside the message so a surface can react (stale, refused, rate limited).
+  if (error instanceof SchoolAiError && error.code && error.status < 500) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers: { "Cache-Control": "private, no-store" } });
   if (error instanceof ApiError || error instanceof SchoolAiError || error instanceof AICreditError || error instanceof BillingAccessError || error instanceof AccessDenied) return errorResponse(error);
   return Response.json({ error: "This service is unavailable. Your saved work is unchanged; please try again." }, { status: 503 });
 }

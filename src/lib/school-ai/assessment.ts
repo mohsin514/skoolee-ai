@@ -231,7 +231,11 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
   if (!curriculum.sources.some((source) => source.kind !== "PAST_PAPER" && source.approved)) {
     errors.push("A past paper alone cannot establish curriculum coverage; add a syllabus, textbook or approved teacher plan.");
   }
-  if (!curriculum.outcomes.some((outcome) => outcome.included && outcome.taught)) errors.push("Include at least one taught outcome.");
+  // SKO-500: a syllabus drawn from an uploaded source records teaching on the Teaching Line, so it is
+  // approved before anything is taught. A hand-typed curriculum still needs one taught outcome.
+  const tracksTeachingLine = curriculum.sources.some((source) => source.sourceRecordId);
+  if (!tracksTeachingLine && !curriculum.outcomes.some((outcome) => outcome.included && outcome.taught)) errors.push("Include at least one taught outcome.");
+  if (tracksTeachingLine && !curriculum.outcomes.some((outcome) => outcome.included)) errors.push("Include at least one outcome.");
   for (const outcome of curriculum.outcomes) {
     if (!outcome.title.trim() || !outcome.sourcePage.trim() || !curriculum.sources.some((source) => source.id === outcome.sourceId && source.approved)) {
       errors.push(`Outcome ${outcome.title || outcome.id} needs an approved source and page reference.`);

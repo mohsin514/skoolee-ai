@@ -13,6 +13,7 @@ import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSyllabusCopy } from "@/lib/school-ai/exam-studio-copy-syllabus";
 import type { TeachingLineView } from "@/lib/school-ai/teaching-progress-service";
 import { Isolated, SpaceStateRegion, type SpaceState } from "./space-state";
+import { SyllabusDrop } from "./syllabus-drop";
 
 /**
  * SKO-500: the Syllabus Map with the Teaching Line.
@@ -111,7 +112,10 @@ export function SyllabusMap({ language, subjectId, classId, subjectLabel, onChan
   };
 
   if (state.kind !== "ready") return <SpaceStateRegion state={state} language={language}>{() => null}</SpaceStateRegion>;
-  if (!view!.curriculum) return <TaskFeedback kind="empty" title={t.noCurriculum}><p>{fillStudioCopy(t.noCurriculumHint, [subjectLabel])}</p></TaskFeedback>;
+  // SKO-500: no approved syllabus yet. A teacher (or manager) adds one here; a reader sees the empty state.
+  if (!view!.curriculum) return view!.canMove
+    ? <SyllabusDrop language={language} subjectId={subjectId} classId={classId} subjectLabel={subjectLabel} onApproved={() => { void load(); onChanged?.(); }} />
+    : <TaskFeedback kind="empty" title={t.noCurriculum}><p>{fillStudioCopy(t.noCurriculumHint, [subjectLabel])}</p></TaskFeedback>;
   const lineData = view!;
   const position = index >= 0 ? flat[index] : null;
 
