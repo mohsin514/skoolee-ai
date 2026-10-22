@@ -78,3 +78,27 @@ test("taught-after-sitting: an outcome taught after the sitting date, or never, 
   assert.deepEqual(taughtAfterSitting(["o1", "o2", "o3"], curriculum, rows, "2026-11-01"), ["o2", "o3"]);
   assert.deepEqual(taughtAfterSitting(["o1", "o2"], curriculum, rows, "2026-11-10"), []);
 });
+
+test("uploaded paper: numbered questions, options, marks and an answer key become a draft paper whose marks add up", async () => {
+  const { readPaperText, paperFromReading } = await import("../../src/lib/school-ai/paper-upload");
+  const text = [
+    "Grade 7 Science Mid-term",
+    "1. Which gas do plants take in? [1]",
+    "a) Oxygen", "b) Carbon dioxide", "c) Nitrogen",
+    "2) Name two things a plant needs for photosynthesis. (2 marks)",
+    "Q3. Explain how water moves through a plant. 5 marks",
+    "٤. Define diffusion.",
+    "Answers:", "1. b", "2. Light and water", "3. Through the xylem from roots to leaves", "9. stray",
+  ].join("\n");
+  const reading = readPaperText(text);
+  assert.deepEqual(reading.questions.map(question => [question.number, question.marks, question.options.length]), [[1, 1, 3], [2, 2, 0], [3, 5, 0], [4, 1, 0]]);
+  assert.deepEqual(reading.warnings.map(warning => warning.code).sort(), ["KEY_NOT_MATCHED", "MARKS_NOT_STATED"]);
+  const paper = paperFromReading(reading, { curriculumId: "c1", curriculumVersion: 2, subjectId: "s1", classId: "k1", language: "en", title: "Mid-term", durationMinutes: 60, now: "2026-10-23T08:00:00.000Z", slotId: "slot-1", examType: "MID_TERM" });
+  const { paperDataSchema } = await import("../../src/lib/school-ai/assessment");
+  assert.ok(paperDataSchema.safeParse(paper).success);
+  assert.equal(paper.generation.kind, "UPLOADED");
+  assert.equal(paper.questions.find(question => question.id === "q1")!.correctOptionId, "q1-b");
+  assert.equal(paper.questions.find(question => question.id === "q3")!.type, "EXTENDED_TEXT");
+  assert.equal(paper.blueprint.totalMarks, 9);
+  assert.equal(paper.blueprint.sections.reduce((sum, section) => sum + section.answerCount * section.marksPerQuestion, 0), 9, "blueprint marks add up");
+});
