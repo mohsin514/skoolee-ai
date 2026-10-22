@@ -9603,6 +9603,8 @@ model ExamPaperSlot {
   /// SKO-501: a sealed paper reported compromised (cancel the sitting or release the reserve form).
   compromisedAt     DateTime?   @map("compromised_at")
   compromiseReason  String?     @map("compromise_reason") @db.Text
+  /// SKO-501: corrigenda against the seal: [{ id, text, questionId?, at, byId, hashPrefix }], read out in every room.
+  corrigenda        Json        @default("[]")
   moderations       ExamPaperModeration[]
   version           Int         @default(1)
   createdAt         DateTime    @default(now()) @map("created_at")

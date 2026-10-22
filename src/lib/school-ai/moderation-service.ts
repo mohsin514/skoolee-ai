@@ -12,10 +12,9 @@
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError } from "@/lib/api/scope";
+import { ApiError, canLeadAcademics } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { isSchoolAiManager } from "./access";
 import { curriculumDataSchema, paperDataSchema, type PaperData } from "./assessment";
 import { headsOfAuthor } from "./department-heads";
 import { examChainPolicy } from "./exam-authority";
@@ -115,7 +114,9 @@ export const sealInput = z.strictObject({ paperVersion: z.number().int().positiv
 
 /** May this person seal? The academic lead (managers), or the author's head when the school delegates sealing. */
 async function assertSealAuthority(user: AuthUser, tx: TxClient, campusId: string, authorUserId: string | null) {
-  if (isSchoolAiManager(user)) return "MANAGER" as const;
+  // SKO-501 (authority narrowing, plan 4.8): the academic lead seals — the principal, or a campus admin only
+  // while the campus has no principal; a non-academic manager no longer does.
+  if (await canLeadAcademics(user, campusId)) return "MANAGER" as const;
   const policy = examChainPolicy((await resolveScopeDeliveryPolicy(user, campusId, tx)).policy);
   if (policy.sealedBy === "HEAD_OF_DEPARTMENT" && authorUserId && (await headsOfAuthor(tx, user.schoolId, authorUserId)).includes(user.userId)) return "HEAD_OF_DEPARTMENT" as const;
   throw new ApiError("The principal or academic lead seals term papers.", 403);
@@ -170,5 +171,36 @@ export async function reportCompromise(user: AuthUser, slotId: string, raw: unkn
     await tx.examPaperSlot.update({ where: { id: row.id }, data: { compromisedAt: new Date(), compromiseReason: input.reason, version: { increment: 1 } } });
     await writeAuditEvent(tx, user, { table: "exam_paper_slots", recordId: row.id, action: "UPDATE", campusId: row.campusId, after: { compromised: true, hashPrefix: row.sealHash ? row.sealHash.slice(0, 16) : null } });
     return { compromisedAt: new Date().toISOString() };
+  });
+}
+
+export const corrigendumInput = z.strictObject({ text: z.string().trim().min(5).max(1000), questionId: z.string().min(1).max(120).optional() });
+/**
+ * A corrigendum: a correction to a sealed paper, never a reprint. It is recorded against the seal (read out
+ * in every room from the Papers step) and, for any linked online sitting with candidates writing now, issued
+ * as a sitting-wide notice.
+ */
+export async function recordCorrigendum(user: AuthUser, slotId: string, raw: unknown) {
+  const input = corrigendumInput.parse(raw);
+  return schoolAiTransaction(user, async tx => {
+    const { row } = await getSlot(user, slotId, tx);
+    await assertExamOffice(user, row.campusId, tx);
+    if (!row.sealedAt || !row.sealHash) throw new ApiError("A corrigendum applies to a sealed paper.", 409);
+    const current = await tx.examPaperSlot.findFirstOrThrow({ where: { id: row.id, schoolId: user.schoolId }, select: { corrigenda: true } });
+    const list = Array.isArray(current.corrigenda) ? current.corrigenda as Array<Record<string, unknown>> : [];
+    if (list.length >= 20) throw new ApiError("This paper already has 20 corrigenda.", 409);
+    const entry = { id: crypto.randomUUID(), text: input.text, ...(input.questionId ? { questionId: input.questionId } : {}), at: new Date().toISOString(), byId: user.userId, hashPrefix: row.sealHash.slice(0, 16) };
+    await tx.examPaperSlot.update({ where: { id: row.id }, data: { corrigenda: [...list, entry] as unknown as object, version: { increment: 1 } } });
+    let pushed = 0;
+    const sittings = await tx.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, campusId: row.campusId, paperSlotId: row.id, status: "ACTIVE" }, select: { id: true } });
+    for (const sitting of sittings) {
+      const live = await tx.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId: sitting.id, status: "IN_PROGRESS" } });
+      if (!live) continue;
+      const last = await tx.schoolAiExamClarification.findFirst({ where: { assignmentId: sitting.id, schoolId: user.schoolId }, orderBy: { version: "desc" }, select: { version: true } });
+      await tx.schoolAiExamClarification.create({ data: { schoolId: user.schoolId, campusId: row.campusId, assignmentId: sitting.id, version: (last?.version ?? 0) + 1, questionId: input.questionId ?? null, text: input.text, audience: { kind: "SITTING" }, issuedById: user.userId } });
+      pushed += 1;
+    }
+    await writeAuditEvent(tx, user, { table: "exam_paper_slots", recordId: row.id, action: "UPDATE", campusId: row.campusId, after: { corrigendum: entry.id, hashPrefix: entry.hashPrefix, pushedToSittings: pushed } });
+    return { corrigendum: entry, pushedToSittings: pushed };
   });
 }

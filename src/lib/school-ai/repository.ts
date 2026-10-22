@@ -18,7 +18,7 @@ import { legacyWorkspaceRequestHash } from "./canonical";
 import { createWorkspaceSchema, parseWorkspaceData, updateWorkspaceSchema, workspaceIdSchema } from "./schemas";
 import { curriculumDataSchema, paperDataSchema, validatePaperApproval } from "./assessment";
 import { protectLessonPlans } from "./learning";
-import { canManageOperations } from "@/lib/api/scope";
+import { canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { PaperReviewWriteError, preparePaperContentWrite } from "./item-review";
 import { nextWorkspaceStatus, protectSourceMetadata, TRUSTED_SOURCE_FIELDS, workspaceApprovalIssues, type TrustedSourceMetadata } from "./workflows";
 import type { AiWorkspaceRecord, WorkspaceCreateInput, WorkspaceKind, WorkspaceRevision, WorkspaceStatus, WorkspaceUpdateInput } from "./types";
@@ -454,6 +454,11 @@ async function assertMayApprove(user: AuthUser, current: StoredRecord, policy: R
     { kind: current.kind, createdById: current.createdById, ...(paper?.success ? { examType: paper.data.examType, totalMarks: paper.data.blueprint.totalMarks } : {}) },
     examChainPolicy(policy.policy),
   );
+  // SKO-501 (authority narrowing, plan 4.8): a term paper (mid-term, final) is approved by the academic lead
+  // only — the principal, or a campus admin while the campus has no principal. Other kinds keep the manager rule.
+  if (decision.allowed && decision.as === "MANAGER" && current.kind === "PAPER" && paper?.success && (paper.data.examType === "MID_TERM" || paper.data.examType === "FINAL") && !(await canLeadAcademics(user, current.campusId))) {
+    throw new SchoolAiError("A term paper is approved by the principal or academic lead, after moderation.", 403, "APPROVAL_TERM_PAPER_NEEDS_SEAL_AUTHORITY");
+  }
   if (decision.allowed) return decision.as;
   const messages: Record<typeof decision.reason, string> = {
     NOT_AN_APPROVER: "Only your head of department or an academic lead can approve this saved version.",

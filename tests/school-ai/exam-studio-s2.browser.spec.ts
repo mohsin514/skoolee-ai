@@ -83,6 +83,11 @@ test("the principal seals from the Papers step and prints the sealed paper; an e
   const print = await context.request.get(`/api/academic/paper-slots/${slotId}/print`);
   expect(print.status()).toBe(200);
   expect(await print.text()).toContain(slot.sealHash!.slice(0, 16));
+  // A corrigendum is recorded against the seal and shown to read out in every room.
+  expect((await context.request.post(`/api/academic/paper-slots/${slotId}/corrigendum`, { headers, data: { text: "Question 2: write two things, not three." } })).ok()).toBeTruthy();
+  await page.reload();
+  await page.getByRole("button", { name: /Papers/ }).first().click();
+  await expect(page.locator("[data-corrigenda]")).toContainText("Question 2");
   if (shots) await page.screenshot({ path: `${shots}/principal-sealed.png`, fullPage: true });
   const current = await paper(paperId);
   const data = current.data as { questions: Array<{ prompt: string }> };

@@ -168,6 +168,7 @@ export interface SlotView {
   paperRecordId: string | null; paperVersion: number | null; copiesRequested: number | null; printedAt: string | null;
   cancelledAt: string | null; cancelReason: string | null; lastNudgeAt: string | null; nudgeCount: number;
   sealedAt: string | null; sealPrefix: string | null; compromisedAt: string | null; lastDecision: { decision: string; at: string } | null;
+  corrigenda: Array<{ id: string; text: string; at: string }>;
   sections: Array<{ classId: string; subjectId: string; teacherId: string | null; name: string; examId: string; scheduleId: string; date: string }>;
   dates: string[]; period: string | null;
 }
@@ -215,6 +216,7 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
       paperRecordId: row.paperRecordId, paperVersion: row.paperVersion, copiesRequested: row.copiesRequested, printedAt: row.printedAt?.toISOString() ?? null,
       cancelledAt: row.cancelledAt?.toISOString() ?? null, cancelReason: row.cancelReason, lastNudgeAt: row.lastNudgeAt?.toISOString() ?? null, nudgeCount: row.nudgeCount,
       sealedAt: row.sealedAt?.toISOString() ?? null, sealPrefix: row.sealHash ? row.sealHash.slice(0, 16) : null, compromisedAt: row.compromisedAt?.toISOString() ?? null,
+      corrigenda: (Array.isArray(row.corrigenda) ? row.corrigenda as Array<{ id: string; text: string; at: string }> : []).map(entry => ({ id: entry.id, text: entry.text, at: entry.at })),
       lastDecision: latestModeration.get(row.id) ? { decision: latestModeration.get(row.id)!.decision, at: latestModeration.get(row.id)!.createdAt.toISOString() } : null,
       sections: row.schedules.map(schedule => ({ classId: schedule.exam.class.id, subjectId: schedule.subject.id, teacherId: schedule.subject.teacherId, name: schedule.exam.class.section ? `${schedule.exam.class.name} ${schedule.exam.class.section}` : schedule.exam.class.name, examId: schedule.exam.id, scheduleId: schedule.id, date: ymd(schedule.date)! })),
       dates, period: period ? `${period.startTime}–${period.endTime}` : null,
